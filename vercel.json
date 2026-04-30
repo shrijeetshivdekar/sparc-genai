@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "routes": [
+    { "src": "/api/health", "dest": "/api/health.py" },
+    { "src": "/api/meta", "dest": "/api/meta.py" },
+    { "src": "/api/analyze", "dest": "/api/analyze.py" },
+    { "src": "/app.js", "dest": "/startup_shield_web/app.js" },
+    { "src": "/styles.css", "dest": "/startup_shield_web/styles.css" },
+    { "src": "/", "dest": "/startup_shield_web/index.html" },
+    { "src": "/(.*)", "dest": "/startup_shield_web/index.html" }
+  ]
+}

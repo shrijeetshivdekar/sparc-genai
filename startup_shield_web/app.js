@@ -1,1115 +1,1432 @@
+/* ═══════════════════════════════════════════════════════════════
+   SPARC 3.0 — Redesigned frontend
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── CONSTANTS ──────────────────────────────────────────────── */
+const SECTIONS = [
+  { id: "identity",  label: "Identity",  icon: "◎" },
+  { id: "shape",     label: "Shape",     icon: "⬡" },
+  { id: "exposure",  label: "Exposure",  icon: "⚡" },
+  { id: "advanced",  label: "Advanced",  icon: "⚙" },
+];
+
+const SECTOR_ICONS = {
+  "Fintech":                     "💳",
+  "Healthtech":                  "🏥",
+  "SaaS / Enterprise Software":  "💻",
+  "Deeptech / AI / Robotics":    "🤖",
+  "Edtech":                      "🎓",
+  "D2C / Consumer Brands":       "🛍",
+  "Logistics / Mobility":        "🚚",
+  "Agritech / Foodtech":         "🌱",
+  "Cleantech / Climatetech":     "🌿",
+  "Gaming / Media / Content":    "🎮",
+  "HRtech":                      "👥",
+  "Legaltech":                   "⚖",
+  "Proptech":                    "🏠",
+  "Spacetech":                   "🚀",
+  "Insurtech":                   "🛡",
+  "Other":                       "✦",
+};
+
+const OPS_ICONS = {
+  "Digital-only":         "🌐",
+  "Hybrid (online+offline)": "⟳",
+  "Offline / Physical":   "🏢",
+  "Hardware / IoT":       "📦",
+  "Marketplace":          "🔀",
+};
+
+const FUNDING_ICONS = {
+  "Pre-seed":  "🌱",
+  "Seed":      "🌿",
+  "Series A":  "🌳",
+  "Series B+": "🌲",
+};
+
+/* ─── STATE ──────────────────────────────────────────────────── */
 const state = {
   meta: null,
-  step: 0,
+  section: 0,   // 0..3
   profile: {},
 };
 
-const screens = [
-  { section: "Identity", key: "startup_name", title: "What is your startup called?", type: "text", placeholder: "Acme Labs" },
-  { section: "Identity", key: "sector", title: "Which sector best describes your startup?", type: "select", options: "sectors" },
-  { section: "Identity", key: "sub_sector", title: "Do you have a specific sub-sector?", type: "subsector" },
-  { section: "Identity", key: "funding_stage", title: "What funding stage are you at?", type: "choices", options: "fundingStages" },
-  { section: "Shape", key: "team_size", title: "How many full-time team members do you have?", type: "range", min: 1, max: 500, step: 1 },
-  { section: "Shape", key: "operations", title: "What does your operating model look like?", type: "choices", options: "operations" },
-  { section: "Shape", key: "data_sensitivity", title: "How sensitive is the customer data you handle?", type: "choices", options: "dataSensitivity" },
-  { section: "Shape", key: "ai_in_product", title: "Is AI / ML part of your core product?", type: "booleanChoice", options: ["No", "Yes"] },
-  { section: "Shape", key: "customer_type", title: "Who are your customers?", type: "multi", options: "customerTypeOptions" },
-  { section: "Shape", key: "has_investors", title: "Do you have institutional investors on board?", type: "choices", options: ["Yes", "No"] },
-  { section: "Shape", key: "product_description", title: "What does your product or service do?", type: "textarea", placeholder: "Example: We build a UPI payment gateway for SMBs, processing 10k+ transactions/day." },
-  { section: "Exposure", key: "data_handled", title: "What sensitive data or assets do you handle?", type: "multi", options: "dataHandledOptions" },
-  { section: "Exposure", key: "regulatory", title: "Which regulatory exposures apply?", type: "multi", options: "regulatoryOptions" },
-  { section: "Exposure", key: "physical_assets", title: "Which physical assets do you own?", type: "multi", options: "physicalAssetOptions" },
-  { section: "Exposure", key: "biggest_fear", title: "What is your biggest risk fear?", type: "textarea", placeholder: "Example: A data breach that damages customer trust." },
-];
-
+/* ─── UTILS ──────────────────────────────────────────────────── */
 const $ = (id) => document.getElementById(id);
+const esc = (v) => String(v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+const labelize = (k) => k.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase());
+const formatVal = (v) => {
+  if (Array.isArray(v)) return v.length ? v.join(", ") : "None";
+  if (v === null || v === undefined || v === "") return "None";
+  if (typeof v === "boolean") return v ? "Yes" : "No";
+  return String(v);
+};
 
+/* ─── INIT ───────────────────────────────────────────────────── */
 async function init() {
-  const response = await fetch("/api/meta");
-  state.meta = await response.json();
-  state.profile = structuredClone(state.meta.defaults);
-  render();
-}
-
-function getOptions(source) {
-  if (Array.isArray(source)) return source;
-  if (source === "sectors") return state.meta.sectors.map((item) => item.name);
-  return state.meta[source] || [];
-}
-
-function setValue(key, value) {
-  state.profile[key] = value;
-  renderSummary();
-}
-
-function render() {
-  const screen = screens[state.step];
-  $("section-label").textContent = screen.section;
-  $("step-label").textContent = `${state.step + 1} of ${screens.length}`;
-  $("progress-fill").style.width = `${((state.step + 1) / screens.length) * 100}%`;
-  $("back-btn").disabled = state.step === 0;
-  $("next-btn").textContent = state.step === screens.length - 1 ? "Analyse my startup" : "Next";
-
-  $("screen").innerHTML = `<div class="question"><h2>${screen.title}</h2><p>${helperText(screen)}</p><div id="control"></div></div>`;
-  renderControl(screen, $("control"));
-  renderSummary();
-}
-
-function helperText(screen) {
-  const copy = {
-    Identity: "These basics set the sector profile and regulatory baseline.",
-    Shape: "This tells the engine how your operating model changes risk exposure.",
-    Exposure: "These inputs sharpen product triggers and AI bundle context.",
-    Advanced: "Optional precision inputs. Leave defaults if you are not sure.",
-  };
-  return copy[screen.section] || "";
-}
-
-function renderControl(screen, root) {
-  if (screen.type === "text") {
-    root.innerHTML = `<input class="field" value="${escapeAttr(state.profile[screen.key] || "")}" placeholder="${screen.placeholder || ""}" />`;
-    root.querySelector("input").addEventListener("input", (event) => setValue(screen.key, event.target.value));
-    return;
-  }
-
-  if (screen.type === "textarea") {
-    root.innerHTML = `<textarea class="textarea" placeholder="${screen.placeholder || ""}">${escapeHtml(state.profile[screen.key] || "")}</textarea>`;
-    root.querySelector("textarea").addEventListener("input", (event) => setValue(screen.key, event.target.value));
-    return;
-  }
-
-  if (screen.type === "select") {
-    const options = getOptions(screen.options);
-    root.innerHTML = `<select class="select">${options.map((option) => optionHtml(option, state.profile[screen.key])).join("")}</select>`;
-    root.querySelector("select").addEventListener("change", (event) => {
-      setValue(screen.key, event.target.value);
-      state.profile.sub_sector = null;
-      render();
-    });
-    return;
-  }
-
-  if (screen.type === "subsector") {
-    const options = [null, ...(state.meta.subSectorOptions[state.profile.sector] || [])];
-    root.innerHTML = `<select class="select">${options.map((option) => optionHtml(option, state.profile.sub_sector, "General")).join("")}</select>`;
-    root.querySelector("select").addEventListener("change", (event) => setValue("sub_sector", event.target.value || null));
-    return;
-  }
-
-  if (screen.type === "choices") {
-    renderChoices(root, screen.key, getOptions(screen.options), false);
-    return;
-  }
-
-  if (screen.type === "multi") {
-    renderChoices(root, screen.key, getOptions(screen.options), true);
-    return;
-  }
-
-  if (screen.type === "booleanChoice") {
-    renderBooleanChoices(root, screen.key, screen.options);
-    return;
-  }
-
-  if (screen.type === "range") {
-    renderRange(root, screen.key, screen.min, screen.max, screen.step);
-    return;
-  }
-
-  renderAdvanced(screen.type, root);
-}
-
-function renderBooleanChoices(root, key, options) {
-  const selected = state.profile[key] ? "Yes" : "No";
-  root.innerHTML = `<div class="choice-grid">${options.map((option) => {
-    const active = selected === option;
-    return `<button class="choice ${active ? "active" : ""}" type="button" data-value="${escapeAttr(option)}">${escapeHtml(option)}</button>`;
-  }).join("")}</div>`;
-  root.querySelectorAll(".choice").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.profile[key] = button.dataset.value === "Yes";
-      state.profile.ai_tier = state.profile[key] ? "Applied" : "None";
-      render();
-    });
-  });
-}
-
-function renderChoices(root, key, options, multi) {
-  const selected = multi ? state.profile[key] || [] : state.profile[key];
-  root.innerHTML = `<div class="choice-grid ${options.length > 6 ? "compact" : ""}">${options.map((option) => {
-    const active = multi ? selected.includes(option) : selected === option;
-    return `<button class="choice ${active ? "active" : ""}" type="button" data-value="${escapeAttr(option)}">${active && multi ? "✓ " : ""}${escapeHtml(String(option))}</button>`;
-  }).join("")}</div>`;
-
-  root.querySelectorAll(".choice").forEach((button) => {
-    button.addEventListener("click", () => {
-      const value = button.dataset.value;
-      if (multi) {
-        const next = new Set(state.profile[key] || []);
-        next.has(value) ? next.delete(value) : next.add(value);
-        state.profile[key] = [...next];
-      } else {
-        state.profile[key] = value;
-      }
-      render();
-    });
-  });
-}
-
-function renderRange(root, key, min, max, step) {
-  const value = Number(state.profile[key] ?? min);
-  root.innerHTML = `
-    <div class="range-row">
-      <input type="range" min="${min}" max="${max}" step="${step}" value="${value}" />
-      <div class="range-value">${value}</div>
-    </div>`;
-  root.querySelector("input").addEventListener("input", (event) => {
-    state.profile[key] = Number(event.target.value);
-    root.querySelector(".range-value").textContent = event.target.value;
-    renderSummary();
-  });
-}
-
-function renderAdvanced(type, root) {
-  if (type === "advancedGovernance") {
-    root.innerHTML = advancedGrid([
-      numberField("investor_cn_hk_pct", "China / HK investor BO", 0, 1, 0.01),
-      numberField("cumulative_fundraising_inr_cr", "Total fundraising, INR Cr", 0, 10000, 10),
-      selectField("holdco_domicile", "Holdco domicile", state.meta.holdcoDomiciles),
-      numberField("founder_concentration_index", "Founder concentration index", 0, 1, 0.01),
-      checkboxField("dpiit_recognition", "DPIIT recognised startup"),
-      selectField("rbi_registration", "RBI registration", state.meta.rbiRegistrations, "None"),
-    ]);
-  } else if (type === "advancedWorkforce") {
-    root.innerHTML = advancedGrid([
-      numberField("gig_headcount_pct", "Gig / contractor workforce", 0, 1, 0.01),
-      checkboxField("posh_ic_constituted", "POSH IC constituted"),
-      checkboxField("cert_in_poc_designated", "CERT-In POC designated"),
-    ]) + `<div class="choice-grid compact">${state.meta.states.map((item) => choiceHtml("state_footprint", item, true)).join("")}</div>`;
-  } else if (type === "advancedDataAi") {
-    root.innerHTML = advancedGrid([
-      numberField("sdf_probability", "SDF likelihood", 0, 1, 0.01),
-      selectField("data_localisation_status", "Data localisation", ["Unknown", "Full_onshore", "Hybrid", "Offshore"]),
-      checkboxField("ai_in_product", "AI / ML in core product"),
-      numberField("hardware_software_split", "Hardware revenue", 0, 1, 0.01),
-    ]);
-  } else if (type === "advancedMarket") {
-    root.innerHTML = advancedGrid([
-      numberField("b2b_pct", "B2B revenue", 0, 1, 0.01),
-      numberField("export_eu_pct", "EU revenue", 0, 1, 0.01),
-      numberField("export_us_pct", "US revenue", 0, 1, 0.01),
-      numberField("export_china_pct", "China revenue", 0, 1, 0.01),
-      numberField("chinese_supplier_pct_cogs", "Chinese supplier COGS", 0, 1, 0.01),
-      checkboxField("listed_customer_brsr_dependency", "Listed customers require BRSR data"),
-    ]);
-  } else {
-    root.innerHTML = advancedGrid([
-      selectField("facility_climate_risk_zone", "Facility climate risk zone", state.meta.climateZones),
-    ]);
-  }
-  bindAdvanced(root);
-}
-
-function advancedGrid(items) {
-  return `<div class="choice-grid">${items.join("")}</div>`;
-}
-
-function numberField(key, label, min, max, step) {
-  if (min === 0 && max === 1) {
-    const value = Number(state.profile[key] ?? 0);
-    return `
-      <label class="slider-field">
-        <span class="card-label">${label}</span>
-        <div class="range-row">
-          <input type="range" data-key="${key}" min="0" max="1" step="${step}" value="${value}" />
-          <div class="range-value">${value.toFixed(2)}</div>
-        </div>
-      </label>`;
-  }
-  return `<label><span class="card-label">${label}</span><input class="field" type="number" data-key="${key}" min="${min}" max="${max}" step="${step}" value="${state.profile[key] ?? 0}" /></label>`;
-}
-
-function selectField(key, label, options, nullLabel) {
-  return `<label><span class="card-label">${label}</span><select class="select" data-key="${key}">${options.map((option) => optionHtml(option, state.profile[key], nullLabel)).join("")}</select></label>`;
-}
-
-function checkboxField(key, label) {
-  return `<label class="choice ${state.profile[key] ? "active" : ""}"><input type="checkbox" data-key="${key}" ${state.profile[key] ? "checked" : ""} /> ${label}</label>`;
-}
-
-function choiceHtml(key, value, multi) {
-  const selected = multi ? (state.profile[key] || []).includes(value) : state.profile[key] === value;
-  return `<button class="choice ${selected ? "active" : ""}" type="button" data-multi="${multi}" data-key="${key}" data-value="${escapeAttr(value)}">${selected && multi ? "✓ " : ""}${escapeHtml(value)}</button>`;
-}
-
-function bindAdvanced(root) {
-  root.querySelectorAll("input[type='range']").forEach((field) => {
-    field.addEventListener("input", () => {
-      const value = Number(field.value);
-      state.profile[field.dataset.key] = value;
-      const valueEl = field.closest(".range-row")?.querySelector(".range-value");
-      if (valueEl) valueEl.textContent = value.toFixed(2);
-      renderSummary();
-    });
-  });
-  root.querySelectorAll("input[type='number']").forEach((field) => {
-    field.addEventListener("input", () => setValue(field.dataset.key, Number(field.value)));
-  });
-  root.querySelectorAll("select").forEach((field) => {
-    field.addEventListener("change", () => setValue(field.dataset.key, field.value || null));
-  });
-  root.querySelectorAll("input[type='checkbox']").forEach((field) => {
-    field.addEventListener("change", () => {
-      state.profile[field.dataset.key] = field.checked;
-      render();
-    });
-  });
-  root.querySelectorAll("button.choice[data-multi='true']").forEach((button) => {
-    button.addEventListener("click", () => {
-      const key = button.dataset.key;
-      const value = button.dataset.value;
-      const next = new Set(state.profile[key] || []);
-      next.has(value) ? next.delete(value) : next.add(value);
-      state.profile[key] = [...next];
-      render();
-    });
-  });
-}
-
-function optionHtml(option, selected, nullLabel) {
-  const value = option ?? "";
-  const label = option ?? nullLabel ?? "";
-  return `<option value="${escapeAttr(value)}" ${selected === option ? "selected" : ""}>${escapeHtml(String(label))}</option>`;
-}
-
-function renderSummary() {
-  $("summary-body").innerHTML = [
-    ["Name", state.profile.startup_name || "Not set"],
-    ["Sector", state.profile.sector || "Not set"],
-    ["Stage", state.profile.funding_stage || "Not set"],
-    ["Team", `${state.profile.team_size || 0} FTEs`],
-    ["Operations", state.profile.operations || "Not set"],
-  ].map(([label, value]) => `<div class="summary-item"><strong>${label}</strong><span>${escapeHtml(String(value))}</span></div>`).join("");
-}
-
-async function analyze() {
-  $("next-btn").disabled = true;
-  $("next-btn").textContent = "Analysing...";
+  renderApp();
+  const stub = buildStubMeta();
   try {
-    const result = await fetchAnalysis();
+    const res = await fetch("/api/meta");
+    if (!res.ok) throw new Error("no meta");
+    const ct = res.headers.get("content-type") || "";
+    if (!ct.includes("json")) throw new Error("not json");
+    const serverMeta = await res.json();
+    // Merge: server values take priority, stub fills any missing fields
+    state.meta = { ...stub, ...serverMeta };
+    state.profile = structuredClone(state.meta.defaults);
+  } catch (e) {
+    state.meta = stub;
+    state.profile = structuredClone(state.meta.defaults);
+  }
+  renderForm();
+}
+
+function buildStubMeta() {
+  return {
+    defaults: {
+      startup_name: "",
+      sector: "SaaS / Enterprise Software",
+      sub_sector: null,
+      funding_stage: "Series A",
+      team_size: 20,
+      operations: "Digital-only",
+      data_sensitivity: "Medium",
+      ai_in_product: false,
+      ai_tier: "None",
+      customer_type: [],
+      has_investors: "No",
+      product_description: "",
+      data_handled: [],
+      regulatory: [],
+      physical_assets: [],
+      biggest_fear: "",
+      investor_cn_hk_pct: 0,
+      cumulative_fundraising_inr_cr: 0,
+      holdco_domicile: "India",
+      founder_concentration_index: 0.5,
+      dpiit_recognition: false,
+      rbi_registration: null,
+      gig_headcount_pct: 0,
+      posh_ic_constituted: false,
+      state_footprint: [],
+      cert_in_poc_designated: false,
+      sdf_probability: 0.5,
+      data_localisation_status: "Unknown",
+      hardware_software_split: 0,
+      b2b_pct: 0.5,
+      export_eu_pct: 0,
+      export_us_pct: 0,
+      export_china_pct: 0,
+      chinese_supplier_pct_cogs: 0,
+      listed_customer_brsr_dependency: false,
+      facility_climate_risk_zone: "Low",
+    },
+    sectors: [
+      "Fintech","Healthtech","SaaS / Enterprise Software","Deeptech / AI / Robotics",
+      "Edtech","D2C / Consumer Brands","Logistics / Mobility","Agritech / Foodtech",
+      "Cleantech / Climatetech","Gaming / Media / Content","HRtech","Legaltech",
+      "Proptech","Spacetech","Insurtech","Other",
+    ].map(n=>({name:n})),
+    subSectorOptions: {},
+    fundingStages: ["Pre-seed","Seed","Series A","Series B+"],
+    operations: ["Digital-only","Hybrid (online+offline)","Offline / Physical","Hardware / IoT","Marketplace"],
+    dataSensitivity: ["Low","Medium","High","Very High"],
+    customerTypeOptions: ["B2B Enterprise","B2B SMB","B2C Consumers","Government / PSU","D2C"],
+    dataHandledOptions: [
+      "Employee / HR data (payroll, biometrics)",
+      "Customer behavioural / usage data",
+      "Financial / payment data",
+      "Health / medical records",
+      "Children's data",
+      "Biometric data",
+      "None / minimal",
+    ],
+    regulatoryOptions: [
+      "DPDP Act obligations","RBI / NBFC licensing","SEBI regulations","FSSAI licensing",
+      "IRDAI regulations","CERT-In compliance","Telecom / DoT licensing","None known",
+    ],
+    physicalAssetOptions: [
+      "Office / coworking space","Owned warehouse / factory","Lab / R&D equipment",
+      "Fleet / vehicles","Retail outlets","None",
+    ],
+    states: ["Maharashtra","Karnataka","Delhi NCR","Tamil Nadu","Telangana","Gujarat","Rajasthan","Others"],
+    holdcoDomiciles: ["India","Singapore","USA (Delaware)","Cayman Islands","Mauritius","UK","UAE","Netherlands"],
+    rbiRegistrations: ["None","PA (Payment Aggregator)","PG (Payment Gateway)","NBFC","NBFC-AA","Prepaid Instruments"],
+    aiTiers: ["None","Applied","Autonomous","Frontier"],
+    climateZones: ["Low","Medium","High","Very High"],
+  };
+}
+
+/* ─── TOP BAR ────────────────────────────────────────────────── */
+function renderApp() {
+  document.getElementById("app").innerHTML = `
+    <div class="app-wrap">
+      <header class="topbar">
+        <div class="topbar-brand">
+          <div class="brand-mark">S</div>
+          <span class="topbar-name">SPARC</span>
+        </div>
+        <div class="topbar-sep"></div>
+        <span class="topbar-sub">ICICI Lombard · Startup Risk Intelligence</span>
+      </header>
+      <div id="main-content"></div>
+    </div>`;
+}
+
+/* ─── FORM RENDER ────────────────────────────────────────────── */
+function renderForm() {
+  const mc = $("main-content");
+  mc.innerHTML = `
+    <div class="intake-shell">
+      <main class="intake-main">
+        <div class="intake-hero">
+          <div class="intake-eyebrow">Risk Analysis</div>
+          <h1>Tell us about<br/>your startup</h1>
+          <p>We'll map your risk exposure across 13 categories and recommend the exact insurance covers you need.</p>
+        </div>
+
+        <div class="progress-row" id="progress-row"></div>
+
+        <div id="form-sections">
+          ${renderSectionIdentity()}
+          ${renderSectionShape()}
+          ${renderSectionExposure()}
+          ${renderSectionAdvanced()}
+        </div>
+
+        <div class="intake-nav">
+          <button class="btn btn-ghost" id="back-btn" type="button" disabled>← Back</button>
+          <div class="nav-spacer"></div>
+          <button class="btn btn-primary btn-lg" id="next-btn" type="button">Continue →</button>
+        </div>
+      </main>
+
+      <aside class="intake-sidebar">
+        <div class="sidebar-card">
+          <div class="sidebar-card-label">Your profile so far</div>
+          <div id="profile-summary"></div>
+        </div>
+        <div class="sidebar-card">
+          <div class="sidebar-card-label">We'll calculate</div>
+          <div class="info-list">
+            ${[
+              "Risk score across 13 categories",
+              "Overall exposure rating out of 100",
+              "Personalised ICICI Lombard products",
+              "Premium cost estimates",
+              "Non-insurance mitigation actions",
+            ].map(t=>`<div class="info-row"><div class="info-dot"></div><span>${t}</span></div>`).join("")}
+          </div>
+        </div>
+      </aside>
+    </div>`;
+
+  bindForm();
+  updateProgress();
+  showSection(0);
+  updateProfileSummary();
+}
+
+/* ── Section 0: Identity ──────────────────────────────────── */
+function renderSectionIdentity() {
+  const meta = state.meta;
+  const sectors = meta.sectors.map(s=>s.name);
+  const p = state.profile;
+
+  const sectorCards = sectors.map(s => `
+    <button class="choice-card ${p.sector===s?"active":""}" type="button" data-key="sector" data-value="${esc(s)}" onclick="chooseCard(this,'sector',false)">
+      <div class="cc-icon">${SECTOR_ICONS[s]||"✦"}</div>
+      <div class="cc-label">${esc(s)}</div>
+    </button>`).join("");
+
+  const stageCards = meta.fundingStages.map(s => `
+    <button class="choice-card ${p.funding_stage===s?"active":""}" type="button" data-key="funding_stage" data-value="${esc(s)}" onclick="chooseCard(this,'funding_stage',false)">
+      <div class="cc-icon">${FUNDING_ICONS[s]||"●"}</div>
+      <div class="cc-label">${esc(s)}</div>
+    </button>`).join("");
+
+  return `
+    <div class="form-section" id="section-identity">
+      <div class="section-label">01 — Identity</div>
+
+      <div class="field-group">
+        <label>Startup name</label>
+        <input class="f-input" id="f-name" type="text" placeholder="e.g. Acme Labs" value="${esc(p.startup_name||"")}" oninput="setVal('startup_name',this.value)" />
+      </div>
+
+      <div class="field-group">
+        <label>Sector</label>
+        <div class="card-grid">${sectorCards}</div>
+      </div>
+
+      <div class="field-group">
+        <label>Funding stage</label>
+        <div class="card-grid">${stageCards}</div>
+      </div>
+
+      <div class="field-row">
+        <div class="field-group">
+          <label>Team size (full-time)</label>
+          <div class="range-wrap">
+            <input type="range" min="1" max="500" step="1"
+              value="${p.team_size||20}"
+              oninput="setVal('team_size',Number(this.value)); this.nextElementSibling.textContent=this.value" />
+            <div class="range-bubble">${p.team_size||20}</div>
+          </div>
+        </div>
+        <div class="field-group">
+          <label>Institutional investors?</label>
+          <div class="pill-grid">
+            ${["Yes","No"].map(v=>`<button class="pill ${p.has_investors===v?"active":""}" type="button" onclick="chooseVal('has_investors','${v}',false)">${v}</button>`).join("")}
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ── Section 1: Shape ─────────────────────────────────────── */
+function renderSectionShape() {
+  const meta = state.meta;
+  const p = state.profile;
+
+  const opsCards = meta.operations.map(s => `
+    <button class="choice-card ${p.operations===s?"active":""}" type="button" data-key="operations" data-value="${esc(s)}" onclick="chooseCard(this,'operations',false)">
+      <div class="cc-icon">${OPS_ICONS[s]||"●"}</div>
+      <div class="cc-label">${esc(s)}</div>
+    </button>`).join("");
+
+  const sensitivityPills = meta.dataSensitivity.map(v=>`
+    <button class="pill ${p.data_sensitivity===v?"active":""}" type="button" onclick="chooseVal('data_sensitivity','${v}',false)">${v}</button>`).join("");
+
+  const custPills = meta.customerTypeOptions.map(v=>`
+    <button class="pill ${(p.customer_type||[]).includes(v)?"active":""}" type="button" onclick="chooseVal('customer_type','${esc(v)}',true)">${esc(v)}</button>`).join("");
+
+  return `
+    <div class="form-section" id="section-shape">
+      <div class="section-label">02 — Shape</div>
+
+      <div class="field-group">
+        <label>Operating model</label>
+        <div class="card-grid">${opsCards}</div>
+      </div>
+
+      <div class="field-row">
+        <div class="field-group">
+          <label>Data sensitivity</label>
+          <div class="pill-grid">${sensitivityPills}</div>
+        </div>
+        <div class="field-group">
+          <label>AI / ML in core product?</label>
+          <div class="pill-grid">
+            ${["No","Yes"].map(v=>`<button class="pill ${(p.ai_in_product?(v==="Yes"):(v==="No"))?"active":""}" type="button" onclick="setAI('${v}')">${v}</button>`).join("")}
+          </div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Customers <span style="font-weight:400;color:var(--ink-faint)">(select all that apply)</span></label>
+        <div class="pill-grid">${custPills}</div>
+      </div>
+
+      <div class="field-group">
+        <label>What does your product do? <span style="font-weight:400;color:var(--ink-faint)">(optional)</span></label>
+        <textarea class="f-textarea" placeholder="e.g. We build a UPI payment gateway for SMBs…" oninput="setVal('product_description',this.value)">${esc(p.product_description||"")}</textarea>
+      </div>
+    </div>`;
+}
+
+/* ── Section 2: Exposure ──────────────────────────────────── */
+function renderSectionExposure() {
+  const meta = state.meta;
+  const p = state.profile;
+
+  const dataPills = meta.dataHandledOptions.map(v=>`
+    <button class="pill ${(p.data_handled||[]).includes(v)?"active":""}" type="button" onclick="chooseVal('data_handled','${esc(v)}',true)">${esc(v)}</button>`).join("");
+
+  const regPills = meta.regulatoryOptions.map(v=>`
+    <button class="pill ${(p.regulatory||[]).includes(v)?"active":""}" type="button" onclick="chooseVal('regulatory','${esc(v)}',true)">${esc(v)}</button>`).join("");
+
+  const assetPills = meta.physicalAssetOptions.map(v=>`
+    <button class="pill ${(p.physical_assets||[]).includes(v)?"active":""}" type="button" onclick="chooseVal('physical_assets','${esc(v)}',true)">${esc(v)}</button>`).join("");
+
+  return `
+    <div class="form-section" id="section-exposure">
+      <div class="section-label">03 — Exposure</div>
+
+      <div class="field-group">
+        <label>Sensitive data you handle <span style="font-weight:400;color:var(--ink-faint)">(select all)</span></label>
+        <div class="pill-grid">${dataPills}</div>
+      </div>
+
+      <div class="field-group">
+        <label>Regulatory exposure <span style="font-weight:400;color:var(--ink-faint)">(select all)</span></label>
+        <div class="pill-grid">${regPills}</div>
+      </div>
+
+      <div class="field-group">
+        <label>Physical assets <span style="font-weight:400;color:var(--ink-faint)">(select all)</span></label>
+        <div class="pill-grid">${assetPills}</div>
+      </div>
+
+      <div class="field-group">
+        <label>Biggest risk concern <span style="font-weight:400;color:var(--ink-faint)">(optional)</span></label>
+        <textarea class="f-textarea" placeholder="e.g. A data breach that damages customer trust…" oninput="setVal('biggest_fear',this.value)">${esc(p.biggest_fear||"")}</textarea>
+      </div>
+    </div>`;
+}
+
+/* ── Section 3: Advanced ──────────────────────────────────── */
+function renderSectionAdvanced() {
+  const meta = state.meta;
+  const p = state.profile;
+
+  const mkSlider = (key, label, min, max, step, decimals=2) => {
+    const val = Number(p[key] ?? 0);
+    return `
+      <div class="refine-field">
+        <label>${label}</label>
+        <div class="slider-field">
+          <input type="range" min="${min}" max="${max}" step="${step}" value="${val}"
+            oninput="setVal('${key}',Number(this.value)); this.nextElementSibling.textContent=Number(this.value).toFixed(${decimals})" />
+          <span class="slider-val">${val.toFixed(decimals)}</span>
+        </div>
+      </div>`;
+  };
+
+  const mkSelect = (key, label, opts, nullLabel="") => {
+    const cur = p[key];
+    return `
+      <div class="refine-field">
+        <label>${label}</label>
+        <select class="f-select" style="height:38px;font-size:13px;" onchange="setVal('${key}',this.value||null)">
+          ${nullLabel?`<option value="">${esc(nullLabel)}</option>`:""}
+          ${opts.map(o=>`<option value="${esc(o)}" ${cur===o?"selected":""}>${esc(o)}</option>`).join("")}
+        </select>
+      </div>`;
+  };
+
+  const mkCheck = (key, label) => `
+    <div class="refine-field" style="display:flex;align-items:center;gap:8px;padding:8px 0;">
+      <input type="checkbox" id="chk-${key}" ${p[key]?"checked":""} onchange="setVal('${key}',this.checked)" style="accent-color:var(--red);width:16px;height:16px;cursor:pointer;" />
+      <label for="chk-${key}" style="font-size:13px;color:var(--ink);cursor:pointer;">${label}</label>
+    </div>`;
+
+  const statePills = meta.states.map(s=>`
+    <button class="pill ${(p.state_footprint||[]).includes(s)?"active":""}" type="button" onclick="chooseVal('state_footprint','${esc(s)}',true)">${esc(s)}</button>`).join("");
+
+  return `
+    <div class="form-section" id="section-advanced">
+      <div class="section-label">04 — Advanced <span style="font-weight:500;color:var(--ink-faint);text-transform:none;letter-spacing:0;">(optional — leave defaults if unsure)</span></div>
+
+      <div class="field-group">
+        <label>Governance &amp; capital</label>
+        <div class="refine-grid">
+          ${mkSlider("investor_cn_hk_pct","China / HK investor BO",0,1,.01)}
+          ${mkSlider("cumulative_fundraising_inr_cr","Total fundraising (INR Cr)",0,10000,10,0)}
+          ${mkSlider("founder_concentration_index","Founder concentration",0,1,.01)}
+          ${mkSelect("holdco_domicile","Holdco domicile",meta.holdcoDomiciles)}
+          ${mkSelect("rbi_registration","RBI registration",meta.rbiRegistrations,"None")}
+          ${mkCheck("dpiit_recognition","DPIIT recognised startup")}
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Workforce &amp; gig risk</label>
+        <div class="refine-grid">
+          ${mkSlider("gig_headcount_pct","Gig / contractor workforce",0,1,.01)}
+          ${mkCheck("posh_ic_constituted","POSH IC constituted")}
+          ${mkCheck("cert_in_poc_designated","CERT-In POC designated")}
+        </div>
+        <div class="pill-grid" style="margin-top:10px;">${statePills}</div>
+        <p class="hint">State footprint (multi-select)</p>
+      </div>
+
+      <div class="field-group">
+        <label>Data &amp; AI</label>
+        <div class="refine-grid">
+          ${mkSlider("sdf_probability","SDF likelihood",0,1,.01)}
+          ${mkSelect("data_localisation_status","Data localisation",["Unknown","Full_onshore","Hybrid","Offshore"])}
+          ${mkSelect("ai_tier","AI tier",meta.aiTiers)}
+          ${mkSlider("hardware_software_split","Hardware revenue share",0,1,.01)}
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Market &amp; supply chain</label>
+        <div class="refine-grid">
+          ${mkSlider("b2b_pct","B2B revenue",0,1,.01)}
+          ${mkSlider("export_eu_pct","EU revenue",0,1,.01)}
+          ${mkSlider("export_us_pct","US revenue",0,1,.01)}
+          ${mkSlider("export_china_pct","China revenue",0,1,.01)}
+          ${mkSlider("chinese_supplier_pct_cogs","Chinese supplier COGS",0,1,.01)}
+          ${mkCheck("listed_customer_brsr_dependency","Listed customers require BRSR")}
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Physical &amp; environmental</label>
+        <div class="refine-grid">
+          ${mkSelect("facility_climate_risk_zone","Facility climate risk zone",meta.climateZones)}
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ─── FORM BIND / INTERACTIONS ──────────────────────────────── */
+function bindForm() {
+  $("back-btn").onclick = () => {
+    if (state.section > 0) { state.section--; showSection(state.section); }
+  };
+  $("next-btn").onclick = () => {
+    if (state.section < SECTIONS.length - 1) {
+      state.section++;
+      showSection(state.section);
+    } else {
+      runAnalysis();
+    }
+  };
+}
+
+function showSection(idx) {
+  document.querySelectorAll(".form-section").forEach(el => el.classList.remove("visible"));
+  const ids = ["section-identity","section-shape","section-exposure","section-advanced"];
+  const el = $(ids[idx]);
+  if (el) el.classList.add("visible");
+
+  $("back-btn").disabled = idx === 0;
+  $("next-btn").textContent = idx === SECTIONS.length - 1 ? "Analyse my startup →" : "Continue →";
+  updateProgress();
+  updateProfileSummary();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function updateProgress() {
+  const row = $("progress-row");
+  if (!row) return;
+  row.innerHTML = SECTIONS.map((s, i) => {
+    const cls = i < state.section ? "done" : i === state.section ? "active" : "";
+    const line = i < SECTIONS.length - 1 ? `<div class="progress-line"></div>` : "";
+    return `<div class="progress-step ${cls}"><div class="progress-dot"></div>${s.label}</div>${line}`;
+  }).join("");
+}
+
+// Global helpers called from onclick attributes
+window.setVal = (key, val) => {
+  state.profile[key] = val;
+  updateProfileSummary();
+};
+
+window.setAI = (v) => {
+  state.profile.ai_in_product = v === "Yes";
+  state.profile.ai_tier = v === "Yes" ? "Applied" : "None";
+  // update button states
+  document.querySelectorAll("#section-shape .pill").forEach(btn => {
+    if (btn.getAttribute("onclick")?.includes("setAI")) {
+      btn.classList.toggle("active", btn.textContent.trim() === v);
+    }
+  });
+  updateProfileSummary();
+};
+
+window.chooseCard = (el, key, multi) => {
+  const val = el.dataset.value;
+  if (!multi) {
+    document.querySelectorAll(`.choice-card[data-key="${key}"]`).forEach(b => b.classList.remove("active"));
+    el.classList.add("active");
+    state.profile[key] = val;
+    // special: sector change resets sub_sector
+    if (key === "sector") state.profile.sub_sector = null;
+  } else {
+    el.classList.toggle("active");
+    const cur = new Set(state.profile[key] || []);
+    cur.has(val) ? cur.delete(val) : cur.add(val);
+    state.profile[key] = [...cur];
+  }
+  updateProfileSummary();
+};
+
+window.chooseVal = (key, val, multi) => {
+  if (!multi) {
+    state.profile[key] = val;
+    document.querySelectorAll(`.pill[onclick*="${key}"]`).forEach(b => {
+      b.classList.toggle("active", b.textContent.trim() === val);
+    });
+  } else {
+    const cur = new Set(state.profile[key] || []);
+    cur.has(val) ? cur.delete(val) : cur.add(val);
+    state.profile[key] = [...cur];
+    // find pill and toggle
+    document.querySelectorAll(`.pill[onclick*="${key}"]`).forEach(b => {
+      if (b.textContent.trim() === val || b.getAttribute("onclick").includes(`'${val}'`)) {
+        b.classList.toggle("active", cur.has(val));
+      }
+    });
+  }
+  updateProfileSummary();
+};
+
+function updateProfileSummary() {
+  const el = $("profile-summary");
+  if (!el) return;
+  const p = state.profile;
+  const items = [
+    ["Name",       p.startup_name || "—"],
+    ["Sector",     p.sector       || "—"],
+    ["Stage",      p.funding_stage|| "—"],
+    ["Team",       p.team_size ? `${p.team_size} FTEs` : "—"],
+    ["Model",      p.operations   || "—"],
+    ["Customers",  (p.customer_type||[]).join(", ") || "—"],
+  ];
+  el.innerHTML = items.map(([k,v]) => `
+    <div class="profile-item">
+      <span class="profile-item-key">${k}</span>
+      <span class="profile-item-val">${esc(String(v))}</span>
+    </div>`).join("");
+}
+
+/* ─── ANALYSIS ───────────────────────────────────────────────── */
+async function runAnalysis() {
+  renderLoading();
+  try {
+    const res = await fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(state.profile),
+    });
+    const ct = res.headers.get("content-type") || "";
+    if (!ct.includes("json")) throw new Error("no-backend");
+    const result = await res.json();
+    if (!res.ok || result.error) throw new Error(result.error || "Analysis failed");
     renderResults(result);
-  } catch (error) {
-    $("screen").innerHTML = `<div class="error">${escapeHtml(error.message)}</div>`;
-  } finally {
-    $("next-btn").disabled = false;
+  } catch (err) {
+    // Fall back to demo response when no backend is connected
+    try {
+      const demoRes = await fetch("./demo-response.json");
+      const demo = await demoRes.json();
+      // Patch the demo profile with what the user actually entered
+      if (state.profile.startup_name) demo.profile.startup_name = state.profile.startup_name;
+      if (state.profile.sector) demo.profile.sector = state.profile.sector;
+      if (state.profile.funding_stage) demo.profile.funding_stage = state.profile.funding_stage;
+      if (state.profile.team_size) demo.profile.team_size = state.profile.team_size;
+      if (state.profile.operations) demo.profile.operations = state.profile.operations;
+      renderResults(demo);
+    } catch {
+      $("main-content").innerHTML = `
+        <div style="padding:80px 40px;padding-top:100px;max-width:600px;margin:0 auto;">
+          <div class="error-box">${esc(err.message)}</div>
+          <button class="btn btn-ghost" style="margin-top:16px;" onclick="renderForm()">← Edit inputs</button>
+        </div>`;
+    }
   }
 }
 
-async function fetchAnalysis() {
-  const response = await fetch("/api/analyze", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(state.profile),
+function renderLoading() {
+  $("main-content").innerHTML = `
+    <div class="loading-screen">
+      <div class="loading-ring"></div>
+      <div class="loading-text">Analysing your startup</div>
+      <div class="loading-sub">Running 13 risk models against your profile</div>
+      <div class="loading-steps">
+        <div class="loading-step"><div class="loading-step-dot"></div>Scoring digital &amp; data exposure…</div>
+        <div class="loading-step"><div class="loading-step-dot"></div>Mapping regulatory triggers…</div>
+        <div class="loading-step"><div class="loading-step-dot"></div>Matching ICICI Lombard products…</div>
+        <div class="loading-step"><div class="loading-step-dot"></div>Estimating premium ranges…</div>
+      </div>
+    </div>`;
+}
+
+/* ─── RESULTS RENDER ─────────────────────────────────────────── */
+function renderResults(result) {
+  state.profile = structuredClone(result.profile || state.profile);
+  const p = result.profile;
+
+  const gaugeClass = result.overall >= 70 ? "gauge-critical" : result.overall >= 45 ? "gauge-moderate" : "gauge-low";
+  const gaugeColor = result.overall >= 70 ? "var(--red)" : result.overall >= 45 ? "var(--amber)" : "var(--green)";
+
+  $("main-content").innerHTML = `
+    <div class="results-wrap">
+
+      <!-- Hero -->
+      <div class="results-hero">
+        <div>
+          <div class="hero-eyebrow">Risk Report</div>
+          <div class="hero-title">${esc(p.startup_name)} — ${result.overall}/100 overall risk</div>
+          <div class="hero-meta">
+            <span>${esc(p.sector)}</span>
+            <span>${esc(p.funding_stage)}</span>
+            <span>${p.team_size} people</span>
+            <span>${esc(p.operations)}</span>
+          </div>
+        </div>
+        <div class="hero-actions">
+          <button class="btn-hero-primary" onclick="downloadReport(window.__result)">Download report</button>
+          <button class="btn-hero-ghost" onclick="renderForm()">Edit inputs</button>
+        </div>
+      </div>
+
+      <!-- Section nav -->
+      <nav class="section-nav">
+        ${[["#bundle","Bundle"],["#products","Products"],["#risk","Risk scores"],["#timeline","Timeline"],["#triggers","Actions"],["#outreach","Outreach"]].map(([h,l])=>`<a class="snav-pill" href="${h}">${l}</a>`).join("")}
+      </nav>
+
+      <!-- KPI strip -->
+      <div class="kpi-row">
+        ${renderKPI("Overall risk", `${result.overall}/100`)}
+        ${renderKPI("Top risk", (result.top_risks||[])[0]?.name?.replace(" Risk","") || "—")}
+        ${renderKPI("Critical covers", (result.recommendations||[]).filter(r=>r.priority==="Critical").length + " products")}
+        ${renderKPI("Premium range", result.premium_summary ? `₹${result.premium_summary.min_lakh}–${result.premium_summary.max_lakh}L` : "—")}
+        ${renderKPI("Risk clusters", Object.keys(result.clusters||{}).length + " analysed")}
+      </div>
+
+      <!-- Premium summary -->
+      ${result.premium_summary ? `
+      <div class="premium-card">
+        <div class="premium-card-label">Total premium potential</div>
+        <div class="premium-card-value">₹${result.premium_summary.min_lakh} – ${result.premium_summary.max_lakh} lakhs</div>
+        <div class="premium-card-note">Across ${result.premium_summary.count} products · ${esc(result.premium_footnote||"Indicative estimates only.")}</div>
+      </div>` : ""}
+
+      <!-- Action banner -->
+      ${renderActionBanner(result.recommendations)}
+
+      <!-- BUNDLE — primary focus -->
+      <div class="result-section" id="bundle">
+        <div class="result-section-head">
+          <div class="result-section-bar"></div>
+          <div class="result-section-title">Bundle recommendation</div>
+        </div>
+        ${renderBundleHero(result.bundle_match, result.recommendations)}
+      </div>
+
+      <!-- Recommended products — secondary -->
+      <div class="result-section" id="products">
+        <div class="result-section-head">
+          <div class="result-section-bar"></div>
+          <div class="result-section-title">Recommended products</div>
+        </div>
+        <div class="products-list">
+          ${renderProductRows(result.recommendations, result.product_mapping)}
+        </div>
+        ${renderBadProducts(result.not_preferred_recommendations)}
+      </div>
+
+      <!-- Risk scores -->
+      <div class="result-section" id="risk">
+        <div class="result-section-head">
+          <div class="result-section-bar"></div>
+          <div class="result-section-title">Risk overview</div>
+        </div>
+        <div class="score-grid">
+          <div class="r-card" style="display:flex;flex-direction:column;">
+            <div class="card-label">Overall risk score</div>
+            <div class="gauge-wrap" style="flex:1;">
+              <div class="gauge-ring" style="--score:${Math.min(100,result.overall)};background:radial-gradient(circle at center,white 0 57%,transparent 58%),conic-gradient(${gaugeColor} calc(${Math.min(100,result.overall)} * 1%),var(--surface) 0);">
+                <div class="gauge-ring-inner">
+                  <strong>${result.overall}</strong>
+                  <span>/100</span>
+                </div>
+              </div>
+              <div class="gauge-label">${overallLabel(result.overall)}</div>
+            </div>
+          </div>
+          <div class="r-card">
+            <div class="card-label">Risk categories</div>
+            <div id="score-bars-wrap">${renderScoreBars(result.scores)}</div>
+          </div>
+          <div class="r-card">
+            <div class="card-label">Spider graph</div>
+            <canvas id="risk-radar" class="radar-canvas" width="340" height="300"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top risk drivers -->
+      <div class="result-section">
+        <div class="result-section-head">
+          <div class="result-section-bar"></div>
+          <div class="result-section-title">Top risk drivers</div>
+        </div>
+        <div class="drivers-grid">
+          ${renderDriverCards((result.top_risks||[]).slice(0,3))}
+        </div>
+      </div>
+
+      <!-- Timeline -->
+      <div class="result-section" id="timeline">
+        <div class="result-section-head">
+          <div class="result-section-bar"></div>
+          <div class="result-section-title">Coverage timeline</div>
+        </div>
+        <div class="r-card">
+          <div class="timeline">${renderTimeline(result.bundles)}</div>
+        </div>
+      </div>
+
+      <!-- Regulatory triggers + Mitigations -->
+      <div class="result-section two-col" id="triggers">
+        <div class="r-card">
+          <div class="card-label">Regulatory triggers</div>
+          ${renderTriggers(result.regulatory_triggers)}
+        </div>
+        <div class="r-card">
+          <div class="card-label">Non-insurance actions</div>
+          ${renderMitigations(result.mitigations)}
+        </div>
+      </div>
+
+      <!-- Assumptions -->
+      <div class="r-card" style="margin-bottom:24px;">
+        <div class="card-label">Assumptions used</div>
+        <div class="assumption-grid">${renderAssumptions(result.assumptions)}</div>
+      </div>
+
+      <!-- Refine panel -->
+      <details class="refine-panel-wrap" style="margin-bottom:24px;">
+        <summary>⚙ Refine profile — adjust to sharpen scores</summary>
+        <div class="refine-body" id="refine-body">
+          ${renderRefineBody()}
+        </div>
+      </details>
+
+      <!-- Outreach -->
+      ${renderOutreach(result.outreach_prompts, result.outreach_source, result.outreach_error)}
+
+      <!-- Downstream -->
+      ${renderDownstream(result.downstream_opportunities)}
+
+      <!-- Expanders -->
+      <details class="expander-card" style="margin-bottom:14px;">
+        <summary>Global products — how SPARC compares</summary>
+        <div class="expander-body">
+          <div class="products-grid">${renderGlobalProducts(result.global_products)}</div>
+        </div>
+      </details>
+
+      <details class="expander-card" style="margin-bottom:14px;">
+        <summary>Score breakdown — multipliers applied</summary>
+        <div class="expander-body">${renderBreakdown(result.multiplier_breakdown)}</div>
+      </details>
+
+      <details class="expander-card" style="margin-bottom:14px;">
+        <summary>Product comparison table</summary>
+        <div class="expander-body">${renderComparisonTable(result.recommendations)}</div>
+      </details>
+
+      ${renderCustomTriggers(result.custom_triggers)}
+
+    </div>`;
+
+  // Store result globally for download
+  window.__result = result;
+  window.__refineResult = result;
+
+  // Bind product row expand/collapse
+  window.toggleProductRow = (i) => {
+    const row = document.getElementById(`prow-${i}`);
+    if (row) row.classList.toggle('expanded');
+  };
+
+  // Bind refine
+  bindRefine();
+
+  // Bind outreach copy buttons
+  document.querySelectorAll("[data-copy]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      await navigator.clipboard?.writeText(btn.dataset.copy || "");
+      const orig = btn.textContent;
+      btn.textContent = "Copied ✓";
+      setTimeout(() => btn.textContent = orig, 1800);
+    });
   });
-  const result = await response.json();
-  if (!response.ok || result.error) throw new Error(result.error || "Analysis failed");
-  return result;
+
+  // Draw radar
+  setTimeout(() => drawRadar("risk-radar", result.scores, { maxLabelLength: 16 }), 100);
 }
 
-function renderSectionNav() {
-  const links = [
-    ["#risk-scores", "Risk scores"],
-    ["#bundle", "Bundle"],
-    ["#products", "Products"],
-    ["#timeline", "Timeline"],
-    ["#outreach", "Outreach kit"],
-    ["#assumptions", "Assumptions"],
-  ];
-  return `<nav class="section-nav" aria-label="Jump to section">${links.map(([href, label]) => `<a href="${href}">${escapeHtml(label)}</a>`).join("")}</nav>`;
+/* ─── RESULT HELPERS ─────────────────────────────────────────── */
+function renderKPI(label, value) {
+  return `
+    <div class="kpi-card">
+      <div class="kpi-label">${esc(label)}</div>
+      <div class="kpi-value">${esc(String(value))}</div>
+    </div>`;
 }
 
-function renderActionBanner(recommendations) {
-  if (!recommendations?.length) return "";
-  const critical = recommendations.filter((p) => p.priority === "Critical").slice(0, 3);
+function overallLabel(score) {
+  if (score >= 70) return "High exposure — prioritise critical covers and governance actions now.";
+  if (score >= 45) return "Moderate exposure — buy essentials first and review quarterly.";
+  return "Lower exposure — start with baseline covers and revisit as you scale.";
+}
+
+function renderActionBanner(recs) {
+  if (!recs?.length) return "";
+  const critical = recs.filter(r => r.priority === "Critical").slice(0, 3);
   if (!critical.length) return "";
   return `
     <div class="action-banner">
-      <div class="action-banner-title">Buy now — ${critical.length} critical cover${critical.length > 1 ? "s" : ""} for your profile</div>
-      ${critical.map((p) => `
-        <div class="action-mini-row">
-          <strong>${escapeHtml(p.name || p.key)}</strong>
-          ${p.premium ? `<span class="action-mini-tag">₹${p.premium.min_lakh.toFixed(1)}–${p.premium.max_lakh.toFixed(1)}L</span>` : ""}
-          <span class="action-mini-why">${escapeHtml(p.nudge || "")}</span>
+      <div class="action-banner-title">Buy now — ${critical.length} critical cover${critical.length>1?"s":""} for your profile</div>
+      ${critical.map(r => `
+        <div class="action-item-row">
+          <span class="action-item-name">${esc(r.name||r.key)}</span>
+          ${r.premium ? `<span class="action-price-tag">₹${r.premium.min_lakh.toFixed(1)}–${r.premium.max_lakh.toFixed(1)}L</span>` : ""}
+          <span class="action-why">${esc(r.nudge||"")}</span>
         </div>`).join("")}
     </div>`;
 }
 
-async function rerunFromRefine() {
-  const body = document.getElementById("results-body");
-  if (body) body.classList.add("loading");
-  try {
-    const result = await fetchAnalysis();
-    renderResults(result);
-  } catch (error) {
-    if (body) body.insertAdjacentHTML("afterbegin", `<div class="error">${escapeHtml(error.message)}</div>`);
-  }
-}
-
-function renderResults(result) {
-  state.profile = structuredClone(result.profile || state.profile);
-  document.body.innerHTML = "";
-  const wrapper = document.createElement("main");
-  wrapper.className = "app-shell";
-  wrapper.style.display = "block";
-  wrapper.innerHTML = `
-    <section class="results">
-      <div class="results-hero">
-        <div class="hero-actions">
-          <div>
-            <div class="eyebrow">Recommendation output</div>
-            <h1 id="result-title"></h1>
-            <p id="result-subtitle"></p>
-          </div>
-          <div class="action-row">
-            <button id="download-btn" class="btn btn-primary" type="button">Download report</button>
-            <button id="edit-btn" class="btn btn-ghost" type="button">Edit inputs</button>
-          </div>
-        </div>
-      </div>
-      <div id="results-body"></div>
-    </section>`;
-  document.body.appendChild(wrapper);
-
-  if (result.decline) {
-    document.querySelector(".results").innerHTML = `<div class="error">Coverage unavailable: ${escapeHtml(result.decline)}</div><button id="edit-btn" class="btn btn-ghost" type="button">Edit inputs</button>`;
-    document.getElementById("edit-btn").addEventListener("click", () => window.location.reload());
-    return;
-  }
-
-  document.getElementById("result-title").textContent = `${result.profile.startup_name} risk profile`;
-  document.getElementById("result-subtitle").textContent = `${result.profile.sector} | ${result.profile.funding_stage} | ${result.profile.team_size} people`;
-
-  const gaugeClass = result.overall >= 70 ? "gauge-critical" : result.overall >= 45 ? "gauge-moderate" : "gauge-low";
-
-  try {
-  document.getElementById("results-body").innerHTML = `
-    ${renderRefinePanel(result.profile)}
-    ${renderSectionNav()}
-    ${renderProfileStrip(result.profile)}
-    ${renderPremiumSummary(result.premium_summary, result.premium_footnote)}
-    ${renderActionBanner(result.recommendations)}
-
-    <div class="section-heading" id="risk-scores"><span class="section-heading-bar"></span>Risk overview</div>
-    <div class="kpi-grid">
-      <div class="result-card gauge-card">
-        <div class="card-label">Overall risk</div>
-        <div class="gauge-shell">
-          <div class="gauge-ring ${escapeAttr(gaugeClass)}" style="--score:${Math.min(100, result.overall)};">
-            <div>
-              <strong>${result.overall}</strong>
-              <span>/100</span>
-            </div>
-          </div>
-          <p>${overallLabel(result.overall)}</p>
-        </div>
-      </div>
-      <div class="result-card">
-        <div class="card-label">4-cluster radar</div>
-        <canvas id="cluster-radar" class="radar-canvas" width="360" height="280"></canvas>
-      </div>
-      <div class="result-card">
-        <div class="card-label">13-category spider graph</div>
-        <canvas id="risk-radar" class="radar-canvas" width="420" height="320"></canvas>
-      </div>
-    </div>
-
-    <div class="result-grid">
-      <div class="result-card">
-        <div class="card-label">All risk scores</div>
-        ${renderScoreBars(result.scores, result.score_rationales)}
-      </div>
-      <div class="result-card">
-        <div class="card-label">Top 3 risk drivers</div>
-        ${renderRiskDrivers((result.top_risks || []).slice(0, 3))}
-      </div>
-    </div>
-
-    <div class="section-heading" id="bundle"><span class="section-heading-bar"></span>Bundle recommendation</div>
-    <div class="result-card">
-      ${renderBundleMatch(result.bundle_match)}
-    </div>
-
-    <div class="section-heading" id="products"><span class="section-heading-bar"></span>Recommended ICICI Lombard products</div>
-    <div class="result-card">
-      <div class="product-grid">${renderRecommendationCards(result.recommendations, result.product_mapping)}</div>
-      ${renderBadProducts(result.not_preferred_recommendations)}
-    </div>
-
-    <details class="result-card expander">
-      <summary>Top 5 global products — how SPARC compares</summary>
-      ${renderGlobalProducts(result.global_products)}
-    </details>
-
-    <details class="result-card expander">
-      <summary>Score breakdown</summary>
-      ${renderScoreBreakdown(result.multiplier_breakdown)}
-    </details>
-
-    <div class="section-heading" id="timeline"><span class="section-heading-bar"></span>Coverage timeline</div>
-    <div class="result-card">
-      ${renderTimeline(result.bundles)}
-    </div>
-
-    <div class="result-grid">
-      <div class="result-card">
-        <div class="card-label">Product comparison</div>
-        ${renderComparison(result.recommendations)}
-      </div>
-      <div class="result-card">
-        <div class="card-label">Risk-to-product mapping</div>
-        ${renderProductMapping(result.product_mapping)}
-      </div>
-    </div>
-
-    <div class="result-grid">
-      <div class="result-card">
-        <div class="card-label">Regulatory trigger callouts</div>
-        ${renderTriggers(result.regulatory_triggers)}
-      </div>
-      <div class="result-card">
-        <div class="card-label">Non-insurance mitigation actions</div>
-        ${renderMitigations(result.mitigations)}
-      </div>
-    </div>
-
-    <div class="result-card" id="assumptions">
-      <div class="card-label">Assumptions used by the engine</div>
-      ${renderAssumptions(result.assumptions)}
-    </div>
-
-    ${renderOutreachKit(result.outreach_prompts, result.outreach_source, result.outreach_error)}
-    ${renderDownstream(result.downstream_opportunities)}
-    ${renderCustomTriggers(result.custom_triggers)}
-  `;
-  } catch (err) {
-    document.getElementById("results-body").innerHTML = `<div class="error" style="padding:2rem;color:var(--red);">Render error: ${escapeHtml(String(err))}</div>`;
-    console.error("results-body render failed:", err);
-    return;
-  }
-
-  document.getElementById("edit-btn").addEventListener("click", () => window.location.reload());
-  document.getElementById("download-btn").addEventListener("click", () => downloadReport(result));
-  bindRefinePanel();
-  document.querySelectorAll(".copy-trigger").forEach((button) => {
-    button.addEventListener("click", async () => {
-      await navigator.clipboard?.writeText(button.dataset.copy || "");
-      button.textContent = "Copied";
-    });
-  });
-  document.querySelectorAll(".copy-outreach").forEach((button) => {
-    button.addEventListener("click", async () => {
-      await navigator.clipboard?.writeText(button.dataset.copy || "");
-      button.textContent = "Copied";
-    });
-  });
-  drawRadar("cluster-radar", result.clusters, { maxLabelLength: 18 });
-  drawRadar("risk-radar", result.scores, { maxLabelLength: 14 });
-}
-
-function overallLabel(score) {
-  if (score >= 70) return "High exposure: prioritise critical covers and governance actions now.";
-  if (score >= 45) return "Moderate exposure: buy essential covers first and review quarterly.";
-  return "Lower exposure: start with baseline covers and revisit as you scale.";
-}
-
-function renderRefinePanel(profile) {
-  return `
-    <details class="result-card refine-panel">
-      <summary>Refine your profile - adjust these to sharpen your risk scores</summary>
-      <p class="muted">Changing any field below recalculates scores, recommendations, premium potential, and product opportunities.</p>
-      <div class="refine-section">
-        <h3>Governance & capital</h3>
-        ${advancedGrid([
-          numberField("investor_cn_hk_pct", "China / HK investor BO", 0, 1, 0.01),
-          numberField("cumulative_fundraising_inr_cr", "Total fundraising, INR Cr", 0, 10000, 10),
-          selectField("holdco_domicile", "Holdco domicile", state.meta.holdcoDomiciles),
-          numberField("founder_concentration_index", "Founder concentration index", 0, 1, 0.01),
-          checkboxField("dpiit_recognition", "DPIIT recognised startup"),
-          selectField("rbi_registration", "RBI registration", state.meta.rbiRegistrations, "None"),
-        ])}
-      </div>
-      <div class="refine-section">
-        <h3>Workforce & gig risk</h3>
-        ${advancedGrid([
-          numberField("gig_headcount_pct", "Gig / contractor workforce", 0, 1, 0.01),
-          checkboxField("posh_ic_constituted", "POSH IC constituted"),
-          checkboxField("cert_in_poc_designated", "CERT-In POC designated"),
-        ])}
-        <div class="choice-grid compact">${state.meta.states.map((item) => choiceHtml("state_footprint", item, true)).join("")}</div>
-      </div>
-      <div class="refine-section">
-        <h3>Data & AI risk</h3>
-        ${advancedGrid([
-          numberField("sdf_probability", "SDF likelihood", 0, 1, 0.01),
-          selectField("data_localisation_status", "Data localisation", ["Unknown", "Full_onshore", "Hybrid", "Offshore"]),
-          selectField("ai_tier", "AI tier", state.meta.aiTiers),
-          numberField("hardware_software_split", "Hardware revenue", 0, 1, 0.01),
-        ])}
-      </div>
-      <div class="refine-section">
-        <h3>Market & supply chain</h3>
-        ${advancedGrid([
-          numberField("b2b_pct", "B2B revenue", 0, 1, 0.01),
-          numberField("export_eu_pct", "EU revenue", 0, 1, 0.01),
-          numberField("export_us_pct", "US revenue", 0, 1, 0.01),
-          numberField("export_china_pct", "China revenue", 0, 1, 0.01),
-          numberField("chinese_supplier_pct_cogs", "Chinese supplier COGS", 0, 1, 0.01),
-          checkboxField("listed_customer_brsr_dependency", "Listed customers require BRSR data"),
-        ])}
-      </div>
-      <div class="refine-section">
-        <h3>Physical & environmental</h3>
-        ${advancedGrid([
-          selectField("facility_climate_risk_zone", "Facility climate risk zone", state.meta.climateZones),
-        ])}
-      </div>
-    </details>
-  `;
-}
-
-function bindRefinePanel() {
-  const root = document.querySelector(".refine-panel");
-  if (!root) return;
-  let timer = null;
-  const schedule = () => {
-    clearTimeout(timer);
-    timer = setTimeout(rerunFromRefine, 180);
-  };
-  root.querySelectorAll("input[type='range']").forEach((field) => {
-    field.addEventListener("input", () => {
-      const value = Number(field.value);
-      state.profile[field.dataset.key] = value;
-      const valueEl = field.closest(".range-row")?.querySelector(".range-value");
-      if (valueEl) valueEl.textContent = value.toFixed(2);
-      schedule();
-    });
-  });
-  root.querySelectorAll("input[type='number']").forEach((field) => {
-    field.addEventListener("change", () => {
-      state.profile[field.dataset.key] = Number(field.value);
-      schedule();
-    });
-  });
-  root.querySelectorAll("select").forEach((field) => {
-    field.addEventListener("change", () => {
-      const value = field.value || null;
-      state.profile[field.dataset.key] = value;
-      if (field.dataset.key === "ai_tier") state.profile.ai_in_product = value !== "None";
-      schedule();
-    });
-  });
-  root.querySelectorAll("input[type='checkbox']").forEach((field) => {
-    field.addEventListener("change", () => {
-      state.profile[field.dataset.key] = field.checked;
-      schedule();
-    });
-  });
-  root.querySelectorAll("button.choice[data-multi='true']").forEach((button) => {
-    button.addEventListener("click", () => {
-      const key = button.dataset.key;
-      const value = button.dataset.value;
-      const next = new Set(state.profile[key] || []);
-      next.has(value) ? next.delete(value) : next.add(value);
-      state.profile[key] = [...next];
-      button.classList.toggle("active");
-      schedule();
-    });
-  });
-}
-
-function renderProfileStrip(profile) {
-  const items = [
-    ["Sector", profile.sector],
-    ["Stage", profile.funding_stage],
-    ["Team", `${profile.team_size} people`],
-    ["Ops", profile.operations],
-    ["Size", profile.size_bucket || ""],
-  ];
-  return `<div class="profile-strip">${items.map(([label, value]) => `
-    <div><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value || "Not set")}</span></div>
-  `).join("")}</div>`;
-}
-
-function renderPremiumSummary(summary, footnote) {
-  if (!summary) return "";
-  return `
-    <div class="result-card premium-card">
-      <div class="card-label">Premium potential summary</div>
-      <h2>Total estimated premium potential: INR ${summary.min_lakh} - ${summary.max_lakh} lakhs across ${summary.count} products</h2>
-      <p class="muted">${escapeHtml(footnote || "")}</p>
-    </div>
-  `;
-}
-
-function renderScoreBars(scores, rationales = {}) {
+function renderScoreBars(scores) {
   return Object.entries(scores)
-    .sort((a, b) => b[1] - a[1])
+    .sort((a,b) => b[1]-a[1])
     .map(([name, score]) => {
       const lvl = score >= 70 ? "critical" : score >= 40 ? "watch" : "low";
-      const lvlLabel = score >= 70 ? "Critical" : score >= 40 ? "Watch" : "Low";
+      const badgeLabel = score >= 70 ? "Critical" : score >= 40 ? "Watch" : "Low";
       return `
-        <div class="bar-row">
-          <span>
-            <b>${escapeHtml(name)}</b>
-            <span style="display:flex;align-items:center;gap:5px;">
-              <b>${score}</b>
-              <span class="bar-level ${lvl}">${lvlLabel}</span>
-            </span>
-          </span>
-          <div class="bar"><div class="${riskClass(score)}" style="width:${Math.min(100, score)}%"></div></div>
-          ${renderScoreRationale(name, rationales[name])}
+        <div class="score-bar-item">
+          <div class="sbi-head">
+            <span class="sbi-name">${esc(name)}</span>
+            <div class="sbi-right">
+              <span class="sbi-score">${score}</span>
+              <span class="badge badge-${lvl}">${badgeLabel}</span>
+            </div>
+          </div>
+          <div class="sbi-bar">
+            <div class="sbi-fill ${lvl}" style="width:${Math.min(100,score)}%"></div>
+          </div>
         </div>`;
     }).join("");
 }
 
-function renderScoreRationale(name, rationale) {
-  if (!rationale) return "";
-  return `
-    <details class="why-score">
-      <summary>Why this score? - ${escapeHtml(name)}</summary>
-      <p><strong>Weight:</strong> ${escapeHtml(rationale.weight)}</p>
-      <p><strong>Evidence:</strong> ${escapeHtml(rationale.stat)}</p>
-      <p><strong>Outlook:</strong> ${escapeHtml(rationale.forecast)}</p>
-      <p><strong>Source:</strong> ${escapeHtml(rationale.source)}</p>
-    </details>
-  `;
-}
+const emptyState = (icon, title, sub="") => `
+  <div class="empty-state">
+    <div class="empty-state-icon">${icon}</div>
+    <div class="empty-state-title">${title}</div>
+    ${sub ? `<div class="empty-state-sub">${sub}</div>` : ""}
+  </div>`;
 
-function renderRiskDrivers(risks) {
-  if (!risks?.length) return `<p class="muted">No risk drivers available.</p>`;
-  return risks.map((risk) => `
-    <article class="driver-card">
-      <div class="risk-pill"><span>${escapeHtml(risk.name)}</span><span>${risk.score}</span></div>
-      <p>${riskExplanation(risk.name)}</p>
-    </article>
-  `).join("");
-}
-
-function riskExplanation(name) {
-  if (name.includes("Cyber")) return "Your digital footprint, data sensitivity, and sector profile make breach response and continuity important.";
-  if (name.includes("Data Privacy")) return "Personal or sensitive data creates consent, fiduciary, retention, and notification obligations.";
-  if (name.includes("Regulatory")) return "Your sector or selected exposure carries licensing, audit, reporting, or statutory compliance pressure.";
-  if (name.includes("Governance")) return "Investors, controls, fraud exposure, and board accountability can drive D&O and crime coverage needs.";
-  if (name.includes("Liability")) return "Customer contracts, product/service failures, and negligence claims can create third-party loss exposure.";
-  if (name.includes("Property")) return "Physical assets, sites, equipment, or inventory can create fire, theft, climate, or interruption losses.";
-  return "This category is above the rest of your profile and should be reviewed with controls and coverage.";
-}
-
-function renderBundles(bundles) {
-  if (!bundles?.length) return `<p class="muted">No bundle grouping was required.</p>`;
-  return bundles.map((bundle) => `
-    <article class="bundle-card">
-      <div class="bundle-head">
-        <h3>${escapeHtml(bundle.name)}</h3>
-        <span class="tag">${escapeHtml(bundle.timeline)}</span>
-      </div>
-      <ul>${bundle.products.map((product) => `<li>${escapeHtml(product.name || product.key)} <span>${product.score}/100</span></li>`).join("")}</ul>
-    </article>
-  `).join("");
-}
-
-function renderBundleMatch(bundle) {
-  if (!bundle?.name) return `<p class="muted">No packaged bundle matched this profile strongly enough.</p>`;
-  const covers = [...(bundle.mandatory_covers || []), ...(bundle.optional_covers || [])];
-  return `
-    <article class="bundle-card featured-bundle">
-      <div class="bundle-head">
-        <div>
-          <h3>${escapeHtml(bundle.name)} <span class="tag">${bundle.fit_pct || 0}% fit</span></h3>
-          <p><strong>ICICI Lombard:</strong> ${escapeHtml(bundle.il_product_name || "")}</p>
-        </div>
-        <span class="tag">${escapeHtml(bundle.criticality || "Recommended")}</span>
-      </div>
-      <p>${escapeHtml(bundle.description || "")}</p>
-      <div class="mini-risk-row">${covers.slice(0, 10).map((cover) => `<span>${escapeHtml(labelize(cover))}</span>`).join("")}</div>
-      ${(bundle.prerequisite_notes || []).map((note) => `<p class="notice">${escapeHtml(note)}</p>`).join("")}
-      ${bundle.fire_awareness_note ? `<p class="notice">${escapeHtml(bundle.fire_awareness_note)}</p>` : ""}
-    </article>
-  `;
-}
-
-function renderRecommendationCards(recommendations, mapping) {
-  const byKey = Object.fromEntries((mapping || []).map((row) => [row.key, row]));
-  if (!recommendations?.length) return `<p class="muted">No preferred ICICI products remain after appetite filtering.</p>`;
-  return recommendations.map((product) => {
-    const drivers = byKey[product.key]?.top_risks || [];
-    const prio = product.priority || "Optional";
-    const prioClass = prio === "Critical" ? "priority-critical" : prio === "Recommended" ? "priority-recommended" : "";
-    const prioFlag = prio === "Critical"
-      ? `<div class="product-flag critical">Critical cover</div>`
-      : prio === "Recommended"
-        ? `<div class="product-flag recommended">Recommended</div>`
-        : "";
-    const premiumHtml = product.premium
-      ? `<div class="product-premium"><span class="product-premium-icon">₹</span> <strong>INR ${product.premium.min_lakh.toFixed(1)} – ${product.premium.max_lakh.toFixed(1)} lakhs</strong> <span style="color:var(--ink-faint)">· ${escapeHtml(product.premium.basis)}</span></div>`
-      : "";
-    return `
-      <article class="product ${escapeAttr(prioClass)}">
-        ${prioFlag}
-        <h3>${escapeHtml(product.name || product.key)} ${renderAppetiteBadge(product.appetite)} <span class="tag">${escapeHtml(prio)} ${product.score}/100</span>${product.mandatory ? '<span class="tag">Baseline</span>' : ""}</h3>
-        <p><strong>ICICI Lombard:</strong> ${escapeHtml(product.il_product || "")}</p>
-        <p><strong>What it covers:</strong> ${escapeHtml(product.what_it_covers || "")}</p>
-        <p><strong>Why this was recommended:</strong> ${escapeHtml(product.nudge || "")}</p>
-        ${premiumHtml}
-        <div class="mini-risk-row">${drivers.map((driver) => `<span>${escapeHtml(driver.risk)} ${driver.score}</span>`).join("")}</div>
-      </article>`;
-  }).join("");
-}
-
-function renderAppetiteBadge(appetite) {
-  const labels = {
-    good: "Good Risk",
-    moderate: "Moderate",
-    bad: "Not Preferred",
-    tbd: "Appetite Under Review",
+function renderDriverCards(risks) {
+  if (!risks?.length) return emptyState("📊", "No risk drivers available", "Run the analysis to see your top risk drivers.");
+  const explanations = {
+    "Cyber Technical Risk": "Digital footprint, data sensitivity and cloud posture create breach and continuity exposure.",
+    "Data Privacy Risk": "Personal or sensitive data creates consent, fiduciary, retention and breach-notification obligations.",
+    "Regulatory Compliance Risk": "Sector or selected exposure carries licensing, audit, reporting or statutory compliance pressure.",
+    "Governance & Fraud Risk": "Investors, controls, fraud exposure and board accountability drive D&O and crime coverage needs.",
+    "Liability Risk": "Customer contracts, product failures and negligence claims create third-party loss exposure.",
+    "IP Infringement Risk": "AI training data, copyrights and patent landscape create escalating IP litigation risk.",
   };
-  return `<span class="appetite ${escapeAttr(appetite || "tbd")}">${labels[appetite] || labels.tbd}</span>`;
+  return risks.map((r, i) => `
+    <div class="driver-card">
+      <div class="driver-rank">#${i+1} Driver</div>
+      <div class="driver-name">${esc(r.name)}</div>
+      <div class="driver-score-row">
+        <div class="driver-score-num">${r.score}</div>
+        <div class="sbi-bar" style="flex:1;"><div class="sbi-fill critical" style="width:${Math.min(100,r.score)}%"></div></div>
+      </div>
+      <div class="driver-desc">${explanations[r.name] || "This category is above the rest of your profile and should be reviewed with controls and coverage."}</div>
+    </div>`).join("");
+}
+
+function renderProductCards(recs, mapping) {
+  const byKey = Object.fromEntries((mapping||[]).map(r=>[r.key, r]));
+  if (!recs?.length) return `<p style="color:var(--ink-muted)">No recommended products.</p>`;
+  const appetiteLabels = { good:"Good risk", moderate:"Moderate", bad:"Not preferred", tbd:"Under review" };
+  return recs.map(p => {
+    const prio = p.priority || "Optional";
+    const prioClass = prio === "Critical" ? "critical" : prio === "Recommended" ? "recommended" : "";
+    const prioFlag = prio !== "Optional" ? `<div class="product-card-flag flag-${prio.toLowerCase()}">${esc(prio)} cover</div>` : "";
+    return `
+      <div class="product-card ${prioClass}">
+        ${prioFlag}
+        <div class="product-card-name">${esc(p.name||p.key)}</div>
+        <div class="product-card-tags">
+          <span class="product-tag score">${p.score}/100 fit</span>
+          <span class="product-tag appetite-${p.appetite||"tbd"}">${appetiteLabels[p.appetite||"tbd"]}</span>
+          ${p.mandatory ? `<span class="product-tag baseline">Baseline</span>` : ""}
+        </div>
+        <div class="product-card-il"><strong>ICICI Lombard:</strong> ${esc(p.il_product||"")}</div>
+        <div class="product-card-nudge">${esc(p.nudge||"")}</div>
+        ${p.premium ? `
+          <div class="product-premium">
+            <div class="product-premium-amount">₹${p.premium.min_lakh.toFixed(1)} – ${p.premium.max_lakh.toFixed(1)}L</div>
+            <div class="product-premium-basis">${esc(p.premium.basis)}</div>
+          </div>` : ""}
+      </div>`;
+  }).join("");
 }
 
 function renderBadProducts(products) {
   if (!products?.length) return "";
   return `
-    <details class="bad-products">
-      <summary>Available but not preferred for this sector (${products.length} products)</summary>
-      <div class="product-grid">${products.map((product) => `
-        <article class="product">
-          <h3>${escapeHtml(product.name || product.key)} ${renderAppetiteBadge("bad")}</h3>
-          <p>${escapeHtml(product.what_it_covers || "")}</p>
-          ${product.premium ? `<p class="premium-line">Estimated premium: INR ${product.premium.min_lakh.toFixed(1)} - ${product.premium.max_lakh.toFixed(1)} lakhs · ${escapeHtml(product.premium.basis)}</p>` : ""}
-          <p class="muted"><em>${escapeHtml(product.bad_reason || "Not preferred for this sector.")}</em></p>
-        </article>
-      `).join("")}</div>
-    </details>
-  `;
+    <details style="margin-top:16px;">
+      <summary style="cursor:pointer;font-size:13px;font-weight:700;color:var(--ink-muted);padding:4px 0;">
+        Available but not preferred (${products.length})
+      </summary>
+      <div class="products-grid" style="margin-top:12px;">${products.map(p=>`
+        <div class="product-card">
+          <div class="product-card-flag" style="color:var(--ink-faint);">Not preferred</div>
+          <div class="product-card-name">${esc(p.name||p.key)}</div>
+          <div class="product-card-desc" style="font-style:italic;">${esc(p.bad_reason||"Not preferred for this sector.")}</div>
+        </div>`).join("")}
+      </div>
+    </details>`;
+}
+
+function renderBundleHero(bundle, recs) {
+  if (!bundle?.name) return `<div class="r-card">${emptyState("📦", "No bundle matched", "No packaged bundle was a strong enough fit for this profile. Recommended products are listed individually below.")}</div>`;
+
+  const mandatory = bundle.mandatory_covers || [];
+  const optional  = bundle.optional_covers  || [];
+  const recKeys   = new Set((recs||[]).map(r => r.key));
+
+  const coverItems = [
+    ...mandatory.map(c => ({ key: c, type: "mandatory" })),
+    ...optional.map(c  => ({ key: c, type: "optional"  })),
+  ];
+
+  return `
+    <div class="bundle-hero">
+      <div class="bundle-hero-top">
+        <div>
+          <div class="bundle-hero-eyebrow">Recommended package</div>
+          <div class="bundle-hero-name">${esc(bundle.name)}</div>
+          <div class="bundle-hero-il">${esc(bundle.il_product_name || "")}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;">
+          <div class="bundle-fit-badge">
+            <div class="bundle-fit-dot"></div>
+            ${bundle.fit_pct || 0}% profile fit
+          </div>
+          <span style="background:rgba(173,30,35,.7);color:white;border-radius:999px;padding:4px 14px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;">${esc(bundle.criticality || "High")}</span>
+        </div>
+      </div>
+
+      <div class="bundle-hero-desc">${esc(bundle.description || "")}</div>
+
+      <div class="bundle-covers-label">Covers included — ${mandatory.length} mandatory · ${optional.length} optional</div>
+      <div class="bundle-cover-grid">
+        ${coverItems.slice(0, 12).map(({ key, type }) => {
+          const isRec = recKeys.has(key);
+          return `
+            <div class="bundle-cover-item">
+              <div class="bundle-cover-dot ${type}"></div>
+              <div class="bundle-cover-name">${esc(labelize(key))}</div>
+            </div>`;
+        }).join("")}
+      </div>
+
+      ${(bundle.prerequisite_notes || []).map(n => `
+        <div style="margin-top:14px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:var(--r-sm);padding:10px 14px;font-size:12px;color:rgba(255,255,255,.6);">${esc(n)}</div>`).join("")}
+    </div>`;
+}
+
+function renderProductRows(recs, mapping) {
+  const byKey = Object.fromEntries((mapping || []).map(r => [r.key, r]));
+  if (!recs?.length) return emptyState("🛡️", "No products recommended", "The engine found no matching ICICI Lombard products for this profile. Try adjusting your inputs.");
+  const appetiteLabels = { good: "Good risk", moderate: "Moderate", bad: "Not preferred", tbd: "Under review" };
+
+  return recs.map((p, i) => {
+    const prio      = p.priority || "Optional";
+    const prioClass = prio === "Critical" ? "critical" : prio === "Recommended" ? "recommended" : "";
+
+    return `
+      <div class="product-row ${prioClass}" id="prow-${i}">
+        <div class="product-row-left">
+          <div class="product-row-name">${esc(p.name || p.key)}</div>
+          <div class="product-row-il">${esc(p.il_product || "")}</div>
+          <div style="display:flex;gap:5px;margin-top:4px;flex-wrap:wrap;">
+            <span class="product-tag score">${p.score}/100 fit</span>
+            <span class="product-tag appetite-${p.appetite || "tbd"}">${appetiteLabels[p.appetite || "tbd"]}</span>
+            ${p.mandatory ? `<span class="product-tag baseline">Baseline</span>` : ""}
+            <span class="badge badge-${prio === "Critical" ? "critical" : prio === "Recommended" ? "watch" : "low"}" style="font-size:10px;">${esc(prio)}</span>
+          </div>
+        </div>
+        <div class="product-row-nudge">${esc(p.nudge || "")}</div>
+        <div class="product-row-right">
+          ${p.premium ? `<div class="product-row-premium">₹${p.premium.min_lakh.toFixed(1)}–${p.premium.max_lakh.toFixed(1)}L</div>
+          <div style="font-size:11px;color:var(--ink-faint);text-align:right;">${esc(p.premium.basis)}</div>` : ""}
+          <button class="product-row-expand" onclick="toggleProductRow(${i})" title="Expand">›</button>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function renderTimeline(bundles) {
+  if (!bundles?.length) return emptyState("📅", "No timeline data", "Coverage timeline will appear once products are recommended.");
+  return bundles.map((b,i) => `
+    <div class="timeline-item">
+      <div class="tl-dot">${i+1}</div>
+      <div class="tl-time">${esc(b.timeline)}</div>
+      <div class="tl-name">${esc(b.name)}</div>
+      <div class="tl-count">${b.products.length} product${b.products.length!==1?"s":""}</div>
+    </div>`).join("");
+}
+
+function renderTriggers(triggers) {
+  if (!triggers?.length) return emptyState("✅", "No regulatory triggers", "No major regulatory flags were detected for this profile.");
+  return triggers.map(t=>`
+    <div class="callout-item">
+      <strong>${esc(t.name)}</strong>
+      <span>${esc(t.detail)}</span>
+    </div>`).join("");
+}
+
+function renderMitigations(items) {
+  if (!items?.length) return emptyState("✅", "No actions required", "No non-insurance mitigation actions were flagged for this profile.");
+  return items.map(t=>`
+    <div class="callout-item">
+      <strong>${esc(t.risk)}</strong>
+      <span>${esc(t.action)}</span>
+    </div>`).join("");
+}
+
+function renderAssumptions(assumptions) {
+  return Object.entries(assumptions||{}).map(([k,v])=>`
+    <div class="assumption-item">
+      <div class="assumption-key">${esc(labelize(k))}</div>
+      <div class="assumption-val">${esc(formatVal(v))}</div>
+    </div>`).join("");
+}
+
+function renderOutreach(prompts, source, error) {
+  const entries = Object.entries(prompts||{});
+  if (!entries.length) return "";
+  const sourceText = source === "gemini"
+    ? "AI-generated outreach drafts active."
+    : "Using local fallback drafts. Add GEMINI_API_KEY to enable AI-generated drafts.";
+  return `
+    <div class="result-section" id="outreach">
+      <div class="result-section-head">
+        <div class="result-section-bar"></div>
+        <div class="result-section-title">Outreach kit</div>
+      </div>
+      <div class="r-card">
+        <p style="font-size:12px;color:var(--ink-muted);margin-bottom:14px;">${esc(sourceText)}</p>
+        ${error ? `<p class="notice" style="margin-bottom:12px;">${esc(error)}</p>` : ""}
+        ${entries.map(([key, item], i) => {
+          const email = `${item.email_subject}\n\n${item.email_body}`;
+          return `
+            <details class="outreach-item" ${i===0?"open":""}>
+              <summary>${esc(labelize(key))}</summary>
+              <div class="outreach-body">
+                <div>
+                  <div class="outreach-col-label">Email</div>
+                  <pre>${esc(email)}</pre>
+                  <button class="btn btn-ghost" style="height:36px;padding:0 14px;font-size:12px;margin-top:8px;" data-copy="${esc(email)}">Copy email</button>
+                </div>
+                <div>
+                  <div class="outreach-col-label">WhatsApp</div>
+                  <pre>${esc(item.whatsapp||"")}</pre>
+                  <button class="btn btn-ghost" style="height:36px;padding:0 14px;font-size:12px;margin-top:8px;" data-copy="${esc(item.whatsapp||"")}">Copy WhatsApp</button>
+                </div>
+              </div>
+            </details>`;
+        }).join("")}
+      </div>
+    </div>`;
+}
+
+function renderDownstream(opps) {
+  if (!opps?.length) return "";
+  return `
+    <div class="result-section">
+      <div class="result-section-head">
+        <div class="result-section-bar"></div>
+        <div class="result-section-title">Downstream opportunities</div>
+      </div>
+      <div class="downstream-grid">
+        ${opps.map(o=>`
+          <div class="r-card">
+            <div class="card-label">${esc(o.customer_type)} customers</div>
+            <div style="font-family:var(--font-head);font-size:16px;font-weight:700;margin-bottom:8px;letter-spacing:-.02em;">${esc(o.product)}</div>
+            <p style="font-size:13px;color:var(--ink-muted);line-height:1.55;">${esc(o.rationale)}</p>
+            ${o.total_opportunity_lakhs_min !== undefined ? `
+              <div class="notice" style="margin-top:10px;">
+                Estimated potential: INR ${o.total_opportunity_lakhs_min} – ${o.total_opportunity_lakhs_max} lakhs
+              </div>` : ""}
+          </div>`).join("")}
+      </div>
+    </div>`;
 }
 
 function renderGlobalProducts(products) {
-  if (!products?.length) return `<p class="muted">No global product benchmark matched this profile.</p>`;
-  const status = {
-    icici: "ICICI Lombard - Available now",
-    india_competitor: "Indian market - Competitor",
-    not_in_india: "Global - Not yet in India",
-  };
-  return `<div class="product-grid">${products.map((product) => `
-    <article class="product">
-      <h3>${escapeHtml(product.name)} <span class="tag">${product.relevance_score}/100</span></h3>
-      <p><strong>${escapeHtml(status[product.label] || "Global product")}</strong></p>
-      <p>${escapeHtml(product.what_it_covers || "")}</p>
-      <p><strong>Providers:</strong> ${escapeHtml(product.providers || "")}</p>
-      ${product.premium_range ? `<p class="premium-line">Indicative premium: INR ${product.premium_range.min_lakh.toFixed(1)} - ${product.premium_range.max_lakh.toFixed(1)} lakhs</p>` : ""}
-      ${product.label === "not_in_india" ? `<p class="notice">Product development opportunity - flag to ICICI Lombard product team.</p>` : ""}
-    </article>
-  `).join("")}</div>`;
+  if (!products?.length) return emptyState("🌍", "No global benchmarks", "No global product comparisons matched this profile.");
+  const statusLabels = { icici:"ICICI Lombard", india_competitor:"Indian market", not_in_india:"Global only" };
+  return products.map(p=>`
+    <div class="product-card ${p.label==='not_in_india'?'innovation-card':''}">
+      <div class="product-card-flag" style="color:var(--ink-faint);">${statusLabels[p.label]||"Global"}</div>
+      <div class="product-card-name">${esc(p.name)} <span class="product-tag score">${p.relevance_score}/100</span></div>
+      <div class="product-card-desc">${esc(p.what_it_covers||"")}</div>
+      <div style="font-size:12px;color:var(--ink-muted);">Providers: ${esc(p.providers||"")}</div>
+      ${p.label==='not_in_india'?`<p class="notice" style="margin-top:8px;">Product innovation opportunity — flag to product team.</p>`:""}
+    </div>`).join("");
 }
 
-function renderScoreBreakdown(items) {
-  if (!items?.length) return `<p class="muted">No dynamic score multipliers were material for this profile.</p>`;
-  return `<div class="action-list">${items.map((item) => `
-    <div class="action-item">
-      <strong>${escapeHtml(labelize(item.key))}</strong>
-      <span>${escapeHtml(item.applied || item.formula || "")}</span>
-      <span class="muted">${escapeHtml(item.stat || "")}</span>
-      <span class="muted"><strong>Source:</strong> ${escapeHtml(item.source || "")}</span>
-    </div>
-  `).join("")}</div>`;
+function renderBreakdown(items) {
+  if (!items?.length) return emptyState("⚙️", "No multipliers applied", "No dynamic score multipliers were material for this profile.");
+  return items.map(i=>`
+    <div class="callout-item">
+      <strong>${esc(labelize(i.key))}</strong>
+      <span>${esc(i.applied||"")}</span>
+      <span style="font-size:11px;color:var(--ink-faint);display:block;margin-top:3px;">${esc(i.stat||"")}</span>
+    </div>`).join("");
 }
 
-function renderComparison(recommendations) {
+function renderComparisonTable(recs) {
   return `
     <div class="table-wrap">
       <table>
         <thead><tr><th>Product</th><th>Priority</th><th>Fit</th><th>Baseline</th></tr></thead>
         <tbody>
-          ${(recommendations || []).map((product) => `
+          ${(recs||[]).map(p=>`
             <tr>
-              <td>${escapeHtml(product.name || product.key)}</td>
-              <td>${escapeHtml(product.priority || "Optional")}</td>
-              <td>${product.score}</td>
-              <td>${product.mandatory ? "Yes" : "No"}</td>
-            </tr>
-          `).join("")}
+              <td>${esc(p.name||p.key)}</td>
+              <td>${esc(p.priority||"Optional")}</td>
+              <td>${p.score}</td>
+              <td>${p.mandatory?"Yes":"No"}</td>
+            </tr>`).join("")}
         </tbody>
       </table>
-    </div>
-  `;
-}
-
-function renderTimeline(bundles) {
-  return `<div class="timeline">${(bundles || []).map((bundle, index) => `
-    <div class="timeline-item">
-      <div class="timeline-dot">${index + 1}</div>
-      <div><strong>${escapeHtml(bundle.timeline)}</strong><span>${escapeHtml(bundle.name)}: ${bundle.products.length} products</span></div>
-    </div>
-  `).join("")}</div>`;
-}
-
-function renderProductMapping(mapping) {
-  return `
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Product</th><th>Fit</th><th>Risk drivers</th></tr></thead>
-        <tbody>
-          ${(mapping || []).map((row) => `
-            <tr>
-              <td>${escapeHtml(row.product)}</td>
-              <td>${row.score}</td>
-              <td>${row.top_risks.map((risk) => `${escapeHtml(risk.risk)} (${risk.score})`).join(", ")}</td>
-            </tr>
-          `).join("")}
-        </tbody>
-      </table>
-    </div>
-  `;
-}
-
-function renderTriggers(triggers) {
-  if (!triggers?.length) return `<p class="muted">No major regulatory trigger was detected from the current inputs.</p>`;
-  return triggers.map((trigger) => `
-    <article class="callout">
-      <strong>${escapeHtml(trigger.name)}</strong>
-      <span>${escapeHtml(trigger.detail)}</span>
-    </article>
-  `).join("");
-}
-
-function renderMitigations(mitigations) {
-  return `<div class="action-list">${(mitigations || []).map((item) => `
-    <div class="action-item">
-      <strong>${escapeHtml(item.risk)}</strong>
-      <span>${escapeHtml(item.action)}</span>
-    </div>
-  `).join("")}</div>`;
-}
-
-function renderAssumptions(assumptions) {
-  return `<div class="assumption-grid">${Object.entries(assumptions || {}).map(([key, value]) => `
-    <div class="assumption">
-      <strong>${escapeHtml(labelize(key))}</strong>
-      <span>${escapeHtml(formatValue(value))}</span>
-    </div>
-  `).join("")}</div>`;
-}
-
-function renderOutreachKit(prompts, source, error) {
-  const entries = Object.entries(prompts || {});
-  if (!entries.length) return "";
-  const sourceText = source === "gemini"
-    ? "AI-generated outreach drafts are active."
-    : "Using local fallback drafts. Add GEMINI_API_KEY in Vercel to enable AI-generated drafts.";
-  const items = entries.map(([key, item], index) => {
-    const email = `${item.email_subject}\n\n${item.email_body}`;
-    return `
-      <details class="outreach-item" ${index === 0 ? "open" : ""}>
-        <summary>${escapeHtml(labelize(key))}</summary>
-        <div class="outreach-item-body">
-          <div class="outreach-cols">
-            <div>
-              <div class="outreach-col-label">Email</div>
-              <pre>${escapeHtml(email)}</pre>
-              <button class="btn btn-ghost copy-outreach" data-copy="${escapeAttr(email)}" type="button">Copy email</button>
-            </div>
-            <div>
-              <div class="outreach-col-label">WhatsApp</div>
-              <pre>${escapeHtml(item.whatsapp || "")}</pre>
-              <button class="btn btn-ghost copy-outreach" data-copy="${escapeAttr(item.whatsapp || "")}" type="button">Copy WhatsApp</button>
-            </div>
-          </div>
-        </div>
-      </details>`;
-  }).join("");
-  return `
-    <details class="result-card expander" id="outreach">
-      <summary>Outreach Kit</summary>
-      <p class="muted">${escapeHtml(sourceText)}</p>
-      ${error ? `<p class="notice">Gemini fallback reason: ${escapeHtml(error)}</p>` : ""}
-      <div style="margin-top:10px;">${items}</div>
-    </details>`;
-}
-
-function renderDownstream(opportunities) {
-  if (!opportunities?.length) return "";
-  return `
-    <div class="result-card">
-      <div class="card-label">Downstream opportunity</div>
-      <div class="product-grid">${opportunities.map((opp) => `
-        <article class="product">
-          <h3>${escapeHtml(opp.product)}</h3>
-          <p>Your ${escapeHtml(opp.customer_type)} customers may need <strong>${escapeHtml(opp.product)}</strong>. As their service provider, you are already in the relationship.</p>
-          <p>${escapeHtml(opp.rationale)}</p>
-          <p class="premium-line">Estimated premium per downstream customer: ${escapeHtml(opp.premium_per_customer)}</p>
-          ${opp.penetration_count !== undefined ? `<p class="muted">Assuming ${opp.penetration_count} converted customers from the current rough customer-base proxy. Actual opportunity requires customer count verification.</p>` : ""}
-          ${opp.total_opportunity_lakhs_min !== undefined ? `<p class="notice">Estimated downstream potential: INR ${opp.total_opportunity_lakhs_min} - ${opp.total_opportunity_lakhs_max} lakhs</p>` : ""}
-        </article>
-      `).join("")}</div>
-    </div>
-  `;
+    </div>`;
 }
 
 function renderCustomTriggers(triggers) {
   if (!triggers?.length) return "";
   return `
-    <div class="result-card innovation-card">
-      <div class="card-label">Product innovation opportunity</div>
-      ${triggers.map((trigger) => `
-        <article class="product">
-          <h3>Product Innovation Opportunity - ${escapeHtml(trigger.name || labelize(trigger.key))}</h3>
-          <p>No existing ICICI Lombard product fully covers this emerging risk for the current profile.</p>
-          <p><strong>What it is:</strong> ${escapeHtml(trigger.description)}</p>
-          <p><strong>Global precedent:</strong> ${escapeHtml(trigger.global_precedent)}</p>
-          <p><strong>IRDAI path:</strong> ${escapeHtml(trigger.irdai_path)}</p>
-          <p><strong>Estimated Indian market:</strong> ${escapeHtml(trigger.estimated_market_size)}</p>
-          <ul>${(trigger.triggered_by || []).map((reason) => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>
-          <button class="btn btn-ghost copy-trigger" data-copy="${escapeAttr(`${trigger.name || labelize(trigger.key)}\n${trigger.description}\n${trigger.irdai_path}`)}" type="button">Copy product-development summary</button>
-        </article>
-      `).join("")}
-    </div>
-  `;
+    <div class="r-card innovation-card" style="margin-bottom:24px;">
+      <div class="card-label">Product innovation opportunities</div>
+      ${triggers.map(t=>`
+        <div class="callout-item" style="margin-bottom:10px;">
+          <strong>${esc(t.name||labelize(t.key))}</strong>
+          <span>${esc(t.description)}</span>
+          <div style="font-size:12px;color:var(--ink-faint);margin-top:4px;">IRDAI path: ${esc(t.irdai_path||"")} · Market: ${esc(t.estimated_market_size||"")}</div>
+        </div>`).join("")}
+    </div>`;
 }
 
-function downloadReport(result) {
+/* ─── REFINE PANEL ───────────────────────────────────────────── */
+function renderRefineBody() {
+  if (!state.meta) return "";
+  const meta = state.meta;
+  const p = state.profile;
+
+  const mkSlider = (key, label, min, max, step, decimals=2) => {
+    const val = Number(p[key] ?? 0);
+    return `
+      <div class="refine-field">
+        <label>${label}</label>
+        <div class="slider-field">
+          <input type="range" min="${min}" max="${max}" step="${step}" value="${val}" data-rkey="${key}" data-dec="${decimals}"
+            oninput="this.nextElementSibling.textContent=Number(this.value).toFixed(${decimals})" />
+          <span class="slider-val">${val.toFixed(decimals)}</span>
+        </div>
+      </div>`;
+  };
+
+  const mkSelect = (key, label, opts, nullLabel="") => {
+    const cur = p[key];
+    return `
+      <div class="refine-field">
+        <label>${label}</label>
+        <select class="f-select" style="height:38px;font-size:13px;" data-rkey="${key}">
+          ${nullLabel?`<option value="">${esc(nullLabel)}</option>`:""}
+          ${opts.map(o=>`<option value="${esc(o)}" ${cur===o?"selected":""}>${esc(o)}</option>`).join("")}
+        </select>
+      </div>`;
+  };
+
+  const mkCheck = (key, label) => `
+    <div class="refine-field" style="display:flex;align-items:center;gap:8px;padding:8px 0;">
+      <input type="checkbox" data-rkey="${key}" ${p[key]?"checked":""} style="accent-color:var(--red);width:16px;height:16px;cursor:pointer;" />
+      <label style="font-size:13px;color:var(--ink);cursor:pointer;">${label}</label>
+    </div>`;
+
+  return `
+    <div class="refine-section">
+      <h3>Governance &amp; capital</h3>
+      <div class="refine-grid">
+        ${mkSlider("investor_cn_hk_pct","China/HK investor BO",0,1,.01)}
+        ${mkSlider("cumulative_fundraising_inr_cr","Total fundraising (INR Cr)",0,10000,10,0)}
+        ${mkSlider("founder_concentration_index","Founder concentration",0,1,.01)}
+        ${mkSelect("holdco_domicile","Holdco domicile",meta.holdcoDomiciles)}
+        ${mkSelect("rbi_registration","RBI registration",meta.rbiRegistrations,"None")}
+        ${mkCheck("dpiit_recognition","DPIIT recognised startup")}
+      </div>
+    </div>
+    <div class="refine-section">
+      <h3>Data &amp; AI</h3>
+      <div class="refine-grid">
+        ${mkSlider("sdf_probability","SDF likelihood",0,1,.01)}
+        ${mkSelect("data_localisation_status","Data localisation",["Unknown","Full_onshore","Hybrid","Offshore"])}
+        ${mkSelect("ai_tier","AI tier",meta.aiTiers)}
+        ${mkSlider("hardware_software_split","Hardware revenue",0,1,.01)}
+      </div>
+    </div>
+    <div class="refine-section">
+      <h3>Market &amp; supply chain</h3>
+      <div class="refine-grid">
+        ${mkSlider("b2b_pct","B2B revenue",0,1,.01)}
+        ${mkSlider("export_eu_pct","EU revenue",0,1,.01)}
+        ${mkSlider("export_us_pct","US revenue",0,1,.01)}
+        ${mkSlider("export_china_pct","China revenue",0,1,.01)}
+        ${mkSlider("chinese_supplier_pct_cogs","Chinese COGS",0,1,.01)}
+        ${mkCheck("listed_customer_brsr_dependency","Listed customers BRSR")}
+      </div>
+    </div>
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);display:flex;gap:10px;align-items:center;">
+      <button class="btn btn-primary" id="refine-run-btn" type="button">Recalculate scores</button>
+      <span id="refine-status" style="font-size:12px;color:var(--ink-muted);"></span>
+    </div>`;
+}
+
+function bindRefine() {
+  const body = $("refine-body");
+  if (!body) return;
+  let timer = null;
+
+  // Sliders auto-update profile
+  body.querySelectorAll("input[type='range'][data-rkey]").forEach(el => {
+    el.addEventListener("input", () => {
+      state.profile[el.dataset.rkey] = Number(el.value);
+    });
+  });
+
+  body.querySelectorAll("select[data-rkey]").forEach(el => {
+    el.addEventListener("change", () => {
+      const val = el.value || null;
+      state.profile[el.dataset.rkey] = val;
+      if (el.dataset.rkey === "ai_tier") state.profile.ai_in_product = val !== "None";
+    });
+  });
+
+  body.querySelectorAll("input[type='checkbox'][data-rkey]").forEach(el => {
+    el.addEventListener("change", () => {
+      state.profile[el.dataset.rkey] = el.checked;
+    });
+  });
+
+  const runBtn = $("refine-run-btn");
+  const status = $("refine-status");
+
+  if (runBtn) {
+    runBtn.addEventListener("click", async () => {
+      runBtn.disabled = true;
+      runBtn.textContent = "Recalculating…";
+      if (status) status.textContent = "";
+      try {
+        const res = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(state.profile),
+        });
+        const result = await res.json();
+        if (!res.ok || result.error) throw new Error(result.error || "Failed");
+        renderResults(result);
+      } catch (err) {
+        if (status) status.textContent = `Error: ${err.message}`;
+      } finally {
+        if (runBtn) { runBtn.disabled = false; runBtn.textContent = "Recalculate scores"; }
+      }
+    });
+  }
+}
+
+/* ─── DOWNLOAD ───────────────────────────────────────────────── */
+window.downloadReport = function(result) {
+  if (!result) return;
   const lines = [
-    `SPARC Risk Report - ${result.profile.startup_name}`,
+    `SPARC Risk Report — ${result.profile.startup_name}`,
+    `Generated: ${new Date().toLocaleDateString("en-IN")}`,
     "",
     `Sector: ${result.profile.sector}`,
     `Stage: ${result.profile.funding_stage}`,
     `Team size: ${result.profile.team_size}`,
     `Overall risk: ${result.overall}/100`,
     "",
-    "Top risks:",
-    ...result.top_risks.map((risk) => `- ${risk.name}: ${risk.score}/100`),
+    "TOP RISKS:",
+    ...(result.top_risks||[]).map(r => `  · ${r.name}: ${r.score}/100`),
     "",
-    "Recommendations:",
-    ...result.recommendations.map((product) => `- ${product.name || product.key}: ${product.priority} (${product.score}/100)`),
+    "RECOMMENDATIONS:",
+    ...(result.recommendations||[]).map(p => `  · ${p.name||p.key}: ${p.priority} (${p.score}/100)`),
     "",
-    "Mitigation actions:",
-    ...result.mitigations.map((item) => `- ${item.risk}: ${item.action}`),
+    "MITIGATION ACTIONS:",
+    ...(result.mitigations||[]).map(m => `  · ${m.risk}: ${m.action}`),
   ];
   const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${result.profile.startup_name || "startup"}-risk-report.txt`.replaceAll(" ", "-");
-  link.click();
+  const a = document.createElement("a");
+  a.href = url; a.download = `${(result.profile.startup_name||"startup").replace(/\s+/g,"-")}-sparc-report.txt`;
+  a.click();
   URL.revokeObjectURL(url);
-}
+};
 
-function drawRadar(canvasId, data, options = {}) {
-  const canvas = document.getElementById(canvasId);
+/* ─── RADAR CHART ────────────────────────────────────────────── */
+function drawRadar(canvasId, data, opts = {}) {
+  const canvas = $(canvasId);
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
   const entries = Object.entries(data || {});
-  const width = canvas.width;
-  const height = canvas.height;
-  const cx = width / 2;
-  const cy = height / 2;
-  const radius = Math.min(width, height) * 0.32;
-  ctx.clearRect(0, 0, width, height);
-  ctx.font = "11px Inter, system-ui, sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
+  if (!entries.length) return;
 
+  const W = canvas.width, H = canvas.height;
+  const cx = W / 2, cy = H / 2;
+  const R = Math.min(W, H) * 0.3;
+  const maxLen = opts.maxLabelLength || 14;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Grid rings
   for (let ring = 1; ring <= 4; ring++) {
     ctx.beginPath();
-    entries.forEach((_, index) => {
-      const angle = (-Math.PI / 2) + (index * 2 * Math.PI / entries.length);
-      const r = radius * ring / 4;
-      const x = cx + Math.cos(angle) * r;
-      const y = cy + Math.sin(angle) * r;
-      index === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    entries.forEach((_, i) => {
+      const angle = -Math.PI/2 + i * 2*Math.PI / entries.length;
+      const r = R * ring / 4;
+      const x = cx + Math.cos(angle)*r, y = cy + Math.sin(angle)*r;
+      i === 0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
     });
     ctx.closePath();
-    ctx.strokeStyle = "#E5E5E0";
+    ctx.strokeStyle = "#E2E2DC";
+    ctx.lineWidth = 1;
     ctx.stroke();
   }
 
-  ctx.beginPath();
-  entries.forEach(([label, score], index) => {
-    const angle = (-Math.PI / 2) + (index * 2 * Math.PI / entries.length);
-    const x = cx + Math.cos(angle) * radius;
-    const y = cy + Math.sin(angle) * radius;
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(x, y);
-    const shortLabel = truncateLabel(label, options.maxLabelLength || 14);
-    ctx.fillStyle = "#475569";
-    ctx.fillText(shortLabel, cx + Math.cos(angle) * (radius + 34), cy + Math.sin(angle) * (radius + 34));
+  // Axis lines + labels
+  ctx.font = "10px 'Inter', sans-serif";
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  entries.forEach(([label], i) => {
+    const angle = -Math.PI/2 + i * 2*Math.PI / entries.length;
+    const x = cx + Math.cos(angle)*R, y = cy + Math.sin(angle)*R;
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x,y);
+    ctx.strokeStyle = "#E2E2DC"; ctx.lineWidth = 1; ctx.stroke();
+    const lx = cx + Math.cos(angle)*(R+28), ly = cy + Math.sin(angle)*(R+28);
+    ctx.fillStyle = "#94A3B8";
+    const short = label.length > maxLen ? label.slice(0, maxLen-1)+"…" : label;
+    ctx.fillText(short, lx, ly);
   });
-  ctx.strokeStyle = "#E5E5E0";
-  ctx.stroke();
 
+  // Data polygon
   ctx.beginPath();
-  entries.forEach(([_, score], index) => {
-    const angle = (-Math.PI / 2) + (index * 2 * Math.PI / entries.length);
-    const r = radius * Math.min(100, Number(score)) / 100;
-    const x = cx + Math.cos(angle) * r;
-    const y = cy + Math.sin(angle) * r;
-    index === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  entries.forEach(([_, score], i) => {
+    const angle = -Math.PI/2 + i * 2*Math.PI / entries.length;
+    const r = R * Math.min(100, Number(score)) / 100;
+    const x = cx + Math.cos(angle)*r, y = cy + Math.sin(angle)*r;
+    i === 0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
   });
   ctx.closePath();
-  ctx.fillStyle = "rgba(173, 30, 35, 0.16)";
+  ctx.fillStyle = "rgba(173,30,35,.14)";
   ctx.strokeStyle = "#AD1E23";
   ctx.lineWidth = 2;
-  ctx.fill();
-  ctx.stroke();
+  ctx.fill(); ctx.stroke();
+
+  // Dots on vertices
+  entries.forEach(([_, score], i) => {
+    const angle = -Math.PI/2 + i * 2*Math.PI / entries.length;
+    const r = R * Math.min(100, Number(score)) / 100;
+    const x = cx + Math.cos(angle)*r, y = cy + Math.sin(angle)*r;
+    ctx.beginPath(); ctx.arc(x,y,3,0,2*Math.PI);
+    ctx.fillStyle = "#AD1E23"; ctx.fill();
+  });
 }
 
-function truncateLabel(label, maxLength) {
-  return label.length > maxLength ? `${label.slice(0, maxLength - 1)}...` : label;
-}
-
-function riskClass(score) {
-  if (score >= 70) return "bar-critical";
-  if (score >= 40) return "bar-watch";
-  return "bar-low";
-}
-
-function labelize(key) {
-  return key.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
-function formatValue(value) {
-  if (Array.isArray(value)) return value.length ? value.join(", ") : "None";
-  if (value === null || value === undefined || value === "") return "None";
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  return String(value);
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function escapeAttr(value) {
-  return escapeHtml(value);
-}
-
-$("back-btn").addEventListener("click", () => {
-  state.step = Math.max(0, state.step - 1);
-  render();
-});
-
-$("next-btn").addEventListener("click", () => {
-  if (state.step < screens.length - 1) {
-    state.step += 1;
-    render();
-  } else {
-    analyze();
-  }
-});
-
-init().catch((error) => {
-  $("screen").innerHTML = `<div class="error">${escapeHtml(error.message)}</div>`;
-});
+/* ─── KICK OFF ───────────────────────────────────────────────── */
+window.renderForm = renderForm;
+init();

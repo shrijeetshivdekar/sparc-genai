@@ -1,0 +1,215 @@
+{
+  "version": "2026.05",
+  "config_version": "2026.05",
+  "risk_weights": {
+    "cyber_technical": 0.115,
+    "data_privacy": 0.12,
+    "liability": 0.06,
+    "ip_infringement": 0.06,
+    "key_person": 0.05,
+    "governance_fraud": 0.115,
+    "property": 0.06,
+    "regulatory_compliance": 0.09,
+    "esg_climate": 0.08,
+    "geopolitical": 0.05,
+    "gig_labour": 0.05,
+    "policy_velocity": 0.075,
+    "reputation": 0.075
+  },
+  "sector_multipliers": {
+    "fintech": {"cyber_technical": 1.5, "data_privacy": 1.5, "regulatory_compliance": 1.5, "governance_fraud": 1.4},
+    "healthtech": {"cyber_technical": 1.5, "data_privacy": 1.5, "liability": 1.3},
+    "edtech": {"data_privacy": 1.5, "reputation": 1.4},
+    "deeptech": {"ip_infringement": 1.5, "property": 1.3, "key_person": 1.3},
+    "climatetech": {"esg_climate": 1.5, "property": 1.3},
+    "d2c": {"liability": 1.5, "reputation": 1.3},
+    "saas_b2b": {"cyber_technical": 1.3, "data_privacy": 1.3}
+  },
+  "stage_multipliers": {
+    "seed": {"governance_fraud": 1.0, "key_person": 1.2},
+    "series_a": {"governance_fraud": 1.3, "regulatory_compliance": 1.2},
+    "series_b": {"governance_fraud": 1.4, "reputation": 1.3},
+    "growth": {"governance_fraud": 1.5, "esg_climate": 1.3}
+  },
+  "asset_multipliers": {
+    "asset_light": {"property": 0.8},
+    "warehouse": {"property": 1.1, "liability": 1.2},
+    "lab_equipment": {"property": 1.3, "ip_infringement": 1.2},
+    "fab_or_plant": {"property": 1.5, "esg_climate": 1.2}
+  },
+  "ai_tier_multipliers": {"none": 1.0, "ml_internal": 1.1, "genai_b2b": 1.3, "genai_consumer": 1.5},
+  "hardware_split_multipliers": {"0_pct": 1.0, "upto_30": 1.1, "upto_60": 1.3, "over_60": 1.5},
+  "geo_multipliers": {"MH": 1.15, "GJ": 1.1, "TN": 1.05, "KA": 1.05, "DEFAULT": 1.0},
+  "graduation_map": {
+    "seed": [
+      {"stage": "Seed", "bundle": "Startup Shield Pack"},
+      {"stage": "Series A", "bundle": "Corporate Cover II"},
+      {"stage": "Series B", "bundle": "Corporate Cover II"},
+      {"stage": "Growth", "bundle": "Corporate Cover II"}
+    ],
+    "series_a": [
+      {"stage": "Seed", "bundle": "Startup Shield Pack"},
+      {"stage": "Series A", "bundle": "Startup Shield Pack"},
+      {"stage": "Series B", "bundle": "Corporate Cover II"},
+      {"stage": "Growth", "bundle": "Corporate Cover II"}
+    ],
+    "series_b": [
+      {"stage": "Seed", "bundle": "Startup Shield Pack"},
+      {"stage": "Series A", "bundle": "Corporate Cover II"},
+      {"stage": "Series B", "bundle": "Corporate Cover II"},
+      {"stage": "Growth", "bundle": "Corporate Cover II"}
+    ],
+    "growth": [
+      {"stage": "Seed", "bundle": "Startup Shield Pack"},
+      {"stage": "Series A", "bundle": "Corporate Cover II"},
+      {"stage": "Series B", "bundle": "Corporate Cover II"},
+      {"stage": "Growth", "bundle": "Corporate Cover II"}
+    ]
+  },
+  "bundle_meta": {
+    "MSME_Suraksha_Kavach": {
+      "name": "MSME Suraksha Kavach",
+      "tam_cr": 16250,
+      "base_premium": 50000,
+      "adoption": 0.05,
+      "margin": 0.06,
+      "trajectory": "up",
+      "risk_mult": 1.1,
+      "eligible_sectors": ["d2c", "saas_b2b", "manufacturing", "trading"],
+      "eligible_stages": ["seed", "series_a"],
+      "asset_band": ["warehouse", "asset_light"],
+      "components": ["BHARAT_SOOKSHMA", "PUBLIC_LIABILITY", "EMPLOYERS_COMP"],
+      "regulatory_anchors": ["Bharat Sookshma wording", "Public Liability Insurance Act where applicable"],
+      "covered_risks": ["property", "liability", "gig_labour"]
+    },
+    "Corporate_Cover_II": {
+      "name": "Corporate Cover II",
+      "tam_cr": 880,
+      "base_premium": 2200000,
+      "adoption": 0.4,
+      "margin": 0.13,
+      "trajectory": "up",
+      "risk_mult": 1.2,
+      "eligible_sectors": ["any"],
+      "eligible_stages": ["series_b", "growth"],
+      "asset_band": ["any"],
+      "components": ["CGL_I_ELITE", "PUBLIC_LIABILITY", "EMPLOYERS_COMP", "D_AND_O", "CYBER"],
+      "regulatory_anchors": ["Companies Act 2013", "Commercial liability wording"],
+      "covered_risks": ["property", "liability", "governance_fraud", "cyber_technical", "data_privacy", "key_person"]
+    },
+    "Startup_Shield_Pack": {
+      "name": "Startup Shield Pack",
+      "tam_cr": 1760,
+      "base_premium": 320000,
+      "adoption": 0.22,
+      "margin": 0.11,
+      "trajectory": "up",
+      "risk_mult": 1.3,
+      "eligible_sectors": ["saas_b2b", "fintech", "healthtech", "deeptech", "edtech"],
+      "eligible_stages": ["seed", "series_a"],
+      "asset_band": ["asset_light", "warehouse"],
+      "components": ["CYBER", "D_AND_O", "PI_TECH_EO", "CRIME_FIDELITY"],
+      "regulatory_anchors": ["DPDP Act 2023", "CERT-In Directions 2022", "Companies Act 2013"],
+      "covered_risks": ["cyber_technical", "data_privacy", "ip_infringement", "key_person", "governance_fraud", "reputation"]
+    },
+    "Bharat_Sookshma_Udyam_Suraksha": {
+      "name": "Bharat Sookshma Udyam Suraksha",
+      "tam_cr": 2560,
+      "base_premium": 13500,
+      "adoption": 0.05,
+      "margin": 0.18,
+      "trajectory": "up",
+      "risk_mult": 0.9,
+      "eligible_sectors": ["any"],
+      "eligible_stages": ["seed", "series_a"],
+      "asset_band": ["warehouse", "asset_light"],
+      "components": ["BHARAT_SOOKSHMA", "PUBLIC_LIABILITY", "EMPLOYERS_COMP"],
+      "si_cap_inr": 50000000,
+      "regulatory_anchors": ["Bharat Sookshma Udyam Suraksha wording"],
+      "covered_risks": ["property"]
+    },
+    "Deeptech_Innovation_Bundle": {
+      "name": "Deeptech Innovation Bundle",
+      "tam_cr": 280,
+      "base_premium": 800000,
+      "adoption": 0.12,
+      "margin": 0.1,
+      "trajectory": "up",
+      "risk_mult": 1.4,
+      "eligible_sectors": ["deeptech", "climatetech", "healthtech"],
+      "eligible_stages": ["series_a", "series_b"],
+      "asset_band": ["lab_equipment", "fab_or_plant"],
+      "components": ["ENGINEERING_CAR_EAR_CPM_MBD_EEI", "PI_TECH_EO", "D_AND_O", "PRODUCT_LIABILITY", "Drone_RPAS"],
+      "regulatory_anchors": ["Drone Rules 2021 Rule 44", "Engineering Insurance wording"],
+      "covered_risks": ["property", "ip_infringement", "key_person", "cyber_technical", "liability"]
+    },
+    "Employee_Welfare_Bundle": {
+      "name": "Employee Welfare Bundle",
+      "tam_cr": 4200,
+      "base_premium": 240000,
+      "adoption": 0.32,
+      "margin": 0.09,
+      "trajectory": "up",
+      "risk_mult": 1.0,
+      "eligible_sectors": ["d2c", "saas_b2b", "healthtech", "edtech", "climatetech", "trading"],
+      "eligible_stages": ["seed", "series_a", "series_b", "growth"],
+      "asset_band": ["any"],
+      "components": ["GROUP_HEALTH", "GROUP_PA", "EMPLOYERS_COMP"],
+      "regulatory_anchors": ["Employees' Compensation Act 1923", "IRDAI Health Insurance Regulations"],
+      "covered_risks": ["key_person", "gig_labour", "liability"]
+    },
+    "Marine_Trade_Credit_Bundle": {
+      "name": "Marine Trade Credit Bundle",
+      "tam_cr": 1200,
+      "base_premium": 450000,
+      "adoption": 0.11,
+      "margin": 0.12,
+      "trajectory": "up",
+      "risk_mult": 1.2,
+      "eligible_sectors": ["d2c", "climatetech", "manufacturing", "trading", "saas_b2b"],
+      "eligible_stages": ["series_a", "series_b", "growth"],
+      "asset_band": ["warehouse", "fab_or_plant", "asset_light"],
+      "components": ["MARINE_CARGO", "TRADE_CREDIT"],
+      "regulatory_anchors": ["Marine Cargo wording", "Trade Credit Insurance wording"],
+      "covered_risks": ["geopolitical", "governance_fraud", "reputation"]
+    },
+    "Engineering_Project_Bundle": {
+      "name": "Engineering Project Bundle",
+      "tam_cr": 950,
+      "base_premium": 900000,
+      "adoption": 0.09,
+      "margin": 0.14,
+      "trajectory": "flat",
+      "risk_mult": 1.25,
+      "eligible_sectors": ["deeptech", "climatetech", "manufacturing", "d2c"],
+      "eligible_stages": ["series_a", "series_b", "growth"],
+      "asset_band": ["lab_equipment", "fab_or_plant"],
+      "components": ["ENGINEERING_CAR_EAR_CPM_MBD_EEI", "SURETY", "MARINE_CARGO"],
+      "regulatory_anchors": ["Engineering Insurance wording", "IRDAI Surety Insurance Guidelines"],
+      "covered_risks": ["property", "liability", "esg_climate"]
+    },
+    "Climate_Parametric_Bundle": {
+      "name": "Climate Parametric Bundle",
+      "tam_cr": 700,
+      "base_premium": 180000,
+      "adoption": 0.07,
+      "margin": 0.15,
+      "trajectory": "up",
+      "risk_mult": 1.1,
+      "eligible_sectors": ["climatetech", "d2c", "manufacturing", "trading"],
+      "eligible_stages": ["seed", "series_a", "series_b", "growth"],
+      "asset_band": ["warehouse", "fab_or_plant", "asset_light"],
+      "components": ["PRAKRITIK_PARAMETRIC", "BHARAT_SOOKSHMA", "PUBLIC_LIABILITY"],
+      "regulatory_anchors": ["Parametric climate product filings"],
+      "covered_risks": ["esg_climate", "property", "geopolitical"]
+    }
+  },
+  "regulatory_triggers": [
+    {"signal": "drone_ops", "reg": "DGCA Drone Rules 2021 Rule 44", "regulation": "DGCA Drone Rules 2021 Rule 44", "product": "Drone_RPAS", "mandatory": true, "citation_url": "https://www.civilaviation.gov.in/"},
+    {"signal": "handles_pii", "reg": "DPDP Act 2023; CERT-In 2022", "regulation": "DPDP Act 2023; CERT-In Directions 2022", "product": "CYBER", "mandatory": false, "citation_url": "https://www.meity.gov.in/"},
+    {"signal": "aggregator_schedule_7", "reg": "Code on Social Security 2020", "regulation": "Code on Social Security 2020", "product": "GROUP_PA", "mandatory": true, "citation_url": "https://labour.gov.in/"},
+    {"signal": "top_1000_listed", "reg": "SEBI LODR 25(10)", "regulation": "SEBI LODR 25(10)", "product": "D_AND_O", "mandatory": true, "citation_url": "https://www.sebi.gov.in/"},
+    {"signal": "rbi_licensed", "reg": "RBI Digital Lending Directions 2025", "regulation": "RBI Digital Lending Directions 2025", "product": "CYBER", "mandatory": false, "citation_url": "https://www.rbi.org.in/"},
+    {"signal": "d2c_ecommerce", "reg": "Consumer Protection Act 2019", "regulation": "Consumer Protection Act 2019", "product": "PRODUCT_LIABILITY", "mandatory": false, "citation_url": "https://consumeraffairs.nic.in/"}
+  ]
+}

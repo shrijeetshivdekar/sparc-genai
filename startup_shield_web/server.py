@@ -26,7 +26,9 @@ from risk_engine import (  # noqa: E402
     recommend_products,
 )
 from b2b2b_map import get_b2b2b_opportunities  # noqa: E402
-from bundle_catalog import match_bundle  # noqa: E402
+from bundle_catalog import bundle_analytics, match_bundle, rank_bundles  # noqa: E402
+from bundle_recommender_v2 import rank as rank_v2, risk_multiplier_breakdown as risk_multiplier_breakdown_v2  # noqa: E402
+from bundle_scoring_utils import load_config  # noqa: E402
 from custom_product_triggers import check_custom_triggers  # noqa: E402
 from global_products import get_top5_global  # noqa: E402
 from premium_estimator import PREMIUM_FOOTNOTE, estimate_premium, get_size_bucket  # noqa: E402
@@ -41,6 +43,7 @@ DB_PATH = Path(os.environ.get(
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
 GEMINI_MAX_TOKENS = int(os.environ.get("GEMINI_MAX_TOKENS", "2048"))
 GEMINI_TIMEOUT_SECONDS = int(os.environ.get("GEMINI_TIMEOUT_SECONDS", "18"))
+SPARC_ENGINE = os.environ.get("SPARC_ENGINE", "v2")
 
 
 SUB_SECTOR_OPTIONS = {
@@ -837,7 +840,7 @@ def outreach_prompts(profile, scores, recommendations, bundle, size_bucket):
     return prompts, source, error
 
 
-def analyze(raw):
+def _legacy_score(raw):
     profile = effective_profile(raw)
     decline = check_hard_decline_by_subsector(profile.get("sub_sector"))
     if decline:
@@ -858,7 +861,10 @@ def analyze(raw):
     recommendations, appetite_flags = annotate_recommendations(recommendations, profile["sector"], size_bucket)
     preferred_recommendations = [item for item in recommendations if item.get("appetite") != "bad"]
     not_preferred_recommendations = [item for item in recommendations if item.get("appetite") == "bad"]
-    bundle = match_bundle(profile["sector"], profile["funding_stage"], scores, inp)
+    ranked_bundles = rank_bundles(profile["sector"], profile["funding_stage"], scores, inp)
+    bundle = ranked_bundles[0] if ranked_bundles else match_bundle(profile["sector"], profile["funding_stage"], scores, inp)
+    bundle_alternatives = ranked_bundles[1:] if ranked_bundles else []
+    analytics = bundle_analytics(profile["sector"], profile["funding_stage"], scores, inp, ranked_bundles)
     global_ranked = get_top5_global(scores, profile["sector"], size_bucket)
     premium = premium_summary(recommendations, bundle, global_ranked, size_bucket)
     downstream = get_b2b2b_opportunities(
@@ -887,6 +893,7 @@ def analyze(raw):
         "not_preferred_recommendations": not_preferred_recommendations,
         "bundles": bundle_recommendations(recommendations),
         "bundle_match": safe_bundle,
+        "bundle_alternatives": json_safe(bundle_alternatives),
         "product_mapping": mapping,
         "size_bucket": size_bucket,
         "premium_summary": premium,
@@ -903,7 +910,156 @@ def analyze(raw):
         "outreach_source": outreach_source,
         "outreach_error": outreach_error,
         "gemini_enabled": gemini_enabled(),
+        # ── New fields (appended; never replaces existing keys) ──────────
+        "revenue_breakdown":         analytics.get("revenue_breakdown", []),
+        "risk_multiplier_breakdown": analytics.get("risk_multiplier_breakdown", {}),
+        "regulatory_triggers_fired": analytics.get("regulatory_triggers_fired", []),
     }
+
+
+def _v2_bundle_to_payload(rec, rank=1):
+    return {
+        "name": rec.bundle,
+        "il_product_name": "SPARC v2 composite bundle",
+        "mandatory_covers": rec.components,
+        "optional_covers": [],
+        "description": rec.rationale.get("coverage", ""),
+        "criticality": "High" if rec.final >= 0.5 else "Medium",
+        "fit_pct": min(100, max(0, int(round(rec.final * 100)))),
+        "match_strength": "strong" if rec.final >= 0.4 else "nearest",
+        "nearest_fallback": rec.final < 0.4,
+        "rank": rank,
+        "fit_delta": 0,
+        "alternative_status": "top_pick" if rank == 1 else "lesser_relevant",
+        "prerequisite_notes": [],
+        "fire_awareness_note": None,
+        "final_score": rec.final,
+        "premium_inr": rec.premium_inr,
+        "risk_mult": rec.risk_mult,
+        "revenue_score": rec.revenue_score,
+        "score_rationale": rec.rationale,
+        "regulatory_triggers_fired": rec.regulatory_triggers_fired,
+        "compliance_flags": rec.compliance_flags,
+        "config_version": rec.config_version,
+    }
+
+
+def _revenue_breakdown_v2(recs):
+    output = []
+    for rec in recs:
+        output.append({
+            "bundle": rec.bundle,
+            "tam_cr": None,
+            "adoption": None,
+            "margin": None,
+            "trajectory": None,
+            "score": rec.revenue_score,
+            "why": rec.rationale.get("revenue", ""),
+        })
+    cfg = load_config()
+    by_name = {bm.name: bm for bm in cfg.bundle_meta.values()}
+    for row in output:
+        bm = by_name.get(row["bundle"])
+        if bm:
+            row.update({
+                "tam_cr": bm.tam_cr,
+                "adoption": bm.adoption,
+                "margin": bm.margin,
+                "trajectory": bm.trajectory,
+            })
+    return output
+
+
+def _v2_score(raw):
+    payload = _legacy_score(raw)
+    if "profile" not in payload or "scores" not in payload:
+        return payload
+
+    cfg = load_config()
+    v2_profile = dict(payload["profile"])
+    v2_profile["scores"] = payload["scores"]
+    if isinstance(raw, dict):
+        for key in ("asset_value_inr", "drone_ops", "drone_operations"):
+            if key in raw:
+                v2_profile[key] = raw[key]
+
+    recs = rank_v2(v2_profile, cfg)
+    if not recs:
+        payload["config_version"] = cfg.config_version
+        payload.setdefault("compliance_flags", [])
+        payload.setdefault("graduation_map", cfg.graduation_map)
+        return payload
+
+    bundle_payloads = [_v2_bundle_to_payload(rec, rank=i + 1) for i, rec in enumerate(recs)]
+    payload["bundle_match"] = json_safe(bundle_payloads[0])
+    payload["bundle_alternatives"] = json_safe(bundle_payloads[1:])
+    payload["revenue_breakdown"] = json_safe(_revenue_breakdown_v2(recs))
+    payload["risk_multiplier_breakdown"] = json_safe(risk_multiplier_breakdown_v2(v2_profile, cfg))
+    payload["regulatory_triggers_fired"] = json_safe(recs[0].regulatory_triggers_fired)
+    payload["graduation_map"] = json_safe(cfg.graduation_map)
+    payload["compliance_flags"] = json_safe([
+        flag
+        for rec in recs
+        for flag in rec.compliance_flags
+    ])
+    payload["config_version"] = cfg.config_version
+    return payload
+
+
+def _shadow_log_path():
+    env_path = os.environ.get("SPARC_SHADOW_LOG_PATH")
+    candidates = []
+    if env_path:
+        candidates.append(Path(env_path))
+    candidates.extend([
+        Path("/var/log/sparc_shadow.jsonl"),
+        PROJECT_ROOT / "sparc_shadow.jsonl",
+        Path(tempfile.gettempdir()) / "sparc_shadow.jsonl",
+    ])
+    for candidate in candidates:
+        try:
+            candidate.parent.mkdir(parents=True, exist_ok=True)
+            with candidate.open("a", encoding="utf-8"):
+                pass
+            return candidate
+        except Exception:
+            continue
+    return None
+
+
+def _log_diff(payload_legacy, payload_v2):
+    entry = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "legacy_top_bundle": (payload_legacy.get("bundle_match") or {}).get("name"),
+        "v2_top_bundle": (payload_v2.get("bundle_match") or {}).get("name"),
+        "legacy_keys": sorted(payload_legacy.keys()),
+        "v2_keys": sorted(payload_v2.keys()),
+        "missing_in_v2": sorted(set(payload_legacy.keys()) - set(payload_v2.keys())),
+        "config_version": payload_v2.get("config_version"),
+    }
+    path = _shadow_log_path()
+    if path is None:
+        return
+    try:
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(entry, ensure_ascii=False, sort_keys=True) + "\n")
+    except Exception:
+        return
+
+
+def score(profile):
+    if SPARC_ENGINE == "legacy":
+        return _legacy_score(profile)
+    payload_v2 = _v2_score(profile)
+    if SPARC_ENGINE == "shadow":
+        payload_legacy = _legacy_score(profile)
+        _log_diff(payload_legacy, payload_v2)
+        return payload_legacy
+    return payload_v2
+
+
+def analyze(raw):
+    return score(raw)
 
 
 def meta():

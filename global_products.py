@@ -250,20 +250,34 @@ def _label(product: dict) -> str:
     return "not_in_india"
 
 
+def _ranked_product(key: str, product: dict, scores: dict, size_bucket: str, match_basis: str) -> dict:
+    weights = product.get("risk_map", {})
+    denom = sum(weights.values()) or 1
+    relevance = sum(scores.get(cat, 0) * weight for cat, weight in weights.items()) / denom
+    premium = product.get("size_buckets", {}).get(size_bucket)
+    return {
+        "key": key,
+        **product,
+        "relevance_score": round(relevance, 1),
+        "premium_range": premium,
+        "label": _label(product),
+        "match_basis": match_basis,
+    }
+
+
 def get_top5_global(scores: dict, sector: str, size_bucket: str, top_n: int = 5) -> list[dict]:
-    ranked = []
+    exact = []
+    nearest = []
+
     for key, product in GLOBAL_PRODUCT_CATALOG.items():
-        if sector not in product["sector_relevance"]:
+        if product["offered_by_icici"]:
             continue
-        weights = product.get("risk_map", {})
-        denom = sum(weights.values()) or 1
-        relevance = sum(scores.get(cat, 0) * weight for cat, weight in weights.items()) / denom
-        premium = product.get("size_buckets", {}).get(size_bucket)
-        ranked.append({
-            "key": key,
-            **product,
-            "relevance_score": round(relevance, 1),
-            "premium_range": premium,
-            "label": _label(product),
-        })
-    return sorted(ranked, key=lambda item: item["relevance_score"], reverse=True)[:top_n]
+
+        if sector in product["sector_relevance"]:
+            exact.append(_ranked_product(key, product, scores, size_bucket, "exact_sector"))
+        else:
+            nearest.append(_ranked_product(key, product, scores, size_bucket, "nearest_risk"))
+
+    exact = sorted(exact, key=lambda item: item["relevance_score"], reverse=True)
+    nearest = sorted(nearest, key=lambda item: item["relevance_score"], reverse=True)
+    return (exact + nearest)[:top_n]

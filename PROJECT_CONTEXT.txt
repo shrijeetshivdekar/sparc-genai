@@ -1,0 +1,349 @@
+Project Context
+===============
+
+This project is a Python standard-library web app for SPARC / Startup Shield. It takes a startup profile, scores 13 risk categories, recommends ICICI Lombard products and bundles, shows global/Indian competitor benchmarks, estimates premium potential, and generates outreach prompts.
+
+Current local app URL:
+
+http://127.0.0.1:5199/
+
+
+Architecture
+============
+
+Frontend:
+
+- Static single-page app.
+- Files live in startup_shield_web/.
+- Main files:
+  - startup_shield_web/index.html: root shell with #app, loads styles.css and app.js.
+  - startup_shield_web/app.js: all UI state, form rendering, API calls, results rendering, report download.
+  - startup_shield_web/styles.css: full visual system.
+
+Backend:
+
+- Python HTTP server for local development.
+- Vercel-compatible API shims for deployment.
+- Main backend file:
+  - startup_shield_web/server.py
+- API shims:
+  - api/analyze.py
+  - api/meta.py
+  - api/health.py
+
+Routing:
+
+- vercel.json maps:
+  - /api/health -> /api/health.py
+  - /api/meta -> /api/meta.py
+  - /api/analyze -> /api/analyze.py
+  - /app.js -> /startup_shield_web/app.js
+  - /styles.css -> /startup_shield_web/styles.css
+  - / -> /startup_shield_web/index.html
+  - /(.*) -> /startup_shield_web/index.html
+
+
+Frontend Flow
+=============
+
+On load, init() in startup_shield_web/app.js:
+
+1. Renders the app shell.
+2. Calls /api/meta.
+3. Merges server metadata with local fallback metadata.
+4. Sets state.profile.
+5. Renders the multi-section form.
+
+The form is divided into:
+
+- Identity
+- Shape
+- Exposure
+- Advanced
+
+Important frontend functions:
+
+- renderApp(): builds the app frame.
+- renderForm(): renders the input workflow.
+- runAnalysis(): posts state.profile to /api/analyze.
+- renderResults(result): renders the full report.
+- renderBundleHero(...): renders the top bundle.
+- renderBundleAlternatives(...): renders tied and lesser relevant bundles.
+- renderGlobalProducts(...): renders Indian/global competitor benchmarks.
+- renderProductRows(...): renders recommended ICICI products.
+- renderRefineBody() and refine bindings allow profile adjustments after results.
+
+If /api/analyze fails, runAnalysis() tries to load ./demo-response.json, but that file does not appear to exist in the current tree, so real backend availability matters.
+
+
+Backend Flow
+============
+
+The core entrypoint is:
+
+analyze(raw)
+
+in startup_shield_web/server.py.
+
+High-level pipeline:
+
+1. effective_profile(raw) merges user input with DEFAULT_PROFILE.
+2. Cleans numeric/list fields.
+3. Derives exposure defaults from dropdown selections:
+   - physical assets can increase hardware_software_split
+   - sensitive data can increase sdf_probability
+   - regulatory selections can set flags like cert_in_poc_designated
+4. Converts profile into StartupInput.
+5. Calls compute_risk_scores(inp) from risk_engine.py.
+6. Applies UI dropdown boosts through apply_dropdown_boosts(...).
+7. Calls recommend_products(...).
+8. Annotates products with appetite and premiums.
+9. Ranks bundles through rank_bundles(...).
+10. Gets global competitor benchmarks via get_top5_global(...).
+11. Builds premium summary, downstream opportunities, regulatory triggers, mitigations, assumptions, outreach prompts.
+12. Saves a recommendation row to SQLite.
+13. Returns a JSON response consumed by the frontend.
+
+
+Primary API Response Shape
+==========================
+
+/api/analyze returns keys like:
+
+- profile
+- scores
+- clusters
+- overall
+- top_risks
+- recommendations
+- not_preferred_recommendations
+- bundles
+- bundle_match
+- bundle_alternatives
+- product_mapping
+- size_bucket
+- premium_summary
+- premium_footnote
+- global_products
+- score_rationales
+- multiplier_breakdown
+- regulatory_triggers
+- mitigations
+- assumptions
+- downstream_opportunities
+- custom_triggers
+- outreach_prompts
+- outreach_source
+- outreach_error
+- gemini_enabled
+
+
+Risk Engine
+===========
+
+Main file:
+
+- risk_engine.py
+
+Key concepts:
+
+- StartupInput dataclass defines the backend input model.
+- SECTOR_PROFILES contains 13 startup sectors and base risk weights.
+- SUB_SECTOR_PROFILES overrides sector risk for high-specificity sub-sectors.
+- compute_risk_scores(...) outputs 13 risk categories:
+  - Cyber Technical Risk
+  - Data Privacy Risk
+  - Liability Risk
+  - IP Infringement Risk
+  - Key Person Risk
+  - Governance & Fraud Risk
+  - Property Risk
+  - Regulatory Compliance Risk
+  - ESG & Climate Risk
+  - Geopolitical Risk
+  - Gig & Labour Risk
+  - Policy Velocity Risk
+  - Reputation Risk
+- recommend_products(...) maps scores to product recommendations.
+
+
+Bundle System
+=============
+
+Legacy bundle matcher:
+
+- bundle_catalog.py
+
+Catalog contains:
+
+- MSME Suraksha Kavach
+- Corporate Cover II
+- Startup Shield Pack
+- Bharat Sookshma Udyam Suraksha
+- Deeptech Innovation Bundle
+
+Current behavior:
+
+- rank_bundles(...) scores every bundle.
+- match_bundle(...) returns the top-ranked bundle.
+- bundle_match is the hero/top bundle.
+- bundle_alternatives contains every other bundle, ranked and labeled:
+  - tied
+  - lesser_relevant
+
+Current bundle scoring is still simple:
+
+- sector eligibility
+- stage eligibility
+- generic score signal from top 3 risk scores
+
+It does not yet deeply differentiate bundles using asset value, drone operations, AI tier, lab equipment, hardware split, etc. That is why alternatives are now shown below the top pick.
+
+There is also a newer v2 bundle engine:
+
+- bundle_recommender_v2.py
+- bundle_scoring_utils.py
+- product_catalogue_v2.py
+
+The v2 engine is tested but not currently wired into the main frontend response as the primary UI path.
+
+
+Global Competitors
+==================
+
+File:
+
+- global_products.py
+
+get_top5_global(...) now:
+
+- excludes ICICI products by default
+- prefers exact-sector competitor/global matches
+- fills with nearest risk-based competitor benchmarks
+- adds match_basis:
+  - exact_sector
+  - nearest_risk
+
+Frontend renders nearest_risk as "Nearest benchmark".
+
+
+Premiums
+========
+
+File:
+
+- premium_estimator.py
+
+Used by:
+
+- annotate_recommendations(...)
+- premium_summary(...)
+
+Premium summary includes:
+
+- min/max lakh range
+- count of included products
+- footnote from PREMIUM_FOOTNOTE
+
+
+Persistence
+===========
+
+Local DB:
+
+- sparc_data.db
+
+Table:
+
+- recommendations
+
+Created in init_db() in startup_shield_web/server.py.
+
+Saved fields include:
+
+- startup profile fields
+- risk scores
+- product keys
+- selected bundle
+- competitor gaps
+- appetite flags
+- premium potential
+- size bucket
+
+On Vercel, DB path changes to a temp DB unless SPARC_DB_PATH is set.
+
+
+Outreach Generation
+===================
+
+Outreach prompts are generated two ways:
+
+- local fallback always available
+- Gemini API if GEMINI_API_KEY is configured
+
+Relevant functions in startup_shield_web/server.py:
+
+- gemini_enabled()
+- call_gemini_json(...)
+- fallback_outreach_prompts(...)
+- outreach_prompt_payload(...)
+- normalize_outreach_response(...)
+- outreach_prompts(...)
+
+Environment variables:
+
+- GEMINI_API_KEY
+- GEMINI_MODEL
+- GEMINI_MAX_TOKENS
+- GEMINI_TIMEOUT_SECONDS
+- SPARC_DB_PATH
+
+
+Tests
+=====
+
+Current tests:
+
+- tests/test_bundle_v2.py
+- tests/test_legacy_bundle_global.py
+
+Recent verification:
+
+python -m pytest tests/test_legacy_bundle_global.py -q
+7 passed
+
+python -m pytest tests/test_bundle_v2.py -q
+59 passed
+
+Pytest warning:
+
+- .pytest_cache cannot be written due to local permission denial.
+- Tests still pass.
+
+
+Known Important Notes
+=====================
+
+- The frontend JS has visible mojibake in comments and some UI strings due to encoding history, but the app still runs.
+- The legacy bundle scorer now shows all bundles, but it still needs better tie-breakers if the goal is to make Bharat Sookshma or Deeptech Innovation win more naturally.
+- Several old Python servers had been running on lower ports. The clean current dev server is on 5199.
+- The project uses only Python stdlib according to requirements.txt.
+
+
+SPARC v2 Migration Plan
+=======================
+
+Feature flag:
+
+- SPARC_ENGINE=legacy serves the existing legacy payload.
+- SPARC_ENGINE=shadow runs both engines, logs diffs, and serves legacy.
+- SPARC_ENGINE=v2 serves the v2 bundle payload while preserving legacy API keys.
+
+Rollout:
+
+- Day 1: deploy v2 with SPARC_ENGINE=legacy as default. Smoke-test staging. Roll back or block deploy on any 5xx in the v2 path.
+- Day 7: set SPARC_ENGINE=shadow in production. Compare top-1 recommendation match-rate. Target >=85% directional alignment; halt below 70%.
+- Day 14: 5% canary using cookie-based bucket to v2. Monitor recommendation acceptance, premium quote click-through, and error rate. Roll back if acceptance drops by more than 10 percentage points versus legacy.
+- Day 21: 50% A/B for at least 7 days. Run significance testing on conversion. Roll back if p99 latency is more than 2x legacy.
+- Day 30: move to 100% v2. Retain legacy as fallback for 60 days.
+- Day 90: archive legacy under legacy/bundle_catalog_archived_2026-08.py and remove rank_bundles from the active import surface.

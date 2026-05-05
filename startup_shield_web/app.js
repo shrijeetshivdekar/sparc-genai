@@ -278,7 +278,7 @@ function renderSectionIdentity() {
         <div class="field-group">
           <label>Institutional investors?</label>
           <div class="pill-grid">
-            ${["Yes","No"].map(v=>`<button class="pill ${p.has_investors===v?"active":""}" type="button" onclick="chooseVal('has_investors','${v}',false)">${v}</button>`).join("")}
+            ${["Yes","No"].map(v=>`<button class="pill ${p.has_investors===v?"active":""}" type="button" data-key="has_investors" data-value="${esc(v)}" onclick="chooseVal('has_investors','${v}',false)">${v}</button>`).join("")}
           </div>
         </div>
       </div>
@@ -297,10 +297,10 @@ function renderSectionShape() {
     </button>`).join("");
 
   const sensitivityPills = meta.dataSensitivity.map(v=>`
-    <button class="pill ${p.data_sensitivity===v?"active":""}" type="button" onclick="chooseVal('data_sensitivity','${v}',false)">${v}</button>`).join("");
+    <button class="pill ${p.data_sensitivity===v?"active":""}" type="button" data-key="data_sensitivity" data-value="${esc(v)}" onclick="chooseVal('data_sensitivity','${v}',false)">${v}</button>`).join("");
 
   const custPills = meta.customerTypeOptions.map(v=>`
-    <button class="pill ${(p.customer_type||[]).includes(v)?"active":""}" type="button" onclick="chooseVal('customer_type','${esc(v)}',true)">${esc(v)}</button>`).join("");
+    <button class="pill ${(p.customer_type||[]).includes(v)?"active":""}" type="button" data-key="customer_type" data-value="${esc(v)}" onclick="chooseVal('customer_type','${esc(v)}',true)">${esc(v)}</button>`).join("");
 
   return `
     <div class="form-section" id="section-shape">
@@ -319,7 +319,7 @@ function renderSectionShape() {
         <div class="field-group">
           <label>AI / ML in core product?</label>
           <div class="pill-grid">
-            ${["No","Yes"].map(v=>`<button class="pill ${(p.ai_in_product?(v==="Yes"):(v==="No"))?"active":""}" type="button" onclick="setAI('${v}')">${v}</button>`).join("")}
+            ${["No","Yes"].map(v=>`<button class="pill ${(p.ai_in_product?(v==="Yes"):(v==="No"))?"active":""}" type="button" data-key="ai_toggle" data-value="${v}" onclick="setAI('${v}')">${v}</button>`).join("")}
           </div>
         </div>
       </div>
@@ -337,36 +337,72 @@ function renderSectionShape() {
 }
 
 /* ── Section 2: Exposure ──────────────────────────────────── */
+function mkPillsGrouped(groups, profileKey) {
+  return groups.map(({heading, items, rule}) => [
+    rule ? `<span class="pill-divider-rule"></span>` : "",
+    heading ? `<span class="pill-divider">${esc(heading)}</span>` : "",
+    ...items.map(v =>
+      `<button class="pill ${(state.profile[profileKey]||[]).includes(v)?"active":""}" type="button" data-key="${profileKey}" data-value="${esc(v)}" onclick="chooseVal('${profileKey}','${esc(v)}',true)">${esc(v)}</button>`
+    )
+  ].join("")).join("");
+}
+
 function renderSectionExposure() {
-  const meta = state.meta;
+  const dataGroups = [
+    { heading: "Personal & financial",
+      items: ["Payments / financial transactions", "Personal identity data (KYC / Aadhaar)", "Health / medical records", "Minors' / children's data", "Sensitive personal data (DPDP Act)"] },
+    { heading: "Business & IP",
+      items: ["Employee / HR data (payroll, biometrics)", "Intellectual property / source code", "Customer behavioural / usage data"] },
+    { heading: "Operational",
+      items: ["Location / GPS tracking data", "Physical inventory / goods"] },
+    { rule: true, heading: "",
+      items: ["None of the above"] },
+  ];
+
+  const regGroups = [
+    { heading: "Financial & data",
+      items: ["RBI / SEBI / IRDAI licensed", "DPDP Act obligations", "IT Act / CERT-In obligations"] },
+    { heading: "Health & life sciences",
+      items: ["FSSAI / food safety", "CDSCO / medical devices", "NMC / telemedicine regulations"] },
+    { heading: "Operations & transport",
+      items: ["DGCA / drone operations", "MV Act / transport regulations", "Labour Codes / gig worker regulations"] },
+    { heading: "Product & environment",
+      items: ["BIS / QCO product certification", "EPR / environmental compliance", "SEBI BRSR / ESG reporting", "Competition Act / CCI"] },
+    { rule: true, heading: "",
+      items: ["None / minimal"] },
+  ];
+
+  const assetGroups = [
+    { heading: "Premises & retail",
+      items: ["Office / coworking space", "Warehouse / fulfilment centre", "Retail stores / kiosks"] },
+    { heading: "Production & lab",
+      items: ["Manufacturing plant / factory", "Lab / R&D equipment", "Kitchen / food processing", "Cold chain / refrigeration"] },
+    { heading: "Specialist equipment",
+      items: ["Medical devices / diagnostic equipment", "Drones / UAV equipment", "Solar / clean energy infrastructure"] },
+    { heading: "Transport & tech",
+      items: ["Vehicles / delivery fleet", "Data centre / server room"] },
+    { rule: true, heading: "",
+      items: ["None - fully cloud"] },
+  ];
+
   const p = state.profile;
-
-  const dataPills = meta.dataHandledOptions.map(v=>`
-    <button class="pill ${(p.data_handled||[]).includes(v)?"active":""}" type="button" onclick="chooseVal('data_handled','${esc(v)}',true)">${esc(v)}</button>`).join("");
-
-  const regPills = meta.regulatoryOptions.map(v=>`
-    <button class="pill ${(p.regulatory||[]).includes(v)?"active":""}" type="button" onclick="chooseVal('regulatory','${esc(v)}',true)">${esc(v)}</button>`).join("");
-
-  const assetPills = meta.physicalAssetOptions.map(v=>`
-    <button class="pill ${(p.physical_assets||[]).includes(v)?"active":""}" type="button" onclick="chooseVal('physical_assets','${esc(v)}',true)">${esc(v)}</button>`).join("");
-
   return `
     <div class="form-section" id="section-exposure">
       <div class="section-label">03 — Exposure</div>
 
       <div class="field-group">
         <label>Sensitive data you handle <span style="font-weight:400;color:var(--ink-faint)">(select all)</span></label>
-        <div class="pill-grid">${dataPills}</div>
+        <div class="pill-grid">${mkPillsGrouped(dataGroups, "data_handled")}</div>
       </div>
 
       <div class="field-group">
         <label>Regulatory exposure <span style="font-weight:400;color:var(--ink-faint)">(select all)</span></label>
-        <div class="pill-grid">${regPills}</div>
+        <div class="pill-grid">${mkPillsGrouped(regGroups, "regulatory")}</div>
       </div>
 
       <div class="field-group">
         <label>Physical assets <span style="font-weight:400;color:var(--ink-faint)">(select all)</span></label>
-        <div class="pill-grid">${assetPills}</div>
+        <div class="pill-grid">${mkPillsGrouped(assetGroups, "physical_assets")}</div>
       </div>
 
       <div class="field-group">
@@ -384,21 +420,19 @@ function renderSectionAdvanced() {
   const mkSlider = (key, label, min, max, step, decimals=2) => {
     const val = Number(p[key] ?? 0);
     return `
-      <div class="refine-field">
-        <label>${label}</label>
-        <div class="slider-field">
-          <input type="range" min="${min}" max="${max}" step="${step}" value="${val}"
-            oninput="setVal('${key}',Number(this.value)); this.nextElementSibling.textContent=Number(this.value).toFixed(${decimals})" />
-          <span class="slider-val">${val.toFixed(decimals)}</span>
-        </div>
+      <div class="adv-slider-row">
+        <span class="adv-slider-label">${label}</span>
+        <input type="range" class="adv-range" min="${min}" max="${max}" step="${step}" value="${val}"
+          oninput="setVal('${key}',Number(this.value)); this.nextElementSibling.textContent=Number(this.value).toFixed(${decimals})" />
+        <span class="adv-slider-val">${val.toFixed(decimals)}</span>
       </div>`;
   };
 
   const mkSelect = (key, label, opts, nullLabel="") => {
     const cur = p[key];
     return `
-      <div class="refine-field">
-        <label>${label}</label>
+      <div class="adv-select-item">
+        <label class="adv-select-label">${label}</label>
         <select class="f-select" style="height:38px;font-size:13px;" onchange="setVal('${key}',this.value||null)">
           ${nullLabel?`<option value="">${esc(nullLabel)}</option>`:""}
           ${opts.map(o=>`<option value="${esc(o)}" ${cur===o?"selected":""}>${esc(o)}</option>`).join("")}
@@ -407,66 +441,74 @@ function renderSectionAdvanced() {
   };
 
   const mkCheck = (key, label) => `
-    <div class="refine-field" style="display:flex;align-items:center;gap:8px;padding:8px 0;">
-      <input type="checkbox" id="chk-${key}" ${p[key]?"checked":""} onchange="setVal('${key}',this.checked)" style="accent-color:var(--red);width:16px;height:16px;cursor:pointer;" />
-      <label for="chk-${key}" style="font-size:13px;color:var(--ink);cursor:pointer;">${label}</label>
-    </div>`;
+    <label class="adv-check">
+      <input type="checkbox" id="chk-${key}" ${p[key]?"checked":""} onchange="setVal('${key}',this.checked)" />
+      <span>${label}</span>
+    </label>`;
 
   const statePills = meta.states.map(s=>`
-    <button class="pill ${(p.state_footprint||[]).includes(s)?"active":""}" type="button" onclick="chooseVal('state_footprint','${esc(s)}',true)">${esc(s)}</button>`).join("");
+    <button class="pill ${(p.state_footprint||[]).includes(s)?"active":""}" type="button" data-key="state_footprint" data-value="${esc(s)}" onclick="chooseVal('state_footprint','${esc(s)}',true)">${esc(s)}</button>`).join("");
 
   return `
     <div class="form-section" id="section-advanced">
-      <div class="section-label">04 — Advanced <span style="font-weight:500;color:var(--ink-faint);text-transform:none;letter-spacing:0;">(optional — leave defaults if unsure)</span></div>
+      <div class="section-label">04 — Advanced <span style="font-weight:500;color:var(--ink-faint);text-transform:none;letter-spacing:0;">(optional)</span></div>
 
-      <div class="field-group">
-        <label>Governance &amp; capital</label>
-        <div class="refine-grid">
+      <div class="adv-group">
+        <div class="adv-group-title">Governance &amp; capital</div>
+        <div class="adv-sliders">
           ${mkSlider("investor_cn_hk_pct","China / HK investor BO",0,1,.01)}
           ${mkSlider("cumulative_fundraising_inr_cr","Total fundraising (INR Cr)",0,10000,10,0)}
-          ${mkSlider("founder_concentration_index","Founder concentration",0,1,.01)}
+          ${mkSlider("founder_concentration_index","Founder concentration index",0,1,.01)}
+        </div>
+        <div class="adv-selects">
           ${mkSelect("holdco_domicile","Holdco domicile",meta.holdcoDomiciles)}
           ${mkSelect("rbi_registration","RBI registration",meta.rbiRegistrations,"None")}
-          ${mkCheck("dpiit_recognition","DPIIT recognised startup")}
         </div>
+        <div class="adv-checks">${mkCheck("dpiit_recognition","DPIIT recognised startup")}</div>
       </div>
 
-      <div class="field-group">
-        <label>Workforce &amp; gig risk</label>
-        <div class="refine-grid">
-          ${mkSlider("gig_headcount_pct","Gig / contractor workforce",0,1,.01)}
+      <div class="adv-group">
+        <div class="adv-group-title">Workforce &amp; gig risk</div>
+        <div class="adv-sliders">
+          ${mkSlider("gig_headcount_pct","Gig / contractor workforce %",0,1,.01)}
+        </div>
+        <div class="adv-checks">
           ${mkCheck("posh_ic_constituted","POSH IC constituted")}
           ${mkCheck("cert_in_poc_designated","CERT-In POC designated")}
         </div>
-        <div class="pill-grid" style="margin-top:10px;">${statePills}</div>
-        <p class="hint">State footprint (multi-select)</p>
-      </div>
-
-      <div class="field-group">
-        <label>Data &amp; AI</label>
-        <div class="refine-grid">
-          ${mkSlider("sdf_probability","SDF likelihood",0,1,.01)}
-          ${mkSelect("data_localisation_status","Data localisation",["Unknown","Full_onshore","Hybrid","Offshore"])}
-          ${mkSelect("ai_tier","AI tier",meta.aiTiers)}
-          ${mkSlider("hardware_software_split","Hardware revenue share",0,1,.01)}
+        <div class="adv-state-wrap">
+          <div class="adv-state-label">State footprint <span style="font-weight:400;color:var(--ink-faint)">(select all that apply)</span></div>
+          <div class="pill-grid">${statePills}</div>
         </div>
       </div>
 
-      <div class="field-group">
-        <label>Market &amp; supply chain</label>
-        <div class="refine-grid">
+      <div class="adv-group">
+        <div class="adv-group-title">Data &amp; AI</div>
+        <div class="adv-sliders">
+          ${mkSlider("sdf_probability","SDF likelihood",0,1,.01)}
+          ${mkSlider("hardware_software_split","Hardware revenue share",0,1,.01)}
+        </div>
+        <div class="adv-selects">
+          ${mkSelect("data_localisation_status","Data localisation",["Unknown","Full_onshore","Hybrid","Offshore"])}
+          ${mkSelect("ai_tier","AI tier",meta.aiTiers)}
+        </div>
+      </div>
+
+      <div class="adv-group">
+        <div class="adv-group-title">Market &amp; supply chain</div>
+        <div class="adv-sliders">
           ${mkSlider("b2b_pct","B2B revenue",0,1,.01)}
           ${mkSlider("export_eu_pct","EU revenue",0,1,.01)}
           ${mkSlider("export_us_pct","US revenue",0,1,.01)}
           ${mkSlider("export_china_pct","China revenue",0,1,.01)}
           ${mkSlider("chinese_supplier_pct_cogs","Chinese supplier COGS",0,1,.01)}
-          ${mkCheck("listed_customer_brsr_dependency","Listed customers require BRSR")}
         </div>
+        <div class="adv-checks">${mkCheck("listed_customer_brsr_dependency","Listed customers require BRSR")}</div>
       </div>
 
-      <div class="field-group">
-        <label>Physical &amp; environmental</label>
-        <div class="refine-grid">
+      <div class="adv-group">
+        <div class="adv-group-title">Physical &amp; environmental</div>
+        <div class="adv-selects" style="max-width:360px;">
           ${mkSelect("facility_climate_risk_zone","Facility climate risk zone",meta.climateZones)}
         </div>
       </div>
@@ -520,11 +562,8 @@ window.setVal = (key, val) => {
 window.setAI = (v) => {
   state.profile.ai_in_product = v === "Yes";
   state.profile.ai_tier = v === "Yes" ? "Applied" : "None";
-  // update button states
-  document.querySelectorAll("#section-shape .pill").forEach(btn => {
-    if (btn.getAttribute("onclick")?.includes("setAI")) {
-      btn.classList.toggle("active", btn.textContent.trim() === v);
-    }
+  document.querySelectorAll(`.pill[data-key="ai_toggle"]`).forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.value === v);
   });
   updateProfileSummary();
 };
@@ -535,7 +574,6 @@ window.chooseCard = (el, key, multi) => {
     document.querySelectorAll(`.choice-card[data-key="${key}"]`).forEach(b => b.classList.remove("active"));
     el.classList.add("active");
     state.profile[key] = val;
-    // special: sector change resets sub_sector
     if (key === "sector") state.profile.sub_sector = null;
   } else {
     el.classList.toggle("active");
@@ -549,18 +587,15 @@ window.chooseCard = (el, key, multi) => {
 window.chooseVal = (key, val, multi) => {
   if (!multi) {
     state.profile[key] = val;
-    document.querySelectorAll(`.pill[onclick*="${key}"]`).forEach(b => {
-      b.classList.toggle("active", b.textContent.trim() === val);
+    document.querySelectorAll(`.pill[data-key="${key}"]`).forEach(b => {
+      b.classList.toggle("active", b.dataset.value === val);
     });
   } else {
     const cur = new Set(state.profile[key] || []);
     cur.has(val) ? cur.delete(val) : cur.add(val);
     state.profile[key] = [...cur];
-    // find pill and toggle
-    document.querySelectorAll(`.pill[onclick*="${key}"]`).forEach(b => {
-      if (b.textContent.trim() === val || b.getAttribute("onclick").includes(`'${val}'`)) {
-        b.classList.toggle("active", cur.has(val));
-      }
+    document.querySelectorAll(`.pill[data-key="${key}"]`).forEach(b => {
+      b.classList.toggle("active", cur.has(b.dataset.value));
     });
   }
   updateProfileSummary();
@@ -697,6 +732,8 @@ function renderResults(result) {
           <div class="result-section-title">Bundle recommendation</div>
         </div>
         ${renderBundleHero(result.bundle_match, result.recommendations)}
+        ${renderBundleAlternatives(result.bundle_alternatives)}
+        ${renderV2Insights(result)}
       </div>
 
       <!-- Recommended products — secondary -->
@@ -776,10 +813,12 @@ function renderResults(result) {
       </div>
 
       <!-- Assumptions -->
-      <div class="r-card" style="margin-bottom:24px;">
-        <div class="card-label">Assumptions used</div>
-        <div class="assumption-grid">${renderAssumptions(result.assumptions)}</div>
-      </div>
+      <details class="expander-card" style="margin-bottom:24px;">
+        <summary>Assumptions used</summary>
+        <div class="expander-body">
+          <div class="kv-grid">${renderAssumptions(result.assumptions)}</div>
+        </div>
+      </details>
 
       <!-- Refine panel -->
       <details class="refine-panel-wrap" style="margin-bottom:24px;">
@@ -977,6 +1016,7 @@ function renderBundleHero(bundle, recs) {
   const mandatory = bundle.mandatory_covers || [];
   const optional  = bundle.optional_covers  || [];
   const recKeys   = new Set((recs||[]).map(r => r.key));
+  const eyebrow   = bundle.nearest_fallback ? "Closest package fit" : "Recommended package";
 
   const coverItems = [
     ...mandatory.map(c => ({ key: c, type: "mandatory" })),
@@ -987,7 +1027,7 @@ function renderBundleHero(bundle, recs) {
     <div class="bundle-hero">
       <div class="bundle-hero-top">
         <div>
-          <div class="bundle-hero-eyebrow">Recommended package</div>
+          <div class="bundle-hero-eyebrow">${eyebrow}</div>
           <div class="bundle-hero-name">${esc(bundle.name)}</div>
           <div class="bundle-hero-il">${esc(bundle.il_product_name || "")}</div>
         </div>
@@ -1017,6 +1057,101 @@ function renderBundleHero(bundle, recs) {
       ${(bundle.prerequisite_notes || []).map(n => `
         <div style="margin-top:14px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:var(--r-sm);padding:10px 14px;font-size:12px;color:rgba(255,255,255,.6);">${esc(n)}</div>`).join("")}
     </div>`;
+}
+
+function renderBundleAlternatives(bundles) {
+  if (!bundles?.length) return "";
+  const statusLabel = (b) => b.alternative_status === "tied" ? "Tied with top pick" : "Lesser relevant";
+  return `
+    <details class="expander-card" style="margin-top:14px;">
+      <summary>Other bundle options (${bundles.length})</summary>
+      <div class="expander-body">
+        <div class="products-grid-2col">
+          ${bundles.map(b => `
+            <div class="product-card">
+              <div class="product-card-flag">${statusLabel(b)} · Rank ${b.rank}</div>
+              <div class="product-card-name">${esc(b.name)} <span class="product-tag score">${b.fit_pct || 0}% fit</span></div>
+              <div class="product-card-desc">${esc(b.description || "")}</div>
+              <div class="product-card-il">${esc(b.il_product_name || "")}</div>
+              <div class="cover-pills" style="margin-top:8px;">
+                ${(b.mandatory_covers || []).slice(0, 4).map(c => `<span class="cover-pill">${esc(labelize(c))}</span>`).join("")}
+              </div>
+            </div>`).join("")}
+        </div>
+      </div>
+    </details>`;
+}
+
+function pct(v) {
+  if (v === null || v === undefined || v === "") return "n/a";
+  const n = Number(v);
+  if (!Number.isFinite(n)) return esc(v);
+  return `${Math.round(n * 100)}%`;
+}
+
+function renderV2Insights(result) {
+  const isV2 = Boolean(result?.config_version || result?.graduation_map || result?.compliance_flags);
+  if (!isV2) return "";
+  const revenue = result.revenue_breakdown || [];
+  const risk = result.risk_multiplier_breakdown || {};
+  const graduation = result.graduation_map || {};
+  const stageKey = (result.profile?.funding_stage || "Seed")
+    .toLowerCase().replace("+", "").replace(/\s+/g, "_").replace("pre-seed", "seed");
+  const path = Array.isArray(graduation) ? graduation : (graduation[stageKey] || graduation.seed || []);
+  const triggers = result.regulatory_triggers_fired || [];
+  const riskItems = [
+    ["Claims frequency", risk.claims_frequency ?? risk.claims_freq],
+    ["Settlement time", risk.settlement ?? risk.settlement_time],
+    ["Regulatory volatility", risk.regulatory_volatility],
+    ["Market saturation", risk.market_saturation],
+  ];
+
+  return `
+    <details class="expander-card" style="margin-top:14px;">
+      <summary>SPARC v2 engine details</summary>
+      <div class="expander-body">
+        <div class="two-col">
+          <div>
+            <div class="card-label">Revenue potential</div>
+            ${revenue.length ? revenue.slice(0, 3).map(r => `
+              <div class="callout-item">
+                <strong>${esc(r.bundle || "Bundle")} — score ${esc(r.score ?? "n/a")}</strong>
+                <span>TAM ₹${esc(r.tam_cr ?? "n/a")}Cr · adoption ${pct(r.adoption)} · margin ${pct(r.margin)} · ${esc(r.trajectory || "n/a")}</span>
+                ${r.why ? `<span class="callout-sub">${esc(r.why)}</span>` : ""}
+              </div>`).join("") : emptyState("—", "No revenue data")}
+          </div>
+          <div>
+            <div class="card-label">Risk multipliers</div>
+            ${riskItems.filter(([,v]) => v != null).map(([label, value]) => `
+              <div class="kv-row">
+                <span class="kv-key">${esc(label)}</span>
+                <span class="kv-val">${pct(value)}</span>
+              </div>`).join("")}
+          </div>
+        </div>
+        ${path.length ? `
+          <div style="margin-top:18px;">
+            <div class="card-label">Insurance graduation path</div>
+            <div class="timeline">${path.map((p, i) => `
+              <div class="timeline-item">
+                <div class="tl-dot">${i + 1}</div>
+                <div class="tl-time">${esc(p.stage || `Step ${i + 1}`)}</div>
+                <div class="tl-name">${esc(p.bundle || p.recommendation || "")}</div>
+              </div>`).join("")}</div>
+          </div>` : ""}
+        ${triggers.length ? `
+          <div style="margin-top:18px;">
+            <div class="card-label">Regulatory triggers fired</div>
+            <div class="two-col">
+              ${triggers.map(t => `
+                <div class="callout-item">
+                  <strong>${esc(t.signal || "Trigger")} — ${esc(t.product || "")}</strong>
+                  <span>${t.citation_url ? `<a href="${esc(t.citation_url)}" target="_blank" rel="noopener noreferrer">${esc(t.regulation || t.reg || "")}</a>` : esc(t.regulation || t.reg || "")}</span>
+                </div>`).join("")}
+            </div>
+          </div>` : ""}
+      </div>
+    </details>`;
 }
 
 function renderProductRows(recs, mapping) {
@@ -1080,10 +1215,12 @@ function renderMitigations(items) {
 }
 
 function renderAssumptions(assumptions) {
-  return Object.entries(assumptions||{}).map(([k,v])=>`
-    <div class="assumption-item">
-      <div class="assumption-key">${esc(labelize(k))}</div>
-      <div class="assumption-val">${esc(formatVal(v))}</div>
+  const entries = Object.entries(assumptions||{});
+  if (!entries.length) return `<p style="color:var(--ink-muted);font-size:13px;">No assumptions recorded.</p>`;
+  return entries.map(([k,v])=>`
+    <div class="kv-row">
+      <span class="kv-key">${esc(labelize(k))}</span>
+      <span class="kv-val">${esc(formatVal(v))}</span>
     </div>`).join("");
 }
 
@@ -1153,7 +1290,7 @@ function renderGlobalProducts(products) {
   const statusLabels = { icici:"ICICI Lombard", india_competitor:"Indian market", not_in_india:"Global only" };
   return products.map(p=>`
     <div class="product-card ${p.label==='not_in_india'?'innovation-card':''}">
-      <div class="product-card-flag" style="color:var(--ink-faint);">${statusLabels[p.label]||"Global"}</div>
+      <div class="product-card-flag" style="color:var(--ink-faint);">${p.match_basis==='nearest_risk' ? "Nearest benchmark" : (statusLabels[p.label]||"Global")}</div>
       <div class="product-card-name">${esc(p.name)} <span class="product-tag score">${p.relevance_score}/100</span></div>
       <div class="product-card-desc">${esc(p.what_it_covers||"")}</div>
       <div style="font-size:12px;color:var(--ink-muted);">Providers: ${esc(p.providers||"")}</div>
@@ -1212,21 +1349,19 @@ function renderRefineBody() {
   const mkSlider = (key, label, min, max, step, decimals=2) => {
     const val = Number(p[key] ?? 0);
     return `
-      <div class="refine-field">
-        <label>${label}</label>
-        <div class="slider-field">
-          <input type="range" min="${min}" max="${max}" step="${step}" value="${val}" data-rkey="${key}" data-dec="${decimals}"
-            oninput="this.nextElementSibling.textContent=Number(this.value).toFixed(${decimals})" />
-          <span class="slider-val">${val.toFixed(decimals)}</span>
-        </div>
+      <div class="adv-slider-row">
+        <span class="adv-slider-label">${label}</span>
+        <input type="range" class="adv-range" min="${min}" max="${max}" step="${step}" value="${val}" data-rkey="${key}" data-dec="${decimals}"
+          oninput="this.nextElementSibling.textContent=Number(this.value).toFixed(${decimals})" />
+        <span class="adv-slider-val">${val.toFixed(decimals)}</span>
       </div>`;
   };
 
   const mkSelect = (key, label, opts, nullLabel="") => {
     const cur = p[key];
     return `
-      <div class="refine-field">
-        <label>${label}</label>
+      <div class="adv-select-item">
+        <label class="adv-select-label">${label}</label>
         <select class="f-select" style="height:38px;font-size:13px;" data-rkey="${key}">
           ${nullLabel?`<option value="">${esc(nullLabel)}</option>`:""}
           ${opts.map(o=>`<option value="${esc(o)}" ${cur===o?"selected":""}>${esc(o)}</option>`).join("")}
@@ -1235,44 +1370,48 @@ function renderRefineBody() {
   };
 
   const mkCheck = (key, label) => `
-    <div class="refine-field" style="display:flex;align-items:center;gap:8px;padding:8px 0;">
-      <input type="checkbox" data-rkey="${key}" ${p[key]?"checked":""} style="accent-color:var(--red);width:16px;height:16px;cursor:pointer;" />
-      <label style="font-size:13px;color:var(--ink);cursor:pointer;">${label}</label>
-    </div>`;
+    <label class="adv-check">
+      <input type="checkbox" data-rkey="${key}" ${p[key]?"checked":""} />
+      <span>${label}</span>
+    </label>`;
 
   return `
-    <div class="refine-section">
-      <h3>Governance &amp; capital</h3>
-      <div class="refine-grid">
-        ${mkSlider("investor_cn_hk_pct","China/HK investor BO",0,1,.01)}
+    <div class="adv-group">
+      <div class="adv-group-title">Governance &amp; capital</div>
+      <div class="adv-sliders">
+        ${mkSlider("investor_cn_hk_pct","China / HK investor BO",0,1,.01)}
         ${mkSlider("cumulative_fundraising_inr_cr","Total fundraising (INR Cr)",0,10000,10,0)}
         ${mkSlider("founder_concentration_index","Founder concentration",0,1,.01)}
+      </div>
+      <div class="adv-selects">
         ${mkSelect("holdco_domicile","Holdco domicile",meta.holdcoDomiciles)}
         ${mkSelect("rbi_registration","RBI registration",meta.rbiRegistrations,"None")}
-        ${mkCheck("dpiit_recognition","DPIIT recognised startup")}
       </div>
+      <div class="adv-checks">${mkCheck("dpiit_recognition","DPIIT recognised startup")}</div>
     </div>
-    <div class="refine-section">
-      <h3>Data &amp; AI</h3>
-      <div class="refine-grid">
+    <div class="adv-group">
+      <div class="adv-group-title">Data &amp; AI</div>
+      <div class="adv-sliders">
         ${mkSlider("sdf_probability","SDF likelihood",0,1,.01)}
+        ${mkSlider("hardware_software_split","Hardware revenue share",0,1,.01)}
+      </div>
+      <div class="adv-selects">
         ${mkSelect("data_localisation_status","Data localisation",["Unknown","Full_onshore","Hybrid","Offshore"])}
         ${mkSelect("ai_tier","AI tier",meta.aiTiers)}
-        ${mkSlider("hardware_software_split","Hardware revenue",0,1,.01)}
       </div>
     </div>
-    <div class="refine-section">
-      <h3>Market &amp; supply chain</h3>
-      <div class="refine-grid">
+    <div class="adv-group" style="border-bottom:none;margin-bottom:0;padding-bottom:0;">
+      <div class="adv-group-title">Market &amp; supply chain</div>
+      <div class="adv-sliders">
         ${mkSlider("b2b_pct","B2B revenue",0,1,.01)}
         ${mkSlider("export_eu_pct","EU revenue",0,1,.01)}
         ${mkSlider("export_us_pct","US revenue",0,1,.01)}
         ${mkSlider("export_china_pct","China revenue",0,1,.01)}
-        ${mkSlider("chinese_supplier_pct_cogs","Chinese COGS",0,1,.01)}
-        ${mkCheck("listed_customer_brsr_dependency","Listed customers BRSR")}
+        ${mkSlider("chinese_supplier_pct_cogs","Chinese supplier COGS",0,1,.01)}
       </div>
+      <div class="adv-checks">${mkCheck("listed_customer_brsr_dependency","Listed customers require BRSR")}</div>
     </div>
-    <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);display:flex;gap:10px;align-items:center;">
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);display:flex;gap:10px;align-items:center;">
       <button class="btn btn-primary" id="refine-run-btn" type="button">Recalculate scores</button>
       <span id="refine-status" style="font-size:12px;color:var(--ink-muted);"></span>
     </div>`;

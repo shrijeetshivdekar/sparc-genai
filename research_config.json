@@ -258,7 +258,7 @@
       "asset_band": ["warehouse", "fab_or_plant", "lab_equipment"],
       "si_floor_inr": 50000000,
       "si_cap_inr": 500000000,
-      "components": ["BHARAT_LAGHU", "PUBLIC_LIABILITY", "EMPLOYERS_COMP"],
+      "components": ["BHARAT_SOOKSHMA", "PUBLIC_LIABILITY", "EMPLOYERS_COMP"],
       "regulatory_anchors": ["Bharat Laghu Udyam Suraksha wording"],
       "covered_risks": ["property", "liability", "esg_climate", "gig_labour"]
     },

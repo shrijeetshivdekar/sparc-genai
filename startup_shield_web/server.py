@@ -1174,6 +1174,17 @@ class Handler(SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
         return
 
+    def guess_type(self, path):
+        base = super().guess_type(path)
+        if isinstance(base, str):
+            if base in ("application/javascript", "text/javascript"):
+                return "application/javascript; charset=utf-8"
+            if base == "text/css":
+                return "text/css; charset=utf-8"
+            if base and base.startswith("text/html"):
+                return "text/html; charset=utf-8"
+        return base
+
     def send_json(self, status, payload):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)

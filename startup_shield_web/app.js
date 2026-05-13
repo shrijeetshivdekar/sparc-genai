@@ -118,6 +118,22 @@ function sectionHeader(index, title, sectionId, suffix="") {
     </div>`;
 }
 
+function sectionHeaderWithReset(index, title, sectionId, suffix="") {
+  return `
+    <div class="section-head">
+      <div>
+        <div class="section-label">${String(index + 1).padStart(2, "0")} - ${esc(title)}${suffix}</div>
+        ${tailoringTag(sectionId)}
+      </div>
+      <div class="section-head-actions">
+        <button class="section-reset-btn" type="button" onclick="resetSectionInputs('${esc(sectionId)}')">Reset screen</button>
+        <span class="save-status">Saved</span>
+      </div>
+    </div>`;
+}
+
+sectionHeader = sectionHeaderWithReset;
+
 function fieldFilled(key) {
   const value = state.profile?.[key];
   if (key === "ai_in_product") return typeof value === "boolean";
@@ -179,6 +195,78 @@ function afterProfileChange({ refreshAdaptive = false } = {}) {
   updateSectionScorePreview();
   showSavedMicroLabel();
 }
+
+const SECTION_RESET_VALUES = {
+  identity: {
+    startup_name: "",
+    sector: "",
+    sub_sector: null,
+    funding_stage: "",
+    team_size: 0,
+    has_investors: "No",
+  },
+  shape: {
+    operations: "",
+    data_sensitivity: "",
+    ai_in_product: false,
+    ai_tier: "None",
+    customer_type: [],
+    annual_revenue_cr: 0,
+    total_insurable_asset_value_cr: 0,
+    product_description: "",
+  },
+  exposure: {
+    data_handled: [],
+    regulatory: [],
+    physical_assets: [],
+    biggest_fear: "",
+  },
+  advanced: {
+    investor_cn_hk_pct: 0,
+    cumulative_fundraising_inr_cr: 0,
+    holdco_domicile: "India",
+    founder_equity_pct: 0,
+    has_independent_directors: false,
+    dpiit_recognition: false,
+    rbi_registration: null,
+    gig_headcount_pct: 0,
+    posh_ic_constituted: false,
+    state_footprint: [],
+    cert_in_poc_designated: false,
+    sdf_likely: false,
+    sdf_probability: 0,
+    data_localisation_status: "Unknown",
+    ai_tier: "None",
+    hardware_software_split: 0,
+    b2b_pct: 0,
+    export_eu_pct: 0,
+    export_us_pct: 0,
+    export_china_pct: 0,
+    chinese_supplier_pct_cogs: 0,
+    listed_customer_brsr_dependency: false,
+    facility_climate_risk_zone: "Low",
+    gross_profit_cr: 0,
+    fleet_count: 0,
+    healthcare_operations: false,
+    payment_or_card_program: false,
+    product_recall_exposure: false,
+    food_or_pharma_manufacturing: false,
+    contract_bid_or_performance_bond_need: false,
+    project_value_cr: 0,
+    event_or_production_operations: false,
+    claims_last_3_years: 0,
+  },
+};
+
+window.resetSectionInputs = (sectionId) => {
+  const resetValues = SECTION_RESET_VALUES[sectionId];
+  if (!resetValues) return;
+  Object.entries(resetValues).forEach(([key, value]) => {
+    state.profile[key] = Array.isArray(value) ? [] : value;
+  });
+  const needsAdaptiveRefresh = ["identity", "shape", "exposure", "advanced"].includes(sectionId);
+  afterProfileChange({ refreshAdaptive: needsAdaptiveRefresh });
+};
 
 const COVER_ALIASES = {
   "CYBER": "cyber_liability", "D_AND_O": "dno_liability", "PI_TECH_EO": "professional_indemnity",
@@ -683,16 +771,60 @@ function getBaselineProduct(result) {
   return recs.find(p => p.mandatory) || recs.find(p => p.priority === "Critical") || recs[0] || null;
 }
 
-function customerProductReason(product) {
+function getWhyText(why, key, section, fallback = "") {
+  if (!key) return fallback || "";
+  const primary = section ? why?.[section] : why;
+  const candidates = [...new Set([
+    key,
+    COVER_ALIASES[key],
+    COVER_ALIASES[String(key).toUpperCase()],
+    String(key).toUpperCase(),
+    String(key).toLowerCase(),
+  ].filter(Boolean))];
+  if (primary && typeof primary === "object") {
+    for (const candidate of candidates) {
+      const value = primary[candidate];
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+  }
+  if (why && !section) {
+    for (const candidate of candidates) {
+      const value = why[candidate];
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+  }
+  return fallback || "";
+}
+
+function getProductWhy(product, why) {
   if (!product) return "";
-  return product.nudge || PRODUCT_BLURBS[product.key] || "Relevant for the risks most likely to affect your business at this stage.";
+  return getWhyText(
+    why,
+    product.key,
+    "products",
+    getWhyText(why, product.key, null, product.nudge || PRODUCT_BLURBS[product.key] || "")
+  );
+}
+
+function getCoverWhy(key, why, section = "bundle_covers") {
+  return getWhyText(
+    why,
+    key,
+    section,
+    PRODUCT_BLURBS[key] || PRODUCT_BLURBS[COVER_ALIASES[key]] || PRODUCT_BLURBS[COVER_ALIASES[String(key).toUpperCase()]] || ""
+  );
+}
+
+function customerProductReason(product, result = {}) {
+  if (!product) return "";
+  return getProductWhy(product, result.why_it_matters) || "Relevant for the risks most likely to affect your business at this stage.";
 }
 
 function customerExplanation(result) {
   const p = result.profile || {};
   const topRisk = (result.top_risks || [])[0]?.name?.replace(" Risk", "").toLowerCase() || "business continuity";
   const bundle = result.bundle_match?.name || "the recommended bundle";
-  return `For a ${p.funding_stage || "growing"} ${p.sector || "startup"} with about ${p.team_size || "your current"} people, ${bundle} is the clearest starting point. It prioritises ${topRisk} and keeps the first discussion focused on covers that protect contracts, data, people, and day-to-day operations.`;
+  return result.why_it_matters?.bundle || `For a ${p.funding_stage || "growing"} ${p.sector || "startup"} with about ${p.team_size || "your current"} people, ${bundle} is the clearest starting point. It prioritises ${topRisk} and keeps the first discussion focused on covers that protect contracts, data, people, and day-to-day operations.`;
 }
 
 function customerNudge(result) {
@@ -707,10 +839,17 @@ function customerNudge(result) {
 }
 
 function renderCustomerResults(result) {
+  result = normalizeGroupSafeguardCompanion(result);
   const p = result.profile || {};
   const bundle = result.bundle_match || {};
+  const why = result.why_it_matters || {};
   const topProducts = (result.recommendations || []).slice(0, 3);
   const baseline = getBaselineProduct(result);
+  const companion = bundle.companion_bundle || {};
+  const companionCovers = [
+    ...(companion.mandatory_covers || []),
+    ...(companion.optional_covers || []),
+  ];
 
   $("main-content").innerHTML = `
     <main class="customer-results">
@@ -734,6 +873,21 @@ function renderCustomerResults(result) {
           <div class="card-label">Recommended bundle</div>
           <h2>${esc(bundle.name || "Bundle recommendation")}</h2>
           <p>${esc(bundle.description || "A practical set of covers matched to your current business profile.")}</p>
+          ${why.bundle ? `<p class="customer-bundle-why">${esc(why.bundle)}</p>` : ""}
+          ${bundle.companion_bundle?.name ? `
+            <div class="customer-companion-bundle">
+              <div class="card-label">Also review</div>
+              <h3>${esc(bundle.companion_bundle.name)}</h3>
+              <p>${esc(why.companion_bundle || bundle.companion_note || "This second package covers the startup's sector-specific risks alongside workforce protection.")}</p>
+              ${companionCovers.length ? `
+                <div class="customer-cover-list">
+                  ${companionCovers.slice(0, 6).map(c => `
+                    <div class="customer-cover-item">
+                      <strong>${esc(labelize(c))}</strong>
+                      <span>${esc(getCoverWhy(c, why, "companion_covers"))}</span>
+                    </div>`).join("")}
+                </div>` : ""}
+            </div>` : ""}
           ${result.bundle_only_pricing_quote?.gross_premium_lakh ? `<div class="customer-price">Indicative bundle premium: INR ${esc(result.bundle_only_pricing_quote.gross_premium_lakh)}L incl. GST</div>` : ""}
         </article>
 
@@ -741,7 +895,7 @@ function renderCustomerResults(result) {
           <div class="card-label">Baseline product</div>
           ${baseline ? `
             <h2>${esc(baseline.name || labelize(baseline.key))}</h2>
-            <p>${esc(customerProductReason(baseline))}</p>
+            <p>${esc(customerProductReason(baseline, result))}</p>
           ` : `<p>No baseline product was returned for this profile.</p>`}
         </article>
       </section>
@@ -756,7 +910,7 @@ function renderCustomerResults(result) {
             <article class="customer-product-card">
               <div class="customer-product-rank">#${i + 1}</div>
               <h3>${esc(product.name || labelize(product.key))}</h3>
-              <p>${esc(customerProductReason(product))}</p>
+              <p>${esc(customerProductReason(product, result))}</p>
               <div class="customer-product-tags">
                 <span>${esc(product.priority || "Recommended")}</span>
                 ${product.mandatory ? "<span>Baseline</span>" : ""}
@@ -893,10 +1047,10 @@ function renderSectionIdentity() {
         <div class="field-group">
           <label>Team size (full-time)</label>
           <div class="range-wrap">
-            <input type="range" min="1" max="500" step="1"
-              value="${p.team_size||20}"
+            <input type="range" min="0" max="500" step="1"
+              value="${p.team_size ?? 20}"
               oninput="setVal('team_size',Number(this.value)); this.nextElementSibling.textContent=this.value" />
-            <div class="range-bubble">${p.team_size||20}</div>
+            <div class="range-bubble">${p.team_size ?? 20}</div>
           </div>
         </div>
         <div class="field-group">
@@ -1575,7 +1729,30 @@ function renderLoading() {
 }
 
 /* ─── RESULTS RENDER ─────────────────────────────────────────── */
+function normalizeGroupSafeguardCompanion(result) {
+  const bundle = result?.bundle_match;
+  if (!bundle || bundle.name !== "Group Safeguard Insurance Policy") return result;
+  if (bundle.companion_bundle?.name) return result;
+
+  const alternatives = Array.isArray(result.bundle_alternatives) ? [...result.bundle_alternatives] : [];
+  if (!alternatives.length) return result;
+
+  const companion = { ...alternatives.shift(), alternative_status: "companion" };
+  result.bundle_match = {
+    ...bundle,
+    companion_bundle: companion,
+    companion_note: (
+      "Group Safeguard is strongest for workforce benefits, but it is not sector-specific. " +
+      "Review this second package alongside it for the startup's operating and sector risks."
+    ),
+  };
+  result.bundle_alternatives = alternatives;
+  result.recommended_bundle_set = [result.bundle_match, companion];
+  return result;
+}
+
 function renderResults(result) {
+  result = normalizeGroupSafeguardCompanion(result);
   state.profile = structuredClone(result.profile || state.profile);
   const p = result.profile;
 
@@ -1624,7 +1801,7 @@ function renderResults(result) {
           <div class="result-section-bar"></div>
           <div class="result-section-title">Bundle recommendation</div>
         </div>
-        ${renderBundleHero(result.bundle_match, result.recommendations)}
+        ${renderBundleHero(result.bundle_match, result.recommendations, result.why_it_matters)}
         ${renderBundleAlternatives(result.bundle_alternatives)}
         ${renderV2Insights(result)}
       </div>
@@ -1641,12 +1818,14 @@ function renderResults(result) {
             const bundleKeys = new Set([
               ...(result.bundle_match?.mandatory_covers || []),
               ...(result.bundle_match?.optional_covers || []),
+              ...(result.bundle_match?.companion_bundle?.mandatory_covers || []),
+              ...(result.bundle_match?.companion_bundle?.optional_covers || []),
             ].map(normalise));
             const additionalRecs = (result.recommendations || []).filter(r => !bundleKeys.has(normalise(r.key)));
             if (!additionalRecs.length) {
               return `<div class="r-card">${emptyState("✓", "All recommended products are in your bundle", "The engine has no additional products to recommend outside the selected bundle.")}</div>`;
             }
-            return renderProductRows(additionalRecs, result.product_mapping);
+            return renderProductRows(additionalRecs, result.product_mapping, result.why_it_matters);
           })()}
         </div>
         ${renderBadProducts(result.not_preferred_recommendations)}
@@ -2064,7 +2243,7 @@ function renderDriverCards(risks) {
     </div>`).join("");
 }
 
-function renderProductCards(recs, mapping) {
+function renderProductCards(recs, mapping, why = {}) {
   const byKey = Object.fromEntries((mapping||[]).map(r=>[r.key, r]));
   if (!recs?.length) return `<p style="color:var(--ink-muted)">No recommended products.</p>`;
   const appetiteLabels = { good:"Good risk", moderate:"Moderate", bad:"Not preferred", tbd:"Under review" };
@@ -2082,7 +2261,7 @@ function renderProductCards(recs, mapping) {
           ${p.mandatory ? `<span class="product-tag baseline">Baseline</span>` : ""}
         </div>
         <div class="product-card-il"><strong>ICICI Lombard:</strong> ${esc(p.il_product||"")}</div>
-        <div class="product-card-nudge">${esc(p.nudge||"")}</div>
+        <div class="product-card-nudge">${esc(getProductWhy(p, why) || p.nudge || "")}</div>
         ${p.premium ? `
           <div class="product-premium">
             <div class="product-premium-amount">INR ${p.premium.min_lakh.toFixed(1)} - ${p.premium.max_lakh.toFixed(1)}L</div>
@@ -2109,11 +2288,12 @@ function renderBadProducts(products) {
     </details>`;
 }
 
-function renderBundleHero(bundle, recs) {
+function renderBundleHero(bundle, recs, why = {}) {
   if (!bundle?.name) return `<div class="r-card">${emptyState("📦", "No bundle matched", "No packaged bundle was a strong enough fit for this profile. Recommended products are listed individually below.")}</div>`;
 
   const mandatory = bundle.mandatory_covers || [];
   const optional  = bundle.optional_covers  || [];
+  const companion = bundle.companion_bundle || null;
   const recKeys   = new Set((recs||[]).map(r => r.key));
   const eyebrow   = bundle.nearest_fallback ? "Closest package fit" : "Recommended package";
   const isOfficial = bundle.is_real_il_bundle === true || OFFICIAL_IL_BUNDLE_NAMES.has(bundle.name);
@@ -2125,6 +2305,10 @@ function renderBundleHero(bundle, recs) {
     ...mandatory.map(c => ({ key: c, type: "mandatory" })),
     ...optional.map(c  => ({ key: c, type: "optional"  })),
   ];
+  const companionCoverItems = companion ? [
+    ...((companion.mandatory_covers || []).map(c => ({ key: c, type: "mandatory" }))),
+    ...((companion.optional_covers || []).map(c => ({ key: c, type: "optional" }))),
+  ] : [];
 
   return `
     <div class="bundle-hero">
@@ -2145,11 +2329,34 @@ function renderBundleHero(bundle, recs) {
       </div>
 
       <div class="bundle-hero-desc">${esc(bundle.description || "")}</div>
+      ${why?.bundle ? `<div class="bundle-why-note">${esc(why.bundle)}</div>` : ""}
+
+      ${companion?.name ? `
+        <div class="bundle-companion">
+          <div class="bundle-companion-label">Also recommend alongside Group Safeguard</div>
+          <div class="bundle-companion-main">
+            <div>
+              <div class="bundle-companion-name">${esc(companion.name)}</div>
+              <div class="bundle-companion-desc">${esc(why?.companion_bundle || bundle.companion_note || "Group Safeguard handles workforce benefits; this second package addresses the startup's sector and operating risks.")}</div>
+            </div>
+            <div class="bundle-companion-fit">${companion.fit_pct || 0}% fit</div>
+          </div>
+          <div class="bundle-companion-covers">
+            ${companionCoverItems.slice(0, 8).map(({ key, type }) => `
+              <div class="bundle-cover-item compact">
+                <div class="bundle-cover-dot ${type}"></div>
+                <div>
+                  <div class="bundle-cover-name">${esc(labelize(key))}</div>
+                  <div class="bundle-cover-blurb">${esc(getCoverWhy(key, why, "companion_covers"))}</div>
+                </div>
+              </div>`).join("")}
+          </div>
+        </div>` : ""}
 
       <div class="bundle-covers-label">Covers included — ${mandatory.length} mandatory · ${optional.length} optional</div>
       <div class="bundle-cover-grid">
         ${coverItems.slice(0, 12).map(({ key, type }) => {
-          const blurb = PRODUCT_BLURBS[key] || "";
+          const blurb = getCoverWhy(key, why, "bundle_covers");
           return `
             <div class="bundle-cover-item">
               <div class="bundle-cover-dot ${type}"></div>
@@ -2227,18 +2434,24 @@ function renderV2Insights(result) {
   const ins = result.bundle_insights;
   const revenue = result.revenue_breakdown || [];
   const risk = result.risk_multiplier_breakdown || {};
-  const graduation = result.graduation_map || {};
-  const stageKey = (result.profile?.funding_stage || "Seed")
-    .toLowerCase().replace("+", "").replace(/\s+/g, "_").replace("pre-seed", "seed");
-  const path = Array.isArray(graduation) ? graduation : (graduation[stageKey] || graduation.seed || []);
-  const triggers = result.regulatory_triggers_fired || [];
+  const path = result.coverage_roadmap || [];
+  const normaliseCover = (key) => COVER_ALIASES[key] || COVER_ALIASES[String(key || "").toUpperCase()] || key;
+  const displayedCovers = new Set([
+    ...(result.bundle_match?.mandatory_covers || []),
+    ...(result.bundle_match?.optional_covers || []),
+    ...(result.bundle_match?.companion_bundle?.mandatory_covers || []),
+    ...(result.bundle_match?.companion_bundle?.optional_covers || []),
+    ...(result.recommendations || []).map(p => p.key),
+  ].flatMap(key => [key, normaliseCover(key)]).filter(Boolean));
+  const triggerSource = result.display_regulatory_triggers || result.regulatory_triggers_fired || [];
+  const triggers = triggerSource.filter(t => displayedCovers.has(t.product) || displayedCovers.has(normaliseCover(t.product)));
 
   const riskItems = Object.entries(risk)
     .filter(([k, v]) => RISK_FACTOR_LABELS[k] != null && v != null)
     .map(([k, v]) => [RISK_FACTOR_LABELS[k], v]);
 
   const trajectoryLabel = (t) => ({ up: "Growing market", down: "Declining market", stable: "Stable market" }[t] || t || "");
-  const complianceItems = ins && Array.isArray(ins.compliance_plain) ? ins.compliance_plain : [];
+  const complianceItems = triggers.length && ins && Array.isArray(ins.compliance_plain) ? ins.compliance_plain.slice(0, triggers.length) : [];
 
   return `
     <details class="expander-card insights-card" style="margin-top:14px;">
@@ -2303,7 +2516,7 @@ function renderV2Insights(result) {
     </details>`;
 }
 
-function renderProductRows(recs, mapping) {
+function renderProductRows(recs, mapping, why = {}) {
   const byKey = Object.fromEntries((mapping || []).map(r => [r.key, r]));
   if (!recs?.length) return emptyState("🛡️", "No products recommended", "The engine found no matching ICICI Lombard products for this profile. Try adjusting your inputs.");
   const appetiteLabels = { good: "Good risk", moderate: "Moderate", bad: "Not preferred", tbd: "Under review" };
@@ -2324,7 +2537,7 @@ function renderProductRows(recs, mapping) {
             <span class="badge badge-${prio === "Critical" ? "critical" : prio === "Recommended" ? "watch" : "low"}" style="font-size:10px;">${esc(prio)}</span>
           </div>
         </div>
-        <div class="product-row-nudge">${esc(p.nudge || "")}</div>
+        <div class="product-row-nudge">${esc(getProductWhy(p, why) || p.nudge || "")}</div>
         <div class="product-row-right">
           ${p.premium ? `<div class="product-row-premium">INR ${p.premium.min_lakh.toFixed(1)}-${p.premium.max_lakh.toFixed(1)}L</div>
           <div style="font-size:11px;color:var(--ink-faint);text-align:right;">${esc(p.premium.basis)}</div>` : ""}

@@ -787,7 +787,160 @@ def call_gemini_json(prompt):
     return parsed, None
 
 
-def generate_why_it_matters(profile, bundle_match, recommendations):
+def _non_empty_profile_value(value):
+    if value in (None, "", False):
+        return None
+    if isinstance(value, (int, float)) and value == 0:
+        return None
+    if isinstance(value, list):
+        items = [str(v) for v in value if v not in (None, "", "None", "None / minimal", "None - fully cloud")]
+        return ", ".join(items) if items else None
+    if value is True:
+        return "Yes"
+    return str(value)
+
+
+def profile_context_for_why(profile):
+    """Compact only useful entered fields so GenAI copy stays specific."""
+    fields_to_include = [
+        ("Sector", "sector"),
+        ("Sub-sector", "sub_sector"),
+        ("Stage", "funding_stage"),
+        ("Team size", "team_size"),
+        ("Operations", "operations"),
+        ("Data sensitivity", "data_sensitivity"),
+        ("Customer type", "customer_type"),
+        ("Data handled", "data_handled"),
+        ("Regulatory exposure", "regulatory"),
+        ("Physical assets", "physical_assets"),
+        ("Annual revenue / ARR INR Cr", "annual_revenue_cr"),
+        ("Total insurable asset value INR Cr", "total_insurable_asset_value_cr"),
+        ("Gross profit INR Cr", "gross_profit_cr"),
+        ("Fleet count", "fleet_count"),
+        ("Gig or contractor workforce share", "gig_headcount_pct"),
+        ("Project / contract value INR Cr", "project_value_cr"),
+        ("Biggest fear", "biggest_fear"),
+        ("AI in product", "ai_in_product"),
+        ("Healthcare operations", "healthcare_operations"),
+        ("Payment or card programme", "payment_or_card_program"),
+        ("Product recall exposure", "product_recall_exposure"),
+        ("Food or pharma manufacturing", "food_or_pharma_manufacturing"),
+        ("Bid or performance bond need", "contract_bid_or_performance_bond_need"),
+        ("Event or production operations", "event_or_production_operations"),
+        ("Claims in last 3 years", "claims_last_3_years"),
+        ("Facility climate risk zone", "facility_climate_risk_zone"),
+        ("Export to EU pct", "export_eu_pct"),
+        ("Export to US pct", "export_us_pct"),
+    ]
+    lines = []
+    for label, key in fields_to_include:
+        value = _non_empty_profile_value((profile or {}).get(key))
+        if value:
+            lines.append(f"- {label}: {value}")
+    return "\n".join(lines) or "- Profile: Startup"
+
+
+def _bundle_cover_keys(bundle):
+    return list(dict.fromkeys([
+        *(((bundle or {}).get("mandatory_covers")) or []),
+        *(((bundle or {}).get("optional_covers")) or []),
+    ]))
+
+
+COVER_REASON_FALLBACKS = {
+    "CYBER": "Covers breach response, ransomware recovery, and data-related regulatory costs.",
+    "cyber_liability": "Covers breach response, ransomware recovery, and data-related regulatory costs.",
+    "D_AND_O": "Protects founders and directors if investors, regulators, or employees challenge management decisions.",
+    "dno_liability": "Protects founders and directors if investors, regulators, or employees challenge management decisions.",
+    "PI_TECH_EO": "Covers defence and client claims if software, APIs, or professional services cause financial loss.",
+    "professional_indemnity": "Covers defence and client claims if software, APIs, or professional services cause financial loss.",
+    "CRIME_FIDELITY": "Protects against employee fraud, theft, forgery, and misuse of company money or vendor access.",
+    "crime_fidelity": "Protects against employee fraud, theft, forgery, and misuse of company money or vendor access.",
+    "GROUP_HEALTH": "Medical cover for the team, useful for hiring, retention, and employee wellbeing.",
+    "employee_health": "Medical cover for the team, useful for hiring, retention, and employee wellbeing.",
+    "GROUP_PA": "Accident cover for employees, especially important where people travel, deliver, or work in the field.",
+    "group_pa": "Accident cover for employees, especially important where people travel, deliver, or work in the field.",
+    "EMPLOYERS_COMP": "Statutory workforce injury protection for employees and field teams.",
+    "employees_comp": "Statutory workforce injury protection for employees and field teams.",
+    "EMPLOYMENT_PRACTICES": "Covers legal defence for wrongful termination, discrimination, harassment, and other employment disputes.",
+    "employment_practices": "Covers legal defence for wrongful termination, discrimination, harassment, and other employment disputes.",
+    "ENGINEERING_CAR_EAR_CPM_MBD_EEI": "Protects machinery, contract works, erection projects, and electronic equipment from physical damage.",
+    "engineering": "Protects machinery, contract works, erection projects, and electronic equipment from physical damage.",
+    "PUBLIC_LIABILITY": "Covers third-party injury or property damage linked to premises, projects, events, or operations.",
+    "public_liability": "Covers third-party injury or property damage linked to premises, projects, events, or operations.",
+    "SURETY": "Supports bid and performance bond needs when contracts require proof of delivery or completion.",
+    "surety": "Supports bid and performance bond needs when contracts require proof of delivery or completion.",
+    "MARINE_CARGO": "Covers goods in transit while inventory, equipment, or project cargo moves between locations.",
+    "marine_transit": "Covers goods in transit while inventory, equipment, or project cargo moves between locations.",
+    "BUSINESS_INTERRUPTION": "Covers lost gross profit and continuing expenses after insured damage disrupts operations.",
+    "business_interruption": "Covers lost gross profit and continuing expenses after insured damage disrupts operations.",
+    "PRODUCT_LIABILITY": "Covers claims if a physical product causes injury, damage, or customer loss.",
+    "product_liability": "Covers claims if a physical product causes injury, damage, or customer loss.",
+}
+
+
+def _fallback_cover_reason(bundle, key):
+    criticality = ((bundle or {}).get("covers_criticality") or {}).get(key) or {}
+    reason = criticality.get("reason")
+    if reason:
+        return reason
+    fallback = COVER_REASON_FALLBACKS.get(key) or COVER_REASON_FALLBACKS.get(str(key).lower())
+    if fallback:
+        return fallback
+    return "This cover is part of the matched package because it protects a risk that can affect the startup at this stage."
+
+
+def _fallback_why_it_matters(bundle_match, recommendations):
+    companion = (bundle_match or {}).get("companion_bundle") or {}
+    result = {
+        "bundle": (bundle_match or {}).get("description") or None,
+        "bundle_covers": {
+            key: _fallback_cover_reason(bundle_match, key)
+            for key in _bundle_cover_keys(bundle_match)
+        },
+        "companion_bundle": companion.get("description") or (bundle_match or {}).get("companion_note") or None,
+        "companion_covers": {
+            key: _fallback_cover_reason(companion, key)
+            for key in _bundle_cover_keys(companion)
+        },
+        "products": {},
+    }
+    for r in (recommendations or []):
+        key = r.get("key", "")
+        if not key:
+            continue
+        reason = r.get("nudge") or None
+        result["products"][key] = reason
+        result[key] = reason
+    return result
+
+
+def _normalised_text_lookup(data):
+    if not isinstance(data, dict):
+        return {}
+    return {str(k).lower(): v for k, v in data.items()}
+
+
+def _pick_generated_text(data, key, fallback=None):
+    if not isinstance(data, dict):
+        return fallback
+    lookup = _normalised_text_lookup(data)
+    value = data.get(key) or lookup.get(str(key).lower())
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return fallback
+
+
+def _pick_generated_map(data, keys, fallback_map):
+    if not isinstance(data, dict):
+        data = {}
+    return {
+        key: _pick_generated_text(data, key, fallback_map.get(key))
+        for key in keys
+    }
+
+
+def _generate_why_it_matters_legacy(profile, bundle_match, recommendations):
     """Return {bundle: "...", PRODUCT_KEY: "..."} personalised to sector/stage/team/ops.
 
     Falls back to static nudge strings when Gemini is unavailable.
@@ -847,6 +1000,91 @@ def generate_why_it_matters(profile, bundle_match, recommendations):
     return result
 
 
+def generate_why_it_matters(profile, bundle_match, recommendations):
+    """Return personalised reasons for bundles, bundle covers, companions, and products."""
+    fallback = _fallback_why_it_matters(bundle_match, recommendations)
+    if not gemini_enabled():
+        return fallback
+
+    sector = (profile or {}).get("sector", "startup")
+    stage = (profile or {}).get("funding_stage", "early stage")
+    bundle_name = (bundle_match or {}).get("name", "recommended bundle")
+    companion = (bundle_match or {}).get("companion_bundle") or {}
+    products = [
+        {"key": r.get("key", ""), "name": r.get("name", r.get("key", ""))}
+        for r in (recommendations or [])
+        if r.get("key")
+    ]
+
+    template = {
+        "bundle": f"<two detailed simple sentences on why {bundle_name} matters>",
+        "bundle_covers": {
+            key: f"<two detailed simple sentences on why {key} matters inside {bundle_name}>"
+            for key in fallback["bundle_covers"]
+        },
+        "companion_bundle": (
+            f"<two detailed simple sentences on why {companion.get('name')} should be reviewed alongside Group Safeguard>"
+            if companion.get("name")
+            else None
+        ),
+        "companion_covers": {
+            key: f"<two detailed simple sentences on why {key} matters inside {companion.get('name', 'the companion bundle')}>"
+            for key in fallback["companion_covers"]
+        },
+        "products": {
+            p["key"]: f"<two detailed simple sentences on why {p['name']} matters>"
+            for p in products
+        },
+    }
+    template_str = json.dumps(template, indent=2, ensure_ascii=False)
+
+    prompt = (
+        "You are a concise insurance risk analyst for Indian startups. Fill the JSON template with "
+        "plain-English explanations that make the recommended insurance attractive to a founder or RM.\n\n"
+        f"Startup context:\n{profile_context_for_why(profile)}\n\n"
+        "Rules:\n"
+        "- Keep the exact JSON shape and all keys exactly as provided; do not add or remove keys.\n"
+        "- Each non-null value must be exactly two detailed but simple sentences.\n"
+        "- The first sentence should explain what business risk the bundle or cover protects.\n"
+        "- The second sentence should connect that protection to this startup's profile and why it matters now.\n"
+        "- Personalise using the startup's sector, stage, team size, operations, data, people, asset, and regulatory context where relevant.\n"
+        "- Explain business importance only; do not invent policy limits, prices, exclusions, guarantees, or legal advice.\n"
+        f"- This is a {sector} startup at {stage} stage.\n\n"
+        f"Template to fill:\n{template_str}"
+    )
+
+    data, err = call_gemini_json(prompt)
+    if err or not isinstance(data, dict):
+        print(f"[why_it_matters] Gemini fallback: {err}", flush=True)
+        return fallback
+
+    print(f"[why_it_matters] Gemini keys returned: {list(data.keys())}", flush=True)
+    generated_products = data.get("products") if isinstance(data.get("products"), dict) else {}
+    result = {
+        "bundle": _pick_generated_text(data, "bundle", fallback.get("bundle")),
+        "bundle_covers": _pick_generated_map(
+            data.get("bundle_covers"),
+            fallback["bundle_covers"].keys(),
+            fallback["bundle_covers"],
+        ),
+        "companion_bundle": _pick_generated_text(data, "companion_bundle", fallback.get("companion_bundle")),
+        "companion_covers": _pick_generated_map(
+            data.get("companion_covers"),
+            fallback["companion_covers"].keys(),
+            fallback["companion_covers"],
+        ),
+        "products": {},
+    }
+    for r in (recommendations or []):
+        key = r.get("key", "")
+        if not key:
+            continue
+        reason = _pick_generated_text(generated_products, key, fallback["products"].get(key))
+        result["products"][key] = reason
+        result[key] = reason
+    return result
+
+
 def generate_bundle_insights(profile, bundle_match, revenue_breakdown, triggers, graduation_path):
     """Return a plain-English, neuromarketing-style explanation of why this bundle was chosen."""
     sector  = profile.get("sector", "startup")
@@ -896,6 +1134,241 @@ Rules: no bullet points inside string values, no markdown, no technical terms li
         print(f"[bundle_insights] Gemini fallback: {err}", flush=True)
         return None
     return data
+
+
+TRIGGER_PRODUCT_ALIASES = {
+    "CYBER": "cyber_liability",
+    "D_AND_O": "dno_liability",
+    "PI_TECH_EO": "professional_indemnity",
+    "CRIME_FIDELITY": "crime_fidelity",
+    "GROUP_PA": "group_pa",
+    "GROUP_HEALTH": "employee_health",
+    "EMPLOYERS_COMP": "employees_comp",
+    "EMPLOYMENT_PRACTICES": "employment_practices",
+    "PUBLIC_LIABILITY": "public_liability",
+    "PRODUCT_LIABILITY": "product_liability",
+    "CGL_I_ELITE": "comprehensive_general_liability",
+    "BHARAT_SOOKSHMA": "property_fire",
+    "PROPERTY_FIRE": "property_fire",
+    "PROPERTY_ALL_RISK": "property_all_risk",
+    "BUSINESS_INTERRUPTION": "business_interruption",
+    "MACHINERY_BREAKDOWN": "machinery_breakdown",
+    "ELECTRONIC_EQUIPMENT": "electronic_equipment",
+    "ENGINEERING_CAR_EAR_CPM_MBD_EEI": "engineering",
+    "SURETY": "surety",
+    "Drone_RPAS": "drone_insurance",
+    "MARINE_CARGO": "marine_transit",
+    "TRADE_CREDIT": "trade_credit",
+    "EVENT_PRODUCTION": "event_production",
+    "PRODUCT_RECALL": "product_recall",
+    "PAYMENT_PROTECTION": "payment_protection",
+    "FINANCIAL_SERVICES_PI": "financial_services_pi",
+    "HEALTHCARE_PI": "healthcare_pi",
+}
+
+
+def canonical_cover_key(key):
+    if not key:
+        return ""
+    text = str(key)
+    return TRIGGER_PRODUCT_ALIASES.get(text) or TRIGGER_PRODUCT_ALIASES.get(text.upper()) or text
+
+
+def displayed_cover_keys(bundle, recommendations):
+    keys = set()
+    bundles = [bundle or {}]
+    if (bundle or {}).get("companion_bundle"):
+        bundles.append((bundle or {}).get("companion_bundle") or {})
+    for item in bundles:
+        for key in item.get("mandatory_covers", []):
+            keys.add(canonical_cover_key(key))
+            keys.add(str(key))
+        for key in item.get("optional_covers", []):
+            keys.add(canonical_cover_key(key))
+            keys.add(str(key))
+    for rec in recommendations or []:
+        key = rec.get("key")
+        keys.add(canonical_cover_key(key))
+        keys.add(str(key))
+    return {key for key in keys if key}
+
+
+def display_regulatory_triggers(triggers, bundle, recommendations):
+    """Only show trigger rows for covers that are actually displayed to the user."""
+    shown = displayed_cover_keys(bundle, recommendations)
+    output = []
+    for trigger in triggers or []:
+        product = trigger.get("product")
+        if product in shown or canonical_cover_key(product) in shown:
+            output.append(trigger)
+    return output
+
+
+def contextual_coverage_roadmap(profile, current_bundle):
+    """Build a roadmap from the startup's sector and exposure, not the generic config map."""
+    sector = profile.get("sector", "")
+    stage = profile.get("funding_stage", "Seed")
+    assets = set(profile.get("physical_assets") or [])
+    data = set(profile.get("data_handled") or [])
+    regulatory = set(profile.get("regulatory") or [])
+    team = int(profile.get("team_size") or 0)
+    current = (current_bundle or {}).get("name")
+
+    if sector == "Fintech":
+        path = [
+            ("Seed", "Business Shield SME"),
+            ("Series A", "I-select Liability Insurance"),
+            ("Series B", "Corporate Cover II"),
+            ("Growth", "Corporate Cover II"),
+        ]
+    elif sector == "Healthtech":
+        if "Medical devices / diagnostic equipment" in assets or "CDSCO / medical devices" in regulatory:
+            path = [
+                ("Seed", "I-select Liability Insurance"),
+                ("Series A", "Industrial All Risk (IAR) Policy"),
+                ("Series B", "Corporate Cover II"),
+                ("Growth", "Corporate Cover II"),
+            ]
+        else:
+            path = [
+                ("Seed", "Business Shield SME"),
+                ("Series A", "I-select Liability Insurance"),
+                ("Series B", "Corporate Cover II"),
+                ("Growth", "Corporate Cover II"),
+            ]
+    elif sector == "D2C / Consumer Brands":
+        path = [
+            ("Seed", "MSME Suraksha Kavach"),
+            ("Series A", "Merchants Cover III"),
+            ("Series B", "Bharat Laghu Udyam Suraksha"),
+            ("Growth", "Corporate Cover II"),
+        ]
+    elif sector in ("Deeptech / AI / Robotics", "Cleantech / Climatetech"):
+        if profile.get("project_value_cr") or profile.get("contract_bid_or_performance_bond_need"):
+            path = [
+                ("Seed", "Bharat Laghu Udyam Suraksha"),
+                ("Series A", "Contractor All Risk (CAR) Insurance Policy"),
+                ("Series B", "Industrial All Risk (IAR) Policy"),
+                ("Growth", "Corporate Cover II"),
+            ]
+        else:
+            path = [
+                ("Seed", "Bharat Laghu Udyam Suraksha"),
+                ("Series A", "Industrial All Risk (IAR) Policy"),
+                ("Series B", "Industrial All Risk (IAR) Policy"),
+                ("Growth", "Corporate Cover II"),
+            ]
+    elif sector == "Gaming / Media / Content" and profile.get("event_or_production_operations"):
+        path = [
+            ("Seed", "Entertainment Production Package"),
+            ("Series A", "Entertainment Production Package"),
+            ("Series B", "Corporate Cover II"),
+            ("Growth", "Corporate Cover II"),
+        ]
+    elif team >= 100 or "Labour Codes / gig worker regulations" in regulatory or profile.get("gig_headcount_pct", 0) > 0.2:
+        path = [
+            ("Seed", "Group Safeguard Insurance Policy"),
+            ("Series A", "Group Safeguard Insurance Policy"),
+            ("Series B", "Corporate Cover II"),
+            ("Growth", "Corporate Cover II"),
+        ]
+    elif "Payments / financial transactions" in data or "Personal identity data (KYC / Aadhaar)" in data:
+        path = [
+            ("Seed", "Business Shield SME"),
+            ("Series A", "I-select Liability Insurance"),
+            ("Series B", "Corporate Cover II"),
+            ("Growth", "Corporate Cover II"),
+        ]
+    else:
+        path = [
+            ("Seed", current or "Business Shield SME"),
+            ("Series A", current or "Enterprise Secure Package Policy"),
+            ("Series B", "Corporate Cover II"),
+            ("Growth", "Corporate Cover II"),
+        ]
+
+    if current and all(bundle != current for _, bundle in path):
+        path.insert(0, (stage, current))
+
+    seen = set()
+    output = []
+    for item_stage, bundle in path:
+        key = (item_stage, bundle)
+        if key in seen:
+            continue
+        seen.add(key)
+        output.append({"stage": item_stage, "bundle": bundle})
+    return output[:4]
+
+
+def is_group_safeguard_bundle(bundle):
+    return str((bundle or {}).get("name") or "").strip().lower() == "group safeguard insurance policy"
+
+
+def attach_group_safeguard_companion(bundle, alternatives):
+    """When Group Safeguard wins, promote the next closest package too."""
+    if not is_group_safeguard_bundle(bundle) or not alternatives:
+        return bundle, alternatives, []
+
+    primary = dict(bundle)
+    ranked = sorted(
+        alternatives,
+        key=lambda item: (
+            float((item or {}).get("final_score") or 0),
+            int((item or {}).get("fit_pct") or 0),
+            -int((item or {}).get("rank") or 999),
+        ),
+        reverse=True,
+    )
+    companion = dict(ranked[0])
+    companion["alternative_status"] = "companion"
+    primary["companion_bundle"] = companion
+    primary["companion_note"] = (
+        "Group Safeguard is strongest for workforce benefits, but it is not sector-specific. "
+        "Review the next closest package alongside it for the startup's operating and sector risks."
+    )
+    recommended_set = [primary, companion]
+    remaining = [item for item in alternatives if item.get("name") != companion.get("name")]
+    return primary, remaining, recommended_set
+
+
+def group_safeguard_companion_candidates(primary_bundle, alternatives, legacy_payload):
+    """Use ranked legacy candidates if v2 only returns Group Safeguard."""
+    if not is_group_safeguard_bundle(primary_bundle) or alternatives:
+        return alternatives
+
+    candidates = []
+    for item in [
+        (legacy_payload or {}).get("bundle_match"),
+        *((legacy_payload or {}).get("bundle_alternatives") or []),
+    ]:
+        if not item or not item.get("name"):
+            continue
+        if item.get("name") == (primary_bundle or {}).get("name"):
+            continue
+        if is_group_safeguard_bundle(item):
+            continue
+        candidates.append(dict(item))
+
+    seen = set()
+    deduped = []
+    for item in candidates:
+        name = item.get("name")
+        if name in seen:
+            continue
+        seen.add(name)
+        item.setdefault("alternative_status", "nearest_profile_fit")
+        item.setdefault("rank", len(deduped) + 2)
+        deduped.append(item)
+    return sorted(
+        deduped,
+        key=lambda item: (
+            float(item.get("final_score") or 0),
+            int(item.get("fit_pct") or 0),
+            -int(item.get("rank") or 999),
+        ),
+        reverse=True,
+    )
 
 
 def fallback_outreach_prompts(profile, scores, recommendations, bundle):
@@ -1059,6 +1532,7 @@ def _legacy_score(raw):
     ]
     mapping = product_mapping(recommendations, scores)
     rounded_scores = {key: round(value, 1) for key, value in scores.items()}
+    bundle, bundle_alternatives, recommended_bundle_set = attach_group_safeguard_companion(bundle, bundle_alternatives)
     safe_bundle = json_safe(bundle)
     pricing_quote = price_output_stage(profile, rounded_scores, preferred_recommendations, safe_bundle)
     save_recommendation(profile, rounded_scores, recommendations, safe_bundle, global_ranked, appetite_flags, premium, size_bucket)
@@ -1074,6 +1548,7 @@ def _legacy_score(raw):
         "bundles": bundle_recommendations(recommendations),
         "bundle_match": safe_bundle,
         "bundle_alternatives": json_safe(bundle_alternatives),
+        "recommended_bundle_set": json_safe(recommended_bundle_set),
         "product_mapping": mapping,
         "size_bucket": size_bucket,
         "premium_summary": premium,
@@ -1171,9 +1646,23 @@ def _v2_score(raw):
         payload.setdefault("graduation_map", cfg.graduation_map)
         return payload
 
+    legacy_bundle_payload = {
+        "bundle_match": payload.get("bundle_match"),
+        "bundle_alternatives": payload.get("bundle_alternatives", []),
+    }
     bundle_payloads = [_v2_bundle_to_payload(rec, rank=i + 1) for i, rec in enumerate(recs)]
-    payload["bundle_match"] = json_safe(bundle_payloads[0])
-    payload["bundle_alternatives"] = json_safe(bundle_payloads[1:])
+    companion_candidates = group_safeguard_companion_candidates(
+        bundle_payloads[0],
+        bundle_payloads[1:],
+        legacy_bundle_payload,
+    )
+    top_bundle, bundle_alternatives, recommended_bundle_set = attach_group_safeguard_companion(
+        bundle_payloads[0],
+        companion_candidates,
+    )
+    payload["bundle_match"] = json_safe(top_bundle)
+    payload["bundle_alternatives"] = json_safe(bundle_alternatives)
+    payload["recommended_bundle_set"] = json_safe(recommended_bundle_set)
     payload["pricing_engine_quote"] = json_safe(price_output_stage(
         payload["profile"],
         payload["scores"],
@@ -1194,7 +1683,17 @@ def _v2_score(raw):
     payload["revenue_breakdown"] = json_safe(_revenue_breakdown_v2(recs))
     payload["risk_multiplier_breakdown"] = json_safe(risk_multiplier_breakdown_v2(v2_profile, cfg))
     payload["regulatory_triggers_fired"] = json_safe(recs[0].regulatory_triggers_fired)
+    scoped_triggers = display_regulatory_triggers(
+        recs[0].regulatory_triggers_fired,
+        payload.get("bundle_match"),
+        payload.get("recommendations", []),
+    )
+    payload["display_regulatory_triggers"] = json_safe(scoped_triggers)
     payload["graduation_map"] = json_safe(cfg.graduation_map)
+    payload["coverage_roadmap"] = json_safe(contextual_coverage_roadmap(
+        payload["profile"],
+        payload.get("bundle_match"),
+    ))
     payload["compliance_flags"] = json_safe([
         flag
         for rec in recs
@@ -1208,16 +1707,12 @@ def _v2_score(raw):
         payload.get("recommendations", []),
     ))
 
-    stageKey = (payload["profile"].get("funding_stage") or "seed") \
-        .lower().replace("+", "").replace(" ", "_").replace("pre-seed", "seed")
-    grad_map = cfg.graduation_map
-    grad_path = grad_map if isinstance(grad_map, list) else (grad_map.get(stageKey) or grad_map.get("seed") or [])
     payload["bundle_insights"] = json_safe(generate_bundle_insights(
         payload["profile"],
         payload.get("bundle_match"),
         payload.get("revenue_breakdown", []),
-        payload.get("regulatory_triggers_fired", []),
-        grad_path,
+        scoped_triggers,
+        payload.get("coverage_roadmap", []),
     ))
 
     return payload

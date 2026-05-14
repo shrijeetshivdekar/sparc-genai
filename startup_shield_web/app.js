@@ -320,6 +320,58 @@ const COVER_ALIASES = {
   "bharat_laghu": "property_fire",
 };
 
+Object.assign(COVER_ALIASES, {
+  "Cyber Liability": "CYBER",
+  "cyber liability": "CYBER",
+  "cyber_liability": "CYBER",
+  "Dno Liability": "D_AND_O",
+  "D&O Liability": "D_AND_O",
+  "D and O": "D_AND_O",
+  "Directors and Officers Liability": "D_AND_O",
+  "dno_liability": "D_AND_O",
+  "Professional Indemnity": "PI_TECH_EO",
+  "Professional Indemnity / Tech E&O": "PI_TECH_EO",
+  "Tech E&O": "PI_TECH_EO",
+  "professional_indemnity": "PI_TECH_EO",
+  "Employee Health": "GROUP_HEALTH",
+  "Group Health": "GROUP_HEALTH",
+  "employee_health": "GROUP_HEALTH",
+  "Group Pa": "GROUP_PA",
+  "Group Personal Accident": "GROUP_PA",
+  "group_pa": "GROUP_PA",
+  "Employment Practices": "EMPLOYMENT_PRACTICES",
+  "Employment Practices Liability": "EMPLOYMENT_PRACTICES",
+  "employment_practices": "EMPLOYMENT_PRACTICES",
+  "Key Person": "key_person",
+  "Key Person Insurance": "key_person",
+  "key_person": "key_person",
+  "Crime Fidelity": "CRIME_FIDELITY",
+  "Crime / Fidelity": "CRIME_FIDELITY",
+  "crime_fidelity": "CRIME_FIDELITY",
+});
+
+function canonicalCoverCandidates(key) {
+  const raw = String(key || "").trim();
+  if (!raw) return [];
+  const titleish = raw.replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  const upperish = raw.replace(/[\s/-]+/g, "_").replace(/&/g, "AND").toUpperCase();
+  const lowerish = raw.toLowerCase();
+  const aliasValues = [
+    COVER_ALIASES[raw],
+    COVER_ALIASES[titleish],
+    COVER_ALIASES[upperish],
+    COVER_ALIASES[lowerish],
+  ].filter(Boolean);
+  return [...new Set([
+    raw,
+    titleish,
+    upperish,
+    lowerish,
+    ...aliasValues,
+    ...aliasValues.map(v => COVER_ALIASES[v]).filter(Boolean),
+  ].filter(Boolean))];
+}
+
 const PRODUCT_BLURBS = {
   "CYBER":                            "Covers data breach response, ransomware recovery, and regulatory penalties — directly required by CERT-In Directions 2022 and the DPDP Act.",
   "D_AND_O":                          "Protects founders and directors personally if investors, regulators, or employees file suit over decisions made on the company's behalf.",
@@ -356,6 +408,7 @@ Object.assign(PRODUCT_BLURBS, {
   "PAYMENT_PROTECTION": "Covers payment/card programme losses, unauthorised transaction exposure, and customer compensation obligations.",
   "PRODUCT_RECALL": "Pays recall, contamination, withdrawal, replacement, and brand rehabilitation costs for controlled product batches.",
   "EVENT_PRODUCTION": "Production and event package cover for venue, equipment, liability, interruption, and cancellation-sensitive operations.",
+  "key_person": "Protects the company against financial disruption if a founder or critical leader dies or is disabled. It gives the startup cash runway to hire, transition responsibilities, and reassure investors during a leadership shock.",
 });
 
 const OFFICIAL_IL_BUNDLE_NAMES = new Set([
@@ -953,13 +1006,7 @@ function getBaselineProduct(result) {
 function getWhyText(why, key, section, fallback = "") {
   if (!key) return fallback || "";
   const primary = section ? why?.[section] : why;
-  const candidates = [...new Set([
-    key,
-    COVER_ALIASES[key],
-    COVER_ALIASES[String(key).toUpperCase()],
-    String(key).toUpperCase(),
-    String(key).toLowerCase(),
-  ].filter(Boolean))];
+  const candidates = canonicalCoverCandidates(key);
   if (primary && typeof primary === "object") {
     for (const candidate of candidates) {
       const value = primary[candidate];
@@ -986,11 +1033,14 @@ function getProductWhy(product, why) {
 }
 
 function getCoverWhy(key, why, section = "bundle_covers") {
+  const fallback = canonicalCoverCandidates(key)
+    .map(candidate => PRODUCT_BLURBS[candidate])
+    .find(Boolean) || "";
   return getWhyText(
     why,
     key,
     section,
-    PRODUCT_BLURBS[key] || PRODUCT_BLURBS[COVER_ALIASES[key]] || PRODUCT_BLURBS[COVER_ALIASES[String(key).toUpperCase()]] || ""
+    fallback
   );
 }
 

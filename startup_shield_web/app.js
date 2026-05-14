@@ -2012,7 +2012,7 @@ function renderResults(result) {
 
       <!-- Section nav -->
       <nav class="section-nav">
-        ${[["#bundle","Bundle"],["#products","Products"],["#risk","Risk scores"],["#timeline","Timeline"],["#triggers","Actions"],["#outreach","Outreach"]].map(([h,l])=>`<a class="snav-pill" href="${h}">${l}</a>`).join("")}
+        ${[["#bundle","Bundle"],["#products","Products"],["#risk","Risk scores"],["#timeline","Timeline"],["#triggers","Actions"],["#policy-wording","Policy wording"],["#outreach","Outreach"]].map(([h,l])=>`<a class="snav-pill" href="${h}">${l}</a>`).join("")}
       </nav>
 
       <!-- KPI strip -->
@@ -2151,6 +2151,8 @@ function renderResults(result) {
         </div>
       </details>
 
+      ${renderPolicyWordingComparison(result)}
+
       <!-- Outreach -->
       ${renderOutreach(result.outreach_prompts, result.outreach_source, result.outreach_error)}
 
@@ -2191,6 +2193,7 @@ function renderResults(result) {
 
   // Bind refine
   bindRefine();
+  bindPolicyWordingUpload();
 
   // Bind outreach copy buttons
   document.querySelectorAll("[data-copy]").forEach(btn => {
@@ -2854,6 +2857,138 @@ function renderAssumptions(assumptions) {
       <span class="kv-val">${esc(formatVal(v))}</span>
     </div>`).join("");
 }
+
+function policyWordingOptions(result) {
+  const options = [];
+  const seen = new Set();
+  const add = (value, label) => {
+    if (!value || seen.has(value)) return;
+    seen.add(value);
+    options.push({ value, label: label || value });
+  };
+  add(result.bundle_match?.name, `Bundle: ${result.bundle_match?.name || ""}`);
+  (result.bundle_alternatives || []).slice(0, 4).forEach(b => add(b.name, `Alt bundle: ${b.name}`));
+  (result.recommendations || []).forEach(p => add(p.key || p.name, p.name || p.key));
+  return options;
+}
+
+function renderPolicyWordingComparison(result) {
+  const options = policyWordingOptions(result);
+  if (!options.length) return "";
+  return `
+    <div class="result-section" id="policy-wording">
+      <div class="result-section-head">
+        <div class="result-section-bar"></div>
+        <div class="result-section-title">Policy wording comparison</div>
+      </div>
+      <div class="policy-wording-card">
+        <div class="policy-wording-head">
+          <div>
+            <div class="card-label">Exclusions and gap review</div>
+            <p>Paste policy wording or upload a text excerpt. SPARC compares it with the internal wording reference and your recommended covers.</p>
+          </div>
+          <select id="policy-wording-product" class="f-select">
+            ${options.map(o => `<option value="${esc(o.value)}">${esc(o.label)}</option>`).join("")}
+          </select>
+        </div>
+        <textarea id="policy-wording-text" class="policy-wording-textarea" placeholder="Paste policy terms, exclusions, schedule notes, or wording excerpts here..."></textarea>
+        <div class="policy-wording-actions">
+          <label class="policy-upload-btn">
+            Upload .txt/.md wording
+            <input id="policy-wording-file" type="file" accept=".txt,.md,.json,.csv,.html,.htm,text/*" />
+          </label>
+          <button class="btn btn-primary" type="button" onclick="comparePolicyWording()">Compare wording</button>
+          <span id="policy-wording-status" class="policy-wording-status">DOCX files should be opened and pasted as text for now.</span>
+        </div>
+        <div id="policy-wording-output"></div>
+      </div>
+    </div>`;
+}
+
+function bindPolicyWordingUpload() {
+  const input = $("policy-wording-file");
+  if (!input) return;
+  input.addEventListener("change", async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    const status = $("policy-wording-status");
+    if (/\.docx$/i.test(file.name)) {
+      if (status) status.textContent = "DOCX upload is not parsed in-browser yet. Open the DOCX and paste the wording text.";
+      return;
+    }
+    const text = await file.text();
+    const area = $("policy-wording-text");
+    if (area) area.value = text;
+    if (status) status.textContent = `Loaded ${file.name} (${text.length} characters).`;
+  });
+}
+
+function renderPolicyList(title, items, cls = "") {
+  if (!items?.length) return "";
+  return `
+    <div class="policy-result-block ${cls}">
+      <strong>${esc(title)}</strong>
+      <ul>${items.slice(0, 10).map(item => {
+        const text = typeof item === "string" ? item : item.text || item.why_it_matters || item.key || "";
+        const status = typeof item === "object" && item.status ? `<em>${esc(item.status.replace(/_/g, " "))}</em>` : "";
+        return `<li><span>${esc(text)}</span>${status}</li>`;
+      }).join("")}</ul>
+    </div>`;
+}
+
+function renderPolicyComparisonResult(data) {
+  if (!data?.ok) return `<div class="notice">${esc(data?.error || "Policy comparison failed.")}</div>`;
+  const ai = data.genai_summary;
+  return `
+    <div class="policy-result-grid">
+      <div class="policy-result-summary">
+        <div class="card-label">${esc(data.matched_reference || "Policy wording")} review</div>
+        <p>${esc(ai?.plain_english_summary || data.summary || "Comparison completed.")}</p>
+        <div class="policy-result-meta">
+          <span>${data.manual_review_required ? "Manual review required" : "No major deterministic gaps flagged"}</span>
+          <span>GenAI: ${esc(data.genai_source || "fallback")}</span>
+        </div>
+        ${data.genai_error ? `<div class="notice">${esc(data.genai_error)}</div>` : ""}
+      </div>
+      ${renderPolicyList("Expected exclusions from reference", data.expected_exclusions)}
+      ${renderPolicyList("Coverage gaps to discuss", ai?.coverage_gaps_to_discuss?.length ? ai.coverage_gaps_to_discuss : data.coverage_gaps)}
+      ${renderPolicyList("Recommended covers not detected in pasted wording", data.missing_recommended_covers, "warn")}
+      ${renderPolicyList("Profile-specific flags", data.profile_gap_flags, "warn")}
+      ${renderPolicyList("Questions for underwriter", ai?.questions_for_underwriter || [])}
+      ${renderPolicyList("Universal exclusions detected", data.universal_exclusions_detected)}
+    </div>`;
+}
+
+window.comparePolicyWording = async () => {
+  const status = $("policy-wording-status");
+  const output = $("policy-wording-output");
+  const text = $("policy-wording-text")?.value || "";
+  const product = $("policy-wording-product")?.value || "";
+  if (status) status.textContent = "Comparing wording...";
+  if (output) output.innerHTML = "";
+  try {
+    const result = window.__result || {};
+    const res = await fetch("/api/policy/compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        product_name: product,
+        policy_text: text,
+        profile: result.profile || state.profile,
+        bundle_match: result.bundle_match,
+        recommendations: result.recommendations,
+        scores: result.scores,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || "Comparison failed");
+    if (status) status.textContent = "Comparison complete.";
+    if (output) output.innerHTML = renderPolicyComparisonResult(data);
+  } catch (err) {
+    if (status) status.textContent = `Error: ${err.message}`;
+    if (output) output.innerHTML = `<div class="notice">${esc(err.message)}</div>`;
+  }
+};
 
 function renderOutreach(prompts, source, error) {
   const entries = Object.entries(prompts||{});

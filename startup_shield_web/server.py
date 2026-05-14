@@ -47,6 +47,7 @@ from bundle_scoring_utils import load_config  # noqa: E402
 from custom_product_triggers import check_custom_triggers  # noqa: E402
 from global_products import get_top5_global  # noqa: E402
 from genai_recommender import normalize_mode, rerank_payload  # noqa: E402
+from policy_wording import compare_policy_wording  # noqa: E402
 from premium_estimator import PREMIUM_FOOTNOTE, estimate_premium, get_size_bucket  # noqa: E402
 from pricing_engine import price_output_stage  # noqa: E402
 from risk_appetite import get_appetite, get_bad_reason  # noqa: E402
@@ -1860,6 +1861,68 @@ def analyze(raw):
     return score(raw)
 
 
+def policy_wording_ai_summary(payload, deterministic):
+    if not gemini_enabled() or not deterministic.get("ok"):
+        return None, "fallback", None
+
+    policy_text = str((payload or {}).get("policy_text") or "")[:12000]
+    prompt = f"""
+You are an insurance policy wording analyst for Indian startup insurance.
+Summarize pasted policy wording against the deterministic SPARC reference.
+
+Rules:
+- Return strict JSON only.
+- Do not invent coverage, limits, legal advice, or endorsements.
+- If a point is not visible in the pasted wording, say it needs manual verification.
+- The deterministic exclusions and gaps are the controlling audit source.
+
+Return this JSON shape:
+{{
+  "plain_english_summary": "3-5 concise sentences",
+  "most_important_exclusions": ["..."],
+  "coverage_gaps_to_discuss": ["..."],
+  "questions_for_underwriter": ["..."],
+  "confidence": 0.0
+}}
+
+Deterministic comparison:
+{json.dumps(deterministic, ensure_ascii=False)[:10000]}
+
+Pasted policy wording:
+{policy_text}
+"""
+    data, err = call_gemini_json(prompt)
+    if err or not isinstance(data, dict):
+        return None, "fallback", err
+
+    def _list(key):
+        value = data.get(key)
+        if not isinstance(value, list):
+            return []
+        return [str(item).strip() for item in value if str(item).strip()][:8]
+
+    try:
+        confidence = float(data.get("confidence", 0.0))
+    except (TypeError, ValueError):
+        confidence = 0.0
+    return {
+        "plain_english_summary": str(data.get("plain_english_summary") or "").strip(),
+        "most_important_exclusions": _list("most_important_exclusions"),
+        "coverage_gaps_to_discuss": _list("coverage_gaps_to_discuss"),
+        "questions_for_underwriter": _list("questions_for_underwriter"),
+        "confidence": max(0.0, min(1.0, confidence)),
+    }, "gemini", None
+
+
+def analyze_policy_wording(payload):
+    deterministic = compare_policy_wording(payload or {})
+    ai_summary, ai_source, ai_error = policy_wording_ai_summary(payload or {}, deterministic)
+    deterministic["genai_source"] = ai_source
+    deterministic["genai_error"] = ai_error
+    deterministic["genai_summary"] = ai_summary
+    return deterministic
+
+
 def meta():
     sectors = [
         {
@@ -1927,13 +1990,17 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self):
-        if self.path != "/api/analyze":
+        if self.path not in ("/api/analyze", "/api/policy/compare"):
             self.send_json(404, {"error": "Not found"})
             return
         try:
             length = int(self.headers.get("Content-Length", "0"))
             payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
-            self.send_json(200, analyze(payload))
+            if self.path == "/api/policy/compare":
+                result = analyze_policy_wording(payload)
+                self.send_json(200 if result.get("ok") else 400, result)
+            else:
+                self.send_json(200, analyze(payload))
         except Exception as exc:
             self.send_json(500, {"error": str(exc)})
 

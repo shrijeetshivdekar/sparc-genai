@@ -2363,6 +2363,27 @@ button, input, select, textarea { font: inherit; }
   font-size: 12px;
 }
 
+.policy-advanced-review {
+  border: 1px dashed var(--border);
+  border-radius: var(--r-sm);
+  margin-top: 14px;
+  padding: 12px 14px;
+}
+
+.policy-advanced-review summary {
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.policy-advanced-review p {
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 8px 0 10px;
+}
+
 .policy-result-grid {
   display: grid;
   gap: 12px;

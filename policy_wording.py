@@ -299,60 +299,83 @@ def _recommended_cover_keys(recommendations: list[dict[str, Any]] | None, bundle
 
 def compare_policy_wording(payload: dict[str, Any]) -> dict[str, Any]:
     policy_text = str(payload.get("policy_text") or "").strip()
+    reference_only = bool(payload.get("reference_only"))
     product_name = payload.get("product_name") or payload.get("product_key")
     profile = payload.get("profile") or {}
     recommendations = payload.get("recommendations") or []
     bundle = payload.get("bundle_match") or {}
     selected_key = canonical_policy_key(product_name) or canonical_policy_key((bundle or {}).get("name"))
     reference = POLICY_REFERENCE.get(selected_key or "") if selected_key else None
-    normalized_text = _normalise(policy_text)
 
-    if len(policy_text) < 80:
+    if reference_only and not reference:
+        return {
+            "ok": False,
+            "error": "Select a known SPARC bundle or product before running the automatic gap check.",
+            "source": "deterministic",
+        }
+    if not reference_only and len(policy_text) < 80:
         return {
             "ok": False,
             "error": "Paste at least 80 characters of policy wording or a policy excerpt.",
             "source": "deterministic",
         }
 
+    comparison_text = policy_text
+    if reference_only and reference:
+        comparison_text = " ".join([
+            reference["name"],
+            " ".join(reference["covers"]),
+            " ".join(reference["exclusions"]),
+            " ".join(reference["gaps"]),
+        ])
+    normalized_text = _normalise(comparison_text)
+
     expected_exclusions = []
     expected_gaps = []
     if reference:
         expected_exclusions = [
-            {"text": item, "status": _item_status(normalized_text, item)}
+            {"text": item, "status": "reference_exclusion" if reference_only else _item_status(normalized_text, item)}
             for item in reference["exclusions"]
         ]
         expected_gaps = [{"text": item, "status": "reference_gap"} for item in reference["gaps"]]
 
     universal_detected = [
         item for item in UNIVERSAL_EXCLUSIONS
-        if _item_status(normalized_text, item) == "detected"
+        if not reference_only and _item_status(normalized_text, item) == "detected"
     ]
 
     recommended_keys = _recommended_cover_keys(recommendations, bundle)
     missing_recommended_covers = []
     for key in recommended_keys:
         terms = COVER_TERMS.get(key)
-        if terms and not _contains_any(policy_text, terms):
+        if terms and not _contains_any(comparison_text, terms):
             missing_recommended_covers.append({
                 "key": key,
-                "status": "not_found_in_pasted_wording",
-                "why_it_matters": "This cover appears in the SPARC recommendation but was not detected in the pasted wording.",
+                "status": "not_in_reference_bundle" if reference_only else "not_found_in_pasted_wording",
+                "why_it_matters": (
+                    "This cover appears in the SPARC recommendation but is not part of the selected reference bundle."
+                    if reference_only else
+                    "This cover appears in the SPARC recommendation but was not detected in the pasted wording."
+                ),
             })
 
     profile_flags = []
     data = set(profile.get("data_handled") or [])
     regs = set(profile.get("regulatory") or [])
-    if (data & {"Payments / financial transactions", "Personal identity data (KYC / Aadhaar)", "Sensitive personal data (DPDP Act)"}) and not _contains_any(policy_text, COVER_TERMS["cyber_liability"]):
-        profile_flags.append("Sensitive/payment data exposure is present, but cyber/privacy wording was not detected.")
-    if (profile.get("rbi_registration") or "RBI / SEBI / IRDAI licensed" in regs or profile.get("has_investors") == "Yes") and not _contains_any(policy_text, COVER_TERMS["dno_liability"]):
-        profile_flags.append("Investor/regulatory exposure is present, but D&O wording was not detected.")
-    if profile.get("team_size", 0) and int(profile.get("team_size", 0)) >= 10 and not _contains_any(policy_text, COVER_TERMS["employment_practices"]):
-        profile_flags.append("Team size suggests EPL/POSH exposure; EPL wording was not detected.")
+    if (data & {"Payments / financial transactions", "Personal identity data (KYC / Aadhaar)", "Sensitive personal data (DPDP Act)"}) and not _contains_any(comparison_text, COVER_TERMS["cyber_liability"]):
+        profile_flags.append("Sensitive/payment data exposure is present, but cyber/privacy cover was not detected.")
+    if (profile.get("rbi_registration") or "RBI / SEBI / IRDAI licensed" in regs or profile.get("has_investors") == "Yes") and not _contains_any(comparison_text, COVER_TERMS["dno_liability"]):
+        profile_flags.append("Investor/regulatory exposure is present, but D&O cover was not detected.")
+    if profile.get("team_size", 0) and int(profile.get("team_size", 0)) >= 10 and not _contains_any(comparison_text, COVER_TERMS["employment_practices"]):
+        profile_flags.append("Team size suggests EPL/POSH exposure; EPL cover was not detected.")
 
-    not_detected_exclusions = [x["text"] for x in expected_exclusions if x["status"] == "not_detected"]
+    not_detected_exclusions = [] if reference_only else [x["text"] for x in expected_exclusions if x["status"] == "not_detected"]
     summary_parts = []
     if reference:
-        summary_parts.append(f"Compared pasted wording against {reference['name']} reference.")
+        if reference_only:
+            summary_parts.append(f"Checked {reference['name']} against the SPARC recommended covers and profile triggers.")
+        else:
+            summary_parts.append(f"Compared pasted wording against {reference['name']} reference.")
     else:
         summary_parts.append("No exact reference product was selected; comparison used universal exclusions and SPARC recommended covers.")
     if not_detected_exclusions:
@@ -363,6 +386,7 @@ def compare_policy_wording(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "ok": True,
         "source": "deterministic",
+        "comparison_mode": "reference_only" if reference_only else "pasted_wording",
         "matched_reference": reference["name"] if reference else None,
         "matched_reference_key": selected_key,
         "reference_fit": reference.get("fit") if reference else "",
@@ -379,6 +403,6 @@ def compare_policy_wording(payload: dict[str, Any]) -> dict[str, Any]:
             "policy_text_chars": len(policy_text),
             "recommended_cover_count": len(recommended_keys),
             "deterministic_only": True,
+            "reference_only": reference_only,
         },
     }
-

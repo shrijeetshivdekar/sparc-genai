@@ -2012,7 +2012,7 @@ function renderResults(result) {
 
       <!-- Section nav -->
       <nav class="section-nav">
-        ${[["#bundle","Bundle"],["#products","Products"],["#risk","Risk scores"],["#timeline","Timeline"],["#triggers","Actions"],["#policy-wording","Policy wording"],["#outreach","Outreach"]].map(([h,l])=>`<a class="snav-pill" href="${h}">${l}</a>`).join("")}
+        ${[["#bundle","Bundle"],["#products","Products"],["#risk","Risk scores"],["#timeline","Timeline"],["#triggers","Actions"],["#coverage-gaps","Coverage gaps"],["#outreach","Outreach"]].map(([h,l])=>`<a class="snav-pill" href="${h}">${l}</a>`).join("")}
       </nav>
 
       <!-- KPI strip -->
@@ -2875,31 +2875,40 @@ function policyWordingOptions(result) {
 function renderPolicyWordingComparison(result) {
   const options = policyWordingOptions(result);
   if (!options.length) return "";
+  const bundleName = result.bundle_match?.name || "recommended bundle";
   return `
-    <div class="result-section" id="policy-wording">
+    <div class="result-section" id="coverage-gaps">
       <div class="result-section-head">
         <div class="result-section-bar"></div>
-        <div class="result-section-title">Policy wording comparison</div>
+        <div class="result-section-title">Coverage gap checker</div>
       </div>
       <div class="policy-wording-card">
         <div class="policy-wording-head">
           <div>
-            <div class="card-label">Exclusions and gap review</div>
-            <p>Paste policy wording or upload a text excerpt. SPARC compares it with the internal wording reference and your recommended covers.</p>
+            <div class="card-label">Start with one click</div>
+            <p>Check ${esc(bundleName)} against SPARC's wording reference and this startup's recommended covers. No policy document needed.</p>
           </div>
           <select id="policy-wording-product" class="f-select">
             ${options.map(o => `<option value="${esc(o.value)}">${esc(o.label)}</option>`).join("")}
           </select>
         </div>
-        <textarea id="policy-wording-text" class="policy-wording-textarea" placeholder="Paste policy terms, exclusions, schedule notes, or wording excerpts here..."></textarea>
         <div class="policy-wording-actions">
-          <label class="policy-upload-btn">
-            Upload .txt/.md wording
-            <input id="policy-wording-file" type="file" accept=".txt,.md,.json,.csv,.html,.htm,text/*" />
-          </label>
-          <button class="btn btn-primary" type="button" onclick="comparePolicyWording()">Compare wording</button>
-          <span id="policy-wording-status" class="policy-wording-status">DOCX files should be opened and pasted as text for now.</span>
+          <button class="btn btn-primary" type="button" onclick="comparePolicyWording({referenceOnly:true})">Check recommended bundle gaps</button>
+          <span id="policy-wording-status" class="policy-wording-status">Uses deterministic SPARC reference data from the policy wording comparison pack.</span>
         </div>
+        <details class="policy-advanced-review">
+          <summary>I already have a policy document</summary>
+          <p>Optional exact wording review. Paste exclusions, schedule notes, or relevant clauses if a customer has an existing policy.</p>
+          <textarea id="policy-wording-text" class="policy-wording-textarea" placeholder="Paste policy terms, exclusions, schedule notes, or wording excerpts here..."></textarea>
+          <div class="policy-wording-actions">
+            <label class="policy-upload-btn">
+              Upload .txt/.md wording
+              <input id="policy-wording-file" type="file" accept=".txt,.md,.json,.csv,.html,.htm,text/*" />
+            </label>
+            <button class="btn btn-ghost" type="button" onclick="comparePolicyWording({referenceOnly:false})">Compare exact wording</button>
+            <span class="policy-wording-status">For DOCX/PDF, open the file and paste the relevant text excerpt.</span>
+          </div>
+        </details>
         <div id="policy-wording-output"></div>
       </div>
     </div>`;
@@ -2939,32 +2948,35 @@ function renderPolicyList(title, items, cls = "") {
 function renderPolicyComparisonResult(data) {
   if (!data?.ok) return `<div class="notice">${esc(data?.error || "Policy comparison failed.")}</div>`;
   const ai = data.genai_summary;
+  const isReferenceOnly = data.comparison_mode === "reference_only";
   return `
     <div class="policy-result-grid">
       <div class="policy-result-summary">
-        <div class="card-label">${esc(data.matched_reference || "Policy wording")} review</div>
+        <div class="card-label">${esc(data.matched_reference || "Policy wording")} ${isReferenceOnly ? "gap check" : "review"}</div>
         <p>${esc(ai?.plain_english_summary || data.summary || "Comparison completed.")}</p>
         <div class="policy-result-meta">
           <span>${data.manual_review_required ? "Manual review required" : "No major deterministic gaps flagged"}</span>
           <span>GenAI: ${esc(data.genai_source || "fallback")}</span>
+          <span>${isReferenceOnly ? "No document needed" : "Pasted wording check"}</span>
         </div>
         ${data.genai_error ? `<div class="notice">${esc(data.genai_error)}</div>` : ""}
       </div>
-      ${renderPolicyList("Expected exclusions from reference", data.expected_exclusions)}
+      ${renderPolicyList(isReferenceOnly ? "Key exclusions to explain upfront" : "Expected exclusions from reference", data.expected_exclusions)}
       ${renderPolicyList("Coverage gaps to discuss", ai?.coverage_gaps_to_discuss?.length ? ai.coverage_gaps_to_discuss : data.coverage_gaps)}
-      ${renderPolicyList("Recommended covers not detected in pasted wording", data.missing_recommended_covers, "warn")}
+      ${renderPolicyList(isReferenceOnly ? "SPARC recommended covers outside this reference" : "Recommended covers not detected in pasted wording", data.missing_recommended_covers, "warn")}
       ${renderPolicyList("Profile-specific flags", data.profile_gap_flags, "warn")}
       ${renderPolicyList("Questions for underwriter", ai?.questions_for_underwriter || [])}
       ${renderPolicyList("Universal exclusions detected", data.universal_exclusions_detected)}
     </div>`;
 }
 
-window.comparePolicyWording = async () => {
+window.comparePolicyWording = async (opts = {}) => {
+  const referenceOnly = opts.referenceOnly !== false;
   const status = $("policy-wording-status");
   const output = $("policy-wording-output");
   const text = $("policy-wording-text")?.value || "";
   const product = $("policy-wording-product")?.value || "";
-  if (status) status.textContent = "Comparing wording...";
+  if (status) status.textContent = referenceOnly ? "Checking recommended coverage gaps..." : "Comparing wording...";
   if (output) output.innerHTML = "";
   try {
     const result = window.__result || {};
@@ -2973,7 +2985,8 @@ window.comparePolicyWording = async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         product_name: product,
-        policy_text: text,
+        policy_text: referenceOnly ? "" : text,
+        reference_only: referenceOnly,
         profile: result.profile || state.profile,
         bundle_match: result.bundle_match,
         recommendations: result.recommendations,
@@ -2982,7 +2995,7 @@ window.comparePolicyWording = async () => {
     });
     const data = await res.json();
     if (!res.ok || data.error) throw new Error(data.error || "Comparison failed");
-    if (status) status.textContent = "Comparison complete.";
+    if (status) status.textContent = referenceOnly ? "Gap check complete." : "Comparison complete.";
     if (output) output.innerHTML = renderPolicyComparisonResult(data);
   } catch (err) {
     if (status) status.textContent = `Error: ${err.message}`;

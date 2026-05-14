@@ -37,3 +37,28 @@ def test_policy_comparison_rejects_short_paste():
     assert result["ok"] is False
     assert "80 characters" in result["error"]
 
+
+def test_reference_only_gap_check_needs_no_pasted_wording():
+    result = compare_policy_wording({
+        "reference_only": True,
+        "product_name": "Enterprise Secure Package Policy",
+        "profile": {
+            "sector": "Healthtech",
+            "team_size": 72,
+            "has_investors": "Yes",
+            "data_handled": ["Health / medical records", "Sensitive personal data (DPDP Act)"],
+        },
+        "bundle_match": {
+            "name": "Enterprise Secure Package Policy",
+            "mandatory_covers": ["cyber_liability", "dno_liability", "employees_comp"],
+        },
+        "recommendations": [
+            {"key": "employment_practices", "name": "Employment Practices Liability"},
+            {"key": "employee_health", "name": "Group Health Insurance"},
+        ],
+    })
+    assert result["ok"] is True
+    assert result["comparison_mode"] == "reference_only"
+    assert result["audit"]["policy_text_chars"] == 0
+    assert any(item["key"] == "employment_practices" for item in result["missing_recommended_covers"])
+    assert result["expected_exclusions"][0]["status"] == "reference_exclusion"

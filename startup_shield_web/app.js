@@ -1801,6 +1801,7 @@ function renderResults(result) {
           <div class="result-section-bar"></div>
           <div class="result-section-title">Bundle recommendation</div>
         </div>
+        ${renderGenAIStatus(result)}
         ${renderBundleHero(result.bundle_match, result.recommendations, result.why_it_matters)}
         ${renderBundleAlternatives(result.bundle_alternatives)}
         ${renderV2Insights(result)}
@@ -1981,6 +1982,44 @@ function renderKPI(label, value) {
     <div class="kpi-card">
       <div class="kpi-label">${esc(label)}</div>
       <div class="kpi-value">${esc(String(value))}</div>
+    </div>`;
+}
+
+function renderGenAIStatus(result) {
+  const mode = result.recommendation_mode || "off";
+  const source = result.genai_source || (result.genai_enabled ? "unknown" : "disabled");
+  const enabled = result.genai_enabled === true;
+  const err = result.genai_error;
+  const diff = result.genai_shadow_diff || {};
+  const genaiBundle = result.genai_bundle_match?.name || "none";
+  const genaiProducts = (result.genai_recommendations || []).map(r => r.name || r.product_key).slice(0, 4);
+  const statusClass = source === "gemini" ? "good" : source === "fallback" ? "warn" : "neutral";
+  const statusText = source === "gemini"
+    ? (mode === "primary" ? "GenAI primary reranker applied" : "GenAI shadow reranker ran")
+    : source === "fallback"
+      ? "Deterministic fallback served"
+      : "GenAI recommendation disabled";
+
+  return `
+    <div class="genai-status-card ${statusClass}">
+      <div class="genai-status-top">
+        <div>
+          <div class="genai-status-label">Recommendation engine</div>
+          <div class="genai-status-title">${esc(statusText)}</div>
+        </div>
+        <div class="genai-status-pills">
+          <span>mode: ${esc(mode)}</span>
+          <span>source: ${esc(source)}</span>
+          <span>${enabled ? "model enabled" : "model not used"}</span>
+        </div>
+      </div>
+      ${err ? `<div class="genai-status-error">${esc(err)}</div>` : ""}
+      ${source === "gemini" ? `
+        <div class="genai-status-grid">
+          <div><strong>GenAI bundle</strong><span>${esc(genaiBundle)}</span></div>
+          <div><strong>GenAI product order</strong><span>${esc(genaiProducts.join(", ") || "not returned")}</span></div>
+          <div><strong>Changed vs deterministic</strong><span>${diff.changed ? "Yes" : "No"}</span></div>
+        </div>` : ""}
     </div>`;
 }
 

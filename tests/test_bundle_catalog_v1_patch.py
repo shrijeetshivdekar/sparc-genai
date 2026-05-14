@@ -94,25 +94,27 @@ class TestFintechSeriesA(unittest.TestCase):
         self.inp = _inp(data_sensitivity="High", sdf_probability=0.6)
         self.ranked = rank_bundles("Fintech", "Series A", FINTECH_SCORES, self.inp)
 
-    def test_startup_shield_pack_rank_1(self):
+    def test_liability_bundle_rank_1(self):
         self.assertTrue(self.ranked, "rank_bundles returned empty list")
         self.assertEqual(
-            self.ranked[0]["name"], "Startup Shield Pack",
-            f"Expected Startup Shield Pack rank 1, got: {self.ranked[0]['name']}",
+            self.ranked[0]["name"], "I-select Liability Insurance",
+            f"Expected I-select Liability Insurance rank 1, got: {self.ranked[0]['name']}",
         )
 
-    def test_cyber_liability_mandatory(self):
-        top = self.ranked[0]
+    def test_cyber_liability_surfaced_in_business_shield(self):
+        top = next((b for b in self.ranked if b["name"] == "Business Shield SME"), None)
+        self.assertIsNotNone(top, "Business Shield SME must appear for fintech Series A")
         self.assertIn(
             "cyber_liability", top["mandatory_covers"],
-            "cyber_liability must be mandatory for Startup Shield Pack",
+            "cyber_liability must be mandatory for Business Shield SME",
         )
 
-    def test_dno_liability_mandatory(self):
-        top = self.ranked[0]
+    def test_dno_liability_surfaced_in_business_shield(self):
+        top = next((b for b in self.ranked if b["name"] == "Business Shield SME"), None)
+        self.assertIsNotNone(top, "Business Shield SME must appear for fintech Series A")
         self.assertIn(
             "dno_liability", top["mandatory_covers"],
-            "dno_liability must be mandatory for Startup Shield Pack",
+            "dno_liability must be mandatory for Business Shield SME",
         )
 
     def test_result_has_score_fields(self):
@@ -162,8 +164,8 @@ class TestDeeptechDroneTrigger(unittest.TestCase):
     def test_deeptech_bundle_eligible(self):
         names = [b["name"] for b in self.ranked]
         self.assertIn(
-            "Deeptech Innovation Bundle", names,
-            "Deeptech Innovation Bundle should be eligible for deeptech Series A",
+            "Industrial All Risk (IAR) Policy", names,
+            "Industrial All Risk should be eligible for deeptech Series A",
         )
 
     def test_analytics_keys_present(self):
@@ -188,11 +190,11 @@ class TestD2CSeriesBManufacturing(unittest.TestCase):
         )
         self.ranked = rank_bundles("D2C / Consumer Brands", "Series B+", D2C_SCORES, self.inp)
 
-    def test_corporate_cover_ii_rank_1(self):
+    def test_enterprise_secure_rank_1(self):
         self.assertTrue(self.ranked, "rank_bundles returned empty list")
         self.assertEqual(
-            self.ranked[0]["name"], "Corporate Cover II",
-            f"Expected Corporate Cover II rank 1, got: {self.ranked[0]['name']}",
+            self.ranked[0]["name"], "Enterprise Secure Package Policy",
+            f"Expected Enterprise Secure Package Policy rank 1, got: {self.ranked[0]['name']}",
         )
 
     def test_corporate_cover_ii_has_mandatory_covers(self):
@@ -250,7 +252,7 @@ class TestBharatSookshmaAssetCap(unittest.TestCase):
 
     def test_si_cap_in_config(self):
         cfg = _load_research_config()
-        bsus = cfg["bundle_meta"]["Bharat_Sookshma_Udyam_Suraksha"]
+        bsus = cfg["bundle_meta"]["Bharat_Sookshma_Udyam"]
         self.assertEqual(bsus["si_cap_inr"], 50_000_000)
 
 

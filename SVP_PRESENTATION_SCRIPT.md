@@ -33,9 +33,11 @@ At its core, SPARC does three things:
 
 **First**, it ingests a startup's profile — sector, funding stage, team size, data they handle, regulatory exposure, physical assets, geographic footprint — and runs it through a **13-dimension risk scoring model** calibrated specifically to the Indian startup risk landscape. Not generic SME weights. Startup-specific: policy velocity, gig labour exposure, ESG pressure, geopolitical risk from Chinese supplier dependency — dimensions that no standard underwriting tool in our industry is scoring today.
 
-**Second**, it maps that risk profile to one of **9 curated insurance bundles** — from the Startup Shield Pack for early-stage tech companies to Corporate Cover II for Series B and growth-stage firms — each with a scientifically computed fit score, premium estimate, and a three-part rationale that a Relationship Manager can use in a client conversation immediately.
+**Second**, it maps that risk profile to the implemented **13-bundle catalog** in `research_config.json` — including Business Shield SME, I-select Liability Insurance, Industrial All Risk, Group Safeguard, Enterprise Secure, Corporate Cover II, and asset-tiered Bharat products — each with a computed fit score, premium estimate, and deterministic rationale that a Relationship Manager can use in a client conversation immediately.
 
-**Third**, it fires **regulatory compliance triggers** automatically. If a startup operates drones, the DGCA Drone Rule 44 trigger fires and Drone RPAS cover becomes mandatory in the recommendation. If they handle personal data above a threshold, DPDP Act compliance flags are raised. If they're RBI-licensed, the digital lending direction is cited. The RM never misses a mandatory cover again.
+**Third**, where enabled, it runs a guarded GenAI reranker on top of the deterministic shortlist. GenAI can reorder only products and bundles that the rules engine has already admitted. If the model is unavailable, malformed, slow, or tries to recommend an ineligible cover, SPARC falls back to deterministic output and records the reason in the API response.
+
+**Fourth**, it fires **regulatory compliance triggers** automatically. If a startup operates drones, the DGCA Drone Rule 44 trigger fires and Drone RPAS cover becomes mandatory in the recommendation. If they handle personal data above a threshold, DPDP Act compliance flags are raised. If they're RBI-licensed, the digital lending direction is cited. The RM never misses a mandatory cover again.
 
 The whole engine is backed by a **config-driven research layer** — `research_config.json` — which means every weight, every multiplier, every regulatory citation can be updated by the product team without touching a line of code. We can push new IRDAI regulation changes to the recommendation engine in minutes.
 
@@ -65,15 +67,15 @@ Look at what the engine returns.
 
 **Risk scores first.** Cyber Technical Risk at 82. Data Privacy at 85. Regulatory Compliance at 78. Governance & Fraud at 72. These aren't guesses — the 13-weight model has applied a 1.5x fintech multiplier to cyber and data privacy, a 1.5x regulatory compliance multiplier, and a 1.4x governance multiplier because they're at Series A stage, which is exactly when founder-level governance starts coming under investor scrutiny.
 
-**Now the bundle recommendation.** Rank 1: **Startup Shield Pack**. Premium estimate: INR 3.2 lakh base, blended upward by the sector and stage multipliers. Fit score: 89%.
+**Now the bundle recommendation.** The current v2 catalog ranks **Business Shield SME** for this profile, with I-select Liability Insurance also surfaced for liability and professional indemnity exposure. The output shows the deterministic score and, when `SPARC_GENAI_MODE` is `shadow` or `primary`, whether GenAI agreed with or reordered the shortlist.
 
 The mandatory covers: Cyber, D&O, Professional Indemnity / Tech E&O, Crime Fidelity.
 
 **And look at the regulatory triggers panel.** Two triggers have fired: DPDP Act / CERT-In — because sdf_probability crossed 0.6 from KYC data handling — and the RBI digital lending direction. These aren't warnings. They're citations: regulation name, citation URL, mandatory product. The RM clicks through to the MEITY gazette reference directly from the card.
 
-**The revenue intelligence panel** shows: Startup Shield Pack TAM — INR 1,760 crore. Bundle adoption at 22%. Margin at 11%. Addressable revenue for this cohort alone: INR 42 crore annually — and that's at current penetration.
+**The revenue intelligence panel** shows the config-backed TAM, adoption, margin, and trajectory fields for the ranked bundles. These are sourced from `research_config.json`, not from invented pilot assumptions.
 
-Corporate Cover II appears in the list as well — but correctly staged out. It's flagged: ineligible at Series A, with a graduation note: 'recommend at Series B.' That's the graduation path feature — we're not just selling the first policy. We're building the relationship roadmap."
+Corporate Cover II appears in the list as well — but correctly staged out. It's flagged as ineligible at Series A, with a graduation path to later-stage cover. That's the graduation path feature — we're not just selling the first policy. We're building the relationship roadmap."
 
 ---
 
@@ -85,7 +87,7 @@ Corporate Cover II appears in the list as well — but correctly staged out. It'
 
 `[DEMO: Sector = Deeptech / AI / Robotics, Funding Stage = Series A, Team Size = 30]`
 
-Physical assets: Lab / R&D equipment, Drones / UAV equipment. Hardware split is 55%.
+Physical assets: Lab / R&D equipment, Drones / UAV equipment. Hardware split is 55%. Add the insurable asset value if you want the v2 catalog to route into an industrial policy rather than falling back to the older bundle logic.
 
 `[DEMO: Physical assets = Lab / R&D equipment + Drones / UAV equipment. Hardware/Software split = 55%. Regulatory = DGCA / drone operations. Hit Analyse.]`
 
@@ -95,11 +97,11 @@ Physical assets: Lab / R&D equipment, Drones / UAV equipment. Hardware split is 
 
 DGCA Drone Rules 2021 Rule 44 — fired. Mandatory product: Drone RPAS. There is a legal obligation here. An RM who goes into this meeting without this knowledge is creating liability for us, not just missing a sale.
 
-The top bundle is now **Deeptech Innovation Bundle** — not Startup Shield Pack. The engine has correctly detected the hardware-heavy asset profile, scored IP Infringement Risk at 80, Property Risk at 75, and pivoted to the bundle that covers Engineering CAR / EAR / CPM, Product Liability, Drone RPAS, and D&O.
+With sufficient asset value, the v2 catalog routes to **Industrial All Risk (IAR) Policy** because that is the implemented drone-compliant industrial bundle. It includes Drone RPAS in the bundle components and keeps non-compliant bundles out of the primary recommendation.
 
 Premium estimate: INR 8 lakh. Margin: 10%. This is not a health policy conversation. This is a specialty lines conversation.
 
-And here's the insight for the RM: the compliance flag panel shows Startup Shield Pack with a compliance gap message — it lacks Drone RPAS for this profile. So if the client pushes back and says 'we already have Startup Shield' — the RM has a documented reason to recommend an add-on or a bundle upgrade.
+And here's the insight for the RM: the compliance flag panel shows when a candidate bundle lacks Drone RPAS for this profile. So if the client pushes back and says they already have a generic package, the RM has a documented reason to recommend an add-on or a bundle upgrade.
 
 That's the difference between a reactive RM and a consultative one."
 
@@ -115,15 +117,15 @@ That's the difference between a reactive RM and a consultative one."
 
 `[PAUSE]`
 
-**Corporate Cover II. Rank 1. Fit 94%.**
+**Enterprise Secure Package Policy. Rank 1 in the current v1-style catalog.** Corporate Cover II remains in the later-stage shortlist and is shown as another eligible enterprise option.
 
 This is our highest-value bundle — base premium INR 22 lakh. It includes CGL I-Elite, Public Liability, Employers' Compensation, D&O, and Cyber. TAM: INR 880 crore. Adoption already at 40%.
 
-The graduation map shows them: they started at Startup Shield Pack at seed. They've grown into Corporate Cover II. The timeline card on the right shows the exact bundle recommended at each stage — Seed, Series A, Series B, Growth. This is a **four-policy lifecycle relationship**, not a one-time sale.
+The graduation map shows the configured path across Seed, Series A, Series B, and Growth. This is a lifecycle relationship, not a one-time sale.
 
 Liability Risk is at 86. Property Risk at 82. The Reputation Risk trigger at 78 has also fired — mandatory covers for the Companies Act 2013 D&O obligation are flagged because they're at Series B.
 
-For reference: this single account at Series B, Corporate Cover II, represents INR 22 lakh GWP. Over four funding stages, that's a **INR 60-80 lakh GWP journey** per account — if we are the first RM through the door."
+For reference: the premium estimates shown in the app are indicative outputs from the pricing engine and depend on declared underwriting inputs such as asset value, limits, payroll, and claims history."
 
 ---
 
@@ -133,27 +135,21 @@ For reference: this single account at Series B, Corporate Cover II, represents I
 
 "Let me put the commercial picture together.
 
-The nine bundles in SPARC collectively address a **TAM of INR 29,780 crore** in the Indian startup and SME segment. That number is from our own research config — it's not a consultant's projection.
+The 13 implemented bundles in SPARC collectively address a **configured TAM of INR 47,100 crore** in the Indian startup and SME segment. That number is the sum of the `tam_cr` fields in `research_config.json`; it is a configurable product-planning assumption, not a measured sales outcome.
 
 The top five by addressable market:
 
 | Bundle | TAM (Cr) | Margin | Adoption | Annual Revenue Potential |
 |---|---|---|---|---|
 | MSME Suraksha Kavach | 16,250 | 6% | 5% | INR 48.75 Cr |
-| Employee Welfare Bundle | 4,200 | 9% | 32% | INR 120.96 Cr |
-| Bharat Sookshma Udyam Suraksha | 2,560 | 18% | 5% | INR 23.04 Cr |
-| Startup Shield Pack | 1,760 | 11% | 22% | INR 42.59 Cr |
-| Corporate Cover II | 880 | 13% | 40% | INR 45.76 Cr |
+| Business Edge Policy | 8,500 | 10% | 8% | INR 68.00 Cr |
+| Bharat Laghu Udyam Suraksha | 5,200 | 16% | 7% | INR 58.24 Cr |
+| Group Safeguard Insurance Policy | 4,200 | 9% | 32% | INR 120.96 Cr |
+| Merchants Cover III | 2,800 | 10% | 8% | INR 22.40 Cr |
 
-**Combined annual revenue potential from these five bundles alone: INR 281 crore.** At current adoption levels. That's before any penetration improvement.
+**Combined configured annual revenue potential from these five bundles alone: INR 318.35 crore.** This is calculated from TAM x adoption x margin in the config.
 
-Now here's where SPARC changes the math. Today, ICICI Lombard's RM conversion on first contact with a startup is — conservatively — in the 8-12% range for complex specialty lines. The RM walks in, doesn't have the right bundle, doesn't know the regulatory angle, and the startup's CFO says 'send me a proposal.'
-
-With SPARC, the RM walks in with a pre-computed recommendation, the three mandatory regulatory citations, a premium range, and a four-stage graduation roadmap. Our internal testing shows that a profile-matched recommendation reduces the average sales cycle from **6 weeks to under 2 weeks**, and early cohort data indicates a **3x improvement in first-meeting conversion** when a data-backed recommendation is presented versus a catalogue.
-
-If we move the needle from 10% to 30% conversion on just the Startup Shield Pack cohort — 1,760 Cr TAM, 22% base adoption — that's an incremental INR 63 crore in GWP per year. At 11% margin, that's **INR 6.9 crore additional operating profit** from one bundle, in one year.
-
-Scale that across all nine bundles, and the number is structurally significant to the commercial lines P&L."
+The point is not to claim a measured conversion uplift yet. The code supports a repeatable recommendation workflow, auditable trigger evidence, premium input capture, and shadow logging for deterministic-vs-GenAI comparison. Those are the prerequisites for measuring conversion and loss-ratio impact in a real pilot."
 
 ---
 
@@ -161,9 +157,9 @@ Scale that across all nine bundles, and the number is structurally significant t
 
 "A word on accuracy — because this matters for underwriting quality, not just sales.
 
-The SPARC engine is validated against **106 test scenarios**, covering every material combination of sector, stage, asset profile, regulatory exposure, and edge case — Bharat Sookshma SI cap rejection above INR 5 crore, drone trigger precision, life insurer routing for Group Term Life and Key Person products outside our general insurance composite bundles, shadow mode diff logging to track v1 to v2 recommendation drift.
+The SPARC engine is covered by the repo test suite, currently **121 passing tests**, covering combinations of sector, stage, asset profile, regulatory exposure, pricing, Bharat Sookshma SI cap rejection above INR 5 crore, drone trigger precision, life insurer routing for Group Term Life and Key Person products outside general-insurance composite bundles, v1-to-v2 shadow logging, and guarded GenAI reranking.
 
-Every one of those 106 scenarios passes with deterministic, reproducible results.
+Every test passes with deterministic, reproducible results. GenAI tests use mocked structured responses so failure, malformed output, and hard-gate enforcement remain auditable.
 
 The regulatory trigger module is particularly relevant for loss ratio management. When Drone RPAS is not included in a bundle for a drone-operations startup, and we're exposed to a DGCA-regulated liability event, the claims consequence is a problem of under-insurance and potential policy voidance. SPARC eliminates that gap systematically — not by relying on the RM to know every regulation, but by checking 6 live regulatory signals against every profile, every time.
 
@@ -175,17 +171,17 @@ The config is versioned — currently `research_config v2026.05` — and every w
 
 ## SEGMENT 8 — WHAT IT TAKES TO GO LIVE (1.5 min)
 
-"The technology is production-ready. The server runs as a standalone Python service — deployable on Vercel, AWS, or your internal infra. The frontend is a clean, RM-facing web app — no app install, no complex training. An RM can be trained on it in under 30 minutes.
+"The technology is demo-ready and structured for deployment hardening. The server runs as a standalone Python service, and the frontend is a clean RM-facing web app.
 
 Three things we need from leadership to move from pilot to commercial rollout:
 
-**One:** Endorsement to pilot with 50 RM accounts in two metros — Mumbai and Bengaluru — covering fintech, deeptech, and D2C clusters. 60-day pilot. I can have conversion data in front of you before the next quarterly review.
+**One:** Endorsement to define a controlled pilot design, including account selection, success metrics, and compliance review before any conversion or sales-cycle claims are made.
 
 **Two:** Access to our claims and historical GWP data for the startup segment, so we can calibrate the risk weights against actual loss experience and move from research-derived weights to actuarially-validated weights. That's the path from 'high accuracy' to 'actuarially defensible.'
 
 **Three:** Integration with the CRM so every SPARC recommendation is logged against the RM-client record. This builds the dataset we need to continuously improve the model and creates the audit trail for regulatory review.
 
-The cost of this pilot is minimal — the infrastructure and the model are already built. What we're asking for is access and a runway."
+What we're asking for is access to the data and governance needed to validate the recommendation workflow in the field."
 
 ---
 
@@ -193,13 +189,13 @@ The cost of this pilot is minimal — the infrastructure and the model are alrea
 
 "To summarise.
 
-India's startup segment represents a **INR 29,780 crore TAM** in insurance that we are, today, systematically underpenetrating.
+India's startup segment represents a **configured INR 47,100 crore TAM** across the implemented bundle catalog, based on `research_config.json`.
 
-SPARC is a production-ready recommendation engine that scores 13 risk dimensions, matches startups to 9 curated bundles, fires mandatory regulatory triggers, estimates premium potential, and builds a four-stage lifecycle roadmap — all in under 3 seconds.
+SPARC is a recommendation engine that scores 13 risk dimensions, matches startups to the implemented 13-bundle catalog, fires mandatory regulatory triggers, estimates premium potential, and exposes whether GenAI influenced, shadowed, or fell back from the recommendation.
 
-It turns every RM into a specialist. It eliminates regulatory coverage gaps. It compresses the sales cycle. And it builds a data asset we can compound over time.
+It gives every RM a structured risk conversation, reduces missed regulatory coverage gaps, and builds an auditable data asset we can validate over time.
 
-We're not asking you to replace any existing system. We're asking you to let us put this in the hands of 50 RMs, in two cities, for 60 days.
+We're not asking you to replace any existing system. We're asking for the governance and data access needed to run a controlled validation.
 
 The numbers will make the case."
 
@@ -213,25 +209,25 @@ The numbers will make the case."
 
 Use these exact inputs for a clean, rehearsed demo run:
 
-### Demo 1: Fintech Series A → Startup Shield Pack
+### Demo 1: Fintech Series A -> Business Shield SME / I-select Liability
 - Sector: Fintech | Sub-sector: Fintech.NBFC_Digital_Lending
 - Funding Stage: Series A | Team: 55 | Operations: Digital-only
 - Data handled: Payments / financial transactions + Personal identity data (KYC / Aadhaar)
 - Regulatory: RBI / SEBI / IRDAI licensed + DPDP Act obligations
 - Data sensitivity: High | Physical assets: Office / coworking space
-- **Expected output:** Startup Shield Pack rank 1, DPDP + RBI triggers fired, Cyber + D&O mandatory
+- **Expected output:** Business Shield SME in v2 output, I-select Liability in the v1-style catalog, DPDP + RBI triggers visible, Cyber + D&O surfaced in eligible shortlist
 
-### Demo 2: Deeptech Drone → Deeptech Innovation Bundle
+### Demo 2: Deeptech Drone -> Industrial All Risk when asset value supports it
 - Sector: Deeptech / AI / Robotics | Funding Stage: Series A | Team: 30
 - Physical assets: Lab / R&D equipment + Drones / UAV equipment
-- Hardware/Software split: 55% | Regulatory: DGCA / drone operations
-- **Expected output:** Deeptech Innovation Bundle rank 1, DGCA Drone Rule 44 mandatory trigger, Drone RPAS in mandatory covers
+- Hardware/Software split: 55% | Regulatory: DGCA / drone operations | Total insurable asset value: 60 Cr
+- **Expected output:** Industrial All Risk (IAR) Policy in v2, DGCA Drone Rule 44 mandatory trigger, Drone RPAS in mandatory covers
 
-### Demo 3: D2C Series B Manufacturing → Corporate Cover II
+### Demo 3: D2C Series B Manufacturing -> Enterprise Secure / Corporate Cover II shortlist
 - Sector: D2C / Consumer Brands | Funding Stage: Series B+ | Team: 200
 - Physical assets: Manufacturing plant / factory + Warehouse / fulfilment centre
 - Hardware/Software split: 75% | Operations: Hybrid
-- **Expected output:** Corporate Cover II rank 1, fit ≥ 90%, property + liability + D&O mandatory, graduation roadmap visible
+- **Expected output:** Enterprise Secure Package Policy rank 1 in the v1-style catalog, Corporate Cover II eligible in shortlist, property + liability + D&O visible, graduation roadmap visible
 
 ---
 
@@ -239,16 +235,15 @@ Use these exact inputs for a clean, rehearsed demo run:
 
 | Metric | Value |
 |---|---|
-| Total addressable bundles | 9 |
+| Total addressable bundles | 13 |
 | Risk dimensions scored | 13 |
-| Validated test scenarios | 106 (100% pass rate) |
-| Combined bundle TAM | INR 29,780 crore |
-| Startup Shield Pack premium (base) | INR 3.2 lakh |
-| Corporate Cover II premium (base) | INR 22 lakh |
+| Validated test scenarios | 121 passing tests |
+| Combined configured bundle TAM | INR 47,100 crore |
+| GenAI recommendation modes | off, shadow, primary |
+| Guardrail behavior | Deterministic fallback on unavailable, malformed, or ineligible GenAI output |
 | Regulatory triggers monitored | 6 live signals |
 | Config version | 2026.05 |
-| Estimated conversion improvement | 3x vs. catalogue-based RM pitch |
-| Incremental GWP potential (Startup Shield cohort alone) | INR 63 crore/year |
+| Unsupported outcome claims | No conversion, sales-cycle, or pilot uplift claimed without field data |
 
 ---
 

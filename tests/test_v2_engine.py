@@ -52,7 +52,7 @@ def test_load_config_validates_and_exposes_typed_values():
     cfg = load_config()
     assert cfg.config_version == "2026.05"
     assert abs(sum(cfg.risk_weights.as_dict().values()) - 1.0) < 1e-6
-    assert len(cfg.bundle_meta) == 9
+    assert len(cfg.bundle_meta) == 13
 
 
 def test_product_registry_life_products_are_routed_outside_lombard_bundles():
@@ -66,9 +66,9 @@ def test_product_registry_life_products_are_routed_outside_lombard_bundles():
 def test_series_a_fintech_v2_ranks_startup_shield():
     recs = rank(_profile())
     assert recs
-    assert recs[0].bundle == "Startup Shield Pack"
+    assert recs[0].bundle == "Business Shield SME"
     assert recs[0].config_version == "2026.05"
-    assert set(recs[0].rationale) == {"coverage", "revenue", "risk_multiplier"}
+    assert {"coverage", "revenue", "risk_multiplier"} <= set(recs[0].rationale)
 
 
 def test_deeptech_drone_profile_gets_drone_compliant_bundle():
@@ -79,10 +79,12 @@ def test_deeptech_drone_profile_gets_drone_compliant_bundle():
         hardware_software_split=0.55,
         regulatory=["DGCA / drone operations"],
         drone_ops=True,
+        total_insurable_asset_value_cr=60,
+        asset_value_inr=600_000_000,
         scores={**BASE_SCORES, "IP Infringement Risk": 85, "Property Risk": 78},
     ))
     assert recs
-    assert recs[0].bundle == "Deeptech Innovation Bundle"
+    assert recs[0].bundle == "Industrial All Risk (IAR) Policy"
     assert "Drone_RPAS" in recs[0].components
     assert any(t["signal"] == "drone_ops" for t in recs[0].regulatory_triggers_fired)
 
@@ -102,7 +104,7 @@ def test_series_b_d2c_v2_ranks_corporate_cover():
 
 def test_compliance_flags_fire_for_drone_profile_without_drone_product():
     cfg = load_config()
-    bm = cfg.bundle_meta["Startup_Shield_Pack"]
+    bm = cfg.bundle_meta["Business_Shield_SME"]
     flags = compliance_flags(bm, _profile(
         sector="Deeptech / AI / Robotics",
         regulatory=["DGCA / drone operations"],

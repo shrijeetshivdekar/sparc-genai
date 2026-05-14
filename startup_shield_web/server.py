@@ -21,7 +21,10 @@ if _dotenv.exists():
         _line = _line.strip()
         if _line and not _line.startswith("#") and "=" in _line:
             _k, _, _v = _line.partition("=")
-            os.environ.setdefault(_k.strip(), _v.strip())
+            _v = _v.strip()
+            if len(_v) >= 2 and _v[0] == _v[-1] and _v[0] in ("'", '"'):
+                _v = _v[1:-1]
+            os.environ.setdefault(_k.strip(), _v)
     print(f"[startup] .env loaded — GEMINI_API_KEY {'SET' if os.environ.get('GEMINI_API_KEY') else 'MISSING'}", flush=True)
 else:
     print(f"[startup] No .env found at {_dotenv}", flush=True)
@@ -43,6 +46,7 @@ from bundle_recommender_v2 import rank as rank_v2, risk_multiplier_breakdown as 
 from bundle_scoring_utils import load_config  # noqa: E402
 from custom_product_triggers import check_custom_triggers  # noqa: E402
 from global_products import get_top5_global  # noqa: E402
+from genai_recommender import normalize_mode, rerank_payload  # noqa: E402
 from premium_estimator import PREMIUM_FOOTNOTE, estimate_premium, get_size_bucket  # noqa: E402
 from pricing_engine import price_output_stage  # noqa: E402
 from risk_appetite import get_appetite, get_bad_reason  # noqa: E402
@@ -53,9 +57,9 @@ DB_PATH = Path(os.environ.get(
     "SPARC_DB_PATH",
     str(Path(tempfile.gettempdir()) / "sparc_data.db") if os.environ.get("VERCEL") else str(PROJECT_ROOT / "sparc_data.db"),
 ))
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
-GEMINI_MAX_TOKENS = int(os.environ.get("GEMINI_MAX_TOKENS", "2048"))
-GEMINI_TIMEOUT_SECONDS = int(os.environ.get("GEMINI_TIMEOUT_SECONDS", "18"))
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MAX_TOKENS = int(os.environ.get("GEMINI_MAX_TOKENS", "4096"))
+GEMINI_TIMEOUT_SECONDS = int(os.environ.get("GEMINI_TIMEOUT_SECONDS", "30"))
 SPARC_ENGINE = os.environ.get("SPARC_ENGINE", "v2")
 
 
@@ -750,39 +754,46 @@ def call_gemini_json(prompt):
             "temperature": 0.3,
             "maxOutputTokens": GEMINI_MAX_TOKENS,
             "responseMimeType": "application/json",
+            "thinkingConfig": {"thinkingBudget": 0},
         },
     }
     data = json.dumps(payload).encode("utf-8")
-    request = urllib.request.Request(
-        url,
-        data=data,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=GEMINI_TIMEOUT_SECONDS) as response:
-            body = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
+    body = None
+    for attempt in range(2):
         try:
-            detail = exc.read().decode("utf-8")[:500]
-        except Exception:
-            detail = str(exc)
-        return None, f"Gemini HTTP {exc.code}: {detail}"
-    except urllib.error.URLError as exc:
-        return None, f"Gemini network error: {exc.reason}"
-    except TimeoutError:
-        return None, "Gemini request timed out."
-    except json.JSONDecodeError:
-        return None, "Gemini returned a non-JSON API envelope."
+            req_copy = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
+            with urllib.request.urlopen(req_copy, timeout=GEMINI_TIMEOUT_SECONDS) as response:
+                body = json.loads(response.read().decode("utf-8"))
+            break
+        except urllib.error.HTTPError as exc:
+            try:
+                detail = exc.read().decode("utf-8")[:500]
+            except Exception:
+                detail = str(exc)
+            if exc.code == 503 and attempt == 0:
+                import time as _time
+                _time.sleep(2)
+                continue
+            return None, f"Gemini HTTP {exc.code}: {detail}"
+        except urllib.error.URLError as exc:
+            return None, f"Gemini network error: {exc.reason}"
+        except TimeoutError:
+            return None, "Gemini request timed out."
+        except json.JSONDecodeError:
+            return None, "Gemini returned a non-JSON API envelope."
+    if body is None:
+        return None, "Gemini unavailable after retry."
 
-    parts = (
-        body.get("candidates", [{}])[0]
-        .get("content", {})
-        .get("parts", [])
-    )
+    candidate = body.get("candidates", [{}])[0]
+    finish_reason = candidate.get("finishReason", "")
+    parts = candidate.get("content", {}).get("parts", [])
     text = "".join(part.get("text", "") for part in parts)
+    if finish_reason == "MAX_TOKENS":
+        print(f"[gemini] Response truncated at {GEMINI_MAX_TOKENS} tokens; raw tail: {text[-200:]!r}", flush=True)
+        return None, f"Gemini response truncated (MAX_TOKENS={GEMINI_MAX_TOKENS}); increase GEMINI_MAX_TOKENS."
     parsed = extract_json_object(text)
     if not isinstance(parsed, dict):
+        print(f"[gemini] Could not parse JSON; finishReason={finish_reason!r}; raw text ({len(text)} chars): {text[:500]!r}", flush=True)
         return None, "Gemini response did not contain a valid JSON object."
     return parsed, None
 
@@ -1759,15 +1770,90 @@ def _log_diff(payload_legacy, payload_v2):
         return
 
 
+def _genai_mode():
+    return normalize_mode(os.environ.get("SPARC_GENAI_MODE", "off"))
+
+
+def _log_genai_shadow_diff(payload):
+    if not payload.get("genai_shadow_diff"):
+        return
+    entry = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "mode": payload.get("recommendation_mode"),
+        "source": payload.get("genai_source"),
+        "genai_error": payload.get("genai_error"),
+        "diff": payload.get("genai_shadow_diff"),
+        "config_version": payload.get("config_version"),
+    }
+    path = _shadow_log_path()
+    if path is None:
+        return
+    try:
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(entry, ensure_ascii=False, sort_keys=True) + "\n")
+    except Exception:
+        return
+
+
+def _refresh_primary_genai_dependents(payload):
+    if payload.get("genai_source") != "gemini" or payload.get("recommendation_mode") != "primary":
+        return payload
+    if "profile" not in payload or "scores" not in payload:
+        return payload
+
+    recommendations = payload.get("recommendations", [])
+    bundle = payload.get("bundle_match")
+    payload["bundles"] = bundle_recommendations(recommendations)
+    payload["product_mapping"] = product_mapping(recommendations, payload["scores"])
+    payload["pricing_engine_quote"] = json_safe(price_output_stage(
+        payload["profile"],
+        payload["scores"],
+        recommendations,
+        bundle,
+    ))
+    payload["premium_summary"] = premium_summary(
+        recommendations,
+        bundle,
+        payload.get("global_products", []),
+        payload.get("size_bucket"),
+    )
+    if bundle:
+        payload["bundle_only_pricing_quote"] = json_safe(price_output_stage(
+            payload["profile"],
+            payload["scores"],
+            [],
+            {
+                "name": bundle.get("name"),
+                "mandatory_covers": bundle.get("mandatory_covers", []),
+                "optional_covers": bundle.get("optional_covers", []),
+            },
+        ))
+    return payload
+
+
+def _apply_genai_recommendation_mode(payload):
+    mode = _genai_mode()
+    result = rerank_payload(
+        payload,
+        mode=mode,
+        model_available=gemini_enabled(),
+        call_json=call_gemini_json,
+    )
+    updated = _refresh_primary_genai_dependents(result.payload)
+    if mode == "shadow" and updated.get("genai_source") == "gemini":
+        _log_genai_shadow_diff(updated)
+    return updated
+
+
 def score(profile):
     if SPARC_ENGINE == "legacy":
-        return _legacy_score(profile)
+        return _apply_genai_recommendation_mode(_legacy_score(profile))
     payload_v2 = _v2_score(profile)
     if SPARC_ENGINE == "shadow":
         payload_legacy = _legacy_score(profile)
         _log_diff(payload_legacy, payload_v2)
-        return payload_legacy
-    return payload_v2
+        return _apply_genai_recommendation_mode(payload_legacy)
+    return _apply_genai_recommendation_mode(payload_v2)
 
 
 def analyze(raw):
@@ -1801,6 +1887,7 @@ def meta():
         "aiTiers": ["None", "Embedded", "Applied", "Foundational"],
         "geminiEnabled": gemini_enabled(),
         "geminiModel": GEMINI_MODEL,
+        "genaiRecommendationMode": _genai_mode(),
     }
 
 

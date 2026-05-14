@@ -268,6 +268,26 @@ window.resetSectionInputs = (sectionId) => {
   afterProfileChange({ refreshAdaptive: needsAdaptiveRefresh });
 };
 
+window.importProfileFromJson = (analyse = false) => {
+  const input = $("profile-import-json");
+  try {
+    const parsed = extractProfileJson(input?.value || "");
+    const { profile, importedKeys, ignored } = normalizeImportedProfile(parsed);
+    state.profile = profile;
+    state.section = 0;
+    state.maxVisitedSection = SECTIONS.length - 1;
+    saveDraftProfile();
+    refreshAdaptiveSections();
+    updateProfileImportStatus(
+      `Imported ${importedKeys.length} fields${ignored.length ? `; ignored ${ignored.length} unknown keys` : ""}.`,
+      "success"
+    );
+    if (analyse) runAnalysis();
+  } catch (err) {
+    updateProfileImportStatus(`Import failed: ${err.message}`, "error");
+  }
+};
+
 const COVER_ALIASES = {
   "CYBER": "cyber_liability", "D_AND_O": "dno_liability", "PI_TECH_EO": "professional_indemnity",
   "CGL_I_ELITE": "comprehensive_general_liability", "PUBLIC_LIABILITY": "public_liability",
@@ -379,13 +399,172 @@ const TEAM_MAP = {
   "200+": 300,
 };
 
+const PROFILE_IMPORT_ALIASES = {
+  company_name: "startup_name",
+  business_name: "startup_name",
+  name: "startup_name",
+  industry: "sector",
+  stage: "funding_stage",
+  funding_status: "funding_stage",
+  employees: "team_size",
+  employee_count: "team_size",
+  headcount: "team_size",
+  operating_model: "operations",
+  model: "operations",
+  customers: "customer_type",
+  customer_types: "customer_type",
+  sensitive_data: "data_handled",
+  data_types: "data_handled",
+  regulations: "regulatory",
+  regulatory_exposures: "regulatory",
+  assets: "physical_assets",
+  physical_asset: "physical_assets",
+  fear: "biggest_fear",
+  concern: "biggest_fear",
+  revenue_cr: "annual_revenue_cr",
+  arr_cr: "annual_revenue_cr",
+  assets_cr: "total_insurable_asset_value_cr",
+};
+
+const PROFILE_IMPORT_ARRAY_FIELDS = new Set([
+  "customer_type",
+  "data_handled",
+  "regulatory",
+  "physical_assets",
+  "state_footprint",
+  "vehicle_types",
+]);
+
+const PROFILE_IMPORT_NUMBER_FIELDS = new Set([
+  "team_size",
+  "investor_cn_hk_pct",
+  "cumulative_fundraising_inr_cr",
+  "founder_equity_pct",
+  "gig_headcount_pct",
+  "sdf_probability",
+  "hardware_software_split",
+  "b2b_pct",
+  "annual_revenue_cr",
+  "total_insurable_asset_value_cr",
+  "gross_profit_cr",
+  "fleet_count",
+  "project_value_cr",
+  "export_eu_pct",
+  "export_us_pct",
+  "export_china_pct",
+  "chinese_supplier_pct_cogs",
+]);
+
+const PROFILE_IMPORT_BOOLEAN_FIELDS = new Set([
+  "dpiit_recognition",
+  "rbi_registration",
+  "posh_ic_constituted",
+  "cert_in_poc_designated",
+  "sdf_likely",
+  "ai_in_product",
+  "has_independent_directors",
+  "healthcare_operations",
+  "payment_or_card_program",
+  "product_recall_exposure",
+  "food_or_pharma_manufacturing",
+  "contract_bid_or_performance_bond_need",
+  "event_or_production_operations",
+  "claims_last_3_years",
+  "listed_customer_brsr_dependency",
+]);
+
+function extractProfileJson(raw) {
+  const text = String(raw || "").trim().replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
+  if (!text) throw new Error("Paste a JSON startup profile first.");
+  try {
+    return JSON.parse(text);
+  } catch (firstErr) {
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start >= 0 && end > start) return JSON.parse(text.slice(start, end + 1));
+    throw firstErr;
+  }
+}
+
+function coerceImportValue(key, value) {
+  if (PROFILE_IMPORT_ARRAY_FIELDS.has(key)) {
+    if (Array.isArray(value)) return value.filter(v => v !== null && v !== undefined && String(v).trim() !== "").map(v => String(v).trim());
+    if (typeof value === "string") return value.split(",").map(v => v.trim()).filter(Boolean);
+    return [];
+  }
+  if (PROFILE_IMPORT_NUMBER_FIELDS.has(key)) {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : 0;
+  }
+  if (PROFILE_IMPORT_BOOLEAN_FIELDS.has(key)) {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") return ["true", "yes", "y", "1"].includes(value.trim().toLowerCase());
+    return Boolean(value);
+  }
+  return value;
+}
+
+function normalizeImportedProfile(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new Error("The pasted profile must be a JSON object.");
+  }
+  const defaults = structuredClone(state.meta?.defaults || {});
+  const allowed = new Set([...Object.keys(defaults), ...Object.values(PROFILE_IMPORT_ALIASES)]);
+  const normalized = {};
+  const ignored = [];
+  Object.entries(input).forEach(([rawKey, rawValue]) => {
+    const key = PROFILE_IMPORT_ALIASES[rawKey] || rawKey;
+    if (!allowed.has(key)) {
+      ignored.push(rawKey);
+      return;
+    }
+    normalized[key] = coerceImportValue(key, rawValue);
+  });
+  if (normalized.operations === "Hybrid") normalized.operations = "Hybrid (online+offline)";
+  if (normalized.ai_tier && normalized.ai_tier !== "None") normalized.ai_in_product = true;
+  if (normalized.sdf_probability !== undefined && normalized.sdf_probability >= 0.5) normalized.sdf_likely = true;
+  return { profile: { ...defaults, ...normalized }, importedKeys: Object.keys(normalized), ignored };
+}
+
+function updateProfileImportStatus(message, tone = "neutral") {
+  const el = $("profile-import-status");
+  if (!el) return;
+  el.className = `profile-import-status ${tone}`;
+  el.textContent = message;
+}
+
+function renderProfileImportPanel() {
+  return `
+    <details class="profile-import-card">
+      <summary>
+        <span>
+          <strong>Paste JSON profile</strong>
+          <em>Import a full startup profile and score it directly.</em>
+        </span>
+        <b>Open</b>
+      </summary>
+      <textarea id="profile-import-json" class="profile-import-textarea" spellcheck="false" placeholder='{"startup_name":"PayNova Technologies","sector":"Fintech","funding_stage":"Series B+"}'></textarea>
+      <div class="profile-import-actions">
+        <button class="btn btn-ghost" type="button" onclick="importProfileFromJson(false)">Import into form</button>
+        <button class="btn btn-primary" type="button" onclick="importProfileFromJson(true)">Import and analyse</button>
+      </div>
+      <div id="profile-import-status" class="profile-import-status">Accepted format: JSON object using API field names or common aliases like company_name, stage, employees, customers, regulations.</div>
+    </details>`;
+}
+
 function buildProfile(sourceProfile = state.profile) {
   const profile = structuredClone(sourceProfile || {});
   profile.operations = API_OPERATION_MAP[profile.operations] || profile.operations;
   if (profile.data_sensitivity === "Very High") profile.data_sensitivity = "High";
   const founderEquity = Number(profile.founder_equity_pct ?? 0.5);
   profile.founder_concentration_index = founderEquity * (1 - (profile.has_independent_directors ? 0.4 : 0));
-  profile.sdf_probability = profile.sdf_likely ? 0.75 : 0.05;
+  if (profile.sdf_likely === true) {
+    profile.sdf_probability = Math.max(Number(profile.sdf_probability || 0), 0.75);
+  } else if (profile.sdf_probability === undefined || profile.sdf_probability === null || profile.sdf_probability === "") {
+    profile.sdf_probability = 0.05;
+  } else {
+    profile.sdf_probability = Number(profile.sdf_probability) || 0;
+  }
   return profile;
 }
 
@@ -956,6 +1135,7 @@ function renderForm() {
           <div class="intake-eyebrow">Risk Analysis</div>
           <h1>Tell us about<br/>your startup</h1>
           <p>We'll map your risk exposure across 13 categories and recommend the exact insurance covers you need.</p>
+          ${renderProfileImportPanel()}
         </div>
 
         <div class="progress-row" id="progress-row"></div>

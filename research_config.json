@@ -144,9 +144,9 @@
       "eligible_sectors": ["deeptech", "climatetech", "healthtech", "d2c"],
       "eligible_stages": ["seed", "series_a", "series_b"],
       "asset_band": ["lab_equipment", "fab_or_plant", "warehouse"],
-      "components": ["PROPERTY_ALL_RISK", "BUSINESS_INTERRUPTION", "MACHINERY_BREAKDOWN", "ELECTRONIC_EQUIPMENT", "PI_TECH_EO", "D_AND_O", "Drone_RPAS"],
-      "regulatory_anchors": ["Industrial All Risk policy wording", "Property All Risk wording", "Drone Rules 2021 Rule 44"],
-      "covered_risks": ["property", "esg_climate", "liability", "ip_infringement", "key_person", "regulatory_compliance"]
+      "components": ["PROPERTY_ALL_RISK", "BUSINESS_INTERRUPTION", "MACHINERY_BREAKDOWN", "ELECTRONIC_EQUIPMENT"],
+      "regulatory_anchors": ["Industrial All Risk policy wording", "Property All Risk wording"],
+      "covered_risks": ["property", "esg_climate"]
     },
     "Group_Safeguard": {
       "name": "Group Safeguard Insurance Policy",

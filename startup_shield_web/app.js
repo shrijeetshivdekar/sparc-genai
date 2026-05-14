@@ -288,6 +288,58 @@ window.importProfileFromJson = (analyse = false) => {
   }
 };
 
+function applyImportedCompanyProfile(profile, analyse = false) {
+  state.profile = { ...structuredClone(state.meta?.defaults || {}), ...(profile || {}) };
+  state.section = 0;
+  state.maxVisitedSection = SECTIONS.length - 1;
+  saveDraftProfile();
+  refreshAdaptiveSections();
+  updateProfileImportStatus(`Loaded ${profile.startup_name}. Review assumption-based fields before quoting.`, "success");
+  if (analyse) runAnalysis();
+}
+
+window.searchCompanyProfiles = async () => {
+  const query = $("company-profile-query")?.value || "";
+  const results = $("company-profile-results");
+  if (results) results.innerHTML = `<div class="company-profile-empty">Searching...</div>`;
+  try {
+    const res = await fetch(`/api/company-profiles?q=${encodeURIComponent(query)}`);
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || "Search failed");
+    const matches = data.matches || [];
+    if (!matches.length) {
+      if (results) results.innerHTML = `<div class="company-profile-empty">No seeded company found. Try another name or paste JSON.</div>`;
+      return;
+    }
+    if (results) {
+      results.innerHTML = matches.map(item => `
+        <div class="company-profile-result">
+          <div>
+            <strong>${esc(item.name)}</strong>
+            <span>${esc(item.sector)} · ${esc(item.funding_stage)} · ${esc(item.team_size)} people</span>
+          </div>
+          <div class="company-profile-actions">
+            <button type="button" class="btn btn-ghost" onclick="loadCompanyProfile('${esc(item.name)}', false)">Load</button>
+            <button type="button" class="btn btn-primary" onclick="loadCompanyProfile('${esc(item.name)}', true)">Analyse</button>
+          </div>
+        </div>`).join("");
+    }
+  } catch (err) {
+    if (results) results.innerHTML = `<div class="company-profile-empty">Error: ${esc(err.message)}</div>`;
+  }
+};
+
+window.loadCompanyProfile = async (name, analyse = false) => {
+  try {
+    const res = await fetch(`/api/company-profiles?name=${encodeURIComponent(name)}`);
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || "Profile not found");
+    applyImportedCompanyProfile(data.profile, analyse);
+  } catch (err) {
+    updateProfileImportStatus(`Company lookup failed: ${err.message}`, "error");
+  }
+};
+
 const COVER_ALIASES = {
   "CYBER": "cyber_liability", "D_AND_O": "dno_liability", "PI_TECH_EO": "professional_indemnity",
   "CGL_I_ELITE": "comprehensive_general_liability", "PUBLIC_LIABILITY": "public_liability",
@@ -587,15 +639,25 @@ function updateProfileImportStatus(message, tone = "neutral") {
 }
 
 function renderProfileImportPanel() {
+  const count = state.meta?.seedCompanyProfiles || 100;
   return `
     <details class="profile-import-card">
       <summary>
         <span>
-          <strong>Paste JSON profile</strong>
-          <em>Import a full startup profile and score it directly.</em>
+          <strong>Import or look up a profile</strong>
+          <em>Search ${esc(count)} seeded company profiles or paste JSON to score directly.</em>
         </span>
         <b>Open</b>
       </summary>
+      <div class="company-lookup-box">
+        <label>Company lookup</label>
+        <div class="company-lookup-row">
+          <input id="company-profile-query" class="f-input" type="text" placeholder="e.g. Razorpay, Zepto, Practo, Freshworks" onkeydown="if(event.key==='Enter') searchCompanyProfiles()" />
+          <button class="btn btn-primary" type="button" onclick="searchCompanyProfiles()">Search</button>
+        </div>
+        <div id="company-profile-results" class="company-profile-results"></div>
+      </div>
+      <div class="profile-import-divider"><span>or paste JSON</span></div>
       <textarea id="profile-import-json" class="profile-import-textarea" spellcheck="false" placeholder='{"startup_name":"PayNova Technologies","sector":"Fintech","funding_stage":"Series B+"}'></textarea>
       <div class="profile-import-actions">
         <button class="btn btn-ghost" type="button" onclick="importProfileFromJson(false)">Import into form</button>

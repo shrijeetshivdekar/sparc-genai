@@ -71,7 +71,7 @@ def test_series_a_fintech_v2_ranks_startup_shield():
     assert {"coverage", "revenue", "risk_multiplier"} <= set(recs[0].rationale)
 
 
-def test_deeptech_drone_profile_gets_drone_compliant_bundle():
+def test_deeptech_drone_profile_is_blocked_when_no_bundle_contains_drone_cover():
     recs = rank(_profile(
         sector="Deeptech / AI / Robotics",
         funding_stage="Series A",
@@ -83,10 +83,7 @@ def test_deeptech_drone_profile_gets_drone_compliant_bundle():
         asset_value_inr=600_000_000,
         scores={**BASE_SCORES, "IP Infringement Risk": 85, "Property Risk": 78},
     ))
-    assert recs
-    assert recs[0].bundle == "Industrial All Risk (IAR) Policy"
-    assert "Drone_RPAS" in recs[0].components
-    assert any(t["signal"] == "drone_ops" for t in recs[0].regulatory_triggers_fired)
+    assert recs == []
 
 
 def test_series_b_d2c_v2_ranks_corporate_cover():

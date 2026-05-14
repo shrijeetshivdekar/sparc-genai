@@ -5,6 +5,7 @@ import sqlite3
 import sys
 import tempfile
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import fields
 from datetime import datetime
@@ -45,6 +46,7 @@ from bundle_catalog import bundle_analytics, match_bundle, rank_bundles  # noqa:
 from bundle_recommender_v2 import rank as rank_v2, risk_multiplier_breakdown as risk_multiplier_breakdown_v2  # noqa: E402
 from bundle_scoring_utils import load_config  # noqa: E402
 from custom_product_triggers import check_custom_triggers  # noqa: E402
+from company_profiles import company_profile_count, get_company_profile, search_company_profiles  # noqa: E402
 from global_products import get_top5_global  # noqa: E402
 from genai_recommender import normalize_mode, rerank_payload  # noqa: E402
 from policy_wording import compare_policy_wording  # noqa: E402
@@ -1951,6 +1953,7 @@ def meta():
         "geminiEnabled": gemini_enabled(),
         "geminiModel": GEMINI_MODEL,
         "genaiRecommendationMode": _genai_mode(),
+        "seedCompanyProfiles": company_profile_count(),
     }
 
 
@@ -1981,11 +1984,26 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        if self.path == "/api/meta":
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+        params = urllib.parse.parse_qs(parsed.query)
+        if path == "/api/meta":
             self.send_json(200, meta())
             return
-        if self.path == "/api/health":
+        if path == "/api/health":
             self.send_json(200, {"ok": True})
+            return
+        if path == "/api/company-profiles":
+            query = (params.get("q") or [""])[0]
+            name = (params.get("name") or [""])[0]
+            if name:
+                profile = get_company_profile(name)
+                if not profile:
+                    self.send_json(404, {"error": "Company profile not found"})
+                else:
+                    self.send_json(200, {"profile": profile})
+                return
+            self.send_json(200, {"count": company_profile_count(), "matches": search_company_profiles(query)})
             return
         return super().do_GET()
 

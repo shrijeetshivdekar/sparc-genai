@@ -1,7 +1,11 @@
 import json
+import sys
+from pathlib import Path
 from http.server import BaseHTTPRequestHandler
 
-from startup_shield_web.server import analyze
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from startup_shield_web.server import analyze  # noqa: E402
 
 
 class handler(BaseHTTPRequestHandler):

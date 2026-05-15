@@ -5,28 +5,28 @@
       "src": "api/health.py",
       "use": "@vercel/python",
       "config": {
-        "includeFiles": ["*.py", "startup_shield_web/*.py", "research_config.json"]
+        "includeFiles": ["**/*.py", "research_config.json"]
       }
     },
     {
       "src": "api/meta.py",
       "use": "@vercel/python",
       "config": {
-        "includeFiles": ["*.py", "startup_shield_web/*.py", "research_config.json"]
+        "includeFiles": ["**/*.py", "research_config.json"]
       }
     },
     {
       "src": "api/analyze.py",
       "use": "@vercel/python",
       "config": {
-        "includeFiles": ["*.py", "startup_shield_web/*.py", "research_config.json"]
+        "includeFiles": ["**/*.py", "research_config.json"]
       }
     },
     {
       "src": "api/company-profiles.py",
       "use": "@vercel/python",
       "config": {
-        "includeFiles": ["*.py", "startup_shield_web/*.py", "research_config.json"]
+        "includeFiles": ["**/*.py", "research_config.json"]
       }
     },
     { "src": "startup_shield_web/index.html", "use": "@vercel/static" },

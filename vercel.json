@@ -1,20 +1,46 @@
 {
   "version": 2,
   "builds": [
-    { "src": "api/health.py", "use": "@vercel/python" },
-    { "src": "api/meta.py",   "use": "@vercel/python" },
-    { "src": "api/analyze.py","use": "@vercel/python" },
+    {
+      "src": "api/health.py",
+      "use": "@vercel/python",
+      "config": {
+        "includeFiles": ["*.py", "startup_shield_web/*.py", "research_config.json"]
+      }
+    },
+    {
+      "src": "api/meta.py",
+      "use": "@vercel/python",
+      "config": {
+        "includeFiles": ["*.py", "startup_shield_web/*.py", "research_config.json"]
+      }
+    },
+    {
+      "src": "api/analyze.py",
+      "use": "@vercel/python",
+      "config": {
+        "includeFiles": ["*.py", "startup_shield_web/*.py", "research_config.json"]
+      }
+    },
+    {
+      "src": "api/company-profiles.py",
+      "use": "@vercel/python",
+      "config": {
+        "includeFiles": ["*.py", "startup_shield_web/*.py", "research_config.json"]
+      }
+    },
     { "src": "startup_shield_web/index.html", "use": "@vercel/static" },
     { "src": "startup_shield_web/app.js",     "use": "@vercel/static" },
     { "src": "startup_shield_web/styles.css", "use": "@vercel/static" }
   ],
   "routes": [
-    { "src": "/api/health",  "dest": "/api/health.py" },
-    { "src": "/api/meta",    "dest": "/api/meta.py" },
-    { "src": "/api/analyze", "dest": "/api/analyze.py" },
-    { "src": "/app.js",      "dest": "/startup_shield_web/app.js" },
-    { "src": "/styles.css",  "dest": "/startup_shield_web/styles.css" },
-    { "src": "/",            "dest": "/startup_shield_web/index.html" },
-    { "src": "/(.*)",        "dest": "/startup_shield_web/index.html" }
+    { "src": "/api/health",            "dest": "/api/health.py" },
+    { "src": "/api/meta",              "dest": "/api/meta.py" },
+    { "src": "/api/analyze",           "dest": "/api/analyze.py" },
+    { "src": "/api/company-profiles",  "dest": "/api/company-profiles.py" },
+    { "src": "/app.js",                "dest": "/startup_shield_web/app.js" },
+    { "src": "/styles.css",            "dest": "/startup_shield_web/styles.css" },
+    { "src": "/",                      "dest": "/startup_shield_web/index.html" },
+    { "src": "/(.*)",                  "dest": "/startup_shield_web/index.html" }
   ]
 }

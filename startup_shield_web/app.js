@@ -2142,7 +2142,7 @@ function renderResults(result) {
 
       <!-- Section nav -->
       <nav class="section-nav">
-        ${[["#bundle","Bundle"],["#products","Products"],["#risk","Risk scores"],["#timeline","Timeline"],["#triggers","Actions"],["#coverage-gaps","Coverage gaps"],["#outreach","Outreach"]].map(([h,l])=>`<a class="snav-pill" href="${h}">${l}</a>`).join("")}
+        ${[["#bundle","Bundle"],["#products","Products"],["#risk","Risk scores"],["#timeline","Timeline"],["#triggers","Actions"],["#outreach","Outreach"]].map(([h,l])=>`<a class="snav-pill" href="${h}">${l}</a>`).join("")}
       </nav>
 
       <!-- KPI strip -->
@@ -2985,6 +2985,24 @@ function renderProductRows(recs, mapping, why = {}) {
   if (!recs?.length) return emptyState("🛡️", "No products recommended", "The engine found no matching ICICI Lombard products for this profile. Try adjusting your inputs.");
   const appetiteLabels = { good: "Good risk", moderate: "Moderate", bad: "Not preferred", tbd: "Under review" };
 
+  const tierBadge = (tier) => {
+    if (tier === "auto")        return `<span class="product-tag" style="background:#e6f4ea;color:#1e7e34;border:1px solid #a8d5b5;">✓ RM can pitch</span>`;
+    if (tier === "conditional") return `<span class="product-tag" style="background:#fff8e1;color:#856404;border:1px solid #ffd54f;">⚡ Sector check needed</span>`;
+    if (tier === "referral")    return `<span class="product-tag" style="background:#fdecea;color:#b71c1c;border:1px solid #ef9a9a;">⚠ Refer to underwriter</span>`;
+    return "";
+  };
+
+  const uwQuestions = (p) => {
+    if (!p.underwriting_questions?.length) return "";
+    return `<details style="margin-top:10px;">
+      <summary style="font-size:11px;font-weight:600;color:var(--ink-muted);cursor:pointer;letter-spacing:.04em;text-transform:uppercase;">Key underwriting questions</summary>
+      <ol style="margin:6px 0 0 16px;padding:0;font-size:12px;color:var(--ink-body);line-height:1.7;">
+        ${p.underwriting_questions.map(q => `<li>${esc(q)}</li>`).join("")}
+      </ol>
+      ${p.required_documents?.length ? `<div style="margin-top:6px;font-size:11px;color:var(--ink-muted);"><strong>Required docs:</strong> ${esc(p.required_documents.join(" · "))}</div>` : ""}
+    </details>`;
+  };
+
   return recs.map((p, i) => {
     const prio      = p.priority || "Optional";
     const prioClass = prio === "Critical" ? "critical" : prio === "Recommended" ? "recommended" : "";
@@ -2999,7 +3017,9 @@ function renderProductRows(recs, mapping, why = {}) {
             <span class="product-tag appetite-${p.appetite || "tbd"}">${appetiteLabels[p.appetite || "tbd"]}</span>
             ${p.mandatory ? `<span class="product-tag baseline">Baseline</span>` : ""}
             <span class="badge badge-${prio === "Critical" ? "critical" : prio === "Recommended" ? "watch" : "low"}" style="font-size:10px;">${esc(prio)}</span>
+            ${tierBadge(p.referral_tier)}
           </div>
+          ${uwQuestions(p)}
         </div>
         <div class="product-row-nudge">${esc(getProductWhy(p, why) || p.nudge || "")}</div>
         <div class="product-row-right">
@@ -3065,6 +3085,7 @@ function policyWordingOptions(result) {
 }
 
 function renderPolicyWordingComparison(result) {
+  return ""; // hidden
   const options = policyWordingOptions(result);
   if (!options.length) return "";
   const bundleName = result.bundle_match?.name || "recommended bundle";

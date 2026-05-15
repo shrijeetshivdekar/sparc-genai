@@ -1697,6 +1697,7 @@ def recommend_products(risk_scores: dict, sector: str, team_size: int,
         product["score"] = round(score, 1)
         product["priority"] = priority_label(product["score"])
         product["mandatory"] = False
+        product.update(PRODUCT_UW_META.get(key, {}))
         results.append(product)
         result_keys.add(key)
 
@@ -1709,6 +1710,7 @@ def recommend_products(risk_scores: dict, sector: str, team_size: int,
         product["score"] = score
         product["priority"] = priority_label(score)
         product["mandatory"] = True
+        product.update(PRODUCT_UW_META.get(key, {}))
         results.append(product)
         result_keys.add(key)
 
@@ -1739,6 +1741,268 @@ def recommend_products(risk_scores: dict, sector: str, team_size: int,
     append_mandatory("employee_health", fallback_score=40.0)
 
     return results
+
+
+# =============================================================================
+# UNDERWRITER META — referral tiers, key questions, required docs
+# Source: Liability underwriting team survey (May 2026)
+# Tiers: "auto" = RM can pitch freely | "conditional" = sector/controls check
+#        "referral" = must be routed through underwriter before RM pitches
+# =============================================================================
+PRODUCT_UW_META = {
+    # ── AUTO — RM pitches directly ────────────────────────────────────────────
+    "dno_liability": {
+        "referral_tier": "auto",
+        "underwriting_questions": [
+            "Any shareholder disputes, investor notices, or regulatory actions in the last 3 years?",
+            "Current board composition — how many independent directors?",
+            "Any pending litigation involving founders or senior management?",
+        ],
+        "required_documents": ["Cap table", "Last 2 years financials", "Board composition list"],
+    },
+    "employee_health": {
+        "referral_tier": "auto",
+        "underwriting_questions": [
+            "Total employee headcount to be covered?",
+            "Family floater or individual cover?",
+            "Any pre-existing conditions to be declared?",
+        ],
+        "required_documents": ["Employee census list", "Previous policy if any"],
+    },
+    "group_pa": {
+        "referral_tier": "auto",
+        "underwriting_questions": [
+            "How many employees and gig workers to be covered?",
+            "Do staff travel frequently for work?",
+        ],
+        "required_documents": ["Employee/worker census list"],
+    },
+    "employees_comp": {
+        "referral_tier": "auto",
+        "underwriting_questions": [
+            "Number of factory, warehouse, or field workers?",
+            "Any workplace injury incidents in the last 3 years?",
+        ],
+        "required_documents": ["Payroll register", "Nature of work description"],
+    },
+    "property_fire": {
+        "referral_tier": "auto",
+        "underwriting_questions": [
+            "Total insurable property value (building, fitout, stock, equipment)?",
+            "Any fire, flood, or theft claims in the last 3 years?",
+            "Is there a sprinkler or fire suppression system?",
+        ],
+        "required_documents": ["Property valuation / asset list", "Previous policy if any"],
+    },
+    "msme_suraksha": {
+        "referral_tier": "auto",
+        "underwriting_questions": [
+            "Total insurable asset value — must be under ₹5 crore to qualify?",
+            "Nature of business and primary physical assets?",
+        ],
+        "required_documents": ["MSME/Udyam registration", "Asset list"],
+    },
+    "business_edge": {
+        "referral_tier": "auto",
+        "underwriting_questions": [
+            "Property sum insured and nature of business?",
+            "Any claims on previous business package policy?",
+        ],
+        "required_documents": ["Asset register", "Previous policy schedule if any"],
+    },
+    "property_all_risk": {
+        "referral_tier": "auto",
+        "underwriting_questions": [
+            "Total insurable value of all physical assets?",
+            "Facility climate risk zone — flood or cyclone-prone area?",
+        ],
+        "required_documents": ["Detailed asset register", "Property valuation report"],
+    },
+
+    # ── CONDITIONAL — sector or controls check required ───────────────────────
+    "cyber_liability": {
+        "referral_tier": "conditional",
+        "underwriting_questions": [
+            "Is there a designated CERT-In Point of Contact (POC)?",
+            "Does the company have a documented incident response plan?",
+            "What categories of customer data are stored — PII, health, financial?",
+            "Any data breach or cyber incident in the last 3 years?",
+        ],
+        "required_documents": ["IT security questionnaire", "Data flow diagram", "CERT-In compliance status"],
+    },
+    "public_liability": {
+        "referral_tier": "conditional",
+        "underwriting_questions": [
+            "Do customers, vendors, or members of public visit your premises?",
+            "Number of locations and nature of physical operations?",
+            "Any third-party injury or property damage claims in the last 3 years?",
+        ],
+        "required_documents": ["List of premises / locations", "Previous claims history"],
+    },
+    "comprehensive_general_liability": {
+        "referral_tier": "conditional",
+        "underwriting_questions": [
+            "Do enterprise contracts require a minimum CGL limit?",
+            "Do operations involve third-party client premises?",
+            "Any bodily injury or property damage claims in the last 3 years?",
+        ],
+        "required_documents": ["Sample client contract (indemnity clause)", "Claims history"],
+    },
+
+    # ── REFERRAL — must route through underwriter before RM pitches ───────────
+    "professional_indemnity": {
+        "referral_tier": "referral",
+        "underwriting_questions": [
+            "Do client contracts include SLAs with financial penalties for outages or errors?",
+            "Any professional negligence or E&O claims in the last 5 years?",
+            "Annual revenue from professional services or licensed software?",
+        ],
+        "required_documents": ["Sample client contract", "Revenue breakdown", "Claims history"],
+    },
+    "product_liability": {
+        "referral_tier": "referral",
+        "underwriting_questions": [
+            "Annual production volume and product categories?",
+            "BIS / QCO certification status?",
+            "Any product defect claims or recall events in the last 3 years?",
+        ],
+        "required_documents": ["Product specifications", "Testing / certification reports", "Claims history"],
+    },
+    "crime_fidelity": {
+        "referral_tier": "referral",
+        "underwriting_questions": [
+            "How many employees have access to financial systems or customer funds?",
+            "Is there a maker-checker or dual-approval system for payments?",
+            "Any employee fraud or dishonesty incidents in the last 5 years?",
+        ],
+        "required_documents": ["Internal control policy", "Finance team org chart", "Claims history"],
+    },
+    "employment_practices": {
+        "referral_tier": "referral",
+        "underwriting_questions": [
+            "Has the company faced POSH complaints, wrongful termination claims, or labour tribunal cases?",
+            "Is an Internal Complaints Committee (ICC) constituted under POSH Act?",
+            "Total headcount and recent layoff or restructuring activity?",
+        ],
+        "required_documents": ["POSH policy document", "ICC constitution letter", "HR headcount data"],
+    },
+    "clinical_trials": {
+        "referral_tier": "referral",
+        "underwriting_questions": [
+            "CDSCO trial approval reference number?",
+            "Phase of trial and number of participants?",
+            "Any adverse events in prior trials?",
+        ],
+        "required_documents": ["CDSCO approval letter", "Trial protocol", "Ethics committee clearance"],
+    },
+    "drone_insurance": {
+        "referral_tier": "referral",
+        "underwriting_questions": [
+            "DGCA drone operator certificate and UIN numbers?",
+            "Number of drones and operating zones (urban / rural / restricted)?",
+            "Any drone accidents or third-party incidents in the last 3 years?",
+        ],
+        "required_documents": ["DGCA RPAS operator certificate", "Drone UIN list", "Flight operation manual"],
+    },
+    "contractors_all_risk": {
+        "referral_tier": "referral",
+        "underwriting_questions": [
+            "Total project value and project duration?",
+            "Nature of construction or erection work?",
+            "Any project delay or damage claims in the last 3 years?",
+        ],
+        "required_documents": ["Project contract", "Bill of quantities", "Site location details"],
+    },
+    "marine_transit": {
+        "referral_tier": "referral",
+        "underwriting_questions": [
+            "Annual value of goods in transit?",
+            "Mode of transport — road, rail, sea, air?",
+            "Any transit loss or damage claims in the last 3 years?",
+        ],
+        "required_documents": ["Annual turnover declaration", "Previous policy if any", "Packing standards"],
+    },
+    "business_interruption": {
+        "referral_tier": "referral",
+        "underwriting_questions": [
+            "Annual revenue and gross profit?",
+            "Maximum indemnity period required (6 / 12 / 18 months)?",
+            "What is the primary trigger — fire, cyber, supply chain?",
+        ],
+        "required_documents": ["Last 2 years P&L", "Fixed cost schedule"],
+    },
+    "electronic_equipment": {
+        "referral_tier": "referral",
+        "underwriting_questions": [
+            "Total value of electronic equipment to be insured?",
+            "Age and make of key equipment?",
+            "Any equipment breakdown or electrical damage in the last 3 years?",
+        ],
+        "required_documents": ["Equipment asset register with values", "Purchase invoices for high-value items"],
+    },
+    "machinery_breakdown": {
+        "referral_tier": "referral",
+        "underwriting_questions": [
+            "Total value of machinery and plant?",
+            "Age and maintenance schedule of key machines?",
+            "Any breakdown or mechanical failure claims in the last 3 years?",
+        ],
+        "required_documents": ["Machinery list with values", "Maintenance log"],
+    },
+    "key_person": {
+        "referral_tier": "referral",
+        "underwriting_questions": [
+            "Which individual(s) to be covered — name and role?",
+            "Sum insured basis — replacement cost or revenue dependency?",
+            "Any health conditions to declare?",
+        ],
+        "required_documents": ["Key person details", "Medical declaration form"],
+    },
+    "motor_fleet": {
+        "referral_tier": "referral",
+        "underwriting_questions": [
+            "Total fleet size and vehicle types?",
+            "Driver age profile and licence validity?",
+            "Any motor accidents or third-party claims in the last 3 years?",
+        ],
+        "required_documents": ["Vehicle registration list", "Driver licence copies", "Claims history"],
+    },
+    "trade_credit": {
+        "referral_tier": "referral",
+        "underwriting_questions": [
+            "List of top 10 buyers and their payment terms?",
+            "Any buyer defaults or delayed payments in the last 2 years?",
+            "Annual credit sales value?",
+        ],
+        "required_documents": ["Debtor ageing report", "Top buyer financials", "Credit terms policy"],
+    },
+    "money_insurance": {
+        "referral_tier": "referral",
+        "underwriting_questions": [
+            "Maximum cash held on premises at any time?",
+            "Cash-in-transit frequency and route?",
+            "Any theft or robbery incidents in the last 3 years?",
+        ],
+        "required_documents": ["Cash handling procedure", "Previous claims if any"],
+    },
+    "gadget_equipment": {
+        "referral_tier": "referral",
+        "underwriting_questions": [
+            "Total number of devices and approximate value?",
+            "Are devices company-owned or BYOD?",
+        ],
+        "required_documents": ["Device asset register"],
+    },
+    "enterprise_secure": {
+        "referral_tier": "referral",
+        "underwriting_questions": [
+            "Total insurable property value across all locations?",
+            "Annual payroll and employee headcount?",
+            "Any claims across any line in the last 3 years?",
+        ],
+        "required_documents": ["Multi-line data sheet", "Asset register", "Payroll register", "Claims history"],
+    },
+}
 
 
 # =============================================================================

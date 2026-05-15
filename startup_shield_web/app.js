@@ -53,6 +53,8 @@ const state = {
   saveTimer: null,
   profile: {},
   customerProfile: {},
+  quoteInputs: {},
+  companyLookupCache: [],
 };
 
 /* ─── UTILS ──────────────────────────────────────────────────── */
@@ -274,6 +276,7 @@ window.importProfileFromJson = (analyse = false) => {
     const parsed = extractProfileJson(input?.value || "");
     const { profile, importedKeys, ignored } = normalizeImportedProfile(parsed);
     state.profile = profile;
+    state.quoteInputs = {};
     state.section = 0;
     state.maxVisitedSection = SECTIONS.length - 1;
     saveDraftProfile();
@@ -290,11 +293,12 @@ window.importProfileFromJson = (analyse = false) => {
 
 function applyImportedCompanyProfile(profile, analyse = false) {
   state.profile = { ...structuredClone(state.meta?.defaults || {}), ...(profile || {}) };
+  state.quoteInputs = {};
   state.section = 0;
   state.maxVisitedSection = SECTIONS.length - 1;
   saveDraftProfile();
   refreshAdaptiveSections();
-  updateProfileImportStatus(`Loaded ${profile.startup_name}. Review assumption-based fields before quoting.`, "success");
+  updateProfileImportStatus(`Loaded database record for ${profile.startup_name}. Review inferred fields before quoting.`, "success");
   if (analyse) runAnalysis();
 }
 
@@ -308,7 +312,7 @@ window.searchCompanyProfiles = async () => {
     if (!res.ok || data.error) throw new Error(data.error || "Search failed");
     const matches = data.matches || [];
     if (!matches.length) {
-      if (results) results.innerHTML = `<div class="company-profile-empty">No seeded company found. Try another name or paste JSON.</div>`;
+      if (results) results.innerHTML = `<div class="company-profile-empty">No company record found. Try another name or paste JSON.</div>`;
       return;
     }
     if (results) {
@@ -327,6 +331,70 @@ window.searchCompanyProfiles = async () => {
   } catch (err) {
     if (results) results.innerHTML = `<div class="company-profile-empty">Error: ${esc(err.message)}</div>`;
   }
+};
+
+async function fetchCompanyLookupOptions(query = "") {
+  const res = await fetch(`/api/company-profiles?q=${encodeURIComponent(query)}&limit=100`);
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || "Search failed");
+  state.companyLookupCache = data.matches || [];
+  return state.companyLookupCache;
+}
+
+function renderCompanyLookupDropdown(matches, query = "") {
+  const results = $("company-profile-results");
+  if (!results) return;
+  const count = state.meta?.seedCompanyProfiles || matches.length || 0;
+  if (!matches.length) {
+    results.innerHTML = `<div class="company-profile-empty">No company record found${query ? ` for "${esc(query)}"` : ""}. Try another name or paste JSON.</div>`;
+    results.classList.add("open");
+    return;
+  }
+  results.innerHTML = `
+    <div class="company-profile-dropdown-head">${query ? `${matches.length} matching company record${matches.length === 1 ? "" : "s"}` : `Showing ${matches.length} company records from database`}</div>
+    ${matches.map(item => `
+      <button class="company-profile-option" type="button" data-company-name="${esc(item.name)}" onclick="loadCompanyProfileFromOption(this, true)">
+        <span>
+          <strong>${esc(item.name)}</strong>
+          <em>${esc(item.sector)} · ${esc(item.funding_stage)} · ${esc(item.team_size)} people</em>
+        </span>
+        <b>Analyse</b>
+      </button>`).join("")}
+    ${!query && count > matches.length ? `<div class="company-profile-empty">Type to narrow the ${esc(count)} company database records.</div>` : ""}`;
+  results.classList.add("open");
+}
+
+window.showCompanyLookupDropdown = async () => {
+  const query = $("company-profile-query")?.value || "";
+  const results = $("company-profile-results");
+  if (results) {
+    results.innerHTML = `<div class="company-profile-empty">Loading company database...</div>`;
+    results.classList.add("open");
+  }
+  try {
+    renderCompanyLookupDropdown(await fetchCompanyLookupOptions(query), query);
+  } catch (err) {
+    if (results) results.innerHTML = `<div class="company-profile-empty">Error: ${esc(err.message)}</div>`;
+  }
+};
+
+window.searchCompanyProfiles = async () => {
+  const query = $("company-profile-query")?.value || "";
+  const results = $("company-profile-results");
+  if (results) {
+    results.innerHTML = `<div class="company-profile-empty">Searching...</div>`;
+    results.classList.add("open");
+  }
+  try {
+    renderCompanyLookupDropdown(await fetchCompanyLookupOptions(query), query);
+  } catch (err) {
+    if (results) results.innerHTML = `<div class="company-profile-empty">Error: ${esc(err.message)}</div>`;
+  }
+};
+
+window.loadCompanyProfileFromOption = (button, analyse = true) => {
+  const name = button?.dataset?.companyName;
+  if (name) window.loadCompanyProfile(name, analyse);
 };
 
 window.loadCompanyProfile = async (name, analyse = false) => {
@@ -639,21 +707,19 @@ function updateProfileImportStatus(message, tone = "neutral") {
 }
 
 function renderProfileImportPanel() {
-  const count = state.meta?.seedCompanyProfiles || 100;
   return `
     <details class="profile-import-card">
       <summary>
         <span>
-          <strong>Import or look up a profile</strong>
-          <em>Search ${esc(count)} seeded company profiles or paste JSON to score directly.</em>
+          <strong>Search your database for the name of your company</strong>
+          <em>Retrieve a company record for risk assessment, or paste JSON to score directly.</em>
         </span>
         <b>Open</b>
       </summary>
       <div class="company-lookup-box">
-        <label>Company lookup</label>
+        <label>Company database lookup</label>
         <div class="company-lookup-row">
-          <input id="company-profile-query" class="f-input" type="text" placeholder="e.g. Razorpay, Zepto, Practo, Freshworks" onkeydown="if(event.key==='Enter') searchCompanyProfiles()" />
-          <button class="btn btn-primary" type="button" onclick="searchCompanyProfiles()">Search</button>
+          <input id="company-profile-query" class="f-input" type="text" placeholder="Enter company name, e.g. Razorpay, Zepto, Practo, Freshworks" onfocus="showCompanyLookupDropdown()" oninput="searchCompanyProfiles()" onkeydown="if(event.key==='Enter') searchCompanyProfiles()" autocomplete="off" />
         </div>
         <div id="company-profile-results" class="company-profile-results"></div>
       </div>
@@ -1033,6 +1099,7 @@ function mapCustomerToUnderwritingProfile(customer) {
 async function runCustomerAnalysis() {
   renderCustomerLoading();
   const mappedProfile = mapCustomerToUnderwritingProfile(state.customerProfile);
+  state.quoteInputs = {};
   try {
     const res = await fetch("/api/analyze", {
       method: "POST",
@@ -1972,6 +2039,7 @@ function updateSectionScorePreview() {
 /* ─── ANALYSIS ───────────────────────────────────────────────── */
 async function runAnalysis() {
   renderLoading();
+  state.quoteInputs = {};
   try {
     const res = await fetch("/api/analyze", {
       method: "POST",
@@ -2099,6 +2167,9 @@ function renderResults(result) {
         ${renderV2Insights(result)}
       </div>
 
+      <!-- Outreach — immediately after bundle -->
+      ${renderOutreach(result.outreach_prompts, result.outreach_source, result.outreach_error)}
+
       <!-- Recommended products — secondary -->
       <div class="result-section" id="products">
         <div class="result-section-head">
@@ -2215,9 +2286,6 @@ function renderResults(result) {
 
       ${renderPolicyWordingComparison(result)}
 
-      <!-- Outreach -->
-      ${renderOutreach(result.outreach_prompts, result.outreach_source, result.outreach_error)}
-
       <!-- Downstream -->
       ${renderDownstream(result.downstream_opportunities)}
 
@@ -2264,6 +2332,14 @@ function renderResults(result) {
       const orig = btn.textContent;
       btn.textContent = "Copied ✓";
       setTimeout(() => btn.textContent = orig, 1800);
+    });
+  });
+
+  // Bind Send Email buttons
+  document.querySelectorAll(".il-send-email-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const item = _outreachItems[btn.dataset.key] || {};
+      openEmailModal(item.email_subject || "", item.email_body || "", item.email_html_data);
     });
   });
 
@@ -2423,24 +2499,70 @@ function renderPricingQuote(quote) {
 }
 
 function quoteFieldValue(row) {
+  const source = state.quoteInputs || {};
   for (const key of (row.aliases || [row.key])) {
-    const val = state.profile[key];
+    if (!Object.prototype.hasOwnProperty.call(source, key)) continue;
+    const val = source[key];
     if (val !== undefined && val !== null && val !== "") return val;
   }
   return "";
 }
 
+function quoteFieldHasValue(row) {
+  const source = state.quoteInputs || {};
+  return (row.aliases || [row.key]).some(key => Object.prototype.hasOwnProperty.call(source, key));
+}
+
+function formatQuoteSuggestion(row) {
+  const suggestion = row?.suggestion;
+  if (!suggestion) return "";
+  const value = suggestion.value;
+  if (row.unit === "yes/no") return value ? "Yes" : "No";
+  if (row.unit === "count") return String(Math.round(Number(value) || 0));
+  const num = Number(value);
+  if (!Number.isFinite(num)) return String(value ?? "");
+  return `${num % 1 === 0 ? num.toFixed(0) : num.toFixed(2)}${row.unit ? ` ${row.unit}` : ""}`;
+}
+
+function quoteSuggestionPlaceholder(row) {
+  const suggestion = formatQuoteSuggestion(row);
+  return suggestion ? `Suggested: ${suggestion}` : "";
+}
+
+function renderQuoteSuggestion(row) {
+  if (!row?.suggestion) return "";
+  const text = formatQuoteSuggestion(row);
+  const confidence = row.suggestion.confidence || "medium";
+  const reason = row.suggestion.reason || "Estimated from startup profile.";
+  return `
+    <small class="quote-suggestion">
+      <span>Suggested ${esc(text)} · ${esc(confidence)} confidence</span>
+      <button type="button" onclick="applyQuoteSuggestion('${esc(row.key)}')">Use</button>
+      <i>${esc(reason)}</i>
+    </small>`;
+}
+
+window.setQuoteInput = (key, value) => {
+  if (!state.quoteInputs) state.quoteInputs = {};
+  if (value === "" || value === null || value === undefined || Number.isNaN(value)) {
+    delete state.quoteInputs[key];
+  } else {
+    state.quoteInputs[key] = value;
+  }
+};
+
+window.applyQuoteSuggestion = (key) => {
+  const quote = window.__result?.pricing_engine_quote || window.__result?.bundle_only_pricing_quote || {};
+  const row = (quote.required_inputs || []).find(item => item.key === key);
+  if (!row?.suggestion) return;
+  window.setQuoteInput(key, row.suggestion.value);
+  renderResults(window.__result);
+};
+
 function renderQuoteInputPanel(quote) {
   const fields = quote.required_inputs || [];
   const missing = quote.missing_required_inputs || [];
   const covers = quote.covers_to_price || [];
-  // Pre-set boolean fields to false so the default "No" counts as provided
-  // without requiring the user to interact with the select first.
-  fields.filter(f => f.unit === "yes/no").forEach(f => {
-    if (state.profile[f.key] === undefined || state.profile[f.key] === null) {
-      state.profile[f.key] = false;
-    }
-  });
   return `
     <div class="pricing-card">
       <div class="pricing-head">
@@ -2461,20 +2583,25 @@ function renderQuoteInputPanel(quote) {
       <div class="quote-input-grid">
         ${fields.map(row => {
           const val = quoteFieldValue(row);
+          const hasValue = quoteFieldHasValue(row);
+          const placeholder = quoteSuggestionPlaceholder(row);
           const inputHtml = row.unit === "yes/no"
             ? `<select class="f-select" style="height:36px;font-size:13px;"
-                 onchange="setVal('${esc(row.key)}', this.value === 'yes')">
-                 <option value="no" ${!val ? "selected" : ""}>No</option>
-                 <option value="yes" ${val ? "selected" : ""}>Yes</option>
+                 onchange="setQuoteInput('${esc(row.key)}', this.value === '' ? '' : this.value === 'yes')">
+                 <option value="" ${!hasValue ? "selected" : ""}>Select</option>
+                 <option value="no" ${hasValue && !val ? "selected" : ""}>No</option>
+                 <option value="yes" ${hasValue && val ? "selected" : ""}>Yes</option>
                </select>`
             : `<input class="f-input" type="number" min="0" step="${row.unit === "count" ? "1" : "0.01"}"
                  value="${esc(String(val))}"
-                 oninput="setVal('${esc(row.key)}', Number(this.value))" />`;
+                 placeholder="${esc(placeholder)}"
+                 oninput="setQuoteInput('${esc(row.key)}', this.value === '' ? '' : Number(this.value))" />`;
           return `
           <label class="quote-input-field">
             <span>${esc(row.label)} ${row.unit && row.unit !== "yes/no" ? `<em>${esc(row.unit)}</em>` : ""}</span>
             ${inputHtml}
             ${row.help ? `<small>${esc(row.help)}</small>` : ""}
+            ${renderQuoteSuggestion(row)}
           </label>`;
         }).join("")}
       </div>
@@ -2491,10 +2618,13 @@ async function generatePricingEstimate() {
   if (status) status.textContent = "Calculating from submitted inputs...";
   state.profile.quote_requested = true;
   try {
+    const payload = buildProfile();
+    payload.quote_requested = true;
+    payload.quote_user_inputs = { ...(state.quoteInputs || {}) };
     const res = await fetch("/api/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(buildProfile()),
+      body: JSON.stringify(payload),
     });
     const result = await res.json();
     if (!res.ok || result.error) throw new Error(result.error || "Failed");
@@ -3065,12 +3195,225 @@ window.comparePolicyWording = async (opts = {}) => {
   }
 };
 
+// ── ICICI Lombard V1 email template ────────────────────────────────────────
+
+const _RISK_DESCRIPTIONS = {
+  "Cyber Technical Risk":       "Data breach, ransomware, and business disruption from cyber attacks.",
+  "Data Privacy Risk":          "Regulatory penalties and liability from mishandling personal data.",
+  "Liability Risk":             "Third-party claims for injury or property damage from operations.",
+  "Property Risk":              "Damage, loss, and disruption to physical assets and infrastructure.",
+  "Governance & Fraud Risk":    "Director/officer liability, internal fraud, and governance failures.",
+  "Gig & Labour Risk":          "Statutory and compliance exposure across employees and gig workers.",
+  "Regulatory Compliance Risk": "Penalties and legal action from evolving regulatory requirements.",
+  "ESG & Climate Risk":         "Physical and transition risk from climate events and ESG obligations.",
+  "IP Infringement Risk":       "Exposure from intellectual property disputes and technology claims.",
+  "Key Person Risk":            "Business disruption from loss of critical founders or executives.",
+  "Geopolitical Risk":          "Cross-border exposure from political and trade disruptions.",
+  "Policy Velocity Risk":       "Rapid regulatory change creating gaps in existing coverage.",
+  "Reputation Risk":            "Brand damage from public incidents or media exposure.",
+};
+
+let _outreachItems = {};
+
+function _ilRiskCards(riskNames) {
+  return (riskNames || []).slice(0, 3).map((name, i) => `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FFFFFF;border:1px solid #D1CFBB;border-radius:4px;margin-bottom:10px;">
+      <tr><td style="padding:20px 24px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td valign="top" width="48" style="width:48px;padding-right:10px;">
+            <div style="font-family:Georgia,'Times New Roman',serif;color:#F15E2A;font-size:28px;line-height:1;">0${i + 1}</div>
+          </td>
+          <td valign="top">
+            <div style="font-family:Arial,Helvetica,sans-serif;color:#053C6D;font-size:13px;font-weight:bold;line-height:1.3;margin-bottom:5px;">${name}</div>
+            <div style="font-family:Arial,Helvetica,sans-serif;color:#6B7280;font-size:12px;line-height:1.55;">${_RISK_DESCRIPTIONS[name] || "Key exposure area identified by our expert underwriters."}</div>
+          </td>
+        </tr></table>
+      </td></tr>
+    </table>`).join("");
+}
+
+function buildILEmailHtml(subject, body, d) {
+  d = d || {};
+  const company  = d.company      || "your company";
+  const industry = d.industry     || "your sector";
+  const product  = d.product_name || "this policy";
+  const bodyPara = d.body_para    || "";
+  const riskNames = d.risk_names  || [];
+  const rmName   = d.rm_name      || "{{RM_NAME}}";
+  const rmPhone  = d.rm_phone     || "{{RM_PHONE}}";
+  const rmEmail  = d.rm_email     || "{{RM_EMAIL}}";
+  const cards    = _ilRiskCards(riskNames);
+
+  return `<!doctype html>
+<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="x-apple-disable-message-reformatting">
+<meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light only">
+<title>${subject}</title>
+<!--[if mso]><style>table,td,div,p,a{font-family:Arial,Helvetica,sans-serif!important;}</style>
+<xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch><o:AllowPNG/></o:OfficeDocumentSettings></xml><![endif]-->
+<style>
+body,table,td,a{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;}
+table,td{mso-table-lspace:0pt;mso-table-rspace:0pt;border-collapse:collapse;}
+img{border:0;display:block;}a{text-decoration:none;}
+body{margin:0;padding:0;width:100%!important;background:#D1CFBB;}
+@media screen and (max-width:620px){
+  .container{width:100%!important;}.px-32{padding-left:24px!important;padding-right:24px!important;}
+  .h1{font-size:26px!important;line-height:1.2!important;}.hide-sm{display:none!important;}
+}
+</style>
+</head>
+<body style="margin:0;padding:0;background:#D1CFBB;">
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#D1CFBB;">A tailored conversation about ${product} for ${company} &mdash; no pressure, just clarity.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#D1CFBB;">
+<tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background:#FFF3EC;border-radius:6px;overflow:hidden;">
+
+  <tr><td style="background:#053C6D;padding:20px 32px;" class="px-32">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+      <td align="left" style="vertical-align:middle;">
+        <div style="font-family:Georgia,'Times New Roman',serif;color:#FFF3EC;font-size:20px;letter-spacing:0.06em;line-height:1;">ICICI LOMBARD</div>
+        <div style="font-family:Arial,Helvetica,sans-serif;color:#F15E2A;font-size:10px;letter-spacing:0.32em;line-height:1;margin-top:6px;">GENERAL&nbsp;&nbsp;INSURANCE</div>
+      </td>
+      <td align="right" class="hide-sm" style="vertical-align:middle;font-family:Arial,Helvetica,sans-serif;color:#A9B7CC;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;">Commercial&nbsp;Lines</td>
+    </tr></table>
+  </td></tr>
+
+  <tr><td style="height:3px;background:#F15E2A;line-height:3px;font-size:3px;">&nbsp;</td></tr>
+
+  <tr><td class="px-32" style="padding:48px 56px 8px 56px;">
+    <div style="font-family:Arial,Helvetica,sans-serif;color:#F15E2A;font-size:11px;letter-spacing:0.24em;text-transform:uppercase;font-weight:bold;margin-bottom:18px;">For the ${industry} sector</div>
+    <h1 class="h1" style="margin:0;font-family:Georgia,'Times New Roman',serif;color:#053C6D;font-size:34px;line-height:1.16;font-weight:normal;letter-spacing:-0.005em;">
+      A tailored approach to protecting <em style="font-style:italic;color:#F15E2A;">${company}'s journey</em>.
+    </h1>
+    <div style="width:48px;height:2px;background:#F15E2A;line-height:2px;font-size:2px;margin:28px 0 0 0;">&nbsp;</div>
+  </td></tr>
+
+  <tr><td class="px-32" style="padding:28px 56px 8px 56px;font-family:Arial,Helvetica,sans-serif;color:#22262E;font-size:16px;line-height:1.65;">
+    <p style="margin:0 0 16px 0;">Dear ${company} team,</p>
+    <p style="margin:0 0 20px 0;">Greetings from ICICI Lombard General Insurance Company Limited.</p>
+    <p style="margin:0 0 8px 0;">Our expert underwriters have been closely studying risk profiles across the <strong style="color:#053C6D;">${industry}</strong> landscape, and ${company} stood out. Based on their assessment, your most significant risk dimensions are:</p>
+  </td></tr>
+
+  <tr><td class="px-32" style="padding:8px 56px 8px 56px;">${cards}</td></tr>
+
+  <tr><td class="px-32" style="padding:24px 56px 8px 56px;font-family:Arial,Helvetica,sans-serif;color:#22262E;font-size:16px;line-height:1.65;">
+    <p style="margin:0 0 20px 0;">Our <strong style="color:#053C6D;">${product}</strong>${bodyPara ? " &mdash; " + bodyPara : ""} is thoughtfully designed for companies at your stage, and we believe it can give your team real peace of mind as you scale.</p>
+    <p style="margin:0 0 28px 0;">We'd be delighted to walk you through how <strong style="color:#053C6D;">${product}</strong> fits your journey &mdash; <em>no pressure, just a friendly conversation</em> at a time that works for you.</p>
+  </td></tr>
+
+  <tr><td class="px-32" align="left" style="padding:4px 56px 44px 56px;">
+    <!--[if !mso]><!-- -->
+    <a href="mailto:${rmEmail}" style="display:inline-block;background:#F15E2A;color:#FFFFFF;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;letter-spacing:0.04em;line-height:48px;padding:0 28px;border-radius:4px;text-decoration:none;">Book a 20-min call &rarr;</a>
+    <!--<![endif]-->
+    <div style="font-family:Arial,Helvetica,sans-serif;color:#6B7280;font-size:13px;margin-top:14px;">Or simply reply to this email &mdash; we'll take it from there.</div>
+  </td></tr>
+
+  <tr><td class="px-32" style="padding:0 56px;"><div style="height:1px;background:#D1CFBB;line-height:1px;font-size:1px;">&nbsp;</div></td></tr>
+
+  <tr><td class="px-32" style="padding:28px 56px 44px 56px;">
+    <div style="font-family:Georgia,'Times New Roman',serif;color:#6B7280;font-style:italic;font-size:14px;margin-bottom:14px;">Warm regards,</div>
+    <div style="font-family:Arial,Helvetica,sans-serif;font-weight:bold;color:#053C6D;font-size:16px;">${rmName}</div>
+    <div style="font-family:Arial,Helvetica,sans-serif;color:#6B7280;font-size:13px;margin-top:2px;">ICICI Lombard General Insurance Company Limited &mdash; Commercial Lines</div>
+    <div style="margin-top:12px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#22262E;">
+      <a href="tel:${rmPhone}" style="color:#22262E;text-decoration:none;">${rmPhone}</a>
+      <span style="color:#F15E2A;padding:0 8px;">|</span>
+      <a href="mailto:${rmEmail}" style="color:#22262E;text-decoration:none;">${rmEmail}</a>
+    </div>
+  </td></tr>
+
+  <tr><td style="background:#053C6D;padding:28px 56px;" class="px-32">
+    <div style="color:#FFF3EC;font-family:Georgia,'Times New Roman',serif;font-size:13px;letter-spacing:0.06em;margin-bottom:10px;">ICICI LOMBARD GENERAL INSURANCE COMPANY LIMITED</div>
+    <div style="font-family:Arial,Helvetica,sans-serif;color:#A9B7CC;font-size:11px;line-height:1.7;letter-spacing:0.02em;">
+      <div>ICICI Lombard House, 414, Veer Savarkar Marg, Near Siddhi Vinayak Temple, Prabhadevi, Mumbai &mdash; 400025</div>
+      <div style="margin-top:10px;">Reg. No. 115 &nbsp;&middot;&nbsp; <a href="mailto:customersupport@icicilombard.com" style="color:#A9B7CC;text-decoration:none;">customersupport@icicilombard.com</a></div>
+      <div style="margin-top:14px;">
+        <a href="https://www.icicilombard.com" style="color:#F15E2A;text-decoration:none;">Visit website</a>
+        <span style="color:#3A5078;padding:0 8px;">&middot;</span>
+        <a href="#" style="color:#A9B7CC;text-decoration:underline;">Unsubscribe</a>
+        <span style="color:#3A5078;padding:0 8px;">&middot;</span>
+        <a href="https://www.icicilombard.com/privacy-policy" style="color:#A9B7CC;text-decoration:underline;">Privacy</a>
+      </div>
+      <div style="margin-top:14px;color:#7C8CA8;font-size:10px;line-height:1.6;">Insurance is the subject matter of solicitation. For more details on risk factors, terms and conditions, please read the sales brochure / policy wordings carefully before concluding a sale.</div>
+    </div>
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
+</body></html>`;
+}
+
+function openEmailModal(subject, body, htmlData) {
+  document.getElementById("il-email-modal")?.remove();
+  const html = buildILEmailHtml(subject, body, htmlData);
+  const mailtoBody = encodeURIComponent(body);
+  const mailtoSubject = encodeURIComponent(subject);
+  const modal = document.createElement("div");
+  modal.id = "il-email-modal";
+  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;";
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:10px;width:100%;max-width:700px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 8px 48px rgba(0,0,0,.3);overflow:hidden;">
+      <div style="background:#053C6D;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+        <div>
+          <div style="color:#fff;font-weight:700;font-size:14px;letter-spacing:.02em;">ICICI Lombard &mdash; Email Preview</div>
+          <div style="color:#A9B7CC;font-size:11px;margin-top:2px;">Commercial Lines outreach template</div>
+        </div>
+        <button id="il-modal-close" style="background:none;border:none;color:#A9B7CC;font-size:22px;cursor:pointer;line-height:1;padding:0 4px;">&times;</button>
+      </div>
+      <div style="padding:10px 18px;background:#f0f4f8;border-bottom:1px solid #dde4ed;flex-shrink:0;">
+        <div style="font-size:11px;color:#888;margin-bottom:2px;text-transform:uppercase;letter-spacing:.05em;">Subject</div>
+        <div style="font-size:13px;font-weight:600;color:#1a1a2e;">${esc(subject)}</div>
+      </div>
+      <div style="flex:1;overflow:hidden;">
+        <iframe style="width:100%;height:100%;min-height:460px;border:none;display:block;" srcdoc="${esc(html).replace(/"/g, "&quot;")}"></iframe>
+      </div>
+      <div style="padding:12px 18px;border-top:1px solid #e8e8e8;display:flex;gap:8px;flex-wrap:wrap;background:#fafafa;flex-shrink:0;">
+        <a href="mailto:?subject=${mailtoSubject}&body=${mailtoBody}" target="_blank"
+           style="display:inline-flex;align-items:center;gap:5px;background:#053C6D;color:#fff;padding:8px 16px;border-radius:5px;font-size:12px;font-weight:600;text-decoration:none;">
+          ✉️ Open in Mail Client
+        </a>
+        <a href="https://mail.google.com/mail/?view=cm&fs=1&su=${mailtoSubject}&body=${mailtoBody}" target="_blank"
+           style="display:inline-flex;align-items:center;gap:5px;background:#EA4335;color:#fff;padding:8px 16px;border-radius:5px;font-size:12px;font-weight:600;text-decoration:none;">
+          🔴 Open in Gmail
+        </a>
+        <button id="il-copy-html" style="display:inline-flex;align-items:center;gap:5px;background:#F15E2A;color:#fff;border:none;padding:8px 16px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;">
+          📋 Copy HTML
+        </button>
+        <button id="il-download-html" style="display:inline-flex;align-items:center;gap:5px;background:#1a7a4a;color:#fff;border:none;padding:8px 16px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;">
+          ⬇️ Download HTML
+        </button>
+        <button id="il-modal-close2" style="margin-left:auto;background:none;border:1px solid #ddd;color:#666;padding:8px 14px;border-radius:5px;font-size:12px;cursor:pointer;">Close</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  document.getElementById("il-modal-close").onclick  = () => modal.remove();
+  document.getElementById("il-modal-close2").onclick = () => modal.remove();
+  modal.addEventListener("click", e => { if (e.target === modal) modal.remove(); });
+  document.getElementById("il-copy-html").addEventListener("click", async () => {
+    await navigator.clipboard?.writeText(html);
+    const btn = document.getElementById("il-copy-html");
+    if (btn) { btn.textContent = "✅ Copied!"; setTimeout(() => { btn.textContent = "📋 Copy HTML"; }, 2000); }
+  });
+  document.getElementById("il-download-html").addEventListener("click", () => {
+    const slug = (subject || "email").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40);
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = `icici-lombard-${slug}.html`;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 200);
+  });
+}
+
 function renderOutreach(prompts, source, error) {
-  const entries = Object.entries(prompts||{});
+  _outreachItems = prompts || {};
+  const entries = Object.entries(_outreachItems);
   if (!entries.length) return "";
   const sourceText = source === "gemini"
-    ? "AI-generated outreach drafts active."
-    : "Using local fallback drafts. Add GEMINI_API_KEY to enable AI-generated drafts.";
+    ? "AI-crafted outreach drafts active."
+    : "Using local fallback drafts. Add GEMINI_API_KEY to enable AI-crafted drafts.";
   return `
     <div class="result-section" id="outreach">
       <div class="result-section-head">
@@ -3081,15 +3424,20 @@ function renderOutreach(prompts, source, error) {
         <p style="font-size:12px;color:var(--ink-muted);margin-bottom:14px;">${esc(sourceText)}</p>
         ${error ? `<p class="notice" style="margin-bottom:12px;">${esc(error)}</p>` : ""}
         ${entries.map(([key, item], i) => {
-          const email = `${item.email_subject}\n\n${item.email_body}`;
+          const plainEmail = `${item.email_subject}\n\n${item.email_body}`;
           return `
             <details class="outreach-item" ${i===0?"open":""}>
               <summary>${esc(labelize(key))}</summary>
               <div class="outreach-body">
                 <div>
                   <div class="outreach-col-label">Email</div>
-                  <pre>${esc(email)}</pre>
-                  <button class="btn btn-ghost" style="height:36px;padding:0 14px;font-size:12px;margin-top:8px;" data-copy="${esc(email)}">Copy email</button>
+                  <pre>${esc(plainEmail)}</pre>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+                    <button class="btn btn-ghost" style="height:36px;padding:0 14px;font-size:12px;" data-copy="${esc(plainEmail)}">Copy text</button>
+                    <button class="btn il-send-email-btn" style="height:36px;padding:0 16px;font-size:12px;background:#053C6D;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;" data-key="${esc(key)}">
+                      ✉️ Send email
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <div class="outreach-col-label">WhatsApp</div>

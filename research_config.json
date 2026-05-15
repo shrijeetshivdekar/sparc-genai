@@ -79,9 +79,9 @@
       "eligible_sectors": ["d2c", "saas_b2b", "manufacturing", "trading"],
       "eligible_stages": ["seed", "series_a"],
       "asset_band": ["warehouse", "asset_light"],
-      "components": ["BHARAT_SOOKSHMA", "PUBLIC_LIABILITY", "EMPLOYERS_COMP"],
-      "regulatory_anchors": ["Bharat Sookshma wording", "Public Liability Insurance Act where applicable"],
-      "covered_risks": ["property", "liability", "gig_labour"]
+      "components": ["BHARAT_SOOKSHMA"],
+      "regulatory_anchors": ["MSME Suraksha Kavach fire wording"],
+      "covered_risks": ["property"]
     },
     "Corporate_Cover_II": {
       "name": "Corporate Cover II",
@@ -160,9 +160,9 @@
       "eligible_sectors": ["any"],
       "eligible_stages": ["seed", "series_a", "series_b", "growth"],
       "asset_band": ["any"],
-      "components": ["GROUP_HEALTH", "GROUP_PA", "EMPLOYERS_COMP", "EMPLOYMENT_PRACTICES"],
+      "components": ["GROUP_HEALTH", "GROUP_PA", "EMPLOYERS_COMP"],
       "regulatory_anchors": ["Employees' Compensation Act 1923", "IRDAI Health Insurance Regulations", "Code on Social Security 2020"],
-      "covered_risks": ["key_person", "gig_labour", "liability", "regulatory_compliance"]
+      "covered_risks": ["key_person", "gig_labour"]
     },
     "Contractor_All_Risk": {
       "name": "Contractor All Risk (CAR) Insurance Policy",
@@ -176,9 +176,9 @@
       "eligible_sectors": ["deeptech", "climatetech", "manufacturing", "d2c"],
       "eligible_stages": ["series_a", "series_b"],
       "asset_band": ["lab_equipment", "fab_or_plant", "warehouse"],
-      "components": ["ENGINEERING_CAR_EAR_CPM_MBD_EEI", "PUBLIC_LIABILITY", "SURETY"],
-      "regulatory_anchors": ["Engineering Insurance wording", "IRDAI Surety Insurance Guidelines"],
-      "covered_risks": ["property", "liability", "esg_climate", "governance_fraud", "regulatory_compliance"]
+      "components": ["ENGINEERING_CAR_EAR_CPM_MBD_EEI", "PUBLIC_LIABILITY"],
+      "regulatory_anchors": ["Engineering Insurance wording", "Contractors All Risk policy wording"],
+      "covered_risks": ["property", "liability", "esg_climate"]
     },
     "Business_Edge": {
       "name": "Business Edge Policy",
@@ -240,8 +240,8 @@
       "eligible_sectors": ["d2c"],
       "eligible_stages": ["seed", "series_a"],
       "asset_band": ["warehouse", "asset_light"],
-      "components": ["PROPERTY_FIRE", "BHARAT_SOOKSHMA", "PUBLIC_LIABILITY", "EMPLOYERS_COMP"],
-      "regulatory_anchors": ["Merchants Cover III wording", "Public Liability Insurance Act where applicable"],
+      "components": ["PROPERTY_FIRE", "BURGLARY", "PUBLIC_LIABILITY", "EMPLOYERS_COMP"],
+      "regulatory_anchors": ["Merchants Cover III wording IRDAN115RP0004V02200203", "Public Liability Insurance Act where applicable"],
       "covered_risks": ["property", "liability", "reputation", "gig_labour"]
     },
     "Bharat_Laghu_Udyam_Suraksha": {
@@ -258,7 +258,7 @@
       "asset_band": ["warehouse", "fab_or_plant", "lab_equipment"],
       "si_floor_inr": 50000000,
       "si_cap_inr": 500000000,
-      "components": ["BHARAT_SOOKSHMA", "PUBLIC_LIABILITY", "EMPLOYERS_COMP"],
+      "components": ["PROPERTY_FIRE", "BURGLARY", "PUBLIC_LIABILITY", "EMPLOYERS_COMP"],
       "regulatory_anchors": ["Bharat Laghu Udyam Suraksha wording"],
       "covered_risks": ["property", "liability", "esg_climate", "gig_labour"]
     },

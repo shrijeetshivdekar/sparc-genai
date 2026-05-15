@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Commercial Lines â Outreach kit</title>
+  <style>
+    html,body{margin:0;padding:0;background:#f0eee9;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;}
+    .email-frame{
+      width:100%;height:100%;border:0;display:block;background:#fff;
+      box-shadow:0 1px 0 rgba(0,0,0,0.04),0 30px 60px -20px rgba(26,54,104,0.18),0 12px 24px -12px rgba(0,0,0,0.10);
+    }
+    .placeholder{
+      display:flex;align-items:center;justify-content:center;height:100%;color:#9a9387;
+      font-family:Georgia,serif;font-style:italic;background:#FAF7F2;
+    }
+  </style>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script type="text/babel" src="design-canvas.jsx"></script>
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <script src="email-templates/data.js"></script>
+  <script src="email-templates/v1.js"></script>
+  <script src="email-templates/v2.js"></script>
+  <script src="email-templates/v3.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react">
+    const { useMemo } = React;
+
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "outreachId": "wc",
+      "brandFull": "ICICI Lombard General Insurance Co. Ltd.",
+      "brandShort": "ICICI Lombard",
+      "brandMonogram": "IL",
+      "address": "ICICI Lombard House, 414, Veer Savarkar Marg, Prabhadevi, Mumbai 400025",
+      "regNo": "115",
+      "contactEmail": "customersupport@icicilombard.com",
+      "primaryColor": "#003087",
+      "accentColor": "#F15E2A"
+    }/*EDITMODE-END*/;
+
+    function downloadFile(name, content) {
+      const blob = new Blob([content], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = name; document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 200);
+    }
+
+    function EmailPreview({ html }) {
+      if (!html) return <div className="placeholder">Renderingâ¦</div>;
+      return <iframe className="email-frame" srcDoc={html} title="email preview" />;
+    }
+
+    function App() {
+      const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+      const outreach = useMemo(
+        () => window.OUTREACH_TYPES.find((o) => o.id === t.outreachId) || window.OUTREACH_TYPES[0],
+        [t.outreachId]
+      );
+      const brand = useMemo(() => ({
+        brandFull: t.brandFull, brandShort: t.brandShort, brandMonogram: t.brandMonogram,
+        address: t.address, regNo: t.regNo, contactEmail: t.contactEmail,
+        primaryColor: t.primaryColor, accentColor: t.accentColor,
+      }), [t]);
+
+      const data = { brand, outreach };
+      const v1Html = useMemo(() => window.renderEmailV1(data), [t, outreach]);
+      const v2Html = useMemo(() => window.renderEmailV2(data), [t, outreach]);
+      const v3Html = useMemo(() => window.renderEmailV3(data), [t, outreach]);
+
+      const slug = outreach.id;
+      const dl = (variant, html) => () => downloadFile(`email-${variant}-${slug}.html`, html);
+      const dlAll = () => {
+        downloadFile(`email-v1-${slug}.html`, v1Html);
+        setTimeout(() => downloadFile(`email-v2-${slug}.html`, v2Html), 250);
+        setTimeout(() => downloadFile(`email-v3-${slug}.html`, v3Html), 500);
+      };
+
+      const outreachOptions = window.OUTREACH_TYPES.map((o) => o.label);
+      const outreachLabelToId = Object.fromEntries(window.OUTREACH_TYPES.map((o) => [o.label, o.id]));
+      const currentLabel = outreach.label;
+
+      return (
+        <>
+          <DesignCanvas>
+            <DCSection
+              id="kit"
+              title={"Commercial Lines outreach kit â " + outreach.label}
+              subtitle={
+                "Six outreach types share one design system, in three layouts. Pick a product from the Tweaks panel " +
+                "(top-right) and all three variants re-render together. " +
+                "Merge tags ({{COMPANY}}, {{INDUSTRY}}, {{SEGMENTS}}, {{DATA_NOTE}}, {{RM_NAME/PHONE/EMAIL}}) stay intact for your ESP. " +
+                "Download buttons emit standalone, fully-substituted email HTML."
+              }
+            >
+              <DCArtboard id="v1" label={"V1 Â· Classic letter â " + outreach.label} width={640} height={1820}>
+                <EmailPreview html={v1Html} />
+              </DCArtboard>
+              <DCArtboard id="v2" label={"V2 Â· Editorial â " + outreach.label} width={680} height={2200}>
+                <EmailPreview html={v2Html} />
+              </DCArtboard>
+              <DCArtboard id="v3" label={"V3 Â· Minimal text-forward â " + outreach.label} width={640} height={1500}>
+                <EmailPreview html={v3Html} />
+              </DCArtboard>
+            </DCSection>
+          </DesignCanvas>
+
+          <TweaksPanel title="Outreach kit">
+            <TweakSection label="Outreach type" />
+            <TweakSelect
+              label="Product"
+              value={currentLabel}
+              options={outreachOptions}
+              onChange={(label) => setTweak("outreachId", outreachLabelToId[label] || "bundle")}
+            />
+
+            <TweakSection label="Brand identity" />
+            <TweakText label="Full name"   value={t.brandFull}     placeholder="Company Pvt. Ltd."     onChange={(v) => setTweak("brandFull", v)} />
+            <TweakText label="Wordmark"    value={t.brandShort}    placeholder="Short / wordmark"      onChange={(v) => setTweak("brandShort", v)} />
+            <TweakText label="Monogram"    value={t.brandMonogram} placeholder="IL"                    onChange={(v) => setTweak("brandMonogram", v)} />
+
+            <TweakSection label="Footer details" />
+            <TweakText label="Address"     value={t.address}       placeholder="Registered address"     onChange={(v) => setTweak("address", v)} />
+            <TweakText label="Reg. No."    value={t.regNo}         placeholder="115"                    onChange={(v) => setTweak("regNo", v)} />
+            <TweakText label="Contact"     value={t.contactEmail}  placeholder="contact@icicilombard.com" onChange={(v) => setTweak("contactEmail", v)} />
+
+            <TweakSection label="Brand colours" />
+            <TweakColor label="Primary"  value={t.primaryColor}
+                        options={["#003087","#053C6D","#1A3668","#0B2B5C","#97291E"]}
+                        onChange={(v) => setTweak("primaryColor", v)} />
+            <TweakColor label="Accent"   value={t.accentColor}
+                        options={["#F15E2A","#F99D27","#D9622B","#E2772E","#97291E"]}
+                        onChange={(v) => setTweak("accentColor", v)} />
+
+            <TweakSection label={"Export â " + outreach.label} />
+            <TweakButton label="Download V1 (Classic)"   onClick={dl("v1", v1Html)} />
+            <TweakButton label="Download V2 (Editorial)" onClick={dl("v2", v2Html)} />
+            <TweakButton label="Download V3 (Minimal)"   onClick={dl("v3", v3Html)} />
+            <TweakButton label="Download all three"      onClick={dlAll} />
+          </TweaksPanel>
+        </>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>

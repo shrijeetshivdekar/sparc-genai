@@ -852,7 +852,7 @@ button, input, select, textarea { font: inherit; }
 
 .company-lookup-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
 }
 
@@ -860,6 +860,66 @@ button, input, select, textarea { font: inherit; }
   display: grid;
   gap: 8px;
   margin-top: 12px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.company-profile-dropdown-head {
+  color: var(--ink-faint);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: .08em;
+  padding: 2px 2px 4px;
+  text-transform: uppercase;
+}
+
+.company-profile-option {
+  align-items: center;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 11px 12px;
+  text-align: left;
+  transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+  width: 100%;
+}
+
+.company-profile-option:hover,
+.company-profile-option:focus {
+  border-color: rgba(173, 30, 35, .35);
+  box-shadow: 0 8px 24px rgba(13, 21, 37, .08);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.company-profile-option strong,
+.company-profile-option em {
+  display: block;
+}
+
+.company-profile-option strong {
+  color: var(--ink);
+  font-size: 13px;
+  font-style: normal;
+}
+
+.company-profile-option em {
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-style: normal;
+  margin-top: 2px;
+}
+
+.company-profile-option b {
+  color: var(--red);
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
 }
 
 .company-profile-result {
@@ -2196,6 +2256,46 @@ button, input, select, textarea { font: inherit; }
   font-size: 11px;
   line-height: 1.35;
   color: var(--ink-muted);
+}
+
+.quote-input-field input::placeholder {
+  color: var(--ink-faint);
+  opacity: .8;
+}
+
+.quote-suggestion {
+  background: rgba(13, 21, 37, .035);
+  border: 1px dashed rgba(13, 21, 37, .14);
+  border-radius: 10px;
+  display: grid;
+  gap: 4px;
+  padding: 8px 9px;
+}
+
+.quote-suggestion span {
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.quote-suggestion i {
+  color: var(--ink-faint);
+  font-size: 10.5px;
+  font-style: normal;
+  line-height: 1.35;
+}
+
+.quote-suggestion button {
+  align-self: start;
+  background: transparent;
+  border: none;
+  color: var(--red);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 850;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .callout-item.compact {

@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional
 
+from quote_prefill import suggest_quote_inputs
 from risk_appetite import get_appetite
 
 
@@ -840,10 +841,39 @@ def _input_present(profile: Dict[str, Any], aliases: Iterable[str]) -> bool:
     return False
 
 
-def _required_input_specs(profile: Dict[str, Any], covers: List[str]) -> List[Dict[str, Any]]:
+def _submitted_quote_source(profile: Dict[str, Any]) -> Dict[str, Any]:
+    quote_inputs = profile.get("quote_user_inputs")
+    if isinstance(quote_inputs, dict):
+        return quote_inputs
+    return profile
+
+
+def _pricing_profile(profile: Dict[str, Any]) -> Dict[str, Any]:
+    submitted = _submitted_quote_source(profile)
+    if submitted is profile:
+        return profile
+    merged = dict(profile)
+    merged.update(submitted)
+    return merged
+
+
+def _suggestion_for_aliases(suggestions: Dict[str, Dict[str, Any]], aliases: Iterable[str]) -> Optional[Dict[str, Any]]:
+    for alias in aliases:
+        if alias in suggestions:
+            return suggestions[alias]
+    return None
+
+
+def _required_input_specs(
+    profile: Dict[str, Any],
+    covers: List[str],
+    submitted_profile: Optional[Dict[str, Any]] = None,
+) -> List[Dict[str, Any]]:
     """Return deduplicated user inputs required to quote the selected covers."""
     rows: List[Dict[str, Any]] = []
     seen = set()
+    submitted = submitted_profile if submitted_profile is not None else _submitted_quote_source(profile)
+    suggestions = suggest_quote_inputs(profile)
     for cover in covers:
         for aliases in REQUIRED_INPUTS_BY_COVER.get(cover, ()):
             key = aliases[0]
@@ -858,13 +888,18 @@ def _required_input_specs(profile: Dict[str, Any], covers: List[str]) -> List[Di
                 "unit": unit,
                 "help": help_text,
                 "required_for": cover,
-                "provided": _input_present(profile, aliases),
+                "provided": _input_present(submitted, aliases),
+                "suggestion": _suggestion_for_aliases(suggestions, aliases),
             })
     return rows
 
 
-def _missing_required_inputs(profile: Dict[str, Any], covers: List[str]) -> List[Dict[str, Any]]:
-    return [row for row in _required_input_specs(profile, covers) if not row["provided"]]
+def _missing_required_inputs(
+    profile: Dict[str, Any],
+    covers: List[str],
+    submitted_profile: Optional[Dict[str, Any]] = None,
+) -> List[Dict[str, Any]]:
+    return [row for row in _required_input_specs(profile, covers, submitted_profile) if not row["provided"]]
 
 
 def pricing_input_request(
@@ -872,9 +907,12 @@ def pricing_input_request(
     recommendations: Optional[List[Dict[str, Any]]] = None,
     bundle: Optional[Dict[str, Any]] = None,
     status: str = "not_requested",
+    submitted_profile: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     recommendations = recommendations or []
     covers = _select_covers(recommendations, bundle)
+    if submitted_profile is None:
+        submitted_profile = _submitted_quote_source(profile) if status != "not_requested" else {}
     return {
         "engine_version": ENGINE_VERSION,
         "quote_type": "input_required",
@@ -885,8 +923,8 @@ def pricing_input_request(
             {"cover_key": cover, "cover_name": COVER_SPECS[cover].label}
             for cover in covers
         ],
-        "required_inputs": _required_input_specs(profile, covers),
-        "missing_required_inputs": _missing_required_inputs(profile, covers),
+        "required_inputs": _required_input_specs(profile, covers, submitted_profile),
+        "missing_required_inputs": _missing_required_inputs(profile, covers, submitted_profile),
         "message": "Quote is not calculated automatically. Confirm the underwriting inputs to generate an estimated quote.",
     }
 
@@ -952,16 +990,18 @@ def price_output_stage(
     if not profile.get("quote_requested"):
         return pricing_input_request(profile, recommendations, bundle, "not_requested")
 
-    missing_required = _missing_required_inputs(profile, covers)
+    submitted = _submitted_quote_source(profile)
+    missing_required = _missing_required_inputs(profile, covers, submitted)
     if missing_required:
-        return pricing_input_request(profile, recommendations, bundle, "awaiting_inputs")
+        return pricing_input_request(profile, recommendations, bundle, "awaiting_inputs", submitted)
 
-    inputs = infer_underwriting_inputs(profile)
+    pricing_profile = _pricing_profile(profile)
+    inputs = infer_underwriting_inputs(pricing_profile)
     priced = [
-        _price_cover(cover, COVER_SPECS[cover], inputs, scores, profile)
+        _price_cover(cover, COVER_SPECS[cover], inputs, scores, pricing_profile)
         for cover in covers
     ]
-    flags = _referral_flags(profile, scores, inputs, covers)
+    flags = _referral_flags(pricing_profile, scores, inputs, covers)
     if any(item.get("loading_cap_applied") for item in priced):
         flags.append(
             "Combined risk loading was capped at 4.0x on one or more covers - "
@@ -996,6 +1036,6 @@ def price_output_stage(
         "gross_premium_inr": int(round(gross * 100_000)),
         "underwriting_inputs": {key: value for key, value in inputs.items() if not key.startswith("_")},
         "assumptions": inputs.get("_assumption_notes", []),
-        "missing_inputs": _missing_inputs(profile, covers),
+        "missing_inputs": _missing_inputs(pricing_profile, covers),
         "underwriter_referral_flags": flags,
     }

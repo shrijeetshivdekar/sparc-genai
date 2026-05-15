@@ -138,6 +138,48 @@ def test_primary_mode_applies_genai_order_but_preserves_mandatory_fallbacks():
     assert result.payload["genai_shadow_diff"]["changed"] is True
 
 
+def test_primary_refresh_regenerates_bundle_copy_for_final_genai_bundle(monkeypatch):
+    seen = {}
+
+    def fake_why(profile, bundle, recommendations):
+        seen["why_bundle"] = bundle["name"]
+        return {"bundle": f"{bundle['name']} is the final selected package."}
+
+    def fake_insights(profile, bundle, revenue_breakdown, triggers, graduation_path):
+        seen["insights_bundle"] = bundle["name"]
+        return {"headline": f"{bundle['name']} fit"}
+
+    monkeypatch.setattr(server, "generate_why_it_matters", fake_why)
+    monkeypatch.setattr(server, "generate_bundle_insights", fake_insights)
+
+    payload = {
+        **_payload(),
+        "recommendation_mode": "primary",
+        "genai_source": "gemini",
+        "bundle_match": {
+            "name": "Corporate Cover II",
+            "fit_pct": 80,
+            "mandatory_covers": ["CGL_I_ELITE", "PUBLIC_LIABILITY"],
+        },
+        "why_it_matters": {
+            "bundle": "Contractor All Risk (CAR) Insurance Policy protects construction projects.",
+        },
+        "regulatory_triggers_fired": [],
+        "revenue_breakdown": [],
+        "global_products": [],
+        "size_bucket": "mid",
+    }
+
+    refreshed = server._refresh_primary_genai_dependents(payload)
+
+    assert seen == {
+        "why_bundle": "Corporate Cover II",
+        "insights_bundle": "Corporate Cover II",
+    }
+    assert refreshed["why_it_matters"]["bundle"] == "Corporate Cover II is the final selected package."
+    assert "Contractor All Risk" not in refreshed["why_it_matters"]["bundle"]
+
+
 def test_shadow_mode_logs_diff_and_serves_deterministic_payload(monkeypatch, tmp_path):
     log_path = tmp_path / "genai_shadow.jsonl"
     monkeypatch.setenv("SPARC_GENAI_MODE", "shadow")

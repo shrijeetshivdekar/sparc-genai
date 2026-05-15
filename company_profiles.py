@@ -296,18 +296,22 @@ COMPANY_PROFILES = {
 
 def search_company_profiles(query: str = "", limit: int = 10) -> list[dict]:
     q = _slug(query)
-    rows = []
+    prefix_rows = []
     for name, profile in COMPANY_PROFILES.items():
         slug = _slug(name)
-        if not q or q in slug:
-            rows.append({
+        if not q or slug.startswith(q):
+            target = prefix_rows
+        else:
+            continue
+        target.append({
                 "name": name,
                 "sector": profile["sector"],
                 "funding_stage": profile["funding_stage"],
                 "team_size": profile["team_size"],
                 "operations": profile["operations"],
-            })
-    return rows[: max(1, min(limit, 25))]
+        })
+    rows = sorted(prefix_rows, key=lambda item: item["name"].lower())
+    return rows[: max(1, min(limit, len(COMPANY_PROFILES)))]
 
 
 def get_company_profile(name: str) -> dict | None:
@@ -320,4 +324,3 @@ def get_company_profile(name: str) -> dict | None:
 
 def company_profile_count() -> int:
     return len(COMPANY_PROFILES)
-

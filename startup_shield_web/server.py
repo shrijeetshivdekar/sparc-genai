@@ -47,7 +47,7 @@ from bundle_recommender_v2 import rank as rank_v2, risk_multiplier_breakdown as 
 from bundle_scoring_utils import load_config  # noqa: E402
 from custom_product_triggers import check_custom_triggers  # noqa: E402
 from company_profiles import company_profile_count, get_company_profile, search_company_profiles  # noqa: E402
-from global_products import get_top5_global  # noqa: E402
+from competitor_catalog_expanded import get_top5_global  # noqa: E402
 from genai_recommender import normalize_mode, rerank_payload  # noqa: E402
 from policy_wording import compare_policy_wording  # noqa: E402
 from premium_estimator import PREMIUM_FOOTNOTE, estimate_premium, get_size_bucket  # noqa: E402
@@ -1388,7 +1388,7 @@ def group_safeguard_companion_candidates(primary_bundle, alternatives, legacy_pa
 def fallback_outreach_prompts(profile, scores, recommendations, bundle):
     contacts = load_contacts()
     top_scores = sorted(scores.items(), key=lambda item: item[1], reverse=True)[:3]
-    risk_line = ", ".join(f"{name} {score:.0f}/100" for name, score in top_scores)
+    risk_names = ", ".join(name for name, _ in top_scores)
     products = list(recommendations[:5])
     if bundle:
         products.insert(0, {"key": "bundle", "name": bundle.get("name"), "nudge": bundle.get("description", "")})
@@ -1396,24 +1396,44 @@ def fallback_outreach_prompts(profile, scores, recommendations, bundle):
     for product in products[:6]:
         key = product.get("key", "bundle")
         name = product.get("name", key)
-        cta = f"We'd be happy to walk you through how {name} fits your current stage - connect with us at a time convenient to you."
-        contact_block = f"{contacts.get('RM_NAME')} | {contacts.get('RM_PHONE')} | {contacts.get('RM_EMAIL')} | {contacts.get('RM_OFFICE')}"
+        nudge = product.get("nudge") or product.get("what_it_covers") or ""
+        contact_block = (
+            f"Warm regards,\n{contacts.get('RM_NAME')}\n"
+            f"{contacts.get('RM_PHONE')} | {contacts.get('RM_EMAIL')}\n"
+            f"{contacts.get('RM_OFFICE')}"
+        )
         output[key] = {
-            "email_subject": f"{profile.get('startup_name')} - {name} fit for your current risk profile",
+            "email_subject": f"A tailored coverage recommendation for {profile.get('startup_name')}",
             "email_body": (
-                f"Hi {profile.get('startup_name')} team,\n\n"
-                f"SPARC indicates your leading risk dimensions are {risk_line}. For a "
-                f"{profile.get('sector')} startup at {profile.get('funding_stage')} with "
-                f"{profile.get('team_size')} people, {name} is relevant because it addresses "
-                f"the exposures most likely to affect contracts, continuity, and governance. "
-                f"{product.get('nudge') or product.get('what_it_covers') or ''}\n\n"
-                f"{cta}\n\n{contact_block}"
+                f"Dear {profile.get('startup_name')} team,\n\n"
+                f"Greetings from ICICI Lombard!\n\n"
+                f"Our expert underwriters have been closely studying risk profiles across the "
+                f"{profile.get('sector')} landscape, and {profile.get('startup_name')} stood out. "
+                f"Based on their assessment, your most significant risk dimensions — {risk_names} — "
+                f"deserve proactive, well-structured coverage, especially at your current stage of growth.\n\n"
+                f"We'd love to introduce you to {name}. {nudge} "
+                f"It is thoughtfully designed for companies like yours and we believe it can give "
+                f"your team real peace of mind as you scale.\n\n"
+                f"We'd be delighted to walk you through how {name} fits your journey — no pressure, "
+                f"just a friendly conversation at a time that works for you.\n\n"
+                f"{contact_block}"
             ),
             "whatsapp": (
-                f"Hi {profile.get('startup_name')} team - SPARC shows {risk_line}. "
-                f"{name} looks relevant for your {profile.get('funding_stage')} stage. "
-                f"{cta} {contacts.get('RM_NAME')} | {contacts.get('RM_PHONE')}"
+                f"Hi {profile.get('startup_name')} team! Greetings from ICICI Lombard. "
+                f"Our underwriters flagged {risk_names} as key exposures for your stage. "
+                f"{name} looks like a strong fit — happy to walk you through it whenever convenient. "
+                f"{contacts.get('RM_NAME')} | {contacts.get('RM_PHONE')}"
             ),
+            "email_html_data": {
+                "company": profile.get("startup_name", ""),
+                "industry": profile.get("sector", ""),
+                "product_name": name,
+                "risk_names": [r for r, _ in top_scores[:3]],
+                "body_para": nudge,
+                "rm_name": contacts.get("RM_NAME", "{{RM_NAME}}"),
+                "rm_phone": contacts.get("RM_PHONE", "{{RM_PHONE}}"),
+                "rm_email": contacts.get("RM_EMAIL", "{{RM_EMAIL}}"),
+            },
         }
     return output
 
@@ -1431,7 +1451,7 @@ def outreach_prompt_payload(profile, scores, recommendations, bundle, size_bucke
     product_lines = "\n".join(
         f"- {product['key']}: {product['name']}" for product in products
     )
-    top_score_line = ", ".join(f"{name}: {score:.0f}/100" for name, score in top_scores)
+    top_risk_names = ", ".join(name for name, _ in top_scores)
     profile_highlights = [
         f"Customer types: {', '.join(profile.get('customer_type') or ['not specified'])}",
         f"Data handled: {', '.join(profile.get('data_handled') or ['not specified'])}",
@@ -1441,16 +1461,23 @@ def outreach_prompt_payload(profile, scores, recommendations, bundle, size_bucke
     ]
 
     return f"""
-You are an ICICI Lombard Relationship Manager writing personalised outreach for
+You are a warm, knowledgeable ICICI Lombard Relationship Manager writing personalised outreach for
 {profile.get('startup_name')} ({profile.get('sector')}, {profile.get('funding_stage')}, {profile.get('team_size')} people).
 
-Their top risk scores: {top_score_line}.
+Their leading risk dimensions (mention by name only, NO scores or numbers): {top_risk_names}.
 Their profile highlights:
 {chr(10).join('- ' + item for item in profile_highlights)}
 
-Generate concise outreach drafts for the following {len(products)} products. For EACH product:
-1. EMAIL VERSION: subject line + body in 70-90 words with a specific "why for them" grounded in their risk score. End with the soft CTA. Include contact block placeholders.
-2. WHATSAPP VERSION: 30-40 words, one-message format, casual tone, no subject line, same CTA.
+TONE RULES (strictly follow):
+- Always open with: "Dear [Company] team," then "Greetings from ICICI Lombard!"
+- Attribute risk insights to "our expert underwriters" — never cite numerical scores.
+- Be warm, friendly, and gently persuasive — like a trusted advisor, not a salesperson.
+- End emails with "Warm regards," and the contact block.
+- WhatsApp: casual, friendly, under 40 words.
+
+Generate outreach drafts for the following {len(products)} products. For EACH product:
+1. EMAIL VERSION: subject line + body in 80-100 words. Open with the greeting above. Mention risk dimensions by name. Close with the soft CTA and contact block.
+2. WHATSAPP VERSION: 30-40 words, friendly tone, same CTA.
 
 Products to cover:
 {product_lines}
@@ -1465,10 +1492,13 @@ Output ONLY valid JSON in this exact shape:
 }}
 
 Contact block to use:
-Name: {contacts.get('RM_NAME')} | Phone: {contacts.get('RM_PHONE')} | Email: {contacts.get('RM_EMAIL')} | {contacts.get('RM_OFFICE')}
+Warm regards,
+{contacts.get('RM_NAME')}
+{contacts.get('RM_PHONE')} | {contacts.get('RM_EMAIL')}
+{contacts.get('RM_OFFICE')}
 
 Soft CTA text:
-We'd be happy to walk you through how [Product] fits your current stage - connect with us at a time convenient to you.
+We'd be delighted to walk you through how [Product] fits your journey — no pressure, just a friendly conversation at a time that works for you.
 
 Return compact JSON only. Do not wrap in markdown. Do not add commentary outside JSON.
 """.strip()
@@ -1492,6 +1522,7 @@ def normalize_outreach_response(raw, profile, scores, recommendations, bundle):
             "email_subject": subject,
             "email_body": body,
             "whatsapp": whatsapp,
+            "email_html_data": fallback_item.get("email_html_data"),
         }
     return normalized, "gemini"
 
@@ -1531,7 +1562,7 @@ def _legacy_score(raw):
     bundle = ranked_bundles[0] if ranked_bundles else match_bundle(profile["sector"], profile["funding_stage"], scores, inp)
     bundle_alternatives = ranked_bundles[1:] if ranked_bundles else []
     analytics = bundle_analytics(profile["sector"], profile["funding_stage"], scores, inp, ranked_bundles)
-    global_ranked = get_top5_global(scores, profile["sector"], size_bucket)
+    global_ranked = get_top5_global(scores, profile["sector"], size_bucket, profile["team_size"], profile["funding_stage"], inp)
     premium = premium_summary(recommendations, bundle, global_ranked, size_bucket)
     downstream = get_b2b2b_opportunities(
         profile["sector"],
@@ -1806,11 +1837,13 @@ def _refresh_primary_genai_dependents(payload):
 
     recommendations = payload.get("recommendations", [])
     bundle = payload.get("bundle_match")
+    profile = payload["profile"]
+    scores = payload["scores"]
     payload["bundles"] = bundle_recommendations(recommendations)
-    payload["product_mapping"] = product_mapping(recommendations, payload["scores"])
+    payload["product_mapping"] = product_mapping(recommendations, scores)
     payload["pricing_engine_quote"] = json_safe(price_output_stage(
-        payload["profile"],
-        payload["scores"],
+        profile,
+        scores,
         recommendations,
         bundle,
     ))
@@ -1831,6 +1864,25 @@ def _refresh_primary_genai_dependents(payload):
                 "optional_covers": bundle.get("optional_covers", []),
             },
         ))
+    scoped_triggers = display_regulatory_triggers(
+        payload.get("regulatory_triggers_fired", []),
+        bundle,
+        recommendations,
+    )
+    payload["display_regulatory_triggers"] = json_safe(scoped_triggers)
+    payload["coverage_roadmap"] = json_safe(contextual_coverage_roadmap(profile, bundle))
+    payload["why_it_matters"] = json_safe(generate_why_it_matters(
+        profile,
+        bundle,
+        recommendations,
+    ))
+    payload["bundle_insights"] = json_safe(generate_bundle_insights(
+        profile,
+        bundle,
+        payload.get("revenue_breakdown", []),
+        scoped_triggers,
+        payload.get("coverage_roadmap", []),
+    ))
     return payload
 
 
@@ -1996,6 +2048,7 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/company-profiles":
             query = (params.get("q") or [""])[0]
             name = (params.get("name") or [""])[0]
+            limit = clean_int((params.get("limit") or ["25"])[0], 25)
             if name:
                 profile = get_company_profile(name)
                 if not profile:
@@ -2003,7 +2056,7 @@ class Handler(SimpleHTTPRequestHandler):
                 else:
                     self.send_json(200, {"profile": profile})
                 return
-            self.send_json(200, {"count": company_profile_count(), "matches": search_company_profiles(query)})
+            self.send_json(200, {"count": company_profile_count(), "matches": search_company_profiles(query, limit=limit)})
             return
         return super().do_GET()
 

@@ -4,6 +4,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from pricing_engine import infer_underwriting_inputs, price_output_stage
+from quote_prefill import suggest_quote_inputs
 from startup_shield_web import server
 
 
@@ -88,6 +89,122 @@ def test_pricing_engine_does_not_quote_without_user_request():
         "data_records_lakhs",
         "claims_last_3_years",
     }
+    assert all(row.get("suggestion") for row in quote["required_inputs"])
+
+
+def test_quote_suggestions_are_deterministic_and_profile_grounded():
+    suggestions = suggest_quote_inputs({
+        "sector": "Fintech",
+        "funding_stage": "Series B+",
+        "team_size": 185,
+        "data_sensitivity": "High",
+        "annual_revenue_cr": 95,
+        "physical_assets": ["Office / coworking space", "Data centre / server room"],
+        "data_handled": ["Payments / financial transactions", "Personal identity data (KYC / Aadhaar)"],
+        "has_investors": "Yes",
+        "b2b_pct": 0.85,
+    })
+
+    assert suggestions["annual_revenue_cr"]["value"] == 95
+    assert suggestions["annual_revenue_cr"]["source"] == "profile"
+    assert suggestions["payroll_cr"]["value"] > 0
+    assert suggestions["data_records_lakhs"]["value"] > 0
+    assert suggestions["cyber_limit_cr"]["value"] >= 20
+    assert suggestions["dno_limit_cr"]["value"] >= 25
+    assert suggestions["pi_limit_cr"]["value"] >= 15
+    assert suggestions["product_liability_limit_cr"]["value"] >= 1
+
+
+def test_profile_values_are_suggestions_not_submitted_quote_inputs_when_not_requested():
+    profile = {
+        "sector": "Fintech",
+        "funding_stage": "Series A",
+        "team_size": 60,
+        "data_sensitivity": "High",
+        "annual_revenue_cr": 15.0,
+        "cyber_limit_cr": 7.5,
+        "dno_limit_cr": 5.0,
+        "pi_limit_cr": 5.0,
+        "claims_last_3_years": False,
+    }
+    bundle = {
+        "name": "Startup Shield Pack",
+        "mandatory_covers": ["CYBER", "D_AND_O", "PI_TECH_EO"],
+        "optional_covers": [],
+    }
+
+    quote = price_output_stage(profile, BASE_SCORES, [], bundle)
+
+    assert quote["quote_type"] == "input_required"
+    assert quote["status"] == "not_requested"
+    assert {row["key"] for row in quote["missing_required_inputs"]} == {
+        "cyber_limit_cr",
+        "dno_limit_cr",
+        "pi_limit_cr",
+        "annual_revenue_cr",
+        "data_records_lakhs",
+        "claims_last_3_years",
+    }
+    cyber = next(row for row in quote["required_inputs"] if row["key"] == "cyber_limit_cr")
+    assert cyber["provided"] is False
+    assert cyber["suggestion"]["value"] == 7.5
+
+
+def test_quote_user_inputs_are_required_before_quote_even_with_profile_numbers():
+    profile = {
+        "sector": "Fintech",
+        "funding_stage": "Series A",
+        "team_size": 60,
+        "data_sensitivity": "High",
+        "annual_revenue_cr": 15.0,
+        "cyber_limit_cr": 7.5,
+        "dno_limit_cr": 5.0,
+        "pi_limit_cr": 5.0,
+        "claims_last_3_years": False,
+        "quote_requested": True,
+        "quote_user_inputs": {},
+    }
+    bundle = {
+        "name": "Startup Shield Pack",
+        "mandatory_covers": ["CYBER", "D_AND_O", "PI_TECH_EO"],
+        "optional_covers": [],
+    }
+
+    quote = price_output_stage(profile, BASE_SCORES, [], bundle)
+
+    assert quote["quote_type"] == "input_required"
+    assert quote["status"] == "awaiting_inputs"
+    assert "gross_premium_inr" not in quote
+
+
+def test_quote_user_inputs_generate_quote_after_user_confirms_suggestions():
+    profile = {
+        "sector": "Fintech",
+        "funding_stage": "Series A",
+        "team_size": 60,
+        "data_sensitivity": "High",
+        "annual_revenue_cr": 15.0,
+        "quote_requested": True,
+        "quote_user_inputs": {
+            "cyber_limit_cr": 7.5,
+            "dno_limit_cr": 5.0,
+            "pi_limit_cr": 5.0,
+            "annual_revenue_cr": 15.0,
+            "data_records_lakhs": 5.0,
+            "claims_last_3_years": False,
+        },
+    }
+    bundle = {
+        "name": "Startup Shield Pack",
+        "mandatory_covers": ["CYBER", "D_AND_O", "PI_TECH_EO"],
+        "optional_covers": [],
+    }
+
+    quote = price_output_stage(profile, BASE_SCORES, [], bundle)
+
+    assert quote["quote_type"] == "indicative_underwriting_quote"
+    assert quote["gross_premium_inr"] > 0
+    assert quote["underwriting_inputs"]["cyber_limit_cr"] == 7.5
 
 
 def test_explicit_asset_value_drives_property_sum_insured():

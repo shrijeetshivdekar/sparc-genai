@@ -1,6 +1,9 @@
 # Vercel
 .vercel
 
+# Local RM contact details — do not commit
+contacts.json
+
 # Python
 __pycache__/
 *.py[cod]

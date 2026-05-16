@@ -2142,10 +2142,10 @@ function renderResults(result) {
 
       <!-- Section nav -->
       <nav class="section-nav">
-        ${[["#bundle","Bundle"],["#products","Products"],["#risk","Risk scores"],["#timeline","Timeline"],["#triggers","Actions"],["#outreach","Outreach"]].map(([h,l])=>`<a class="snav-pill" href="${h}">${l}</a>`).join("")}
+        ${[["bundle","Bundle"],["outreach","Outreach"],["products","Products"],["risk","Risk scores"],["triggers","Actions"]].map(([id,l],i)=>`<button class="snav-pill${i===0?" snav-active":""}" onclick="showTab('${id}')" id="snav-${id}">${l}</button>`).join("")}
       </nav>
 
-      <!-- KPI strip -->
+      <!-- KPI strip — always visible -->
       <div class="kpi-row">
         ${renderKPI("Overall risk", `${result.overall}/100`)}
         ${renderKPI("Top risk", (result.top_risks||[])[0]?.name?.replace(" Risk","") || "—")}
@@ -2155,159 +2155,154 @@ function renderResults(result) {
         ${renderKPI("Risk clusters", Object.keys(result.clusters||{}).length + " analysed")}
       </div>
 
-      <!-- BUNDLE — primary focus -->
-      <div class="result-section" id="bundle">
-        <div class="result-section-head">
-          <div class="result-section-bar"></div>
-          <div class="result-section-title">Bundle recommendation</div>
+      <!-- ── TAB: Bundle ── -->
+      <div class="tab-panel" id="tab-bundle">
+        <div class="result-section">
+          <div class="result-section-head">
+            <div class="result-section-bar"></div>
+            <div class="result-section-title">Bundle recommendation</div>
+          </div>
+          ${renderGenAIStatus(result)}
+          ${renderBundleHero(result.bundle_match, result.recommendations, result.why_it_matters)}
+          ${renderBundleAlternatives(result.bundle_alternatives)}
+          ${renderV2Insights(result)}
         </div>
-        ${renderGenAIStatus(result)}
-        ${renderBundleHero(result.bundle_match, result.recommendations, result.why_it_matters)}
-        ${renderBundleAlternatives(result.bundle_alternatives)}
-        ${renderV2Insights(result)}
+        ${renderDualPricingPanel(result)}
+        ${result.premium_summary ? `
+        <div class="premium-card">
+          <div class="premium-card-label">Total premium potential</div>
+          <div class="premium-card-value">INR ${result.premium_summary.min_lakh} - ${result.premium_summary.max_lakh} lakhs</div>
+          <div class="premium-card-note">Across ${result.premium_summary.count} products · ${esc(result.premium_footnote||"Indicative estimates only.")}</div>
+        </div>` : ""}
       </div>
 
-      <!-- Outreach — immediately after bundle -->
-      ${renderOutreach(result.outreach_prompts, result.outreach_source, result.outreach_error)}
-
-      <!-- Recommended products — secondary -->
-      <div class="result-section" id="products">
-        <div class="result-section-head">
-          <div class="result-section-bar"></div>
-          <div class="result-section-title">Additional recommended products</div>
-        </div>
-        <div class="products-list">
-          ${(() => {
-            const normalise = k => COVER_ALIASES[k] || k;
-            const bundleKeys = new Set([
-              ...(result.bundle_match?.mandatory_covers || []),
-              ...(result.bundle_match?.optional_covers || []),
-              ...(result.bundle_match?.companion_bundle?.mandatory_covers || []),
-              ...(result.bundle_match?.companion_bundle?.optional_covers || []),
-            ].map(normalise));
-            const additionalRecs = (result.recommendations || []).filter(r => !bundleKeys.has(normalise(r.key)));
-            if (!additionalRecs.length) {
-              return `<div class="r-card">${emptyState("✓", "All recommended products are in your bundle", "The engine has no additional products to recommend outside the selected bundle.")}</div>`;
-            }
-            return renderProductRows(additionalRecs, result.product_mapping, result.why_it_matters);
-          })()}
-        </div>
-        ${renderBadProducts(result.not_preferred_recommendations)}
+      <!-- ── TAB: Outreach ── -->
+      <div class="tab-panel" id="tab-outreach" style="display:none">
+        ${renderOutreach(result.outreach_prompts, result.outreach_source, result.outreach_error)}
       </div>
 
-      <!-- Premium summary -->
-      ${renderDualPricingPanel(result)}
-      ${result.premium_summary ? `
-      <div class="premium-card">
-        <div class="premium-card-label">Total premium potential</div>
-        <div class="premium-card-value">INR ${result.premium_summary.min_lakh} - ${result.premium_summary.max_lakh} lakhs</div>
-        <div class="premium-card-note">Across ${result.premium_summary.count} products · ${esc(result.premium_footnote||"Indicative estimates only.")}</div>
-      </div>` : ""}
-
-      <!-- Risk scores -->
-      <div class="result-section" id="risk">
-        <div class="result-section-head">
-          <div class="result-section-bar"></div>
-          <div class="result-section-title">Risk overview</div>
+      <!-- ── TAB: Products ── -->
+      <div class="tab-panel" id="tab-products" style="display:none">
+        <div class="result-section">
+          <div class="result-section-head">
+            <div class="result-section-bar"></div>
+            <div class="result-section-title">Additional recommended products</div>
+          </div>
+          <div class="products-list">
+            ${(() => {
+              const normalise = k => COVER_ALIASES[k] || k;
+              const bundleKeys = new Set([
+                ...(result.bundle_match?.mandatory_covers || []),
+                ...(result.bundle_match?.optional_covers || []),
+                ...(result.bundle_match?.companion_bundle?.mandatory_covers || []),
+                ...(result.bundle_match?.companion_bundle?.optional_covers || []),
+              ].map(normalise));
+              const additionalRecs = (result.recommendations || []).filter(r => !bundleKeys.has(normalise(r.key)));
+              if (!additionalRecs.length) {
+                return `<div class="r-card">${emptyState("✓", "All recommended products are in your bundle", "The engine has no additional products to recommend outside the selected bundle.")}</div>`;
+              }
+              return renderProductRows(additionalRecs, result.product_mapping, result.why_it_matters);
+            })()}
+          </div>
+          ${renderBadProducts(result.not_preferred_recommendations)}
         </div>
-        <div class="score-grid">
-          <div class="r-card" style="display:flex;flex-direction:column;">
-            <div class="card-label">Overall risk score</div>
-            <div class="gauge-wrap" style="flex:1;">
-              <div class="gauge-ring" style="--score:${Math.min(100,result.overall)};background:radial-gradient(circle at center,white 0 57%,transparent 58%),conic-gradient(${gaugeColor} calc(${Math.min(100,result.overall)} * 1%),var(--surface) 0);">
-                <div class="gauge-ring-inner">
-                  <strong>${result.overall}</strong>
-                  <span>/100</span>
+        <details class="expander-card" style="margin-bottom:14px;">
+          <summary>Product comparison table</summary>
+          <div class="expander-body">${renderComparisonTable(result.recommendations)}</div>
+        </details>
+      </div>
+
+      <!-- ── TAB: Risk scores ── -->
+      <div class="tab-panel" id="tab-risk" style="display:none">
+        <div class="result-section">
+          <div class="result-section-head">
+            <div class="result-section-bar"></div>
+            <div class="result-section-title">Risk overview</div>
+          </div>
+          <div class="score-grid">
+            <div class="r-card" style="display:flex;flex-direction:column;">
+              <div class="card-label">Overall risk score</div>
+              <div class="gauge-wrap" style="flex:1;">
+                <div class="gauge-ring" style="--score:${Math.min(100,result.overall)};background:radial-gradient(circle at center,white 0 57%,transparent 58%),conic-gradient(${gaugeColor} calc(${Math.min(100,result.overall)} * 1%),var(--surface) 0);">
+                  <div class="gauge-ring-inner">
+                    <strong>${result.overall}</strong>
+                    <span>/100</span>
+                  </div>
                 </div>
+                <div class="gauge-label">${overallLabel(result.overall)}</div>
               </div>
-              <div class="gauge-label">${overallLabel(result.overall)}</div>
+            </div>
+            <div class="r-card">
+              <div class="card-label">Risk categories</div>
+              <div id="score-bars-wrap">${renderScoreBars(result.scores)}</div>
+            </div>
+            <div class="r-card">
+              <div class="card-label">Spider graph</div>
+              <canvas id="risk-radar" class="radar-canvas" width="340" height="300"></canvas>
             </div>
           </div>
+        </div>
+        <div class="result-section">
+          <div class="result-section-head">
+            <div class="result-section-bar"></div>
+            <div class="result-section-title">Top risk drivers</div>
+          </div>
+          <div class="drivers-grid">
+            ${renderDriverCards((result.top_risks||[]).slice(0,3))}
+          </div>
+        </div>
+        <details class="expander-card" style="margin-bottom:14px;">
+          <summary>Score breakdown — multipliers applied</summary>
+          <div class="expander-body">${renderBreakdown(result.multiplier_breakdown)}</div>
+        </details>
+
+        <!-- Methodology button + panel -->
+        <div style="text-align:center;margin:32px 0 12px;">
+          <button id="methodology-btn" onclick="toggleMethodology()" style="display:inline-flex;align-items:center;gap:10px;background:linear-gradient(135deg,#0F172A 0%,#1E293B 100%);color:#fff;border:none;padding:14px 32px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;letter-spacing:.03em;box-shadow:0 4px 16px rgba(15,23,42,.25);transition:box-shadow .2s,transform .1s;" onmouseover="this.style.boxShadow='0 8px 28px rgba(15,23,42,.35)';this.style.transform='translateY(-1px)'" onmouseout="this.style.boxShadow='0 4px 16px rgba(15,23,42,.25)';this.style.transform=''">
+            <span style="font-size:16px;">🔬</span>
+            <span>How was this calculated? — Full 21-step methodology</span>
+            <span style="font-size:11px;background:rgba(255,255,255,.15);border-radius:4px;padding:2px 7px;">▼ expand</span>
+          </button>
+        </div>
+        <div id="methodology-panel" style="display:none">
+          ${renderMethodologyPanel(result)}
+        </div>
+      </div>
+
+      <!-- ── TAB: Actions ── -->
+      <div class="tab-panel" id="tab-triggers" style="display:none">
+        <div class="result-section two-col">
           <div class="r-card">
-            <div class="card-label">Risk categories</div>
-            <div id="score-bars-wrap">${renderScoreBars(result.scores)}</div>
+            <div class="card-label">Regulatory triggers</div>
+            ${renderTriggers(result.regulatory_triggers)}
           </div>
           <div class="r-card">
-            <div class="card-label">Spider graph</div>
-            <canvas id="risk-radar" class="radar-canvas" width="340" height="300"></canvas>
+            <div class="card-label">Non-insurance actions</div>
+            ${renderMitigations(result.mitigations)}
           </div>
         </div>
+        ${renderDownstream(result.downstream_opportunities)}
+        <details class="expander-card" style="margin-bottom:14px;">
+          <summary>Global products — how SPARC compares</summary>
+          <div class="expander-body">
+            <div class="products-grid">${renderGlobalProducts(result.global_products)}</div>
+          </div>
+        </details>
+        ${renderCustomTriggers(result.custom_triggers)}
+        <details class="expander-card" style="margin-bottom:24px;">
+          <summary>Assumptions used</summary>
+          <div class="expander-body">
+            <div class="kv-grid">${renderAssumptions(result.assumptions)}</div>
+          </div>
+        </details>
+        <details class="refine-panel-wrap" style="margin-bottom:24px;">
+          <summary>⚙ Refine profile — adjust to sharpen scores</summary>
+          <div class="refine-body" id="refine-body">
+            ${renderRefineBody()}
+          </div>
+        </details>
+        ${renderPolicyWordingComparison(result)}
       </div>
-
-      <!-- Top risk drivers -->
-      <div class="result-section">
-        <div class="result-section-head">
-          <div class="result-section-bar"></div>
-          <div class="result-section-title">Top risk drivers</div>
-        </div>
-        <div class="drivers-grid">
-          ${renderDriverCards((result.top_risks||[]).slice(0,3))}
-        </div>
-      </div>
-
-      <!-- Timeline -->
-      <div class="result-section" id="timeline">
-        <div class="result-section-head">
-          <div class="result-section-bar"></div>
-          <div class="result-section-title">Coverage timeline</div>
-        </div>
-        <div class="r-card">
-          <div class="timeline">${renderTimeline(result.bundles)}</div>
-        </div>
-      </div>
-
-      <!-- Regulatory triggers + Mitigations -->
-      <div class="result-section two-col" id="triggers">
-        <div class="r-card">
-          <div class="card-label">Regulatory triggers</div>
-          ${renderTriggers(result.regulatory_triggers)}
-        </div>
-        <div class="r-card">
-          <div class="card-label">Non-insurance actions</div>
-          ${renderMitigations(result.mitigations)}
-        </div>
-      </div>
-
-      <!-- Assumptions -->
-      <details class="expander-card" style="margin-bottom:24px;">
-        <summary>Assumptions used</summary>
-        <div class="expander-body">
-          <div class="kv-grid">${renderAssumptions(result.assumptions)}</div>
-        </div>
-      </details>
-
-      <!-- Refine panel -->
-      <details class="refine-panel-wrap" style="margin-bottom:24px;">
-        <summary>⚙ Refine profile — adjust to sharpen scores</summary>
-        <div class="refine-body" id="refine-body">
-          ${renderRefineBody()}
-        </div>
-      </details>
-
-      ${renderPolicyWordingComparison(result)}
-
-      <!-- Downstream -->
-      ${renderDownstream(result.downstream_opportunities)}
-
-      <!-- Expanders -->
-      <details class="expander-card" style="margin-bottom:14px;">
-        <summary>Global products — how SPARC compares</summary>
-        <div class="expander-body">
-          <div class="products-grid">${renderGlobalProducts(result.global_products)}</div>
-        </div>
-      </details>
-
-      <details class="expander-card" style="margin-bottom:14px;">
-        <summary>Score breakdown — multipliers applied</summary>
-        <div class="expander-body">${renderBreakdown(result.multiplier_breakdown)}</div>
-      </details>
-
-      <details class="expander-card" style="margin-bottom:14px;">
-        <summary>Product comparison table</summary>
-        <div class="expander-body">${renderComparisonTable(result.recommendations)}</div>
-      </details>
-
-      ${renderCustomTriggers(result.custom_triggers)}
 
     </div>`;
 
@@ -2343,8 +2338,421 @@ function renderResults(result) {
     });
   });
 
-  // Draw radar
+  // Draw radar — deferred so the canvas exists in DOM
   setTimeout(() => drawRadar("risk-radar", result.scores, { maxLabelLength: 16 }), 100);
+
+  // Activate default tab
+  showTab("bundle");
+}
+
+/* ─── TAB NAVIGATION ─────────────────────────────────────────── */
+window.showTab = (id) => {
+  document.querySelectorAll(".tab-panel").forEach(p => { p.style.display = "none"; });
+  document.querySelectorAll(".snav-pill").forEach(p => p.classList.remove("snav-active"));
+  const panel = document.getElementById("tab-" + id);
+  if (panel) panel.style.display = "";
+  const btn = document.getElementById("snav-" + id);
+  if (btn) btn.classList.add("snav-active");
+  // Redraw radar if switching to risk tab
+  if (id === "risk" && window.__result) {
+    setTimeout(() => drawRadar("risk-radar", window.__result.scores, { maxLabelLength: 16 }), 50);
+  }
+};
+
+/* ─── METHODOLOGY PANEL ──────────────────────────────────────────── */
+window.toggleMethodology = () => {
+  const panel = document.getElementById("methodology-panel");
+  const btn   = document.getElementById("methodology-btn");
+  if (!panel) return;
+  const hidden = panel.style.display === "none";
+  panel.style.display = hidden ? "" : "none";
+  const tag = btn.querySelector("span:last-child");
+  const lbl = btn.querySelector("span:nth-child(2)");
+  if (tag) tag.textContent = hidden ? "▲ collapse" : "▼ expand";
+  if (lbl) lbl.textContent = hidden ? "Hide methodology" : "How was this calculated? — Full 21-step methodology";
+  btn.style.background = hidden
+    ? "linear-gradient(135deg,#B91C1C 0%,#DC2626 100%)"
+    : "linear-gradient(135deg,#0F172A 0%,#1E293B 100%)";
+  if (hidden) {
+    setTimeout(() => {
+      const top = panel.getBoundingClientRect().top + window.scrollY - 80;
+      window.scrollTo({ top, behavior: "smooth" });
+    }, 60);
+  }
+};
+
+function renderMethodologyPanel(result) {
+  const p      = result.profile || {};
+  const scores = result.scores  || {};
+  const recs   = result.recommendations || [];
+  const bundle = result.bundle_match;
+
+  /* ── Static sector base weights (mirrors risk_engine.py SECTOR_PROFILES) ── */
+  const SW = {
+    "SaaS / Enterprise Software": { cyber_technical:8,data_privacy:8,liability:8,ip_infringement:7,key_person:5,governance_fraud:5,property:2,regulatory_compliance:8,esg_climate:2,geopolitical:6,gig_labour:2,policy_velocity:6,reputation:6 },
+    "Fintech":                    { cyber_technical:10,data_privacy:10,liability:9,ip_infringement:5,key_person:8,governance_fraud:9,property:3,regulatory_compliance:10,esg_climate:3,geopolitical:8,gig_labour:5,policy_velocity:9,reputation:9 },
+    "Healthtech":                 { cyber_technical:10,data_privacy:9,liability:9,ip_infringement:8,key_person:6,governance_fraud:7,property:5,regulatory_compliance:9,esg_climate:4,geopolitical:6,gig_labour:5,policy_velocity:8,reputation:8 },
+    "D2C / Consumer Brands":      { cyber_technical:7,data_privacy:6,liability:8,ip_infringement:6,key_person:4,governance_fraud:7,property:8,regulatory_compliance:9,esg_climate:6,geopolitical:9,gig_labour:6,policy_velocity:5,reputation:8 },
+    "Deeptech / AI / Robotics":   { cyber_technical:7,data_privacy:7,liability:7,ip_infringement:10,key_person:8,governance_fraud:5,property:7,regulatory_compliance:8,esg_climate:7,geopolitical:10,gig_labour:2,policy_velocity:7,reputation:6 },
+    "Edtech":                     { cyber_technical:7,data_privacy:8,liability:8,ip_infringement:6,key_person:7,governance_fraud:10,property:3,regulatory_compliance:9,esg_climate:2,geopolitical:6,gig_labour:4,policy_velocity:7,reputation:9 },
+    "Agritech":                   { cyber_technical:4,data_privacy:5,liability:6,ip_infringement:4,key_person:5,governance_fraud:6,property:8,regulatory_compliance:8,esg_climate:9,geopolitical:5,gig_labour:5,policy_velocity:5,reputation:4 },
+    "Cleantech / Climatetech":    { cyber_technical:5,data_privacy:4,liability:7,ip_infringement:7,key_person:6,governance_fraud:6,property:9,regulatory_compliance:9,esg_climate:10,geopolitical:7,gig_labour:3,policy_velocity:5,reputation:6 },
+    "Logistics / Mobility":       { cyber_technical:6,data_privacy:6,liability:10,ip_infringement:3,key_person:4,governance_fraud:5,property:8,regulatory_compliance:10,esg_climate:8,geopolitical:6,gig_labour:10,policy_velocity:4,reputation:7 },
+    "Legaltech":                  { cyber_technical:7,data_privacy:8,liability:9,ip_infringement:7,key_person:5,governance_fraud:4,property:2,regulatory_compliance:9,esg_climate:1,geopolitical:3,gig_labour:3,policy_velocity:7,reputation:8 },
+    "HRtech":                     { cyber_technical:8,data_privacy:9,liability:6,ip_infringement:4,key_person:5,governance_fraud:5,property:2,regulatory_compliance:9,esg_climate:2,geopolitical:4,gig_labour:8,policy_velocity:6,reputation:7 },
+    "Gaming / Media / Content":   { cyber_technical:6,data_privacy:7,liability:9,ip_infringement:8,key_person:5,governance_fraud:8,property:3,regulatory_compliance:10,esg_climate:2,geopolitical:7,gig_labour:2,policy_velocity:10,reputation:9 },
+    "Foodtech / Cloud Kitchen":   { cyber_technical:6,data_privacy:6,liability:9,ip_infringement:4,key_person:4,governance_fraud:6,property:8,regulatory_compliance:10,esg_climate:7,geopolitical:5,gig_labour:10,policy_velocity:6,reputation:10 },
+  };
+
+  /* ── Per-sector category reasons (key highlights only) ── */
+  const WHY = {
+    "Fintech":{ "Cyber Technical Risk":"BFSI is India's #1 targeted sector; card/internet fraud +334% YoY in FY24","Data Privacy Risk":"Likely SDF designation; DPDPA §33 ₹250cr penalty; 72-hr breach notification","Governance & Fraud Risk":"Fraud losses 8× in H1 FY25 to ₹21,367cr; BharatPe EOW FIR (₹81.3cr fake-vendor fraud)","Regulatory Compliance Risk":"8+ major RBI circulars in 2024; Paytm §35A enforcement precedent","Policy Velocity Risk":"Highest regulatory circular frequency of any Indian sector","Geopolitical Risk":"PN3 + RBI data localisation + cross-border settlement rules","Key Person Risk":"RBI Fit & Proper — regulator can replace CEO (Paytm Jan-2024 precedent)","Liability Risk":"Consumer Protection Act strict liability; fintech platforms = deemed RE","Reputation Risk":"Trust-dependent sector; single breach collapses user acquisition" },
+    "Healthtech":{ "Cyber Technical Risk":"Star Health breach Sep-2024: 31M health records exposed on Telegram","Data Privacy Risk":"DPDPA health-data SPDI; Jan-2025 draft rules — no special health-data carve-out","Liability Risk":"5.2M medical negligence cases/year; 80% surgical procedures","IP Infringement Risk":"Pharma + medical device patents; AI diagnostics creating new patent disputes","Regulatory Compliance Risk":"CDSCO SaMD Class B/C/D mandatory licensing; NABL accreditation" },
+    "D2C / Consumer Brands":{ "Property Risk":"Warehouse fire/flood in D2C corridors; logistics costs 10–18% of revenue","Geopolitical Risk":"D2C funding down 54% from 2022 peak; Chinese supplier CBAM exposure","Regulatory Compliance Risk":"BIS QCO + LMPC + EPR; FSSAI per-SKU licensing","Liability Risk":"NCDRC Honda 2024 — strict liability for product defects on manufacturer","Reputation Risk":"Viral social media incidents (MDH/Everest ban, Zepto finger-in-ice-cream 2024)" },
+    "Deeptech / AI / Robotics":{ "IP Infringement Risk":"ANI v. OpenAI Delhi HC 2024 — first AI copyright case; personality rights","Geopolitical Risk":"Dual-use export controls (DGFT) + PN3 = dual exposure","Policy Velocity Risk":"MeitY AI Advisory revised twice in 15 days (Mar 2024)","Key Person Risk":"Typically built around 1–2 founding scientists with no substitutes" },
+    "Logistics / Mobility":{ "Gig & Labour Risk":"5M+ delivery workers; 24% accident rate; Karnataka/Rajasthan gig Acts impose levy","Liability Risk":"MV Act §149 unlimited TP liability; 36% of road deaths on national highways","Regulatory Compliance Risk":"MV Aggregator Guidelines 2025 — ₹5L health + ₹10L term per driver mandatory" },
+    "Edtech":{ "Governance & Fraud Risk":"Byju's: Prosus wrote off $500M; 3 investors left board; NCLT admission Jul-2024","Reputation Risk":"60% of parents now seek refunds from edtech platforms post-Byju's collapse","Data Privacy Risk":"DPDPA §9 — ₹200cr penalty for minor data without verifiable parental consent" },
+    "Gaming / Media / Content":{ "Policy Velocity Risk":"Online Gaming Act 2025 (assented 22-Aug-2025) disrupted an entire sector in months","Governance & Fraud Risk":"DGGI detected ₹81,875cr GST evasion in online gaming FY24","Regulatory Compliance Risk":"118 operators issued show-cause notices; 658 offshore entities under investigation" },
+    "Foodtech / Cloud Kitchen":{ "Gig & Labour Risk":"Zomato/Swiggy rider deaths documented 2024; gig workforce = majority of headcount","Reputation Risk":"Zepto finger-in-ice-cream 2024; April 2024 survey: majority have low/no FSSAI confidence","Regulatory Compliance Risk":"18,000+ FSSAI enforcement actions 2024; AI-based FoSCoS inspections expanding" },
+    "Cleantech / Climatetech":{ "ESG & Climate Risk":"ALMM List-II for solar cells Jun-2026; EPR phased through FY2028; CCTS carbon market live","Geopolitical Risk":"CBAM — India among largest payers alongside China and Russia","Property Risk":"Installed hardware + lender covenants frequently require fire or all-risk cover" },
+    "Agritech":{ "ESG & Climate Risk":"35M hectares lost to drought (2015–21); 33.9M to excess rain; food inflation doubled","Property Risk":"65% of Indian farmland is rainfed; crop/equipment loss endemic and escalating" },
+    "SaaS / Enterprise Software":{ "Cyber Technical Risk":"boAt (7.5M records), Hathway (41.5M records), BSNL SIM data — all breached in 2024","Data Privacy Risk":"DPDPA SDF likely at scale; CERT-In 72-hr breach notification mandatory","Liability Risk":"SLA breach and outage claims from enterprise clients; PI contractual exposure" },
+    "HRtech":{ "Data Privacy Risk":"Payroll + biometric + health data = triple DPDPA Sensitive Personal Data exposure","Gig & Labour Risk":"HRtech platforms managing gig payrolls face SS Code §113–114 aggregator levy" },
+    "Legaltech":{ "Liability Risk":"AI-legal advice liability; Advocates Act unauthorised-practice risk","Data Privacy Risk":"Privileged-data + client confidentiality creates DPDPA Sensitive Data exposure" },
+  };
+
+  const sW   = SW[p.sector] || {};
+  const sWhy = WHY[p.sector] || {};
+
+  /* ── Citation accumulator ── */
+  const refs = [];
+  const cite = (...sources) => sources.map(s => {
+    if (!refs.includes(s)) refs.push(s);
+    return `<sup class="mcite">[${refs.indexOf(s)+1}]</sup>`;
+  }).join("");
+
+  const mh  = cols => `<tr>${cols.map(c=>`<th>${esc(c)}</th>`).join("")}</tr>`;
+  const act = flag => flag ? ' class="m-active-row"' : "";
+  const catKeys = ["Cyber Technical Risk","Data Privacy Risk","Liability Risk","IP Infringement Risk","Key Person Risk","Governance & Fraud Risk","Property Risk","Regulatory Compliance Risk","ESG & Climate Risk","Geopolitical Risk","Gig & Labour Risk","Policy Velocity Risk","Reputation Risk"];
+  const catShort = { "Cyber Technical Risk":"cyber_technical","Data Privacy Risk":"data_privacy","Liability Risk":"liability","IP Infringement Risk":"ip_infringement","Key Person Risk":"key_person","Governance & Fraud Risk":"governance_fraud","Property Risk":"property","Regulatory Compliance Risk":"regulatory_compliance","ESG & Climate Risk":"esg_climate","Geopolitical Risk":"geopolitical","Gig & Labour Risk":"gig_labour","Policy Velocity Risk":"policy_velocity","Reputation Risk":"reputation" };
+
+  const ts = p.team_size || 10;
+  const tlf = (0.85 + 0.08 * Math.log1p(ts / 10)).toFixed(3);
+  let kpM, tM;
+  if      (ts <=  5) { kpM=1.5;  tM=0.8;  }
+  else if (ts <= 10) { kpM=1.4;  tM=1.0;  }
+  else if (ts <= 20) { kpM=1.2;  tM=1.0;  }
+  else if (ts <= 50) { kpM=1.0;  tM=1.15; }
+  else if (ts <=150) { kpM=0.85; tM=1.30; }
+  else               { kpM=0.7;  tM=1.50; }
+
+  const OPS = {
+    "Digital-only":  { property:"0.4", liability:"0.8", cyber:"1.2", gig:"0.6" },
+    "Physical-only": { property:"1.4", liability:"1.2", cyber:"0.7", gig:"1.3" },
+    "Hybrid":        { property:"1.0", liability:"1.0", cyber:"1.0", gig:"1.0" },
+  };
+  const om = OPS[p.operations] || OPS["Hybrid"];
+
+  const steps = [];
+
+  /* ── STEP 1 ── */
+  steps.push(`<div class="m-step">
+    <div class="m-step-head"><span class="m-step-num">1</span><span class="m-step-title">Base sector weight — ${esc(p.sector||"Unknown")} (scored out of 10 per category)</span></div>
+    <p class="m-p">Each of the 13 risk categories is expert-scored for every sector using Indian regulatory enforcement data, actuarial loss statistics, and research literature. These are the starting weights for <strong>${esc(p.sector||"this sector")}</strong>:</p>
+    <table class="m-table"><thead>${mh(["Risk category","Base weight /10","Key reason"])}</thead><tbody>
+    ${catKeys.map(cat => {
+      const k = catShort[cat]; const w = sW[k]!==undefined ? sW[k] : "—"; const why = sWhy[cat]||"";
+      return `<tr><td>${esc(cat)}</td><td style="text-align:center;font-weight:700;">${w}</td><td style="font-size:11px;color:var(--ink-muted);">${esc(why)}</td></tr>`;
+    }).join("")}
+    </tbody></table>
+    <p class="m-cite">${cite("CERT-In Annual Report 2025 — 29.44 lakh cyber incidents recorded; BFSI ranked #1 targeted sector","IBM Cost of a Data Breach India 2024 — average breach cost ₹19.5 crore (+9% YoY)","RBI Circular Index 2024 — 8+ major circulars; SRO framework; CIMS reporting","BioCatch / RBI Fraud Trends H1 FY25 — fraud losses 8× to ₹21,367 crore","DPDPA 2023 (Act 22 of 2023) — §33 ₹250cr maximum penalty per breach","CERT-In Directions No. 20(3)/2022-CERT-In (28-Apr-2022) — 6-hour breach notification; 180-day log retention")}</p>
+  </div>`);
+
+  /* ── STEP 2 ── */
+  steps.push(`<div class="m-step">
+    <div class="m-step-head"><span class="m-step-num">2</span><span class="m-step-title">Stage multiplier — controls exposure scaling across the funding lifecycle</span></div>
+    <p class="m-p">Later-stage companies have larger attack surfaces, more employees, stronger regulatory scrutiny, and greater investor stakes. The default multiplier scales risk linearly. Governance and Policy Velocity use separate curves.</p>
+    <table class="m-table"><thead>${mh(["Stage","Default multiplier","Logic"])}</thead><tbody>
+      <tr${act(p.funding_stage==="Pre-seed")}><td>Pre-seed</td><td>0.70</td><td>Tiny team, limited exposure surface, minimal regulatory radar</td></tr>
+      <tr${act(p.funding_stage==="Seed")}><td>Seed</td><td>0.90</td><td>Growing but still lean; some contractual exposure emerging</td></tr>
+      <tr${act(p.funding_stage==="Series A")}><td>Series A</td><td>1.10</td><td>Institutional investors + growing team + enterprise customer contracts</td></tr>
+      <tr${act(p.funding_stage==="Series B+")}><td>Series B+</td><td>1.30</td><td>Complex governance, regulatory scrutiny, larger public profile and blast radius</td></tr>
+    </tbody></table>
+    <p class="m-p" style="margin-top:10px;"><strong>Governance</strong> uses a U-shaped curve: 0.90 at Pre-seed (founder concentration), 0.85 at Seed, 1.00 at A, 1.30 at B+ (more stakeholders = more governance surface). <strong>Policy Velocity</strong> is inverted — Pre-seed = 1.10, Series A = 0.95 — because large companies have legal and lobbying buffers; startups feel regulatory shocks directly and immediately.</p>
+    <p class="m-cite">${cite("Swiss Re sigma No. 1/2024 — SME liability exposure scales with company maturity and stakeholder count","SEBI Listing Obligations & Disclosure Requirements Regulations 2015 — Reg 17 board composition obligations at scale")}</p>
+  </div>`);
+
+  /* ── STEP 3 ── */
+  steps.push(`<div class="m-step">
+    <div class="m-step-head"><span class="m-step-num">3</span><span class="m-step-title">Operations multiplier — ${esc(p.operations||"Hybrid")}</span></div>
+    <p class="m-p">How a company operates fundamentally changes which risks dominate. A delivery fleet has opposite cyber-vs-property risk to a cloud-only SaaS app.</p>
+    <table class="m-table"><thead>${mh(["Operations type","Property","Liability","Cyber","Gig & Labour"])}</thead><tbody>
+      ${["Digital-only","Hybrid","Physical-only"].map(op => { const m=OPS[op]; return `<tr${act(op===p.operations)}><td>${esc(op)}</td><td>${m.property}</td><td>${m.liability}</td><td>${m.cyber}</td><td>${m.gig}</td></tr>`; }).join("")}
+    </tbody></table>
+    <p class="m-p" style="margin-top:10px;"><strong>${esc(p.operations||"Hybrid")}</strong>: Cyber ×${om.cyber}, Property ×${om.property}, Liability ×${om.liability}, Gig & Labour ×${om.gig}.</p>
+    <p class="m-cite">${cite("CERT-In Annual Report 2025 — 87% of incidents target cloud-hosted, API-first, and digital-only companies","NDMA Climate Hazard Atlas — physical property incident classification by exposure zone","TRIP Centre IIT Delhi Road Safety Report 2024 — national highways = 36% of all road deaths; physical ops liability")}</p>
+  </div>`);
+
+  /* ── STEP 4 ── */
+  steps.push(`<div class="m-step">
+    <div class="m-step-head"><span class="m-step-num">4</span><span class="m-step-title">Data sensitivity multiplier — ${esc(p.data_sensitivity||"Medium")}</span></div>
+    <p class="m-p">Data sensitivity determines how exposed the startup is to DPDPA penalties, cyber-breach costs, and regulatory compliance obligations. High sensitivity (payments, health, biometrics, KYC) triggers the steepest multipliers.</p>
+    <table class="m-table"><thead>${mh(["Sensitivity level","Cyber multiplier","Data Privacy multiplier","Compliance multiplier"])}</thead><tbody>
+      <tr${act(p.data_sensitivity==="Low")}><td>Low</td><td>0.6</td><td>0.5</td><td>0.8</td></tr>
+      <tr${act(p.data_sensitivity==="Medium")}><td>Medium</td><td>1.0</td><td>1.0</td><td>1.0</td></tr>
+      <tr${act(p.data_sensitivity==="High")}><td>High</td><td>1.4</td><td><strong>1.5</strong></td><td>1.3</td></tr>
+    </tbody></table>
+    <p class="m-p" style="margin-top:10px;">Data Privacy gets the steepest high-sensitivity multiplier (1.5×) because DPDPA §33 imposes ₹250 crore per breach specifically for <em>Sensitive Personal Data</em> — payment data, health records, biometrics, and KYC identifiers.</p>
+    <p class="m-cite">${cite("DPDPA 2023 §33 — ₹250 crore maximum penalty per breach of sensitive personal data","DPDP Rules G.S.R. 846(E) notified 13-Nov-2025 — SDF designation, algorithmic audit obligations, and data localisation","IBM Cost of a Data Breach India 2024 — breaches involving regulated data cost 2.3× more than non-regulated","Surfshark Data Breach Report 2024 — India ranked 5th globally by volume of personal data records breached")}</p>
+  </div>`);
+
+  /* ── STEP 5 ── */
+  steps.push(`<div class="m-step">
+    <div class="m-step-head"><span class="m-step-num">5</span><span class="m-step-title">Dynamic adjusters — profile-specific regulatory signals</span></div>
+    <p class="m-p">These adjusters fire only when specific advanced inputs are declared. Each is derived from a concrete regulation or empirical loss data point — they make the risk score responsive to the startup's actual operating model rather than just its sector label.</p>
+    <table class="m-table"><thead>${mh(["Input signal","Categories elevated","Formula","Legal / actuarial basis"])}</thead><tbody>
+      <tr><td>SDF probability (0–1)</td><td>Data Privacy ↑</td><td>1.0 + (prob × 0.5)</td><td>DPDPA §10 Significant Data Fiduciary designation</td></tr>
+      <tr><td>Chinese investor / supplier %</td><td>Geopolitical ↑</td><td>1.0 + (inv% × 0.8) + (supplier% × 0.4)</td><td>DPIIT Press Note 3 (17-Apr-2020); PN2 2026-series</td></tr>
+      <tr><td>Gig headcount %</td><td>Gig & Labour ↑</td><td>1.0 + (gig% × 1.2)</td><td>SS Code 2020 §§113–114; NITI Aayog Gig Economy 2024</td></tr>
+      <tr><td>Gig state footprint (KA/RJ/BR/JH/TG)</td><td>Gig & Labour ↑ additional</td><td>×1.25 cap if gig% > 10%</td><td>Karnataka / Rajasthan / Bihar / Jharkhand Gig Acts 2023–25</td></tr>
+      <tr><td>Hardware revenue %</td><td>Property ↑ · Compliance ↑</td><td>1.0 + (hw% × 0.6)</td><td>BIS QCO IS 17043/15844 (1-Aug-2024); BEE energy standards</td></tr>
+      <tr><td>EU export %</td><td>ESG & Climate ↑</td><td>1.0 + (eu% × 1.5)</td><td>CBAM Regulation 2023/956 — definitive phase 1-Jan-2026</td></tr>
+      <tr><td>AI in product = Yes</td><td>Policy Velocity ↑ · Compliance ↑</td><td>Fixed ×1.3</td><td>MeitY AI Advisory 15-Mar-2024; SGI Rules 10-Feb-2026; EU AI Act Art 2(1)(c)</td></tr>
+      <tr><td>Founder concentration index</td><td>Governance ↑</td><td>1.0 + (index × 0.5)</td><td>Companies Act 2013 §2(60) officer-in-default; SEBI Listing Reg 17</td></tr>
+      <tr><td>Cumulative raise > ₹2,000cr</td><td>Governance ↑</td><td>+0.30 fixed adder</td><td>Competition Act DVT — ₹2,000cr threshold live 10-Sep-2024</td></tr>
+      <tr><td>Listed customer BRSR dependency</td><td>ESG & Climate ↑</td><td>×1.2</td><td>SEBI BRSR Value-Chain Circular 28-Mar-2025</td></tr>
+      <tr><td>Climate risk zone (Low→Extreme)</td><td>ESG & Climate ↑ · Property ↑</td><td>1.0 / 1.2 / 1.5 / 1.8</td><td>IMD Climate Hazard Atlas; NDMA Guidelines; ND-GAIN Index 2024</td></tr>
+      <tr><td>B2B revenue %</td><td>Liability ↑</td><td>1.0 + (b2b% × 0.4)</td><td>Swiss Re sigma — B2B contractual PI exposure scales with enterprise sales %</td></tr>
+    </tbody></table>
+    <p class="m-cite">${cite("DPIIT Press Note 3 (17-Apr-2020) — government-route FDI from land-border countries including China","NITI Aayog Future of Work: India's Gig Economy 2024 — 7.7M gig workers; projected 23.5M by 2029–30","CBAM Regulation (EU) 2023/956 — Carbon Border Adjustment Mechanism definitive phase from 1-Jan-2026; India among largest payers","MeitY AI Advisory 15-Mar-2024 (revised 3-Apr-2024); SafetyNet for Generative AI (SGI) Rules 10-Feb-2026","Competition (Amendment) Act 2023 — Deal Value Threshold ₹2,000cr live 10-Sep-2024","SEBI BRSR Core + Value-Chain Circular 28-Mar-2025 — ESG obligations push-through to supplier startups","ND-GAIN Index 2024 — India ranked 20th most climate-vulnerable nation globally")}</p>
+  </div>`);
+
+  /* ── STEP 6 ── */
+  steps.push(`<div class="m-step">
+    <div class="m-step-head"><span class="m-step-num">6</span><span class="m-step-title">Team-size modifiers — ${ts} people</span></div>
+    <p class="m-p"><strong>Team liability factor</strong> (applied to Liability and Reputation): <code>0.85 + 0.08 × ln(1 + team_size ÷ 10)</code><br>
+    For ${ts} people → <code>0.85 + 0.08 × ln(${(1+ts/10).toFixed(2)}) = <strong>${tlf}</strong></code><br>
+    Log-scaling reflects that liability losses grow sub-linearly with headcount — doubling people does not double claims.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px;">
+      <table class="m-table">
+        <caption class="m-caption">Key Person multiplier — fewer people = higher concentration risk</caption>
+        <thead>${mh(["Team size","kp_mult"])}</thead><tbody>
+          ${[["≤ 5","1.5",ts<=5],["6–10","1.4",ts>=6&&ts<=10],["11–20","1.2",ts>=11&&ts<=20],["21–50","1.0",ts>=21&&ts<=50],["51–150","0.85",ts>=51&&ts<=150],["151+","0.7",ts>150]].map(([r,v,a])=>`<tr${a?' class="m-active-row"':""}><td>${r}</td><td><strong>${v}</strong></td></tr>`).join("")}
+        </tbody>
+      </table>
+      <table class="m-table">
+        <caption class="m-caption">Property / Gig multiplier — more people = more assets at risk</caption>
+        <thead>${mh(["Team size","team_mult"])}</thead><tbody>
+          ${[["≤ 10","0.8–1.0",ts<=10],["11–20","1.0",ts>=11&&ts<=20],["21–50","1.15",ts>=21&&ts<=50],["51–150","1.30",ts>=51&&ts<=150],["151+","1.50",ts>150]].map(([r,v,a])=>`<tr${a?' class="m-active-row"':""}><td>${r}</td><td><strong>${v}</strong></td></tr>`).join("")}
+        </tbody>
+      </table>
+    </div>
+    <p class="m-cite">${cite("Swiss Re sigma No. 1/2024 — corporate liability losses follow log(headcount) growth, not linear; loss-development pattern analysis","ESIC Act 1948 — statutory health insurance threshold: 10+ employees in ESIC-notified areas","Sexual Harassment of Women at Workplace Act 2013 §4 — Internal Committee mandatory for 10+ employees")}</p>
+  </div>`);
+
+  /* ── STEP 7 ── */
+  const sortOrder = ["Cyber Technical Risk","Data Privacy Risk","Regulatory Compliance Risk","Governance & Fraud Risk","Policy Velocity Risk","Geopolitical Risk","Reputation Risk","Liability Risk","Key Person Risk","IP Infringement Risk","ESG & Climate Risk","Gig & Labour Risk","Property Risk"];
+  const sortedCats = sortOrder.filter(k=>k in scores).concat(Object.keys(scores).filter(k=>!sortOrder.includes(k)));
+  steps.push(`<div class="m-step">
+    <div class="m-step-head"><span class="m-step-num">7</span><span class="m-step-title">Scale to 100 — final scores for ${esc(p.startup_name||"this startup")}</span></div>
+    <p class="m-p">Formula: <code>score = base_weight × (stage_mult) × (ops_mult) × (data_mult) × (dynamic_adjusters) × 7.5</code>, capped at 100.<br>
+    <strong>Why 7.5?</strong> A typical mid-risk profile (sector base ≈ 7, Seed stage 0.9, medium data, no adjusters) computes to 7 × 0.9 × 1.0 × 7.5 = 47.25 — anchoring the scale around 50 for average inputs, with room for high-risk profiles to reach 100.</p>
+    <table class="m-table"><thead>${mh(["Risk category","Final score","Severity"])}</thead><tbody>
+    ${sortedCats.map(cat => {
+      const s=scores[cat]; const sev=s>=70?"🔴 Critical":s>=40?"🟡 Elevated":"🟢 Low";
+      return `<tr><td>${esc(cat)}</td><td style="text-align:center;font-weight:700;">${s}/100</td><td>${sev}</td></tr>`;
+    }).join("")}
+    <tr style="border-top:2px solid var(--border);"><td><strong>Overall (average of 13 categories)</strong></td><td style="text-align:center;font-weight:700;">${result.overall||"—"}/100</td><td>${(result.overall||0)>=70?"🔴 High risk":(result.overall||0)>=45?"🟡 Medium-High":"🟢 Manageable"}</td></tr>
+    </tbody></table>
+  </div>`);
+
+  /* ── STEP 8 ── */
+  const PRM = { "cyber_liability":"Cyber Technical (1.0) · Data Privacy (0.7) · Regulatory Compliance (0.3)","dno_liability":"Liability (0.7) · Governance & Fraud (0.6) · Regulatory Compliance (0.5)","professional_indemnity":"Liability (1.0) · Cyber Technical (0.2) · IP Infringement (0.3)","employee_health":"Key Person (0.5) · Liability (0.2) · Gig & Labour (0.3)","group_pa":"Key Person (0.6) · Liability (0.2) · Gig & Labour (0.4)","employees_comp":"Liability (0.6) · Regulatory Compliance (0.6) · Property (0.2) · Gig & Labour (0.5)","property_fire":"Property (1.0) · ESG & Climate (0.3)","business_edge":"Property (0.7) · Liability (0.4)","public_liability":"Liability (0.8) · Property (0.3)","product_liability":"Liability (0.9) · Regulatory Compliance (0.3) · IP Infringement (0.2)","marine_transit":"Property (0.8) · Geopolitical (0.3)","key_person":"Key Person (1.0) · Governance & Fraud (0.3)","employment_practices":"Liability (0.6) · Regulatory Compliance (0.6) · Gig & Labour (0.5)","crime_fidelity":"Cyber Technical (0.3) · Liability (0.4) · Governance & Fraud (0.6) · Regulatory Compliance (0.3)","comprehensive_general_liability":"Liability (0.9) · Regulatory Compliance (0.3)","business_interruption":"Property (0.5) · Cyber Technical (0.3) · Liability (0.2) · Policy Velocity (0.3)","property_all_risk":"Property (1.0) · Liability (0.2) · ESG & Climate (0.3)","electronic_equipment":"Property (0.7) · Cyber Technical (0.2)","machinery_breakdown":"Property (0.8) · Regulatory Compliance (0.1)","motor_fleet":"Liability (0.8) · Property (0.6) · Gig & Labour (0.4)","trade_credit":"Regulatory Compliance (0.4) · Liability (0.5) · Geopolitical (0.3)","drone_insurance":"Liability (0.7) · Property (0.5) · Regulatory Compliance (0.4)","msme_suraksha":"Property (0.6) · Liability (0.4)","enterprise_secure":"Property (0.8) · Liability (0.4) · Regulatory Compliance (0.2) · ESG & Climate (0.2)","contractors_all_risk":"Property (0.9) · Liability (0.5)","clinical_trials":"Regulatory Compliance (0.8) · Liability (0.6)","gadget_equipment":"Property (0.5) · Cyber Technical (0.2)","money_insurance":"Property (0.4) · Liability (0.3)" };
+  steps.push(`<div class="m-step">
+    <div class="m-step-head"><span class="m-step-num">8</span><span class="m-step-title">Product fit score — risk-map weighted average</span></div>
+    <p class="m-p">Each insurance product has a <em>risk map</em> — weighted links to the risk categories it addresses. The fit score is the weighted average of only those linked categories:<br>
+    <code>fit_score = Σ(risk_category_score × weight) ÷ Σ(weights)</code><br>
+    This means a product only scores high if the startup actually has elevated risk in the categories that product covers. Property Fire cannot score high for a digital-only startup because Property Risk = low → the dot-product stays low regardless of sector.</p>
+    <table class="m-table"><thead>${mh(["Product","Risk categories it addresses (weight)"])}</thead><tbody>
+    ${Object.entries(PRM).map(([k,v])=>`<tr><td style="font-size:11px;font-weight:600;">${esc(k.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()))}</td><td style="font-size:11px;color:var(--ink-muted);">${esc(v)}</td></tr>`).join("")}
+    </tbody></table>
+    <p class="m-cite">${cite("IRDAI Product Regulations — insurable interest doctrine defines which products can be legally bound for which insured categories","Insurance Act 1938 §2(6D) — definition of insurable interest in Indian insurance law")}</p>
+  </div>`);
+
+  /* ── STEP 9 ── */
+  steps.push(`<div class="m-step">
+    <div class="m-step-head"><span class="m-step-num">9</span><span class="m-step-title">Sector exclusions — hard filter before scoring</span></div>
+    <p class="m-p">Products that are structurally inapplicable to <strong>${esc(p.sector||"this sector")}</strong> are removed from the pool before any scoring. They cannot appear in recommendations regardless of how the scores fall. This prevents absurd outputs (a neobank being recommended a clinical trials policy) and mirrors IRDAI eligibility rules.</p>
+    <p class="m-p">Exclusions are static per sector: e.g. Fintech excludes <em>clinical_trials, product_liability, marine_transit, motor_fleet, drone_insurance, contractors_all_risk, machinery_breakdown, msme_suraksha, money_insurance</em>.</p>
+    <p class="m-cite">${cite("IRDAI Regulations on product eligibility — insurable interest doctrine","Insurance Act 1938 §2(6D) — insurable interest requirement","IRDAI (Non-Life Insurance Products) Regulations 2019 — eligible insured categories per product class")}</p>
+  </div>`);
+
+  /* ── STEP 10 ── */
+  steps.push(`<div class="m-step">
+    <div class="m-step-head"><span class="m-step-num">10</span><span class="m-step-title">Sector override boosts — structurally essential products (+40%, floor 50)</span></div>
+    <p class="m-p">Certain products are non-negotiable for a sector because regulation mandates them or real-world loss data makes them unavoidable. These receive <code>score × 1.4</code> with a guaranteed floor of 50 — ensuring they always surface, even if the startup's raw risk profile is mild in those categories.</p>
+    <p class="m-p">Examples:
+      <strong>Fintech</strong> → Crime & Fidelity, D&O, Trade Credit (BharatPe ₹81.3cr fraud, Paytm §35A halt).
+      <strong>Logistics</strong> → Marine Transit, Public Liability, Motor Fleet (MV Act §149 unlimited TP liability).
+      <strong>D2C</strong> → Product Liability, Marine Transit, MSME Suraksha (CPA 2019 §84 strict product liability).
+    </p>
+    <p class="m-cite">${cite("EOW Mumbai — BharatPe FIR May-2023: ₹81.3 crore fake-vendor fraud via finance team","RBI Press Release prid=57345 — Paytm Payments Bank §35A customer onboarding halt 31-Jan-2024","Byju's NCLT admission 16-Jul-2024; US Bankruptcy Court $1.07bn judgment 20-Nov-2025","MV Act 1988 §149 — unlimited third-party liability for motor vehicles on Indian roads","Consumer Protection Act 2019 §84 — strict product liability on manufacturers and platforms")}</p>
+  </div>`);
+
+  /* ── STEP 11 ── */
+  const d_and_o_active = ["Series A","Series B+"].includes(p.funding_stage);
+  steps.push(`<div class="m-step">
+    <div class="m-step-head"><span class="m-step-num">11</span><span class="m-step-title">Stage boosts — D&O for Series A / B+</span></div>
+    <p class="m-p">At Series A and Series B+, D&O Liability receives a compliance-adjusted additional boost:<br>
+    <code>compliance_factor = 1.0 + (Regulatory Compliance Risk ÷ 200)</code><br>
+    <code>new_score = score × (1 + 0.45 × compliance_factor)</code> with a floor of 55.</p>
+    <p class="m-p">Current stage: <strong>${esc(p.funding_stage||"—")}</strong> → D&O stage boost is ${d_and_o_active ? "<strong style='color:var(--red)'>ACTIVE</strong>" : "<em>not triggered (Seed / Pre-seed)</em>"}.</p>
+    <p class="m-p">The compliance_factor link means startups in highly regulated sectors (Fintech, Healthtech) get a larger D&O boost than those in lightly regulated ones — reflecting the higher personal liability exposure from regulatory enforcement.</p>
+    <p class="m-cite">${cite("NVCA Model Term Sheet 2024 — D&O insurance standard requirement post-priced institutional round","SEBI Listing Obligations & Disclosure Requirements Regulations 2015 — Reg 17 mandatory independent directors","Companies Act 2013 §2(60) — 'officer in default' personal liability for director-level decisions","RBI Fit & Proper Criteria 2024 — MD/CEO approval required; Paytm precedent shows board-level personal exposure is real")}</p>
+  </div>`);
+
+  /* ── STEP 12 ── */
+  steps.push(`<div class="m-step">
+    <div class="m-step-head"><span class="m-step-num">12</span><span class="m-step-title">Team-size boosts — thresholds that unlock specific products</span></div>
+    <table class="m-table"><thead>${mh(["Trigger","Product boosted","Boost applied","Active for ${ts} people?"])}</thead><tbody>
+      <tr${act(ts>=10)}><td>Team ≥ 10</td><td>Employee Health Insurance</td><td>×1.20, guaranteed floor 40</td><td>${ts>=10?"✓ <strong>YES</strong>":"✗ Not yet"}</td></tr>
+      <tr${act(ts>=25)}><td>Team ≥ 25</td><td>Employment Practices Liability</td><td>×1.15, guaranteed floor 38</td><td>${ts>=25?"✓ <strong>YES</strong>":"✗ Not yet"}</td></tr>
+    </tbody></table>
+    <p class="m-cite">${cite("ESIC Act 1948 §2(12) and §38 — compulsory insurance for employees in ESIC-notified establishments with 10+ workers","Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act 2013 §4 — Internal Committee mandatory for 10+ employees","ICLG India Employment Law 2024 — wrongful termination and discrimination claims scale proportionally with headcount")}</p>
+  </div>`);
+
+  /* ── STEP 13 ── */
+  steps.push(`<div class="m-step">
+    <div class="m-step-head"><span class="m-step-num">13</span><span class="m-step-title">Regulatory trigger boosts — advanced profile signals</span></div>
+    <p class="m-p">These boosts fire only when specific inputs are declared. Each maps directly to a statutory obligation or documented loss event — they surface the right product at the right moment rather than relying on generic sector logic.</p>
+    <table class="m-table"><thead>${mh(["Trigger condition","Products boosted","Boost","Legal / actuarial basis"])}</thead><tbody>
+      <tr><td>Gig workers > 30% of headcount</td><td>Employees Comp, Employment Practices, Group PA</td><td>×1.45, floor 55</td><td>SS Code 2020 §§113–114; MV Aggregator Guidelines 2025</td></tr>
+      <tr><td>Hardware revenue > 30%</td><td>Product Liability</td><td>×1.50, floor 60</td><td>CPA 2019 §84; BIS QCO IS 17043/15844 (1-Aug-2024)</td></tr>
+      <tr><td>EU exports > 10% of revenue</td><td>Trade Credit, Marine Transit</td><td>×1.35, floor 50</td><td>CBAM Regulation 2023/956 — definitive phase 1-Jan-2026</td></tr>
+      <tr><td>Chinese BO > 10% or raise > ₹2,000cr</td><td>D&O Liability, Crime & Fidelity</td><td>×1.40, floor 55</td><td>DPIIT Press Note 3 (2020); Competition Act DVT 10-Sep-2024</td></tr>
+      <tr><td>AI in product = Yes</td><td>Professional Indemnity</td><td>×1.40, floor 55</td><td>MeitY AI Advisory 15-Mar-2024; SGI Rules 10-Feb-2026; EU AI Act Art 2(1)(c)</td></tr>
+      <tr><td>RBI registration present (NBFC / PA / PPI / RIA)</td><td>D&O Liability, Business Interruption</td><td>×1.45, floor 60</td><td>RBI §35A direction — Paytm Jan-2024; Kotak Mahindra Apr-2024</td></tr>
+      <tr><td>Listed customer BRSR dependency = Yes</td><td>Enterprise Secure Package</td><td>×1.25, floor 45</td><td>SEBI BRSR Value-Chain Circular 28-Mar-2025</td></tr>
+    </tbody></table>
+    <p class="m-cite">${cite("Social Security Code 2020 §§113–114 — gig aggregator mandatory contribution to social security fund","MoRTH Motor Vehicle Aggregator Guidelines 2025 — ₹5 lakh health cover + ₹10 lakh term life per driver, mandatory","Consumer Protection Act 2019 §84 — manufacturer / platform strict product liability","BIS Quality Control Order IS 17043 (August 2024) — mandatory BIS certification for electronics sold in India","DPIIT Press Note 3 (17-Apr-2020) — government-route FDI approval for >10% beneficial ownership from land-border countries","Competition (Amendment) Act 2023 — Deal Value Threshold: ₹2,000cr cumulative raises trigger CCI filing","RBI Press Release prid=57345 — Paytm PB §35A halt 31-Jan-2024; RBI Action on Kotak Mahindra 24-Apr-2024","SEBI BRSR Value-Chain Circular 28-Mar-2025 — ESG disclosure obligations pushed to top 250 listed companies' key suppliers")}</p>
+  </div>`);
+
+  /* ── STEP 14 ── */
+  steps.push(`<div class="m-step">
+    <div class="m-step-head"><span class="m-step-num">14</span><span class="m-step-title">Sort, top 5, mandatory append</span></div>
+    <p class="m-p">After all boosts, all eligible products are sorted by final fit score descending. The top 5 become the primary recommendations. Mandatory appends then ensure critical products are never missed, regardless of ranking:</p>
+    <ul class="m-list">
+      <li>Sector override products not already in top 5 → appended as <strong>mandatory</strong></li>
+      <li>D&O Liability → mandatory append for Series A / B+ if not in top 5</li>
+      <li>Employee Health → always appended as mandatory (ESIC statutory obligation)</li>
+      <li>Healthtech MedDevice SaMD sub-sector → Clinical Trials + Product Liability mandatory (CDSCO SaMD Guidance 21-Oct-2025)</li>
+      <li>Logistics / Foodtech + gig headcount > 20% → Group PA + Employees Comp mandatory (MV Aggregator Guidelines 2025)</li>
+    </ul>
+    <p class="m-cite">${cite("CDSCO SaMD Draft Guidance 21-Oct-2025 — Class B/C/D AI diagnostic devices require mandatory licensing before commercial deployment","ESIC Act 1948 §38 — compulsory registration and insurance in notified areas")}</p>
+  </div>`);
+
+  /* ── STEP 15 ── */
+  steps.push(`<div class="m-step">
+    <div class="m-step-head"><span class="m-step-num">15</span><span class="m-step-title">Priority label — final classification of each recommendation</span></div>
+    <table class="m-table" style="max-width:380px;"><thead>${mh(["Fit score","Label","Meaning"])}</thead><tbody>
+      <tr><td>≥ 70</td><td><strong>🔴 Critical</strong></td><td>Cover immediately — uninsured exposure is material and likely</td></tr>
+      <tr><td>40–69</td><td><strong>🟡 Recommended</strong></td><td>Strongly consider — risk is real but not existential without it</td></tr>
+      <tr><td>&lt; 40</td><td><strong>🟢 Optional</strong></td><td>Good to have — low probability or low severity for this profile</td></tr>
+    </tbody></table>
+    ${recs.length ? `<p class="m-p" style="margin-top:14px;"><strong>Actual product scores for ${esc(p.startup_name||"this startup")}:</strong></p>
+    <table class="m-table"><thead>${mh(["Product","Fit score","Priority"])}</thead><tbody>
+    ${recs.map(r=>`<tr><td>${esc(r.name||r.key)}</td><td style="text-align:center;font-weight:700;">${r.score}</td><td>${r.priority==="Critical"?"🔴 Critical":r.priority==="Recommended"?"🟡 Recommended":"🟢 Optional"}</td></tr>`).join("")}
+    </tbody></table>` : ""}
+  </div>`);
+
+  /* ── STEP 16 ── */
+  steps.push(`<div class="m-step">
+    <div class="m-step-head"><span class="m-step-num">16</span><span class="m-step-title">Bundle eligibility gates — hard filters applied before bundle scoring</span></div>
+    <p class="m-p">Every bundle in the catalog declares which sectors and stages it is valid for. The engine eliminates non-matching bundles before any scoring — they receive no score and appear only as alternatives if the best match is weak.</p>
+    <p class="m-p">Additional gates from <code>research_config.json</code>:</p>
+    <ul class="m-list">
+      <li><strong>Asset band</strong> — a fab/plant bundle (Industrial All Risk) won't be offered to an <em>asset_light</em> company</li>
+      <li><strong>SI cap / floor</strong> — Bharat Sookshma Udyam: up to ₹5cr insurable assets; Bharat Laghu Udyam: ₹5–50cr; Enterprise Secure: Series B+ only</li>
+      <li><strong>Hard decline</strong> — Gaming.Real_Money sub-sector: blanket prohibition under Online Gaming Act 2025 §5; all products declined</li>
+    </ul>
+    ${bundle ? `<p class="m-p">Matched bundle for this startup: <strong>${esc(bundle.name)}</strong> — eligible stages: ${esc((bundle.eligible_stages||[]).join(", "))}.</p>` : ""}
+    <p class="m-cite">${cite("Online Gaming Act 2025 (assented 22-Aug-2025) §5 — blanket prohibition on real-money gaming without SRO registration","IRDAI MSME Suraksha Kavach Guidelines — eligible insurable asset value ceiling","Bharat Laghu Udyam Suraksha Policy — IRDAI-standardised product for assets ₹5cr–₹50cr")}</p>
+  </div>`);
+
+  /* ── STEP 17 ── */
+  steps.push(`<div class="m-step">
+    <div class="m-step-head"><span class="m-step-num">17</span><span class="m-step-title">Bundle coverage score — dot-product of bundle's covered risks × startup's actual scores</span></div>
+    <p class="m-p">Each bundle declares which risk categories it addresses (<code>covered_risks</code>). The coverage score is a weighted dot-product:<br>
+    <code>coverage_score = Σ (risk_weight[category] × startup_score[category])</code> for each category in the bundle's covered_risks list.</p>
+    <p class="m-p">The startup's highest-scoring categories dominate the sum. A bundle that covers Cyber + Data Privacy will score far higher for a Fintech (Cyber=100, Data Privacy=100) than for an Agritech (Cyber=27, Data Privacy=32).</p>
+    ${bundle ? `<p class="m-p"><strong>${esc(bundle.name)}</strong> covers: <em>${esc((bundle.covered_risks||[]).join(" · "))}</em>.</p>` : ""}
+    <p class="m-p">Risk category weights are loaded from <code>research_config.json</code> — calibrated using IRDAI Annual Report segment premiums, Swiss Re sigma pricing, and ICICI Lombard's historical commercial lines data.</p>
+    <p class="m-cite">${cite("IRDAI Annual Report FY2023–24 — gross direct premium by product segment; fire, liability, health, marine, engineering","Swiss Re sigma No. 1/2024 — global non-life insurance market sizing and pricing methodology","ICICI Lombard General Insurance Annual Report FY2023–24 — segment premium growth and loss ratios")}</p>
+  </div>`);
+
+  /* ── STEP 18 ── */
+  const stageKey = (p.funding_stage==="Pre-seed"||p.funding_stage==="Seed")?"seed":p.funding_stage==="Series A"?"series_a":"series_b";
+  steps.push(`<div class="m-step">
+    <div class="m-step-head"><span class="m-step-num">18</span><span class="m-step-title">Composite multipliers — sector × stage × asset type × geography</span></div>
+    <p class="m-p">The raw coverage score is scaled by four layers of multipliers compounded per risk category:<br>
+    <code>composite_mult = sector_mult × stage_mult × asset_mult × geo_mult</code></p>
+    <table class="m-table"><thead>${mh(["Layer","Config key","What it adjusts"])}</thead><tbody>
+      <tr><td>Sector multiplier</td><td><code>sector_multipliers[${esc(p.sector||"sector")}]</code></td><td>Elevates / dampens specific risk weights for this industry across all bundles</td></tr>
+      <tr><td>Stage multiplier</td><td><code>stage_multipliers[${stageKey}]</code></td><td>Scales for company maturity — early-stage has lower exposure surface</td></tr>
+      <tr><td>Asset multiplier</td><td><code>asset_multipliers[asset_light / lab / warehouse / fab_or_plant]</code></td><td>Physical asset intensity — digital startup = lower property weights in bundle scoring</td></tr>
+      <tr><td>Geo multiplier</td><td><code>geo_multipliers[state]</code></td><td>Scalar applied uniformly — e.g. Karnataka companies face higher gig-law multiplier</td></tr>
+    </tbody></table>
+    <p class="m-cite">${cite("NITI Aayog Gig Economy Report 2024 — Karnataka, Rajasthan, Bihar, Jharkhand, Telangana ranked most aggressive on gig-worker legislation","IMD Climate Hazard Atlas — state-level flood, cyclone, and heat zone classification for property underwriting")}</p>
+  </div>`);
+
+  /* ── STEP 19 ── */
+  steps.push(`<div class="m-step">
+    <div class="m-step-head"><span class="m-step-num">19</span><span class="m-step-title">Revenue score — commercial attractiveness of each bundle for ICICI Lombard</span></div>
+    <p class="m-p">SPARC also scores each bundle by its market opportunity — ensuring what gets recommended is commercially viable to pitch and bind, not just theoretically risk-appropriate:<br>
+    <code>revenue_score = 100 × (0.35×TAM_norm + 0.25×adoption×margin×40 + 0.20×trajectory + 0.20×0.7)</code></p>
+    <table class="m-table"><thead>${mh(["Component","Weight","Data source"])}</thead><tbody>
+      <tr><td>Startup-addressable TAM (normalised)</td><td>35%</td><td>IRDAI segment premiums + Swiss Re sigma SME market estimates</td></tr>
+      <tr><td>Adoption rate × underwriter margin</td><td>25%</td><td>ICICI Lombard segment take-up and loss ratio data (FY24)</td></tr>
+      <tr><td>Trajectory (up / flat / down)</td><td>20%</td><td>IRDAI segment premium CAGR FY22–FY24</td></tr>
+      <tr><td>Quality baseline (fixed 0.7)</td><td>20%</td><td>Minimum confidence floor for all active products in the catalog</td></tr>
+    </tbody></table>
+    <p class="m-p">This prevents the engine from recommending bundles that are technically eligible but commercially marginal — an important constraint for an RM-facing sales tool.</p>
+    <p class="m-cite">${cite("IRDAI Annual Report FY2023–24 — segment premium growth rates by product class","Swiss Re sigma No. 1/2024 — global SME commercial lines market size and growth","ICICI Lombard General Insurance Annual Report FY2023–24 — commercial lines segment data")}</p>
+  </div>`);
+
+  /* ── STEP 20 ── */
+  steps.push(`<div class="m-step">
+    <div class="m-step-head"><span class="m-step-num">20</span><span class="m-step-title">Final bundle score — coverage + revenue + adoption, penalised by actuarial risk</span></div>
+    <p class="m-p"><code>final_score = (0.45 × coverage_score + 0.30 × (revenue_score÷100) + 0.25 × adoption) × (2 − risk_multiplier)</code></p>
+    <table class="m-table"><thead>${mh(["Weight","Component","What it rewards"])}</thead><tbody>
+      <tr><td><strong>45%</strong></td><td>Coverage score</td><td>Risk-appropriateness — bundle's covered_risks align with this startup's highest-scoring categories</td></tr>
+      <tr><td><strong>30%</strong></td><td>Revenue score</td><td>Market opportunity — TAM × adoption × margin; commercially viable to pitch and bind</td></tr>
+      <tr><td><strong>25%</strong></td><td>Adoption rate</td><td>Proven take-up in this sector/stage — a bundle nobody buys will not help the RM</td></tr>
+      <tr><td colspan="3"><em>× (2 − risk_multiplier)</em>: Risk penalty — bundles with higher actuarial loss ratios score lower, nudging toward cleanly bindable products</td></tr>
+    </tbody></table>
+    ${bundle ? `<p class="m-p" style="margin-top:10px;"><strong>Recommended bundle: ${esc(bundle.name)}</strong>${bundle.final_score!=null?` — final score: ${bundle.final_score}`:""} · fit: ${bundle.fit_pct||"—"}%</p>` : ""}
+    <p class="m-cite">${cite("Swiss Re sigma No. 1/2024 — actuarial loss ratio benchmarks by commercial lines segment","IRDAI Annual Report FY2023–24 — product-level incurred claims ratios")}</p>
+  </div>`);
+
+  /* ── STEP 21 ── */
+  steps.push(`<div class="m-step">
+    <div class="m-step-head"><span class="m-step-num">21</span><span class="m-step-title">Legacy fit % — human-readable match strength shown on the bundle card</span></div>
+    <p class="m-p">The fit percentage displayed on the bundle card is computed separately from the ranking score. It provides a simpler signal for RM communication:<br>
+    <code>fit_pct = (sector match → +40) + (stage match → +30) + 30 × (avg top-3 risk scores ÷ 100) × relevance_factor</code><br>
+    Where <code>relevance_factor = 1.0</code> if sector is in the bundle's eligible set, <code>0.55</code> if it is a fallback nearest-match.</p>
+    ${bundle ? `<p class="m-p"><strong>${esc(bundle.name)}</strong> fit: <strong>${bundle.fit_pct||"—"}%</strong> (${bundle.match_strength||"strong"} match).</p>` : ""}
+    <div class="m-insight">
+      <strong>Core insight:</strong> The engine never hardcodes which bundle a sector receives. The recommendation emerges from the math — risk scores × coverage weights × eligibility gates × commercial signal — and arrives at the same answer for the same profile every time. Every output is traceable back to a specific data point, regulation, or actuarial source listed in the references below.
+    </div>
+  </div>`);
+
+  /* ── REFERENCES ── */
+  const refsHtml = `<div class="m-step m-citations">
+    <div class="m-step-head"><span class="m-step-num" style="background:var(--ink-muted);min-width:44px;">Ref</span><span class="m-step-title">Research references & data sources</span></div>
+    <ol class="m-ref-list">${refs.map(r=>`<li>${esc(r)}</li>`).join("")}</ol>
+  </div>`;
+
+  return `<div class="methodology-wrap">${steps.join("")}${refsHtml}</div>`;
 }
 
 /* ─── RESULT HELPERS ─────────────────────────────────────────── */

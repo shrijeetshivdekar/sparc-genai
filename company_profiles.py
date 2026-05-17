@@ -507,7 +507,10 @@ def search_company_profiles(query: str = "", limit: int = 10) -> list[dict]:
                 "team_size": profile["team_size"],
                 "operations": profile["operations"],
         })
-    rows = sorted(prefix_rows, key=lambda item: item["name"].lower())
+    if q:
+        rows = sorted(prefix_rows, key=lambda item: (len(_slug(item["name"])), item["name"].lower()))
+    else:
+        rows = sorted(prefix_rows, key=lambda item: item["name"].lower())
     return rows[: max(1, min(limit, len(COMPANY_PROFILES)))]
 
 

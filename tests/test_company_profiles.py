@@ -7,7 +7,7 @@ from company_profiles import company_profile_count, get_company_profile, search_
 
 
 def test_seed_database_contains_100_company_profiles():
-    assert company_profile_count() == 120
+    assert company_profile_count() == 130
 
 
 def test_company_profile_search_and_exact_lookup():
@@ -23,8 +23,8 @@ def test_company_profile_search_and_exact_lookup():
 
 
 def test_company_profile_search_can_return_full_dropdown_and_prefix_matches():
-    all_rows = search_company_profiles("", limit=120)
-    assert len(all_rows) == 120
+    all_rows = search_company_profiles("", limit=company_profile_count())
+    assert len(all_rows) == company_profile_count()
     assert all_rows == sorted(all_rows, key=lambda item: item["name"].lower())
 
     matches = search_company_profiles("A", limit=100)
@@ -34,7 +34,7 @@ def test_company_profile_search_can_return_full_dropdown_and_prefix_matches():
 
 
 def test_company_profile_database_has_seed_and_pre_seed_demos():
-    all_rows = search_company_profiles("", limit=120)
+    all_rows = search_company_profiles("", limit=company_profile_count())
     stages = {row["funding_stage"] for row in all_rows}
 
     assert {"Seed", "Pre-seed"} <= stages

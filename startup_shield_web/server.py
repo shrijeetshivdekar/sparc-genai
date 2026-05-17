@@ -1610,6 +1610,7 @@ def _legacy_score(raw):
         "outreach_prompts": outreach,
         "outreach_source": outreach_source,
         "outreach_error": outreach_error,
+        "rm": {k: v for k, v in load_contacts().items()},
         "gemini_enabled": gemini_enabled(),
         # ── New fields (appended; never replaces existing keys) ──────────
         "revenue_breakdown":         analytics.get("revenue_breakdown", []),
@@ -1759,6 +1760,20 @@ def _v2_score(raw):
         scoped_triggers,
         payload.get("coverage_roadmap", []),
     ))
+
+    # Re-compute outreach with the v2 bundle so the email matches the recommended bundle.
+    # _legacy_score() already ran outreach_prompts() with the legacy bundle name, which can
+    # differ from the v2 winner — this overwrites that stale result.
+    outreach, outreach_source, outreach_error = outreach_prompts(
+        payload["profile"],
+        payload["scores"],
+        payload.get("recommendations", []),
+        payload["bundle_match"],
+        payload["profile"].get("size_bucket", "mid"),
+    )
+    payload["outreach_prompts"] = json_safe(outreach)
+    payload["outreach_source"] = outreach_source
+    payload["outreach_error"] = outreach_error
 
     return payload
 

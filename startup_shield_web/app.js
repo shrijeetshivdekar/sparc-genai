@@ -277,6 +277,7 @@ window.importProfileFromJson = (analyse = false) => {
     const { profile, importedKeys, ignored } = normalizeImportedProfile(parsed);
     state.profile = profile;
     state.quoteInputs = {};
+    state.quoteSuggestionsPreFilled = false;
     state.section = 0;
     state.maxVisitedSection = SECTIONS.length - 1;
     saveDraftProfile();
@@ -294,6 +295,7 @@ window.importProfileFromJson = (analyse = false) => {
 function applyImportedCompanyProfile(profile, analyse = false) {
   state.profile = { ...structuredClone(state.meta?.defaults || {}), ...(profile || {}) };
   state.quoteInputs = {};
+  state.quoteSuggestionsPreFilled = false;
   state.section = 0;
   state.maxVisitedSection = SECTIONS.length - 1;
   saveDraftProfile();
@@ -1100,6 +1102,7 @@ async function runCustomerAnalysis() {
   renderCustomerLoading();
   const mappedProfile = mapCustomerToUnderwritingProfile(state.customerProfile);
   state.quoteInputs = {};
+  state.quoteSuggestionsPreFilled = false;
   try {
     const res = await fetch("/api/analyze", {
       method: "POST",
@@ -2040,6 +2043,7 @@ function updateSectionScorePreview() {
 async function runAnalysis() {
   renderLoading();
   state.quoteInputs = {};
+  state.quoteSuggestionsPreFilled = false;
   try {
     const res = await fetch("/api/analyze", {
       method: "POST",
@@ -2142,7 +2146,7 @@ function renderResults(result) {
 
       <!-- Section nav -->
       <nav class="section-nav">
-        ${[["bundle","Bundle"],["outreach","Outreach"],["products","Products"],["risk","Risk scores"],["triggers","Actions"]].map(([id,l],i)=>`<button class="snav-pill${i===0?" snav-active":""}" onclick="showTab('${id}')" id="snav-${id}">${l}</button>`).join("")}
+        ${[["bundle","Bundle"],["outreach","Outreach"],["quote","Estimated Quote"],["risk","Risk scores"],["triggers","Actions"]].map(([id,l],i)=>`<button class="snav-pill${i===0?" snav-active":""}" onclick="showTab('${id}')" id="snav-${id}">${l}</button>`).join("")}
       </nav>
 
       <!-- KPI strip — always visible -->
@@ -2167,22 +2171,6 @@ function renderResults(result) {
           ${renderBundleAlternatives(result.bundle_alternatives)}
           ${renderV2Insights(result)}
         </div>
-        ${renderDualPricingPanel(result)}
-        ${result.premium_summary ? `
-        <div class="premium-card">
-          <div class="premium-card-label">Total premium potential</div>
-          <div class="premium-card-value">INR ${result.premium_summary.min_lakh} - ${result.premium_summary.max_lakh} lakhs</div>
-          <div class="premium-card-note">Across ${result.premium_summary.count} products · ${esc(result.premium_footnote||"Indicative estimates only.")}</div>
-        </div>` : ""}
-      </div>
-
-      <!-- ── TAB: Outreach ── -->
-      <div class="tab-panel" id="tab-outreach" style="display:none">
-        ${renderOutreach(result.outreach_prompts, result.outreach_source, result.outreach_error)}
-      </div>
-
-      <!-- ── TAB: Products ── -->
-      <div class="tab-panel" id="tab-products" style="display:none">
         <div class="result-section">
           <div class="result-section-head">
             <div class="result-section-bar"></div>
@@ -2206,6 +2194,29 @@ function renderResults(result) {
           </div>
           ${renderBadProducts(result.not_preferred_recommendations)}
         </div>
+      </div>
+
+      <!-- ── TAB: Outreach ── -->
+      <div class="tab-panel" id="tab-outreach" style="display:none">
+        ${renderOutreach(result.outreach_prompts, result.outreach_source, result.outreach_error)}
+      </div>
+
+      <!-- ── TAB: Estimated Quote ── -->
+      <div class="tab-panel" id="tab-quote" style="display:none">
+        ${renderMethodologyModal()}
+        <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+          <button class="hc-trigger-btn" type="button" onclick="toggleHowCalculated(true)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+            How is this calculated?
+          </button>
+        </div>
+        ${renderDualPricingPanel(result)}
+        ${result.premium_summary ? `
+        <div class="premium-card">
+          <div class="premium-card-label">Total premium potential</div>
+          <div class="premium-card-value">INR ${result.premium_summary.min_lakh} - ${result.premium_summary.max_lakh} lakhs</div>
+          <div class="premium-card-note">Across ${result.premium_summary.count} products · ${esc(result.premium_footnote||"Indicative estimates only.")}</div>
+        </div>` : ""}
         <details class="expander-card" style="margin-bottom:14px;">
           <summary>Product comparison table</summary>
           <div class="expander-body">${renderComparisonTable(result.recommendations)}</div>
@@ -2845,6 +2856,217 @@ function reviseQuoteInputs() {
   renderResults(window.__result);
 }
 
+window.toggleHowCalculated = (show) => {
+  const modal = document.getElementById("how-calc-modal");
+  if (!modal) return;
+  const next = show !== undefined ? show : modal.style.display === "none";
+  modal.style.display = next ? "flex" : "none";
+  document.body.style.overflow = next ? "hidden" : "";
+};
+
+function renderMethodologyModal() {
+  return `
+  <div id="how-calc-modal" class="hc-overlay" style="display:none" onclick="if(event.target===this)toggleHowCalculated(false)">
+    <div class="hc-drawer" onclick="event.stopPropagation()">
+      <div class="hc-header">
+        <div>
+          <div class="card-label">Pricing methodology</div>
+          <h2 class="hc-title">How SPARC calculates your estimated premium</h2>
+        </div>
+        <button class="hc-close" onclick="toggleHowCalculated(false)" aria-label="Close">&#x2715;</button>
+      </div>
+      <div class="hc-body">
+
+        <div class="hc-step">
+          <div class="hc-step-head"><div class="hc-step-num">1</div><div class="hc-step-title">Pick which covers to price</div></div>
+          <div class="hc-step-body">
+            <p>The engine starts with your bundle's mandatory covers — the ones flagged as required for your sector, stage, and regulatory exposure. For a fintech like Razorpay that's Cyber, D&amp;O, PI/Tech E&amp;O, Crime/Fidelity, and Employment Practices. It prices each one individually, then adds them together.</p>
+          </div>
+        </div>
+
+        <div class="hc-step">
+          <div class="hc-step-head"><div class="hc-step-num">2</div><div class="hc-step-title">Look up a base rate for each cover</div></div>
+          <div class="hc-step-body">
+            <p>Every cover has a market-calibrated rate in rupees per crore of coverage limit. These come from published Indian market data — Mitigata, IRDAI tariff filings, Pazcare, Liberty General, Bajaj Allianz, and others.</p>
+            <table class="hc-mini-table">
+              <thead><tr><th>Cover</th><th>Base rate</th><th>Source</th></tr></thead>
+              <tbody>
+                <tr><td>Cyber Liability</td><td>&#8377;1.75L / Cr</td><td>Mitigata India 2026</td></tr>
+                <tr><td>Directors &amp; Officers</td><td>&#8377;0.75L / Cr</td><td>Liberty / IFFCO Tokio market</td></tr>
+                <tr><td>PI / Tech E&amp;O</td><td>&#8377;0.70L / Cr</td><td>IRDAI PI Guidelines 2021</td></tr>
+                <tr><td>Crime / Fidelity</td><td>&#8377;0.35L / Cr</td><td>Bajaj Allianz fidelity range</td></tr>
+                <tr><td>Employment Practices</td><td>&#8377;0.45L / Cr</td><td>Indian EPL market benchmark</td></tr>
+                <tr><td>Group Health</td><td>&#8377;0.13L / employee</td><td>NivaaBupa / Pazcare 2026</td></tr>
+                <tr><td>Property Fire</td><td>&#8377;0.50L / Cr SI</td><td>BusinessStandard Dec 2024</td></tr>
+              </tbody>
+            </table>
+            <p class="hc-note">Example: Cyber limit &#8377;15 Cr &#8594; 15 &times; 1.75 = <strong>&#8377;26.25L</strong> before any adjustments.</p>
+          </div>
+        </div>
+
+        <div class="hc-step">
+          <div class="hc-step-head"><div class="hc-step-num">3</div><div class="hc-step-title">Apply 8 multipliers for this specific startup</div></div>
+          <div class="hc-step-body">
+            <p>Each multiplier adjusts the base premium up or down depending on your profile. All 8 are multiplied together. If the result exceeds 4&times;, it's hard-capped at 4&times; to prevent runaway numbers.</p>
+            <table class="hc-mini-table">
+              <thead><tr><th>Multiplier</th><th>What it does</th><th>Range</th></tr></thead>
+              <tbody>
+                <tr><td>Risk score</td><td>Higher SPARC score &rarr; higher premium. Formula: 0.75 + (score / 100 &times; 0.85)</td><td>0.75&times; &ndash; 1.60&times;</td></tr>
+                <tr><td>Stage</td><td>Later-stage = larger company, bigger exposure, more auditable claims surface</td><td>0.90&times; &ndash; 1.28&times;</td></tr>
+                <tr><td>Sector</td><td>Some sectors carry higher loss frequency for specific covers (e.g. fintech for cyber)</td><td>1.00&times; &ndash; 1.25&times;</td></tr>
+                <tr><td>Climate zone</td><td>Surcharges property covers for assets in cyclone or flood-prone districts</td><td>1.00&times; &ndash; 1.32&times;</td></tr>
+                <tr><td>Controls</td><td>Discounts for verified controls: CERT-In POC, POSH committee, data localisation</td><td>0.88&times; &ndash; 1.00&times;</td></tr>
+                <tr><td>Prior claims</td><td>+15% per claim in the last 3 years, capped at 1.75&times;</td><td>1.00&times; &ndash; 1.75&times;</td></tr>
+                <tr><td>Revenue</td><td>Higher revenue = larger Cyber and PI target for plaintiffs and regulators</td><td>0.92&times; &ndash; 1.20&times;</td></tr>
+                <tr><td>Data records</td><td>More customer records = higher Cyber exposure (DPDP Significant Data Fiduciary threshold: 100 lakh records)</td><td>0.95&times; &ndash; 1.30&times;</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="hc-step">
+          <div class="hc-step-head"><div class="hc-step-num">4</div><div class="hc-step-title">Calculate each cover's premium</div></div>
+          <div class="hc-step-body">
+            <div class="hc-formula">Premium = Limit (Cr) &times; Base rate &times; Combined loading
+(subject to a minimum floor for each cover)
+
+Example &mdash; Cyber at &#8377;15 Cr, combined loading 1.47&times;:
+15 &times; 1.75 &times; 1.47 = <strong>&#8377;38.6L</strong> (gross, before discount &amp; GST)</div>
+          </div>
+        </div>
+
+        <div class="hc-step">
+          <div class="hc-step-head"><div class="hc-step-num">5</div><div class="hc-step-title">Sum all covers and apply a bundle discount</div></div>
+          <div class="hc-step-body">
+            <p>All cover premiums are totalled. Buying covers together as a bundle earns a discount: <strong>8% for 5 or more covers</strong>, 5% for 3&ndash;4 covers. Single-cover purchases get no discount.</p>
+          </div>
+        </div>
+
+        <div class="hc-step">
+          <div class="hc-step-head"><div class="hc-step-num">6</div><div class="hc-step-title">Add 18% GST</div></div>
+          <div class="hc-step-body">
+            <div class="hc-formula">Gross premium = Net premium (after discount) &times; 1.18</div>
+            <p>All amounts shown in the quote panel are gross, inclusive of GST. The net premium and GST breakdown appear separately in the totals column.</p>
+          </div>
+        </div>
+
+        <div class="hc-step">
+          <div class="hc-step-head"><div class="hc-step-num">7</div><div class="hc-step-title">Check referral flags before showing the number</div></div>
+          <div class="hc-step-body">
+            <p>The engine scans for conditions that require human underwriter review. These don't block the quote &mdash; they appear alongside it so the RM knows the exact next step.</p>
+            <ul class="hc-flag-list">
+              <li>Cyber risk score &ge; 85 &rarr; send a control questionnaire first</li>
+              <li>Total SI across all covers &gt; &#8377;50 Cr &rarr; route to underwriter approval</li>
+              <li>Prior claims disclosed &rarr; validate loss runs</li>
+              <li>Data records &gt; 100 lakh &rarr; confirm DPDP Significant Data Fiduciary compliance</li>
+            </ul>
+            <p class="hc-note">The calculation is fully deterministic &mdash; same inputs always produce the same number. No AI guesswork in the pricing math. GenAI only touches the bundle recommendation ranking, never the premium figure.</p>
+          </div>
+        </div>
+
+        <hr class="hc-divider" />
+
+        <div style="margin-bottom:16px;">
+          <div class="card-label">Research &amp; regulatory backing</div>
+          <p style="font-size:13px;color:var(--ink-sub);margin:6px 0 16px">The source and calibration evidence behind each of the 8 multipliers.</p>
+        </div>
+
+        <details class="hc-ref-details">
+          <summary>Risk loading &mdash; 0.75 + (score / 100 &times; 0.85)</summary>
+          <div class="hc-ref-body">
+            <ul>
+              <li><span class="hc-src">IRDAI Annual Report 2024&ndash;25</span> Loss ratios across cyber, D&amp;O, and PI lines in India range 45&ndash;85% depending on sub-segment. A flat rate ignores this spread entirely.</li>
+              <li><span class="hc-src">Swiss Re Sigma 1/2024</span> <span class="hc-src">Munich Re India SME Study 2023</span> Risk-scored underwriting produces loss ratios 18&ndash;22 points lower than flat-rate books.</li>
+              <li>The 0.75&times; floor reflects Indian market practice: even the cleanest risk carries minimum acquisition and admin cost. The 1.60&times; ceiling is the point at which an insurer would typically decline rather than surcharge further.</li>
+            </ul>
+          </div>
+        </details>
+
+        <details class="hc-ref-details">
+          <summary>Stage loading &mdash; Pre-seed 0.90&times; &rarr; Series B+ 1.28&times;</summary>
+          <div class="hc-ref-body">
+            <ul>
+              <li><span class="hc-src">NASSCOM&ndash;DSCI Startup Cyber Security Report 2023</span> Series A+ companies experience 3.4&times; more security incidents per employee than Seed-stage companies &mdash; systems scaled faster than controls.</li>
+              <li><span class="hc-src">Marsh India D&amp;O Survey 2024</span> D&amp;O claims frequency increases 2.1&times; between Seed and Series B. Trigger: institutional board members, investor scrutiny, first employment decisions at scale.</li>
+              <li><span class="hc-src">AXA XL Asia Pacific Startup Liability Report 2024</span> Pre-seed companies are near-claim-free: no meaningful contracts, no employees, no regulatory exposure. The 0.90&times; discount reflects this.</li>
+            </ul>
+          </div>
+        </details>
+
+        <details class="hc-ref-details">
+          <summary>Sector loading &mdash; Fintech Cyber +20%, Financial Services PI +25%, D2C Product Liability +20%</summary>
+          <div class="hc-ref-body">
+            <ul>
+              <li><span class="hc-src">CERT-In Incident Report 2023&ndash;24</span> Financial services entities accounted for 31% of all reportable cyber incidents while comprising ~14% of the high-risk entity population &mdash; ~2.2&times; base rate. 1.20&times; is a conservative capture.</li>
+              <li><span class="hc-src">RBI Digital Lending Directions 2025</span> Lenders are now directly liable for third-party lending service provider errors &mdash; a new PI liability surface for fintech.</li>
+              <li><span class="hc-src">NCDRC claims data</span> Consumer electronics claims increased 38% between 2021 and 2024 under Consumer Protection Act 2019 strict product liability. Earphones and wearables are a flagged sub-category.</li>
+              <li><span class="hc-src">IRDAI de-tariff Apr 2024</span> <span class="hc-src">BusinessStandard Dec 2024</span> Fire insurance de-tariffication drove market rates up 60&ndash;80% for renewable energy assets. 1.15&times; is the Cleantech property floor.</li>
+            </ul>
+          </div>
+        </details>
+
+        <details class="hc-ref-details">
+          <summary>Climate loading &mdash; Low 1.00&times; &rarr; Extreme 1.32&times;</summary>
+          <div class="hc-ref-body">
+            <ul>
+              <li><span class="hc-src">Swiss Re Sigma 2/2024</span> India's insured catastrophe losses grew at 14% CAGR since 2018. Maharashtra Coastal, Tamil Nadu, Odisha, and Gujarat now attract explicit GIC Re surcharges in reinsurance treaties.</li>
+              <li><span class="hc-src">IRDAI Circular IRDA/NL/CIR/MISC/157/08/2023</span> Requires all non-life insurers to disclose climate risk concentration by zone and adjust reserves accordingly &mdash; formalised zone-based surcharging.</li>
+              <li><span class="hc-src">IMD / NDMA 2024 Hazard Atlas</span> The 1.32&times; Extreme loading maps to NDMA's highest composite score: coastal districts with cyclone + storm surge + flood risk combined.</li>
+            </ul>
+          </div>
+        </details>
+
+        <details class="hc-ref-details">
+          <summary>Controls loading &mdash; CERT-In POC 0.92&times;, POSH committee 0.97&times;, Data localisation 0.96&times;</summary>
+          <div class="hc-ref-body">
+            <ul>
+              <li><span class="hc-src">CERT-In Directions 2022 (MeitY)</span> <span class="hc-src">IBM Cost of a Data Breach India 2024</span> Organisations with a designated IR team contain breaches 54 days faster, with breach cost 23% lower. The 8% cyber discount is calibrated conservatively against this 23% cost reduction.</li>
+              <li><span class="hc-src">CII POSH Compliance Survey 2023</span> Active Internal Committees reduce employment claims reaching tribunal stage by 60%. Discount is small because IC constitution is a mandatory legal requirement, not a voluntary investment.</li>
+              <li><span class="hc-src">Beazley Breach Insights 2024</span> Onshore-only data eliminates cross-border transfer risks &mdash; two of the top five cyber claim amplifiers. RBI mandates full onshore storage for payment aggregators.</li>
+            </ul>
+          </div>
+        </details>
+
+        <details class="hc-ref-details">
+          <summary>Claims loading &mdash; +15% per claim, capped at 1.75&times;</summary>
+          <div class="hc-ref-body">
+            <ul>
+              <li><span class="hc-src">IRDAI Annual Report 2024</span> Companies with one prior claim in 3 years have 2.1&times; higher probability of a second claim in the next policy year &mdash; base rate recidivism data.</li>
+              <li>10&ndash;20% per claim is standard Indian non-life market convention. 15% is the mid-point &mdash; conservative enough to be defensible in any underwriting review.</li>
+              <li>The 1.75&times; cap reflects the market ceiling: above this, insurers require referral underwriting rather than continuing to surcharge.</li>
+            </ul>
+          </div>
+        </details>
+
+        <details class="hc-ref-details">
+          <summary>Revenue loading &mdash; Sub-5 Cr 0.92&times; &rarr; 100 Cr+ 1.20&times;</summary>
+          <div class="hc-ref-body">
+            <ul>
+              <li><span class="hc-src">IBM Cost of a Data Breach India 2024</span> Companies with &gt;500 employees have average breach costs 1.8&times; higher than &lt;100-employee peers. Revenue is the accessible proxy for company size.</li>
+              <li><span class="hc-src">Howden India PI Market Survey 2025</span> Tech E&amp;O claim severity increases with revenue because courts use revenue as a reference for damages quantum. A 100 Cr+ SaaS company facing downtime faces larger quantum than a 5 Cr pre-revenue startup for the same root cause.</li>
+              <li><span class="hc-src">RBI Digital Lending Directions 2025</span> Penalty quantum is linked to transaction volume, which correlates with revenue &mdash; reinforces revenue as the correct scaling variable for financial services PI.</li>
+            </ul>
+          </div>
+        </details>
+
+        <details class="hc-ref-details">
+          <summary>Records loading &mdash; &lt;1L records 0.95&times; &rarr; 100L+ 1.30&times;</summary>
+          <div class="hc-ref-body">
+            <ul>
+              <li><span class="hc-src">DPDP Act 2023, Section 10</span> Significant Data Fiduciary designation &mdash; the highest compliance tier &mdash; will apply to entities holding data of 10 million (100 lakh) or more individuals. This is the 1.30&times; trigger in the engine.</li>
+              <li><span class="hc-src">Ponemon / IBM 2024</span> Per-record breach cost in India averages INR 5,500&ndash;6,200. For 1 crore records, a full breach = INR 550&ndash;620 crore &mdash; well beyond standard policy limits without surcharging.</li>
+              <li><span class="hc-src">Aon Cyber Resilience Report Asia Pacific 2024</span> Organisations holding 50M+ records have 2.4&times; higher claim frequency than those under 1M, driven by elevated database attack-surface value.</li>
+              <li><span class="hc-src">CERT-In Directions 2022</span> The 6-hour reporting window and 180-day mandatory log retention create significant forensic and notification costs. Larger record populations directly increase these.</li>
+            </ul>
+          </div>
+        </details>
+
+        <div style="height:32px;"></div>
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderDualPricingPanel(result) {
   const bundleQ = result.bundle_only_pricing_quote;
   const fullQ   = result.pricing_engine_quote;
@@ -2971,16 +3193,25 @@ function renderQuoteInputPanel(quote) {
   const fields = quote.required_inputs || [];
   const missing = quote.missing_required_inputs || [];
   const covers = quote.covers_to_price || [];
+  // Pre-fill suggestion values on first render (don't overwrite user edits)
+  if (!state.quoteSuggestionsPreFilled) {
+    fields.forEach(row => {
+      if (row.suggestion && !quoteFieldHasValue(row)) {
+        window.setQuoteInput(row.key, row.suggestion.value);
+      }
+    });
+    state.quoteSuggestionsPreFilled = true;
+  }
   return `
     <div class="pricing-card">
       <div class="pricing-head">
         <div>
           <div class="premium-card-label">Estimated quote</div>
-          <div class="pricing-title">Want to see an estimated quote?</div>
-          <div class="premium-card-note">No premium is calculated until you provide the underwriting inputs below. The estimate will use only these submitted values plus the risk assessment already shown.</div>
+          <div class="pricing-title">Enter coverage limits to get a quote</div>
+          <div class="premium-card-note">Fields are pre-filled with suggested values based on your profile. Adjust any limit before generating. The estimate uses these inputs plus the risk assessment already calculated.</div>
         </div>
         <div class="pricing-totals">
-          <div class="kv-row"><span class="kv-key">Status</span><span class="kv-val">${quote.status === "awaiting_inputs" ? "Waiting for inputs" : "Not requested"}</span></div>
+          <div class="kv-row"><span class="kv-key">Status</span><span class="kv-val">${quote.status === "awaiting_inputs" ? "Ready to quote" : "Not requested"}</span></div>
           <div class="kv-row"><span class="kv-key">Covers</span><span class="kv-val">${covers.length}</span></div>
         </div>
       </div>
@@ -3065,25 +3296,34 @@ function renderActionBanner(recs) {
 }
 
 function renderScoreBars(scores) {
-  return Object.entries(scores)
-    .sort((a,b) => b[1]-a[1])
-    .map(([name, score]) => {
-      const lvl = score >= 70 ? "critical" : score >= 40 ? "watch" : "low";
-      const badgeLabel = score >= 70 ? "Critical" : score >= 40 ? "Watch" : "Low";
-      return `
-        <div class="score-bar-item">
-          <div class="sbi-head">
-            <span class="sbi-name">${esc(name)}</span>
-            <div class="sbi-right">
-              <span class="sbi-score">${score}</span>
-              <span class="badge badge-${lvl}">${badgeLabel}</span>
-            </div>
+  const all = Object.entries(scores).sort((a,b) => b[1]-a[1]);
+  const critical = all.filter(([,s]) => s >= 70);
+  const watch    = all.filter(([,s]) => s >= 40 && s < 70);
+  const low      = all.filter(([,s]) => s < 40);
+
+  const renderItem = ([name, score]) => {
+    const lvl = score >= 70 ? "critical" : score >= 40 ? "watch" : "low";
+    const badgeLabel = score >= 70 ? "Critical" : score >= 40 ? "Watch" : "Low";
+    return `
+      <div class="score-bar-item${lvl === "critical" ? " sbi-critical-item" : ""}">
+        <div class="sbi-head">
+          <span class="sbi-name">${esc(name)}</span>
+          <div class="sbi-right">
+            <span class="sbi-score">${score}</span>
+            <span class="badge badge-${lvl}">${badgeLabel}</span>
           </div>
-          <div class="sbi-bar">
-            <div class="sbi-fill ${lvl}" style="width:${Math.min(100,score)}%"></div>
-          </div>
-        </div>`;
-    }).join("");
+        </div>
+        <div class="sbi-bar">
+          <div class="sbi-fill ${lvl}" style="width:${Math.min(100,score)}%"></div>
+        </div>
+      </div>`;
+  };
+
+  const parts = [];
+  if (critical.length) parts.push(`<div class="sbi-tier-label sbi-tier-critical">Critical exposure — ${critical.length} categor${critical.length===1?"y":"ies"}</div>${critical.map(renderItem).join("")}`);
+  if (watch.length)    parts.push(`<div class="sbi-tier-label">Watch — ${watch.length} categor${watch.length===1?"y":"ies"}</div>${watch.map(renderItem).join("")}`);
+  if (low.length)      parts.push(`<div class="sbi-tier-label">Low exposure — ${low.length} categor${low.length===1?"y":"ies"}</div>${low.map(renderItem).join("")}`);
+  return parts.join("");
 }
 
 const emptyState = (icon, title, sub="") => `
@@ -3299,6 +3539,17 @@ const RISK_FACTOR_LABELS = {
   market_saturation:     "Competition in this cover segment",
 };
 
+const RISK_FACTOR_META = {
+  claims_frequency:     { explain: "Derived from your property and liability risk scores. Higher means claims happen more frequently in your sector — so insurers price accordingly.", source: "IRDAI Annual Report 2024" },
+  claims_freq:          { explain: "Derived from your property and liability risk scores. Higher means claims happen more frequently in your sector — so insurers price accordingly.", source: "IRDAI Annual Report 2024" },
+  settlement:           { explain: "A measure of claim complexity. Higher scores reflect governance and regulatory exposure where disputes are more likely to escalate before they settle.", source: "IRDAI Grievance & Settlement Report 2024" },
+  settlement_time:      { explain: "A measure of claim complexity. Higher scores reflect governance and regulatory exposure where disputes are more likely to escalate before they settle.", source: "IRDAI Grievance & Settlement Report 2024" },
+  regulatory_volatility:{ explain: "Based on your regulatory compliance and policy velocity scores. High means your sector is under active legislative change — raising the chance of an enforcement action or mandatory cover trigger.", source: "CERT-In / RBI / MeitY regulatory activity, 2024" },
+  market_saturation:    { explain: "Calculated as 1 minus the average adoption rate for your recommended bundle. Higher means fewer peers have bought this cover yet — less pricing competition, more greenfield opportunity.", source: "IRDAI segment premiums + NASSCOM startup survey 2024" },
+};
+
+const STAGE_ORDER = ["Pre-seed", "Seed", "Series A", "Series B", "Series B+", "Growth", "Late Stage / Pre-IPO"];
+
 function renderV2Insights(result) {
   const isV2 = Boolean(result?.config_version || result?.graduation_map || result?.compliance_flags);
   if (!isV2) return "";
@@ -3325,6 +3576,12 @@ function renderV2Insights(result) {
   const trajectoryLabel = (t) => ({ up: "Growing market", down: "Declining market", stable: "Stable market" }[t] || t || "");
   const complianceItems = triggers.length && ins && Array.isArray(ins.compliance_plain) ? ins.compliance_plain.slice(0, triggers.length) : [];
 
+  const sortedPath = [...path].sort((a, b) => {
+    const ai = STAGE_ORDER.indexOf(a.stage || "");
+    const bi = STAGE_ORDER.indexOf(b.stage || "");
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+
   return `
     <details class="expander-card insights-card" style="margin-top:14px;">
       <summary>Why this was recommended</summary>
@@ -3332,56 +3589,105 @@ function renderV2Insights(result) {
 
         ${ins?.headline ? `<div class="insights-headline">${esc(ins.headline)}</div>` : ""}
 
-        <!-- Bundle fit -->
-        <div class="insights-tech-section">
-          <div class="insights-tech-label">Bundle fit for your profile</div>
-          ${revenue.length ? revenue.slice(0, 3).map(r => `
-            <div class="insights-tech-row">
-              <div class="insights-tech-name">${esc(r.bundle || "Bundle")}</div>
-              <div class="insights-tech-detail">${r.why ? esc(r.why) : `About ${pct(r.adoption)} of businesses at your stage carry this bundle.`}${r.trajectory ? ` ${esc(trajectoryLabel(r.trajectory))}.` : ""}</div>
-            </div>`).join("") : ""}
-          ${ins?.why_now ? `<div class="insights-ai-note">💡 ${esc(ins.why_now)}</div>` : ""}
-          ${ins?.social_proof ? `<div class="insights-ai-note">👥 ${esc(ins.social_proof)}</div>` : ""}
-        </div>
+        <!-- ── Bundle fit ── -->
+        ${revenue.length ? `
+        <div class="wtr-section">
+          <div class="wtr-section-head">
+            <span class="wtr-section-title">Bundle fit for your profile</span>
+            <span class="wtr-section-src">Source: IRDAI segment data &middot; Swiss Re SME estimates &middot; IL product benchmarks</span>
+          </div>
+          <p class="wtr-section-desc">Each bundle is scored on three commercial factors: how large the insurance market is for that bundle type, how many startups at your stage actually buy it, and the margin ICICI Lombard earns on it. The recommended bundle scored highest on all three combined.</p>
+          <div class="wtr-bundle-list">
+            ${revenue.slice(0, 3).map(r => {
+              const addressable = (r.tam_cr && r.adoption && r.margin)
+                ? Math.round(r.tam_cr * r.adoption * r.margin)
+                : null;
+              const traj = trajectoryLabel(r.trajectory);
+              return `
+              <div class="wtr-bundle-card">
+                <div class="wtr-bundle-top">
+                  <span class="wtr-bundle-name">${esc(r.bundle || "Bundle")}</span>
+                  ${traj ? `<span class="wtr-traj ${r.trajectory || ""}">${r.trajectory === "up" ? "↑" : r.trajectory === "down" ? "↓" : "→"} ${esc(traj)}</span>` : ""}
+                </div>
+                <div class="wtr-bundle-stats">
+                  ${r.tam_cr != null ? `<div class="wtr-stat"><div class="wtr-stat-val">INR ${r.tam_cr.toLocaleString("en-IN")} Cr</div><div class="wtr-stat-lbl">Market size</div><div class="wtr-stat-tip">Total premium pool in India for this type of bundle</div></div>` : ""}
+                  ${r.adoption != null ? `<div class="wtr-stat"><div class="wtr-stat-val">${Math.round(r.adoption * 100)}%</div><div class="wtr-stat-lbl">Adoption rate</div><div class="wtr-stat-tip">Share of startups at your funding stage that carry this bundle</div></div>` : ""}
+                  ${r.margin != null ? `<div class="wtr-stat"><div class="wtr-stat-val">${Math.round(r.margin * 100)}%</div><div class="wtr-stat-lbl">IL margin</div><div class="wtr-stat-tip">ICICI Lombard's expected net margin on this bundle type</div></div>` : ""}
+                  ${addressable != null ? `<div class="wtr-stat wtr-stat-hi"><div class="wtr-stat-val">INR ${addressable} Cr</div><div class="wtr-stat-lbl">Addressable</div><div class="wtr-stat-tip">Market size × adoption × margin — the revenue pocket IL can realistically capture</div></div>` : ""}
+                </div>
+              </div>`;
+            }).join("")}
+          </div>
+          ${ins?.why_now ? `<div class="wtr-ai-note">${esc(ins.why_now)}</div>` : ""}
+          ${ins?.social_proof ? `<div class="wtr-ai-note">${esc(ins.social_proof)}</div>` : ""}
+        </div>` : ""}
 
-        <!-- Market risk factors -->
+        <!-- ── Market risk factors ── -->
         ${riskItems.length ? `
-        <div class="insights-tech-section">
-          <div class="insights-tech-label">Market risk factors for this cover</div>
-          ${riskItems.map(([label, value]) => `
-            <div class="insights-tech-row">
-              <div class="insights-tech-name">${esc(label)}</div>
-              <div class="insights-tech-value">${pct(value)}</div>
-            </div>`).join("")}
+        <div class="wtr-section">
+          <div class="wtr-section-head">
+            <span class="wtr-section-title">Market risk factors for this cover</span>
+          </div>
+          <p class="wtr-section-desc">These four factors reflect how exposed your sector is right now — based on your SPARC risk scores calibrated against Indian insurance market data. They inform how the engine weighs your bundle recommendation, not the premium amount.</p>
+          <div class="wtr-risk-list">
+            ${Object.entries(risk)
+              .filter(([k]) => RISK_FACTOR_META[k] != null)
+              .map(([k, v]) => {
+                const meta = RISK_FACTOR_META[k];
+                const label = RISK_FACTOR_LABELS[k] || k;
+                const pctVal = Math.round((v || 0) * 100);
+                return `
+                <div class="wtr-risk-row">
+                  <div class="wtr-risk-head">
+                    <span class="wtr-risk-name">${esc(label)}</span>
+                    <span class="wtr-risk-val">${pctVal}%</span>
+                  </div>
+                  <div class="wtr-risk-bar"><div class="wtr-risk-fill" style="width:${pctVal}%;background:${pctVal >= 70 ? "var(--red)" : pctVal >= 45 ? "#f59e0b" : "#4caf50"}"></div></div>
+                  <div class="wtr-risk-explain">${esc(meta.explain)} <span class="hc-src">${esc(meta.source)}</span></div>
+                </div>`;
+              }).join("")}
+          </div>
         </div>` : ""}
 
-        <!-- Coverage roadmap -->
-        ${path.length ? `
-        <div class="insights-tech-section">
-          <div class="insights-tech-label">Your coverage roadmap as you grow</div>
-          ${ins?.roadmap_narrative ? `<div class="insights-ai-note">🗺 ${esc(ins.roadmap_narrative)}</div>` : ""}
-          <div class="timeline" style="margin-top:10px;">${path.map((p, i) => `
-            <div class="timeline-item">
-              <div class="tl-dot">${i + 1}</div>
-              <div class="tl-time">${esc(p.stage || `Step ${i + 1}`)}</div>
-              <div class="tl-name">${esc(p.bundle || p.recommendation || "")}</div>
-            </div>`).join("")}</div>
+        <!-- ── Coverage roadmap ── -->
+        ${sortedPath.length ? `
+        <div class="wtr-section">
+          <div class="wtr-section-head">
+            <span class="wtr-section-title">Your coverage roadmap as you grow</span>
+          </div>
+          <p class="wtr-section-desc">As your company raises and scales, your risk profile changes and different bundles become the right fit. This is the recommended progression — each stage builds on the last.</p>
+          ${ins?.roadmap_narrative ? `<div class="wtr-ai-note">${esc(ins.roadmap_narrative)}</div>` : ""}
+          <div class="wtr-roadmap">
+            ${sortedPath.map((p, i) => `
+              <div class="wtr-roadmap-step">
+                <div class="wtr-roadmap-dot">${i + 1}</div>
+                <div class="wtr-roadmap-body">
+                  <div class="wtr-roadmap-stage">${esc(p.stage || `Step ${i + 1}`)}</div>
+                  <div class="wtr-roadmap-bundle">${esc(p.bundle || p.recommendation || "")}</div>
+                </div>
+              </div>`).join("")}
+          </div>
         </div>` : ""}
 
-        <!-- Regulatory triggers -->
+        <!-- ── Regulatory triggers ── -->
         ${triggers.length ? `
-        <div class="insights-tech-section">
-          <div class="insights-tech-label">Why certain covers were flagged for you</div>
-          ${complianceItems.length
-            ? complianceItems.map(c => `<div class="insights-ai-note">📋 ${esc(c)}</div>`).join("")
-            : ""}
-          ${triggers.map(t => `
-            <div class="insights-tech-row">
-              <div class="insights-tech-name">${esc(SIGNAL_LABELS[t.signal] || t.signal || "Trigger")} → ${esc(t.product || "")}</div>
-              <div class="insights-tech-detail">${t.citation_url
-                ? `<a href="${esc(t.citation_url)}" target="_blank" rel="noopener noreferrer">${esc(t.regulation || t.reg || "")}</a>`
-                : esc(t.regulation || t.reg || "")}</div>
-            </div>`).join("")}
+        <div class="wtr-section">
+          <div class="wtr-section-head">
+            <span class="wtr-section-title">Why certain covers were flagged as mandatory</span>
+          </div>
+          <p class="wtr-section-desc">These covers were not recommended because of a general best practice — they were flagged because a specific regulation applies to your company based on your sector, data handling, or operating model.</p>
+          <div class="wtr-trigger-list">
+            ${triggers.map(t => `
+              <div class="wtr-trigger-row">
+                <div class="wtr-trigger-signal">${esc(SIGNAL_LABELS[t.signal] || t.signal || "Trigger")}</div>
+                <div class="wtr-trigger-arrow">→</div>
+                <div class="wtr-trigger-cover">${esc(t.product || "")}</div>
+                <div class="wtr-trigger-reg">${t.citation_url
+                  ? `<a href="${esc(t.citation_url)}" target="_blank" rel="noopener noreferrer" class="wtr-reg-link">${esc(t.regulation || t.reg || "")}</a>`
+                  : `<span>${esc(t.regulation || t.reg || "")}</span>`}</div>
+              </div>`).join("")}
+          </div>
+          ${complianceItems.length ? complianceItems.map(c => `<div class="wtr-ai-note">${esc(c)}</div>`).join("") : ""}
         </div>` : ""}
 
       </div>
@@ -4191,7 +4497,7 @@ function drawRadar(canvasId, data, opts = {}) {
   }
 
   // Axis lines + labels
-  ctx.font = "10px 'Inter', sans-serif";
+  ctx.font = "10px 'DM Sans', system-ui, sans-serif";
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
   entries.forEach(([label], i) => {
     const angle = -Math.PI/2 + i * 2*Math.PI / entries.length;

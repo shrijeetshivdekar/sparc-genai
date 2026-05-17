@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-17T00:00:00Z",
+  "title": "Design System: SPARC | Startup Shield",
+  "extensions": {
+    "colorMeta": {
+      "primary":      { "role": "primary",   "displayName": "Signal Red",         "canonical": "oklch(38% 0.18 22)",   "tonalRamp": ["oklch(15% 0.06 22)", "oklch(22% 0.10 22)", "oklch(30% 0.14 22)", "oklch(38% 0.18 22)", "oklch(48% 0.19 22)", "oklch(62% 0.17 22)", "oklch(76% 0.11 22)", "oklch(91% 0.04 22)"] },
+      "primary-deep": { "role": "primary",   "displayName": "Signal Red Deep",    "canonical": "oklch(30% 0.15 22)",   "tonalRamp": ["oklch(12% 0.05 22)", "oklch(20% 0.09 22)", "oklch(28% 0.13 22)", "oklch(35% 0.16 22)", "oklch(45% 0.18 22)", "oklch(58% 0.16 22)", "oklch(73% 0.10 22)", "oklch(90% 0.04 22)"] },
+      "primary-mid":  { "role": "primary",   "displayName": "Signal Red Mid",     "canonical": "oklch(42% 0.19 22)",   "tonalRamp": ["oklch(15% 0.06 22)", "oklch(24% 0.11 22)", "oklch(33% 0.16 22)", "oklch(42% 0.19 22)", "oklch(52% 0.20 22)", "oklch(65% 0.17 22)", "oklch(79% 0.10 22)", "oklch(93% 0.04 22)"] },
+      "ink":          { "role": "neutral",   "displayName": "Underwriter's Ink",  "canonical": "oklch(15% 0.04 254)",  "tonalRamp": ["oklch(8% 0.02 254)", "oklch(14% 0.04 254)", "oklch(22% 0.06 254)", "oklch(32% 0.07 254)", "oklch(44% 0.07 254)", "oklch(58% 0.06 254)", "oklch(74% 0.04 254)", "oklch(90% 0.02 254)"] },
+      "ink-2":        { "role": "neutral",   "displayName": "Board Navy",         "canonical": "oklch(22% 0.05 254)",  "tonalRamp": ["oklch(10% 0.02 254)", "oklch(18% 0.04 254)", "oklch(26% 0.06 254)", "oklch(36% 0.07 254)", "oklch(48% 0.07 254)", "oklch(62% 0.05 254)", "oklch(77% 0.03 254)", "oklch(92% 0.01 254)"] },
+      "ink-muted":    { "role": "neutral",   "displayName": "Ink Muted",          "canonical": "oklch(52% 0.05 254)",  "tonalRamp": ["oklch(18% 0.02 254)", "oklch(28% 0.03 254)", "oklch(38% 0.04 254)", "oklch(48% 0.05 254)", "oklch(58% 0.05 254)", "oklch(68% 0.04 254)", "oklch(80% 0.03 254)", "oklch(93% 0.01 254)"] },
+      "bg":           { "role": "neutral",   "displayName": "Assessment Paper",   "canonical": "oklch(98% 0.003 100)", "tonalRamp": ["oklch(18% 0.004 100)", "oklch(32% 0.004 100)", "oklch(46% 0.004 100)", "oklch(60% 0.004 100)", "oklch(72% 0.003 100)", "oklch(82% 0.003 100)", "oklch(91% 0.003 100)", "oklch(98% 0.003 100)"] },
+      "surface":      { "role": "neutral",   "displayName": "Document Surface",   "canonical": "oklch(95% 0.004 100)", "tonalRamp": ["oklch(18% 0.004 100)", "oklch(32% 0.004 100)", "oklch(46% 0.004 100)", "oklch(60% 0.004 100)", "oklch(72% 0.003 100)", "oklch(82% 0.003 100)", "oklch(90% 0.004 100)", "oklch(96% 0.004 100)"] },
+      "status-green": { "role": "tertiary",  "displayName": "Clearance Green",    "canonical": "oklch(56% 0.16 155)",  "tonalRamp": ["oklch(15% 0.06 155)", "oklch(24% 0.09 155)", "oklch(34% 0.12 155)", "oklch(44% 0.15 155)", "oklch(54% 0.17 155)", "oklch(67% 0.15 155)", "oklch(80% 0.10 155)", "oklch(93% 0.04 155)"] },
+      "status-amber": { "role": "secondary", "displayName": "Caution Amber",      "canonical": "oklch(66% 0.17 60)",   "tonalRamp": ["oklch(18% 0.06 60)", "oklch(28% 0.09 60)", "oklch(38% 0.13 60)", "oklch(48% 0.16 60)", "oklch(58% 0.18 60)", "oklch(70% 0.16 60)", "oklch(82% 0.10 60)", "oklch(94% 0.04 60)"] },
+      "status-blue":  { "role": "tertiary",  "displayName": "Reference Blue",     "canonical": "oklch(62% 0.18 240)",  "tonalRamp": ["oklch(16% 0.06 240)", "oklch(26% 0.10 240)", "oklch(36% 0.14 240)", "oklch(46% 0.17 240)", "oklch(56% 0.19 240)", "oklch(68% 0.17 240)", "oklch(80% 0.11 240)", "oklch(93% 0.04 240)"] }
+    },
+    "typographyMeta": {
+      "display":  { "displayName": "Display",  "purpose": "Results hero headlines and landing H1. Appears once per screen. Space Grotesk 800." },
+      "headline": { "displayName": "Headline", "purpose": "Section headers, card titles, modal headings. Space Grotesk 700." },
+      "title":    { "displayName": "Title",    "purpose": "Subsection labels, sidebar card labels, component group headings." },
+      "body":     { "displayName": "Body",     "purpose": "Explanatory text, bundle descriptions, methodology copy. Max line length 65-70ch." },
+      "label":    { "displayName": "Label",    "purpose": "Eyebrow kickers, nav pills, metadata tags. Always uppercase." }
+    },
+    "shadows": [
+      { "name": "card-ambient",  "value": "0 1px 2px rgba(15,23,42,.04), 0 4px 12px rgba(15,23,42,.06), 0 12px 32px rgba(15,23,42,.05)", "purpose": "Default shadow for content cards (KPI, bundle, role). Always visible at rest." },
+      { "name": "card-hover",    "value": "0 2px 4px rgba(15,23,42,.04), 0 16px 48px rgba(15,23,42,.13), inset 0 1px 0 rgba(255,255,255,.9)", "purpose": "Applied on pointer hover with translateY(-3px) lift." },
+      { "name": "card-inset",    "value": "0 1px 1px rgba(15,23,42,.03), 0 4px 16px rgba(15,23,42,.07), inset 0 1px 0 rgba(255,255,255,.8)", "purpose": "Sidebar cards and right-column panels. Inset top highlight." },
+      { "name": "btn-red-glow",  "value": "0 2px 8px rgba(173,30,35,.3)", "purpose": "Primary button rest state. The only colored shadow in the system." },
+      { "name": "btn-red-hover", "value": "0 4px 16px rgba(173,30,35,.4)", "purpose": "Primary button hover state — amplified spread and opacity." }
+    ],
+    "motion": [
+      { "name": "ease-out",    "value": "cubic-bezier(0.23, 1, 0.32, 1)",   "purpose": "Default easing for state transitions — snap to target then ease. Applied to hover, focus, and card lift." },
+      { "name": "ease-in-out", "value": "cubic-bezier(0.77, 0, 0.175, 1)",  "purpose": "Enter/exit transitions for panels and drawers." },
+      { "name": "ease-drawer", "value": "cubic-bezier(0.32, 0.72, 0, 1)",   "purpose": "Sheet and drawer entrance — fast deceleration to stop." },
+      { "name": "fade-up",     "value": "opacity 0 → 1, translateY(8px) → 0, scale(0.98) → 1, 250ms ease-out", "purpose": "Default card and section entrance animation." },
+      { "name": "press-scale", "value": "scale(0.97) on :active", "purpose": "Physical press feedback on every button. Non-negotiable." }
+    ],
+    "breakpoints": [
+      { "name": "mobile",  "value": "640px",  "note": "Single-column layout; section nav hidden; all cards full-width." },
+      { "name": "tablet",  "value": "900px",  "note": "Sidebar collapses; main content full-width." },
+      { "name": "desktop", "value": "1180px", "note": "Full 3-column intake shell; max-width for results." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The primary action in any context — run analysis, confirm selection, advance step.",
+      "html": "<button class=\"ds-btn-primary\">Analyse Risk Profile</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 8px; background: #AD1E23; color: #fff; border: none; border-radius: 9px; padding: 0 24px; height: 48px; font-size: 14px; font-weight: 700; cursor: pointer; box-shadow: 0 2px 8px rgba(173,30,35,.3); transition: background 160ms cubic-bezier(0.23,1,0.32,1), box-shadow 160ms cubic-bezier(0.23,1,0.32,1), transform 160ms cubic-bezier(0.23,1,0.32,1); white-space: nowrap; } @media (hover: hover) { .ds-btn-primary:hover { background: #8A1519; box-shadow: 0 4px 16px rgba(173,30,35,.4); } } .ds-btn-primary:active { transform: scale(0.97); } .ds-btn-primary:focus-visible { outline: 2px solid #AD1E23; outline-offset: 3px; } .ds-btn-primary:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Secondary action — back, cancel, export, or alternative flow.",
+      "html": "<button class=\"ds-btn-ghost\">Edit Inputs</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; gap: 8px; background: #fff; color: #64748B; border: 1.5px solid #CBD5E1; border-radius: 9px; padding: 0 24px; height: 48px; font-size: 14px; font-weight: 700; cursor: pointer; transition: background 160ms cubic-bezier(0.23,1,0.32,1), color 160ms cubic-bezier(0.23,1,0.32,1), border-color 160ms cubic-bezier(0.23,1,0.32,1), transform 160ms cubic-bezier(0.23,1,0.32,1); } @media (hover: hover) { .ds-btn-ghost:hover { border-color: #CBD5E1; color: #0F172A; } } .ds-btn-ghost:active { transform: scale(0.97); } .ds-btn-ghost:focus-visible { outline: 2px solid #AD1E23; outline-offset: 3px; }"
+    },
+    {
+      "name": "Chip Default",
+      "kind": "chip",
+      "refersTo": "chip-default",
+      "description": "Selection filter for sector, funding stage, employee count, and risk categories.",
+      "html": "<button class=\"ds-chip\">FinTech</button>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; border: 1.5px solid #E2E2DC; border-radius: 999px; background: #fff; color: #64748B; padding: 9px 15px; font-size: 13px; font-weight: 700; cursor: pointer; transition: background 140ms cubic-bezier(0.23,1,0.32,1), color 140ms cubic-bezier(0.23,1,0.32,1), border-color 140ms cubic-bezier(0.23,1,0.32,1); } .ds-chip.active { background: rgba(173,30,35,.07); color: #AD1E23; border-color: #AD1E23; } @media (hover: hover) { .ds-chip:hover:not(.active) { border-color: #94A3B8; color: #0F172A; } }"
+    },
+    {
+      "name": "Content Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "KPI cards, bundle recommendation cards, and risk score cards. Always elevated — these hold decision-relevant numbers.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-label\">Cyber Risk Score</div><div class=\"ds-card-value\">8.4 / 10</div><p class=\"ds-card-body\">High exposure: 2 of 3 CERT-In 2022 mandatory controls missing.</p></div>",
+      "css": ".ds-card { background: #fff; border: 1px solid #E2E2DC; border-radius: 14px; padding: 24px; box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 4px 12px rgba(15,23,42,.06), 0 12px 32px rgba(15,23,42,.05); transition: transform 200ms cubic-bezier(0.23,1,0.32,1), box-shadow 200ms cubic-bezier(0.23,1,0.32,1), border-color 200ms cubic-bezier(0.23,1,0.32,1); } @media (hover: hover) and (pointer: fine) { .ds-card:hover { transform: translateY(-3px); box-shadow: 0 2px 4px rgba(15,23,42,.04), 0 16px 48px rgba(15,23,42,.13), inset 0 1px 0 rgba(255,255,255,.9); border-color: rgba(173,30,35,.2); } } .ds-card-label { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #94A3B8; margin-bottom: 8px; } .ds-card-value { font-family: 'Space Grotesk', system-ui, sans-serif; font-size: 28px; font-weight: 800; letter-spacing: -0.03em; color: #0F172A; line-height: 1; margin-bottom: 10px; } .ds-card-body { font-size: 13px; color: #64748B; line-height: 1.6; }"
+    },
+    {
+      "name": "Section Nav Tab",
+      "kind": "nav",
+      "refersTo": "button-ghost",
+      "description": "Results tab navigation — the segmented control tray switching between Bundle, Outreach, Products, Risk Scores, and Actions.",
+      "html": "<div class=\"ds-snav\"><button class=\"ds-snav-pill ds-snav-active\">Bundle</button><button class=\"ds-snav-pill\">Risk Scores</button><button class=\"ds-snav-pill\">Actions</button></div>",
+      "css": ".ds-snav { display: inline-flex; align-items: center; background: #F1F1EE; border-radius: 12px; padding: 4px; gap: 2px; } .ds-snav-pill { display: inline-flex; align-items: center; border: none; border-radius: 10px; background: transparent; color: #64748B; padding: 0 16px; height: 34px; font-size: 13px; font-weight: 700; cursor: pointer; transition: background 140ms cubic-bezier(0.23,1,0.32,1), color 140ms cubic-bezier(0.23,1,0.32,1); white-space: nowrap; } @media (hover: hover) { .ds-snav-pill:hover:not(.ds-snav-active) { background: rgba(255,255,255,.6); color: #0F172A; } } .ds-snav-active { background: #fff !important; color: #AD1E23 !important; box-shadow: 0 1px 3px rgba(15,23,42,.08); }"
+    },
+    {
+      "name": "Eyebrow Label",
+      "kind": "chip",
+      "refersTo": "chip-active",
+      "description": "Small uppercase pill used above headings to mark the current step, section, or category.",
+      "html": "<span class=\"ds-eyebrow\">Step 2 of 3 — Regulatory</span>",
+      "css": ".ds-eyebrow { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #AD1E23; background: rgba(173,30,35,.07); border: 1px solid rgba(173,30,35,.15); border-radius: 999px; padding: 3px 10px; }"
+    },
+    {
+      "name": "Sidebar Step",
+      "kind": "nav",
+      "refersTo": "button-ghost",
+      "description": "Left-column step navigator for the 3-step intake flow. Shows current step, completed steps, and locked future steps.",
+      "html": "<button class=\"ds-sidebar-step ds-step-active\"><span class=\"ds-step-icon\">📋</span><span class=\"ds-step-text\"><strong>Business Profile</strong><em>Step 1 of 3</em></span></button>",
+      "css": ".ds-sidebar-step { width: 100%; display: grid; grid-template-columns: 34px 1fr; align-items: center; gap: 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: #64748B; padding: 10px; cursor: pointer; text-align: left; transition: background 140ms, border-color 140ms, color 140ms; } @media (hover: hover) { .ds-sidebar-step:hover { background: #F1F1EE; color: #0F172A; } } .ds-step-active { border-color: rgba(173,30,35,.25); background: rgba(173,30,35,.07); color: #AD1E23; } .ds-step-icon { width: 34px; height: 34px; border-radius: 8px; background: #F1F1EE; display: grid; place-items: center; font-size: 15px; } .ds-step-active .ds-step-icon { background: rgba(173,30,35,.12); } .ds-step-text strong { font-size: 13px; font-weight: 800; display: block; } .ds-step-text em { font-style: normal; font-size: 11px; font-weight: 700; color: #94A3B8; }"
+    },
+    {
+      "name": "Methodology Button",
+      "kind": "custom",
+      "refersTo": "button-primary",
+      "description": "The primary trust component — expands the full 21-step sourced risk methodology. Color-shifts on expand to signal expert mode.",
+      "html": "<button class=\"ds-methodology-btn\"><span>🔬</span><span>How was this calculated? — Full 21-step methodology</span><span class=\"ds-methodology-tag\">▼ expand</span></button>",
+      "css": ".ds-methodology-btn { display: inline-flex; align-items: center; gap: 10px; background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%); color: #fff; border: none; padding: 14px 32px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; letter-spacing: .03em; box-shadow: 0 4px 16px rgba(15,23,42,.25); transition: box-shadow 200ms cubic-bezier(0.23,1,0.32,1), transform 160ms cubic-bezier(0.23,1,0.32,1); } @media (hover: hover) { .ds-methodology-btn:hover { box-shadow: 0 8px 28px rgba(15,23,42,.35); transform: translateY(-1px); } } .ds-methodology-btn:active { transform: scale(0.97); } .ds-methodology-btn.expanded { background: linear-gradient(135deg, #B91C1C 0%, #DC2626 100%); } .ds-methodology-tag { font-size: 11px; background: rgba(255,255,255,.15); border-radius: 4px; padding: 2px 7px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Risk War Room",
+    "overview": "SPARC is not a dashboard — it is a command briefing. Every surface exists to make one person look like the most credible expert in the room within two minutes of opening the laptop. The RM does not browse SPARC; they deploy it. The interface should feel like classified intelligence prepared in advance and handed over at exactly the right moment.\n\nThe visual system is serious, fast, and unapologetically dense where density earns trust. Assessment Paper backgrounds with Underwriter's Ink type establish institutional authority without the sterility of a bank portal. The single accent — Signal Red, the same red as IRDAI enforcement notices — appears rarely and only to mark decisions, alerts, and the primary action. Its rarity is the point.\n\nMotion is responsive, not choreographed. Components acknowledge interaction immediately and without fuss. The system never asks for the RM's attention; it responds to commands.",
+    "keyCharacteristics": [
+      "Assessment Paper canvas (#FAFAF8) that reads as document, not app",
+      "Signal Red used on ≤10% of any screen — reserved for decisions and critical risk flags",
+      "Underwriter's Ink (#0F172A) as the dominant text color — deep, not pure black",
+      "Space Grotesk for headings, tight tracking (-0.03em), heavy weights — authority through typography",
+      "Content cards float with diffuse ambient shadow; data rows are flat on a tonal surface",
+      "Physical press feedback (scale(0.97)) on every interactive element; nothing feels passive"
+    ],
+    "rules": [
+      { "name": "The One Voice Rule",        "body": "Signal Red is used on ≤10% of any given screen. Its rarity is the point — it marks decisions, not decoration. When everything is red, nothing is urgent.", "section": "colors" },
+      { "name": "The Status Pairing Rule",   "body": "Status colors (green, amber, blue) are never the only indicator of meaning. Always pair with a label or icon so the signal survives monochrome, color blindness, and printing.", "section": "colors" },
+      { "name": "The -0.03em Rule",          "body": "Every heading at Title size and above uses -0.03em letter-spacing. This single constraint creates visual cohesion and separates Space Grotesk from generic web typography.", "section": "typography" },
+      { "name": "The Structural Shadow Rule","body": "Shadows exist to communicate information hierarchy, not visual interest. If removing a shadow doesn't change what a user understands about an element's importance, the shadow should not be there.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use Signal Red (#AD1E23) only on primary actions, active selection states, and critical risk flags. Keep it below 10% surface coverage per screen.",
+      "Do pair every status color (green/amber/blue) with a label or icon. Color is never the only indicator of severity.",
+      "Do use -0.03em letter-spacing on all Space Grotesk headings at Title size and above, without exception.",
+      "Do show diffuse ambient shadows on content cards (KPI cards, bundle cards) at rest, before hover.",
+      "Do keep data rows, risk breakdown tables, and sidebar list items flat — tonal separation only.",
+      "Do use scale(0.97) press feedback on every button. Every click must be physically acknowledged.",
+      "Do use specific Indian figures, named IRDAI/RBI regulations, and sector-specific language in every output.",
+      "Do respect prefers-reduced-motion. Every animation has a no-motion fallback."
+    ],
+    "donts": [
+      "Don't build generic SaaS admin dashboards: teal/blue accent, sidebar nav with icons, identical card grids, hero-metric strips, 'Overview' headings.",
+      "Don't use border-left greater than 1px as a colored accent stripe on cards or callouts.",
+      "Don't use gradient text (background-clip: text). Use Signal Red solid for emphasis; weight or size for hierarchy.",
+      "Don't use glassmorphism (backdrop-filter: blur) on primary content cards or results surfaces. Reserved for topbar and role-selection screen only.",
+      "Don't use consumer fintech aesthetics: gradient blobs, bright primary colors, rounded-everything phone-app energy.",
+      "Don't use legacy insurance portal aesthetics: dense form tables, flat corporate blue, 2008 banking software energy.",
+      "Don't use transition: all. Specify only the properties that animate.",
+      "Don't use identical card grids — same-sized cards with icon + heading + body repeated in a uniform grid.",
+      "Don't use #000000 pure black or #ffffff as the page background. Assessment Paper (#FAFAF8) is the canvas."
+    ]
+  }
+}

@@ -2165,12 +2165,16 @@ function renderResults(result) {
           <div class="result-section-head">
             <div class="result-section-bar"></div>
             <div class="result-section-title">Bundle recommendation</div>
+            <button class="pdf-trigger-btn" type="button" onclick="openSummaryPDF()" title="Download founder summary">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Download summary
+            </button>
           </div>
           ${renderGenAIStatus(result)}
           ${renderBundleHero(result.bundle_match, result.recommendations, result.why_it_matters)}
+          ${renderClaimsScenarios(result)}
           ${renderBundleAlternatives(result.bundle_alternatives)}
           ${renderV2Insights(result)}
-        </div>
         <div class="result-section">
           <div class="result-section-head">
             <div class="result-section-bar"></div>
@@ -2856,6 +2860,83 @@ function reviseQuoteInputs() {
   renderResults(window.__result);
 }
 
+const SLIDER_RANGES = {
+  cyber_limit_cr:               { min: 1,   max: 50,   step: 0.5 },
+  dno_limit_cr:                 { min: 1,   max: 30,   step: 0.5 },
+  pi_limit_cr:                  { min: 1,   max: 25,   step: 0.5 },
+  crime_limit_cr:               { min: 0.5, max: 15,   step: 0.5 },
+  employment_practices_limit_cr:{ min: 0.5, max: 15,   step: 0.5 },
+  product_liability_limit_cr:   { min: 1,   max: 25,   step: 0.5 },
+  public_liability_limit_cr:    { min: 1,   max: 25,   step: 0.5 },
+  property_sum_insured_cr:      { min: 1,   max: 200,  step: 5   },
+  gross_profit_si_cr:           { min: 1,   max: 100,  step: 1   },
+  equipment_sum_insured_cr:     { min: 1,   max: 100,  step: 1   },
+  stock_sum_insured_cr:         { min: 1,   max: 100,  step: 1   },
+  annual_revenue_cr:            { min: 1,   max: 500,  step: 5   },
+  data_records_lakhs:           { min: 0,   max: 500,  step: 5   },
+  headcount:                    { min: 5,   max: 5000, step: 5   },
+};
+
+let _quoteDebounceTimer = null;
+
+window.triggerLiveQuote = () => {
+  clearTimeout(_quoteDebounceTimer);
+  const badge = document.getElementById("quote-live-badge");
+  if (badge) { badge.textContent = "Updating…"; badge.style.opacity = "1"; }
+  _quoteDebounceTimer = setTimeout(() => generatePricingEstimate(), 480);
+};
+
+window.syncSlider = (key, value) => {
+  const n = parseFloat(value);
+  if (!Number.isFinite(n) || n < 0) return;
+  const slider = document.getElementById(`qs-slider-${key}`);
+  const input  = document.getElementById(`qs-input-${key}`);
+  if (slider && parseFloat(slider.value) !== n) slider.value = n;
+  if (input  && parseFloat(input.value)  !== n) input.value  = n;
+  window.setQuoteInput(key, n);
+  window.triggerLiveQuote();
+};
+
+function renderLiveSliderField(row) {
+  const range = SLIDER_RANGES[row.key];
+  if (!range || row.unit === "yes/no") return null;
+  const val = quoteFieldValue(row) || range.min;
+  const isCount = row.unit === "count";
+  return `
+    <div class="ls-row">
+      <div class="ls-label-row">
+        <span class="ls-label">${esc(row.label)}</span>
+        <div class="ls-value-wrap">
+          <input type="number" class="ls-num" id="qs-input-${esc(row.key)}"
+            min="${range.min}" max="${range.max}" step="${range.step}"
+            value="${esc(String(val))}"
+            oninput="syncSlider('${esc(row.key)}', this.value)">
+          <span class="ls-unit">${esc(row.unit || "Cr")}</span>
+        </div>
+      </div>
+      <input type="range" class="ls-range" id="qs-slider-${esc(row.key)}"
+        min="${range.min}" max="${range.max}" step="${range.step}"
+        value="${esc(String(val))}"
+        oninput="syncSlider('${esc(row.key)}', this.value)">
+      <div class="ls-endpoints"><span>${isCount ? range.min : `${range.min} Cr`}</span><span>${isCount ? range.max : `${range.max} Cr`}</span></div>
+    </div>`;
+}
+
+function renderLiveSliderStrip(fields) {
+  const sliderFields = (fields || []).filter(r => SLIDER_RANGES[r.key] && r.unit !== "yes/no");
+  if (!sliderFields.length) return "";
+  return `
+    <div class="ls-strip">
+      <div class="ls-strip-head">
+        <span class="ls-strip-title">Adjust coverage limits</span>
+        <span id="quote-live-badge" class="ls-badge" style="opacity:0">Updating…</span>
+      </div>
+      <div class="ls-strip-grid">
+        ${sliderFields.map(r => renderLiveSliderField(r)).filter(Boolean).join("")}
+      </div>
+    </div>`;
+}
+
 window.toggleHowCalculated = (show) => {
   const modal = document.getElementById("how-calc-modal");
   if (!modal) return;
@@ -3072,6 +3153,7 @@ function renderDualPricingPanel(result) {
   const fullQ   = result.pricing_engine_quote;
   const bundleName = result.bundle_match?.name || "Recommended bundle";
   const fullCount  = fullQ?.covers_to_price?.length || fullQ?.cover_count || "";
+  const fields  = fullQ?.required_inputs || bundleQ?.required_inputs || [];
 
   if ((!isQuoted(bundleQ) && !isQuoted(fullQ)) || state.quotePanelMode === "edit") {
     state.quotePanelMode = null;
@@ -3083,9 +3165,7 @@ function renderDualPricingPanel(result) {
       ${renderPricePanel(bundleQ, "Bundle price", "bundle", bundleName)}
       ${renderPricePanel(fullQ,   "Full recommended cover", "full", `${fullCount ? fullCount + " covers — " : ""}bundle + critical products`)}
     </div>
-    <div style="margin-top:10px;text-align:right;">
-      <button class="btn btn-ghost" type="button" onclick="reviseQuoteInputs()">Edit underwriting inputs</button>
-    </div>`;
+    ${renderLiveSliderStrip(fields)}`;
 }
 
 function renderPricingQuote(quote) {
@@ -3202,7 +3282,7 @@ function renderQuoteInputPanel(quote) {
     });
     state.quoteSuggestionsPreFilled = true;
   }
-  return `
+  const html = `
     <div class="pricing-card">
       <div class="pricing-head">
         <div>
@@ -3223,6 +3303,14 @@ function renderQuoteInputPanel(quote) {
         ${fields.map(row => {
           const val = quoteFieldValue(row);
           const hasValue = quoteFieldHasValue(row);
+          const hasSlider = !!SLIDER_RANGES[row.key] && row.unit !== "yes/no" && row.unit !== "count";
+          if (hasSlider) {
+            return `
+            <div class="quote-input-field">
+              ${renderLiveSliderField(row)}
+              ${row.help ? `<small style="font-size:11px;color:var(--ink-muted);margin-top:2px;display:block;">${esc(row.help)}</small>` : ""}
+            </div>`;
+          }
           const placeholder = quoteSuggestionPlaceholder(row);
           const inputHtml = row.unit === "yes/no"
             ? `<select class="f-select" style="height:36px;font-size:13px;"
@@ -3234,7 +3322,7 @@ function renderQuoteInputPanel(quote) {
             : `<input class="f-input" type="number" min="0" step="${row.unit === "count" ? "1" : "0.01"}"
                  value="${esc(String(val))}"
                  placeholder="${esc(placeholder)}"
-                 oninput="setQuoteInput('${esc(row.key)}', this.value === '' ? '' : Number(this.value))" />`;
+                 oninput="setQuoteInput('${esc(row.key)}', this.value === '' ? '' : Number(this.value)); triggerLiveQuote();" />`;
           return `
           <label class="quote-input-field">
             <span>${esc(row.label)} ${row.unit && row.unit !== "yes/no" ? `<em>${esc(row.unit)}</em>` : ""}</span>
@@ -3246,10 +3334,23 @@ function renderQuoteInputPanel(quote) {
       </div>
       ${missing.length ? `<div class="notice" style="margin-top:12px;">Please fill ${missing.length} required input${missing.length > 1 ? "s" : ""} before estimating.</div>` : ""}
       <div style="display:flex;gap:10px;align-items:center;margin-top:16px;flex-wrap:wrap;">
-        <button class="btn btn-primary" type="button" onclick="generatePricingEstimate()">Generate estimated quote</button>
+        <button class="btn btn-primary" type="button" onclick="generatePricingEstimate()">Generate quote</button>
         <span id="pricing-estimate-status" style="font-size:12px;color:var(--ink-muted);"></span>
+        <span id="quote-live-badge" class="ls-badge" style="opacity:0">Updating…</span>
       </div>
     </div>`;
+
+  // Auto-generate if all required slider fields are pre-filled
+  const allFilled = fields.filter(r => r.unit !== "yes/no").every(r => quoteFieldHasValue(r));
+  if (allFilled && fields.length > 0 && missing.length === 0) {
+    setTimeout(() => {
+      if (window.__result && !isQuoted(window.__result?.bundle_only_pricing_quote) && !isQuoted(window.__result?.pricing_engine_quote)) {
+        generatePricingEstimate();
+      }
+    }, 150);
+  }
+
+  return html;
 }
 
 async function generatePricingEstimate() {
@@ -3398,6 +3499,282 @@ function renderBadProducts(products) {
         </div>`).join("")}
       </div>
     </details>`;
+}
+
+// ── Claims scenarios ─────────────────────────────────────────────
+// Keyed as COVER_KEY → { default, SECTOR_NAME }. Pick sector variant first, fall back to default.
+const CLAIMS_SCENARIOS = {
+  cyber_liability: {
+    Fintech: {
+      event: "Payment API breach exposes transaction records for 800,000 customers",
+      exposure_label: "Uninsured exposure",
+      exposure: "₹15–60 Cr",
+      costs: [
+        "CERT-In 6-hour mandatory reporting + forensic audit: ₹1.5–3 Cr",
+        "Customer notification (SMS + email to 800K): ₹40–80L",
+        "DPDP Act civil penalty exposure: up to ₹250 Cr per incident",
+        "Regulatory response team + legal counsel: ₹2–5 Cr",
+      ],
+      with_cover: "Cyber policy covers forensic investigation, breach notification costs, regulatory defence, and civil penalties — activating the moment the incident is reported.",
+    },
+    Healthtech: {
+      event: "Patient records for 200,000 users exfiltrated via a third-party EMR integration",
+      exposure_label: "Uninsured exposure",
+      exposure: "₹8–25 Cr",
+      costs: [
+        "Patient notification + credit monitoring setup: ₹60L–1.2 Cr",
+        "Forensic investigation and remediation: ₹1–2.5 Cr",
+        "NMC/MoHFW regulatory inquiry defence: ₹1–3 Cr",
+        "DPDP Act penalty (sensitive health data): up to ₹250 Cr",
+      ],
+      with_cover: "Cyber policy covers breach response, patient notification, regulatory defence, and penalty exposure — including health data classified as sensitive personal data under DPDP.",
+    },
+    default: {
+      event: "Ransomware attack encrypts production database; 3 weeks of downtime",
+      exposure_label: "Uninsured exposure",
+      exposure: "₹3–12 Cr",
+      costs: [
+        "Forensic investigation and system recovery: ₹80L–2 Cr",
+        "CERT-In 6-hour reporting + government response: ₹40–80L",
+        "Customer notification and PR crisis management: ₹60L–1.5 Cr",
+        "Revenue loss during 3 weeks of downtime",
+      ],
+      with_cover: "Cyber policy covers forensic costs, system restoration, ransom negotiation support, regulatory response, and business interruption during the outage.",
+    },
+  },
+  dno_liability: {
+    default: {
+      event: "Institutional investor sues board for alleged misrepresentation in the Series B pitch deck",
+      exposure_label: "Per-director legal exposure",
+      exposure: "₹2–8 Cr",
+      costs: [
+        "Legal defence for 3–4 board members: ₹1.5–4 Cr",
+        "2-year dispute timeline — founders distracted, fundraising stalled",
+        "Settlement or judgment: ₹3–15 Cr",
+        "Personal assets of directors at risk without cover",
+      ],
+      with_cover: "D&O policy pays legal defence costs for each named director from day one, and covers settlements — protecting personal assets and keeping founders focused on the business.",
+    },
+    "Series B+": {
+      event: "Series C investor claims board failed to disclose a material regulatory breach before the round closed",
+      exposure_label: "Board-level liability",
+      exposure: "₹5–20 Cr",
+      costs: [
+        "High Court securities litigation: ₹3–6 Cr in legal fees",
+        "SEBI adjudication proceedings (if listed path): ₹1–3 Cr",
+        "Potential rescission of investment round",
+        "Reputational damage to founders' future fundraising",
+      ],
+      with_cover: "D&O policy covers director defence costs, regulatory investigation fees, and any final judgment — regardless of which director is named.",
+    },
+  },
+  professional_indemnity: {
+    Fintech: {
+      event: "Payment gateway logs 4 hours of unplanned downtime during a client's peak sale event",
+      exposure_label: "Contract breach claim",
+      exposure: "₹5–18 Cr",
+      costs: [
+        "Client claims ₹12 Cr in lost transaction revenue",
+        "SLA penalty clauses triggered across 3 enterprise clients",
+        "Legal arbitration costs: ₹80L–2 Cr",
+        "Emergency engineering response + overtime: ₹30–60L",
+      ],
+      with_cover: "PI / Tech E&O policy covers client claims arising from your technology failure, SLA breach penalties, and arbitration costs — without you having to prove it wasn't negligence first.",
+    },
+    default: {
+      event: "A bug in your SaaS platform causes a client to overbill 10,000 end customers",
+      exposure_label: "Client claim exposure",
+      exposure: "₹3–10 Cr",
+      costs: [
+        "Client's remediation and refund costs: ₹2–6 Cr",
+        "NCDRC class action risk from end customers",
+        "Legal defence and settlement: ₹1–4 Cr",
+        "Contract termination + lost ARR",
+      ],
+      with_cover: "PI / Tech E&O covers the client's claim for financial loss caused by your software error — including defence costs before any liability is established.",
+    },
+  },
+  product_liability: {
+    "D2C / Consumer Brands": {
+      event: "A manufacturing defect in your earphone causes a battery fire; one hospitalization, 12 NCDRC complaints filed",
+      exposure_label: "Product recall + liability",
+      exposure: "₹4–22 Cr",
+      costs: [
+        "Recall of 50,000 units across Amazon, Flipkart, D2Mart: ₹1.5–3 Cr",
+        "Hospitalization compensation and legal defence: ₹80L–2 Cr",
+        "NCDRC class action defence: ₹1–4 Cr",
+        "Brand rehabilitation and PR campaign: ₹1–3 Cr",
+      ],
+      with_cover: "Product Liability policy covers bodily injury and property damage claims from product defects, recall costs, and NCDRC/consumer court defence — including strict liability under Consumer Protection Act 2019.",
+    },
+    Healthtech: {
+      event: "A diagnostic device gives incorrect readings for 3 months; patient harm alleged in 8 cases",
+      exposure_label: "Recall + patient liability",
+      exposure: "₹8–30 Cr",
+      costs: [
+        "Device recall and replacement: ₹2–5 Cr",
+        "NMC investigation + CDSCO regulatory response: ₹1–3 Cr",
+        "Patient compensation claims (8 cases): ₹3–10 Cr",
+        "Hospital partner contract penalties: ₹1–3 Cr",
+      ],
+      with_cover: "Product Liability covers patient injury claims, recall costs, and regulatory defence — including CDSCO proceedings for medical device failures.",
+    },
+    "Deeptech / AI / Robotics": {
+      event: "A UAV loses control during an infrastructure survey; structural damage to third-party equipment and one injury",
+      exposure_label: "Third-party liability",
+      exposure: "₹1.5–8 Cr",
+      costs: [
+        "Third-party property damage: ₹40L–1.5 Cr",
+        "Bodily injury claim: ₹80L–3 Cr",
+        "DGCA investigation + potential Type Certificate suspension",
+        "Legal defence: ₹50L–2 Cr",
+      ],
+      with_cover: "Drone RPAS policy (mandated by DGCA Rule 44) covers third-party bodily injury and property damage from drone operations — and protects your Type Certificate from regulatory action.",
+    },
+  },
+  employment_practices: {
+    default: {
+      event: "Senior engineer claims wrongful termination after raising a code ethics complaint internally",
+      exposure_label: "Employment tribunal exposure",
+      exposure: "₹1–4 Cr",
+      costs: [
+        "Employment tribunal defence: ₹40–80L in legal fees",
+        "Out-of-court settlement (industry average): ₹80L–2 Cr",
+        "POSH-related harassment claim from same period: additional ₹30–60L",
+        "HR compliance audit triggered by labour department",
+      ],
+      with_cover: "Employment Practices Liability policy covers legal defence and settlements for wrongful termination, discrimination, and harassment claims — without the founders personally funding the defence.",
+    },
+  },
+  crime_fidelity: {
+    Fintech: {
+      event: "A finance team member diverts ₹2.3 Cr over 18 months via fake vendor invoices; discovered in year-end audit",
+      exposure_label: "Internal fraud loss",
+      exposure: "₹2.3 Cr (irrecoverable)",
+      costs: [
+        "Direct financial loss: ₹2.3 Cr — banks have no liability once transfers are authorised",
+        "Forensic accounting to trace and document the fraud: ₹30–60L",
+        "Legal recovery proceedings (low probability of full recovery)",
+        "Regulatory disclosure obligations under RBI PA guidelines",
+      ],
+      with_cover: "Crime / Fidelity Guarantee policy covers direct financial loss from employee dishonesty — reimbursing the business as soon as the fraud is documented, not after a court verdict.",
+    },
+    default: {
+      event: "An operations manager executes ₹85L in unauthorised bank transfers to a personal account over 6 months",
+      exposure_label: "Fidelity fraud loss",
+      exposure: "₹85L (unrecoverable)",
+      costs: [
+        "Bank's liability ends at point of authorisation — full loss on the company",
+        "Forensic investigation: ₹15–30L",
+        "Legal recovery: uncertain timeline, uncertain outcome",
+        "Leadership distraction during critical fundraising period",
+      ],
+      with_cover: "Fidelity Guarantee covers employee dishonesty losses as soon as the fraud is proven — paid to the business directly, regardless of whether the employee is prosecuted.",
+    },
+  },
+  property_all_risk: {
+    "Deeptech / AI / Robotics": {
+      event: "A lab fire destroys ₹8 Cr of drone assembly equipment and test rigs; 6-month lead time on replacement parts",
+      exposure_label: "Asset replacement + BI loss",
+      exposure: "₹10–18 Cr",
+      costs: [
+        "Equipment replacement at market value: ₹8 Cr",
+        "6 months of lost revenue while operations halt: ₹3–8 Cr",
+        "DGCA re-certification after equipment change: ₹20–40L",
+        "Client penalty clauses triggered by delivery delays",
+      ],
+      with_cover: "Property All Risk policy covers replacement of lab equipment and machinery at reinstatement value, plus Business Interruption cover for lost revenue during the rebuild period.",
+    },
+    default: {
+      event: "Flooding from an unseasonable monsoon event damages warehouse stock worth ₹4 Cr and halts operations for 6 weeks",
+      exposure_label: "Asset + BI loss",
+      exposure: "₹5–9 Cr",
+      costs: [
+        "Stock replacement: ₹4 Cr",
+        "6 weeks' lost gross profit: ₹1–3 Cr",
+        "Emergency relocation and logistics: ₹30–60L",
+        "Supply chain penalties from unfulfilled orders",
+      ],
+      with_cover: "Property All Risk covers stock and asset damage at reinstatement value; Business Interruption add-on covers lost gross profit during the recovery period.",
+    },
+  },
+  healthcare_pi: {
+    Healthtech: {
+      event: "A telemedicine platform's AI triage tool recommends incorrect dosage; adverse patient outcome triggers NMC inquiry",
+      exposure_label: "Medical negligence claim",
+      exposure: "₹3–15 Cr",
+      costs: [
+        "NMC / NBE regulatory proceedings: ₹80L–2 Cr",
+        "Patient compensation claim: ₹2–8 Cr",
+        "Platform audit and AI model documentation: ₹40–80L",
+        "Hospital partner contract suspension",
+      ],
+      with_cover: "Healthcare PI covers professional negligence claims against the platform and its partner doctors — including AI-assisted clinical decision support errors that cause patient harm.",
+    },
+  },
+};
+
+function renderClaimsScenarios(result) {
+  const bundle = result.bundle_match;
+  if (!bundle) return "";
+  const sector = result.profile?.sector || result.sector || "";
+  const mandatory = bundle.mandatory_covers || [];
+
+  // Build ordered list of covers to show: mandatory first, then high-risk optionals
+  const scores = result.scores || {};
+  const scoreOf = (cover) => {
+    const spec = { cyber_liability: ["Cyber Technical Risk","Data Privacy Risk"], dno_liability: ["Governance & Fraud Risk","Regulatory Compliance Risk"], professional_indemnity: ["Liability Risk","IP Infringement Risk"], product_liability: ["Liability Risk","Reputation Risk"], employment_practices: ["Gig & Labour Risk","Governance & Fraud Risk"], crime_fidelity: ["Governance & Fraud Risk"], property_all_risk: ["Property Risk","ESG & Climate Risk"], healthcare_pi: ["Liability Risk"] };
+    const keys = spec[cover] || [];
+    if (!keys.length) return 0;
+    return keys.reduce((s, k) => s + (_float(scores[k], 0)), 0) / keys.length;
+  };
+
+  const coverPriority = [...mandatory, ...(bundle.optional_covers || [])].filter(c => CLAIMS_SCENARIOS[c]);
+  coverPriority.sort((a, b) => (mandatory.includes(b) ? 1 : 0) - (mandatory.includes(a) ? 1 : 0) || scoreOf(b) - scoreOf(a));
+
+  const toShow = coverPriority.slice(0, 3);
+  if (!toShow.length) return "";
+
+  const scenarios = toShow.map(coverKey => {
+    const bank = CLAIMS_SCENARIOS[coverKey];
+    const s = bank[sector] || bank[result.profile?.funding_stage] || bank.default;
+    if (!s) return null;
+    return { coverKey, s };
+  }).filter(Boolean);
+
+  if (!scenarios.length) return "";
+
+  const coverLabel = (k) => ({ cyber_liability:"Cyber Liability", dno_liability:"Directors & Officers", professional_indemnity:"PI / Tech E&O", product_liability:"Product Liability", employment_practices:"Employment Practices", crime_fidelity:"Crime / Fidelity", property_all_risk:"Property All Risk", property_fire:"Property Fire", healthcare_pi:"Healthcare PI", drone_rpas:"Drone RPAS" }[k] || labelize(k));
+
+  return `
+    <div class="result-section">
+      <div class="result-section-head">
+        <div class="result-section-bar"></div>
+        <div class="result-section-title">What happens without these covers</div>
+      </div>
+      <p class="cs-intro">Based on your profile and the covers flagged as mandatory, here are three realistic claim scenarios — the kind that happen every quarter in Indian startups at your stage.</p>
+      <div class="cs-grid">
+        ${scenarios.map(({ coverKey, s }) => `
+          <div class="cs-card">
+            <div class="cs-card-top">
+              <span class="cs-cover-tag">${esc(coverLabel(coverKey))}</span>
+              <span class="cs-mandatory-badge">${(bundle.mandatory_covers||[]).includes(coverKey) ? "Mandatory" : "Recommended"}</span>
+            </div>
+            <div class="cs-event">${esc(s.event)}</div>
+            <div class="cs-exposure-row">
+              <span class="cs-exposure-label">${esc(s.exposure_label)}</span>
+              <span class="cs-exposure-val">${esc(s.exposure)}</span>
+            </div>
+            <ul class="cs-costs">
+              ${s.costs.map(c => `<li>${esc(c)}</li>`).join("")}
+            </ul>
+            <div class="cs-with-cover">
+              <span class="cs-with-label">With cover</span>
+              <span>${esc(s.with_cover)}</span>
+            </div>
+          </div>`).join("")}
+      </div>
+    </div>`;
 }
 
 function renderBundleHero(bundle, recs, why = {}) {
@@ -4537,4 +4914,278 @@ function drawRadar(canvasId, data, opts = {}) {
 /* ─── KICK OFF ───────────────────────────────────────────────── */
 window.renderForm = renderForm;
 init();
+
+/* ─── FOUNDER SUMMARY PDF ────────────────────────────────────── */
+window.openSummaryPDF = () => {
+  const result = window.__result;
+  if (!result) return;
+  const html = buildSummaryHTML(result);
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url  = URL.createObjectURL(blob);
+  const win  = window.open(url, "_blank");
+  if (win) win.focus();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+};
+
+function buildSummaryHTML(result) {
+  const bundle   = result.bundle_match || {};
+  const rm       = result.rm || {};
+  const profile  = result.profile || {};
+  const bundleQ  = result.bundle_only_pricing_quote;
+  const fullQ    = result.pricing_engine_quote;
+  const triggers = (result.display_regulatory_triggers || result.regulatory_triggers_fired || []).slice(0, 6);
+  const roadmap  = [...(result.coverage_roadmap || [])].sort((a, b) => {
+    const o = ["Pre-seed","Seed","Series A","Series B","Series B+","Growth","Late Stage / Pre-IPO"];
+    return (o.indexOf(a.stage||"") + 1 || 99) - (o.indexOf(b.stage||"") + 1 || 99);
+  });
+
+  const rmName   = rm.RM_NAME   || "";
+  const rmPhone  = rm.RM_PHONE  || "";
+  const rmEmail  = rm.RM_EMAIL  || "";
+  const rmOffice = rm.RM_OFFICE || "ICICI Lombard General Insurance";
+
+  const mandatory = bundle.mandatory_covers || [];
+  const optional  = bundle.optional_covers  || [];
+
+  const coverDesc = {
+    cyber_liability:              "Covers data breaches, ransomware, regulatory fines, and breach notification costs.",
+    dno_liability:                "Protects directors and officers personally against investor and regulatory claims.",
+    professional_indemnity:       "Covers client claims arising from errors, omissions, or technology failures in your product.",
+    crime_fidelity:               "Covers financial loss from employee fraud, theft, or unauthorised transactions.",
+    employment_practices:         "Covers wrongful termination, discrimination, and harassment claims from employees.",
+    product_liability:            "Covers bodily injury and property damage claims arising from product defects.",
+    comprehensive_general_liability: "Covers third-party bodily injury and property damage from your operations.",
+    public_liability:             "Covers third-party injury or damage claims from visitors or public interactions.",
+    property_fire:                "Covers physical assets against fire, explosion, and allied perils.",
+    property_all_risk:            "Covers physical assets against all accidental damage including theft and natural perils.",
+    business_interruption:        "Covers lost revenue and fixed costs while your operations are disrupted.",
+    machinery_breakdown:          "Covers repair and replacement costs for mechanical and electrical equipment failure.",
+    electronic_equipment:         "Covers lab and office electronics against breakdown, accidental damage, and theft.",
+    group_health:                 "Provides hospitalisation and medical coverage for your employees and their dependants.",
+    employees_comp:               "Statutory cover for employee injuries or illness arising in the course of employment.",
+    marine_transit:               "Covers goods and equipment in transit against loss, damage, and theft.",
+    drone_rpas:                   "Mandatory cover for third-party liability from drone operations under DGCA Rule 44.",
+    healthcare_pi:                "Covers professional negligence claims against healthcare practitioners and platforms.",
+    financial_services_pi:        "Covers claims from financial mis-advice, settlement errors, or payment processing failures.",
+  };
+
+  const hasPremium = isQuoted(bundleQ) || isQuoted(fullQ);
+  const bundlePremium = bundleQ?.gross_premium_lakh;
+  const fullPremium   = fullQ?.gross_premium_lakh;
+
+  const SIGNAL_PLAIN = {
+    handles_pii:         "Your company handles personal data",
+    rbi_licensed:        "You hold an RBI licence",
+    sebi_regulated:      "You are SEBI-regulated",
+    healthtech:          "You process health data",
+    fintech:             "You operate in financial services",
+    has_investors:       "You have institutional investors",
+    ai_in_product:       "Your product uses AI",
+    b2b_contracts:       "You have B2B contracts",
+    physical_assets:     "You own physical assets",
+    gig_workers:         "You employ gig or contract workers",
+    export_operations:   "You operate internationally",
+    cert_in_obligations: "You have CERT-In reporting obligations",
+  };
+
+  const coverRows = (keys, label) => keys.map(k => `
+    <tr>
+      <td style="padding:10px 16px 10px 0;border-bottom:1px solid #f0f0f0;vertical-align:top;">
+        <div style="font-weight:700;font-size:13px;color:#111;">${esc(labelize(k))}</div>
+        <div style="font-size:12px;color:#666;margin-top:3px;line-height:1.5;">${esc(coverDesc[k] || "")}</div>
+      </td>
+      <td style="padding:10px 0 10px 8px;border-bottom:1px solid #f0f0f0;vertical-align:top;white-space:nowrap;">
+        <span style="display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 8px;border-radius:4px;${label==="Mandatory"?"background:#fde8e8;color:#AD1E23;border:1px solid rgba(173,30,35,.2)":"background:#f0f4ff;color:#3949ab;border:1px solid #c5cdf0;"}">${label}</span>
+      </td>
+    </tr>`).join("");
+
+  const claimCards = (() => {
+    const sector = profile.sector || "";
+    const covers = mandatory.filter(k => CLAIMS_SCENARIOS[k]).slice(0, 3);
+    return covers.map(k => {
+      const bank = CLAIMS_SCENARIOS[k];
+      const s = bank[sector] || bank.default;
+      if (!s) return "";
+      return `
+      <div style="border:1px solid #e8e8e8;border-radius:10px;padding:16px;margin-bottom:12px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#AD1E23;margin-bottom:8px;">${esc(labelize(k))}</div>
+        <div style="font-size:14px;font-weight:700;color:#111;margin-bottom:10px;line-height:1.4;">${esc(s.event)}</div>
+        <div style="background:#fff5f5;border:1px solid rgba(173,30,35,.15);border-radius:6px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#888;">${esc(s.exposure_label)}</span>
+          <span style="font-size:16px;font-weight:800;color:#AD1E23;font-variant-numeric:tabular-nums;">${esc(s.exposure)}</span>
+        </div>
+        <ul style="margin:0;padding-left:16px;font-size:12px;color:#555;line-height:1.6;">
+          ${s.costs.map(c => `<li style="margin-bottom:4px;">${esc(c)}</li>`).join("")}
+        </ul>
+        <div style="border-top:1px solid #f0f0f0;margin-top:10px;padding-top:10px;">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#2e7d32;margin-bottom:4px;">With cover</div>
+          <div style="font-size:12px;color:#555;line-height:1.5;">${esc(s.with_cover)}</div>
+        </div>
+      </div>`;
+    }).join("");
+  })();
+
+  const triggerRows = triggers.map(t => `
+    <tr>
+      <td style="padding:8px 12px 8px 0;border-bottom:1px solid #f0f0f0;font-size:13px;color:#555;vertical-align:top;">${esc(SIGNAL_PLAIN[t.signal] || t.signal || "")}</td>
+      <td style="padding:8px 12px 8px 0;border-bottom:1px solid #f0f0f0;font-size:13px;font-weight:600;color:#111;vertical-align:top;">${esc(t.product || "")}</td>
+      <td style="padding:8px 0 8px 0;border-bottom:1px solid #f0f0f0;font-size:12px;color:#888;vertical-align:top;">${esc(t.regulation || t.reg || "")}</td>
+    </tr>`).join("");
+
+  const roadmapSteps = roadmap.map((p, i) => `
+    <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:${i < roadmap.length - 1 ? "16" : "0"}px;">
+      <div style="width:28px;height:28px;border-radius:50%;background:#AD1E23;color:white;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${i + 1}</div>
+      <div style="padding-top:4px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#999;">${esc(p.stage || "")}</div>
+        <div style="font-size:14px;font-weight:600;color:#111;">${esc(p.bundle || p.recommendation || "")}</div>
+      </div>
+    </div>`).join("");
+
+  const today = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+  const companyName = profile.startup_name || profile.company_name || "Your company";
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Insurance summary — ${esc(companyName)}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif; background: #f5f5f5; color: #111; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .page { max-width: 780px; margin: 32px auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 24px rgba(0,0,0,.1); }
+  @media print {
+    body { background: white; }
+    .page { margin: 0; border-radius: 0; box-shadow: none; max-width: 100%; }
+    .no-print { display: none !important; }
+    h2 { page-break-after: avoid; }
+    .section { page-break-inside: avoid; }
+  }
+  .header { background: #AD1E23; padding: 32px 40px; color: white; }
+  .header-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+  .logo-mark { font-size: 22px; font-weight: 800; letter-spacing: -.5px; }
+  .logo-sub { font-size: 10px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; opacity: .7; margin-top: 3px; }
+  .date-tag { font-size: 11px; opacity: .7; }
+  .header-title { font-size: 26px; font-weight: 800; line-height: 1.2; margin-bottom: 6px; }
+  .header-sub { font-size: 14px; opacity: .8; }
+  .section { padding: 28px 40px; border-bottom: 1px solid #f0f0f0; }
+  .section:last-child { border-bottom: none; }
+  h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #AD1E23; margin-bottom: 14px; }
+  .bundle-name { font-size: 22px; font-weight: 800; color: #111; margin-bottom: 4px; }
+  .bundle-desc { font-size: 14px; color: #555; line-height: 1.6; }
+  .fit-badge { display: inline-block; background: #fde8e8; color: #AD1E23; border: 1px solid rgba(173,30,35,.2); border-radius: 20px; font-size: 12px; font-weight: 700; padding: 3px 12px; margin-bottom: 12px; }
+  .premium-row { display: flex; gap: 16px; margin-top: 16px; flex-wrap: wrap; }
+  .premium-box { flex: 1; min-width: 160px; background: #fafafa; border: 1px solid #e8e8e8; border-radius: 8px; padding: 14px 16px; }
+  .premium-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #999; margin-bottom: 4px; }
+  .premium-val { font-size: 20px; font-weight: 800; color: #AD1E23; font-variant-numeric: tabular-nums; }
+  .premium-note { font-size: 11px; color: #999; margin-top: 3px; }
+  table { width: 100%; border-collapse: collapse; }
+  .footer { background: #fafafa; padding: 24px 40px; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; flex-wrap: wrap; }
+  .rm-name { font-size: 15px; font-weight: 700; color: #111; margin-bottom: 4px; }
+  .rm-detail { font-size: 12px; color: #666; margin-bottom: 2px; }
+  .rm-office { font-size: 11px; color: #999; margin-top: 4px; }
+  .disclaimer { font-size: 10px; color: #bbb; line-height: 1.6; max-width: 340px; }
+  .print-btn { display: inline-flex; align-items: center; gap: 8px; background: #AD1E23; color: white; border: none; border-radius: 8px; padding: 10px 20px; font-size: 13px; font-weight: 700; cursor: pointer; margin: 16px 40px; }
+  .print-btn:hover { background: #8b1010; }
+</style>
+</head>
+<body>
+<div class="no-print" style="text-align:center;padding:20px 0 0;">
+  <button class="print-btn" onclick="window.print()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+    Print / Save as PDF
+  </button>
+</div>
+
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-top">
+      <div>
+        <div class="logo-mark">ICICI Lombard</div>
+        <div class="logo-sub">General Insurance · Commercial Lines</div>
+      </div>
+      <div class="date-tag">${esc(today)}</div>
+    </div>
+    <div class="header-title">Insurance recommendation for ${esc(companyName)}</div>
+    <div class="header-sub">${esc(profile.sector || "")}${profile.funding_stage ? " · " + profile.funding_stage : ""}${profile.team_size ? " · " + profile.team_size + " employees" : ""}</div>
+  </div>
+
+  <!-- Recommended bundle -->
+  <div class="section">
+    <h2>Recommended bundle</h2>
+    ${bundle.fit_pct ? `<div class="fit-badge">${bundle.fit_pct}% profile fit</div>` : ""}
+    <div class="bundle-name">${esc(bundle.name || "")}</div>
+    <div class="bundle-desc">${esc(bundle.description || "")}</div>
+    ${hasPremium ? `
+    <div class="premium-row">
+      ${bundlePremium ? `<div class="premium-box"><div class="premium-label">Bundle price</div><div class="premium-val">INR ${esc(String(bundlePremium))}L</div><div class="premium-note">Incl. 18% GST</div></div>` : ""}
+      ${fullPremium  ? `<div class="premium-box"><div class="premium-label">Full cover price</div><div class="premium-val">INR ${esc(String(fullPremium))}L</div><div class="premium-note">All recommended covers · incl. GST</div></div>` : ""}
+      <div class="premium-box"><div class="premium-label">Note</div><div style="font-size:12px;color:#666;line-height:1.5;margin-top:4px;">Indicative estimate only. Final premium subject to underwriting.</div></div>
+    </div>` : `<p style="font-size:13px;color:#999;margin-top:12px;">Premium estimate not generated. Request a quote from your RM.</p>`}
+  </div>
+
+  <!-- What's covered -->
+  ${mandatory.length || optional.length ? `
+  <div class="section">
+    <h2>What's covered</h2>
+    <table>
+      <tbody>
+        ${coverRows(mandatory, "Mandatory")}
+        ${coverRows(optional.slice(0, 4), "Recommended")}
+      </tbody>
+    </table>
+  </div>` : ""}
+
+  <!-- Why these covers were flagged -->
+  ${triggerRows ? `
+  <div class="section">
+    <h2>Why these covers apply to you</h2>
+    <p style="font-size:13px;color:#666;margin-bottom:14px;line-height:1.6;">These are not general best-practice recommendations — each cover was flagged because a specific regulation or risk profile applies to your company.</p>
+    <table>
+      <thead>
+        <tr>
+          <th style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#999;font-weight:600;padding-bottom:8px;text-align:left;">Reason</th>
+          <th style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#999;font-weight:600;padding-bottom:8px;text-align:left;">Cover</th>
+          <th style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#999;font-weight:600;padding-bottom:8px;text-align:left;">Regulation</th>
+        </tr>
+      </thead>
+      <tbody>${triggerRows}</tbody>
+    </table>
+  </div>` : ""}
+
+  <!-- Claim scenarios -->
+  ${claimCards ? `
+  <div class="section">
+    <h2>What happens without these covers</h2>
+    <p style="font-size:13px;color:#666;margin-bottom:16px;line-height:1.6;">Real scenarios from Indian startups at your stage and sector.</p>
+    ${claimCards}
+  </div>` : ""}
+
+  <!-- Coverage roadmap -->
+  ${roadmapSteps ? `
+  <div class="section">
+    <h2>Your coverage roadmap</h2>
+    <p style="font-size:13px;color:#666;margin-bottom:16px;line-height:1.6;">As you raise and scale, your risk profile changes. Here is the recommended bundle progression.</p>
+    ${roadmapSteps}
+  </div>` : ""}
+
+  <!-- Footer / RM contact -->
+  <div class="footer">
+    <div>
+      <div class="rm-name">${esc(rmName)}</div>
+      ${rmPhone ? `<div class="rm-detail">📞 ${esc(rmPhone)}</div>` : ""}
+      ${rmEmail ? `<div class="rm-detail">✉ ${esc(rmEmail)}</div>` : ""}
+      <div class="rm-office">${esc(rmOffice)}</div>
+    </div>
+    <div class="disclaimer">
+      This document is an indicative recommendation generated by SPARC, ICICI Lombard's startup risk classification engine. All premiums shown are estimates subject to underwriting review. Coverage is subject to policy terms and conditions. For a firm quotation, please contact your RM.
+    </div>
+  </div>
+
+</div>
+</body>
+</html>`;
+}
 

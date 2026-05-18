@@ -2172,9 +2172,10 @@ function renderResults(result) {
           </div>
           ${renderGenAIStatus(result)}
           ${renderBundleHero(result.bundle_match, result.recommendations, result.why_it_matters)}
-          ${renderClaimsScenarios(result)}
           ${renderBundleAlternatives(result.bundle_alternatives)}
           ${renderV2Insights(result)}
+        </div>
+        ${renderClaimsScenarios(result)}
         <div class="result-section">
           <div class="result-section-head">
             <div class="result-section-bar"></div>

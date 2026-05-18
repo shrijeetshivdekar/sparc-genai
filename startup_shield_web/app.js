@@ -3267,12 +3267,21 @@ window.applyQuoteSuggestion = (key) => {
   const row = (quote.required_inputs || []).find(item => item.key === key);
   if (!row?.suggestion) return;
   window.setQuoteInput(key, row.suggestion.value);
-  renderResults(window.__result);
+  // Re-render only the quote input panel — avoid full renderResults which flashes the page
+  // and resets the active tab.
+  const pricingCard = document.querySelector("#tab-quote .pricing-card");
+  if (pricingCard) {
+    const tmp = document.createElement("div");
+    tmp.innerHTML = renderQuoteInputPanel(quote);
+    pricingCard.replaceWith(tmp.firstElementChild);
+  }
 };
 
 function renderQuoteInputPanel(quote) {
   const fields = quote.required_inputs || [];
-  const missing = quote.missing_required_inputs || [];
+  // Compute missing client-side from current state — server's missing_required_inputs
+  // is stale (computed before the user pre-filled any values via suggestions).
+  const missing = fields.filter(row => !quoteFieldHasValue(row));
   const covers = quote.covers_to_price || [];
   // Pre-fill suggestion values on first render (don't overwrite user edits)
   if (!state.quoteSuggestionsPreFilled) {

@@ -3358,6 +3358,8 @@ async function generatePricingEstimate() {
   const status = $("pricing-estimate-status");
   if (status) status.textContent = "Calculating from submitted inputs...";
   state.profile.quote_requested = true;
+  // Remember which tab is active so we can restore it after re-render
+  const activeTab = document.querySelector(".snav-pill.snav-active")?.id?.replace("snav-", "") || "quote";
   try {
     const payload = buildProfile();
     payload.quote_requested = true;
@@ -3370,6 +3372,7 @@ async function generatePricingEstimate() {
     const result = await res.json();
     if (!res.ok || result.error) throw new Error(result.error || "Failed");
     renderResults(result);
+    showTab(activeTab);
   } catch (err) {
     if (status) status.textContent = `Error: ${err.message}`;
   }

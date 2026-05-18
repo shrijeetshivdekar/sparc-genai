@@ -3283,11 +3283,21 @@ function renderQuoteInputPanel(quote) {
   // is stale (computed before the user pre-filled any values via suggestions).
   const missing = fields.filter(row => !quoteFieldHasValue(row));
   const covers = quote.covers_to_price || [];
-  // Pre-fill suggestion values on first render (don't overwrite user edits)
+  // Pre-fill every field on first render — never leave a blank that blocks quoting.
+  // Priority: suggestion value → slider min → type default. Never overwrites user edits.
   if (!state.quoteSuggestionsPreFilled) {
     fields.forEach(row => {
-      if (row.suggestion && !quoteFieldHasValue(row)) {
+      if (quoteFieldHasValue(row)) return;
+      if (row.suggestion != null) {
         window.setQuoteInput(row.key, row.suggestion.value);
+      } else if (SLIDER_RANGES[row.key]) {
+        window.setQuoteInput(row.key, SLIDER_RANGES[row.key].min);
+      } else if (row.unit === "yes/no") {
+        window.setQuoteInput(row.key, false);
+      } else if (row.unit === "count") {
+        window.setQuoteInput(row.key, 1);
+      } else {
+        window.setQuoteInput(row.key, 1);
       }
     });
     state.quoteSuggestionsPreFilled = true;
@@ -3342,7 +3352,6 @@ function renderQuoteInputPanel(quote) {
           </label>`;
         }).join("")}
       </div>
-      ${missing.length ? `<div class="notice" style="margin-top:12px;">Please fill ${missing.length} required input${missing.length > 1 ? "s" : ""} before estimating.</div>` : ""}
       <div style="display:flex;gap:10px;align-items:center;margin-top:16px;flex-wrap:wrap;">
         <button class="btn btn-primary" type="button" onclick="generatePricingEstimate()">Generate quote</button>
         <span id="pricing-estimate-status" style="font-size:12px;color:var(--ink-muted);"></span>
@@ -3351,8 +3360,7 @@ function renderQuoteInputPanel(quote) {
     </div>`;
 
   // Auto-generate if all required slider fields are pre-filled
-  const allFilled = fields.filter(r => r.unit !== "yes/no").every(r => quoteFieldHasValue(r));
-  if (allFilled && fields.length > 0 && missing.length === 0) {
+  if (fields.length > 0) {
     setTimeout(() => {
       if (window.__result && !isQuoted(window.__result?.bundle_only_pricing_quote) && !isQuoted(window.__result?.pricing_engine_quote)) {
         generatePricingEstimate();

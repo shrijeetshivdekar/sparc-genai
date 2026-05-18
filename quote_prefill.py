@@ -35,6 +35,11 @@ def suggest_quote_inputs(profile: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     pi_limit = _pi_limit(profile, stage, sector, revenue, b2b_pct)
     product_limit = _product_liability_limit(profile, sector, revenue, assets, data)
     public_limit = _explicit_cr(profile, "public_liability_limit_cr") or round(max(1.0, property_si * 0.75), 2)
+    crime_limit = _explicit_cr(profile, "crime_limit_cr") or {
+        "pre_seed": 0.5, "seed": 1.0, "series_a": 2.0, "series_b": 5.0,
+        "series_b_plus": 10.0, "growth": 10.0, "late_stage": 15.0,
+    }.get(stage, 2.0)
+    epli_limit = _explicit_cr(profile, "employment_practices_limit_cr") or round(max(0.5, pi_limit * 0.5), 2)
 
     has_trade = _has_any(assets, "Warehouse / fulfilment centre", "Retail stores / kiosks") or "Physical inventory / goods" in data
     export_share = _float(profile.get("export_eu_pct")) + _float(profile.get("export_us_pct")) + _float(profile.get("export_china_pct"))
@@ -136,6 +141,18 @@ def suggest_quote_inputs(profile: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
             "Project value is only a rough proxy unless capex/project value is declared.",
         ),
         "claims_last_3_years": _item(False, "deterministic_default", "low", "Use No only if confirmed by the customer."),
+        "crime_limit_cr": _item(
+            round(crime_limit, 2),
+            "deterministic_estimate",
+            "medium",
+            "Crime/fidelity limit scales with funding stage and payment operations exposure.",
+        ),
+        "employment_practices_limit_cr": _item(
+            round(epli_limit, 2),
+            "deterministic_estimate",
+            "medium",
+            "EPLI limit proxied at 50% of PI limit — scales with headcount and governance exposure.",
+        ),
     }
     return suggestions
 

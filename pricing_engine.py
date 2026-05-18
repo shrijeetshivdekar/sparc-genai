@@ -498,8 +498,12 @@ def infer_underwriting_inputs(profile: Dict[str, Any]) -> Dict[str, Any]:
     data_handled = profile.get("data_handled") or []
 
     revenue_base = {"Pre-seed": 0.75, "Seed": 3.0, "Series A": 20.0, "Series B+": 100.0}
-    annual_revenue = _explicit_cr(profile, "annual_revenue_cr", "revenue_cr") or revenue_base.get(stage, 3.0)
-    annual_revenue *= max(1.0, team / 50.0)
+    _explicit_rev = _explicit_cr(profile, "annual_revenue_cr", "revenue_cr")
+    if _explicit_rev is not None:
+        annual_revenue = _explicit_rev
+    else:
+        # No explicit revenue — estimate from stage, scaled by team size
+        annual_revenue = revenue_base.get(stage, 3.0) * max(1.0, team / 50.0)
 
     cyber_base = {"Pre-seed": 1.0, "Seed": 2.0, "Series A": 5.0, "Series B+": 20.0}.get(stage, 2.0)
     if data_sensitivity == "High":
@@ -549,27 +553,27 @@ def infer_underwriting_inputs(profile: Dict[str, Any]) -> Dict[str, Any]:
         "stock_sum_insured_cr": _explicit_cr(profile, "stock_sum_insured_cr") or round(max(0.10, stock_default), 2),
         "equipment_sum_insured_cr": _explicit_cr(profile, "equipment_sum_insured_cr") or round(max(0.10, equipment_default), 2),
         "gross_profit_si_cr": _explicit_cr(profile, "gross_profit_si_cr", "gross_profit_cr") or round(gross_profit_default, 2),
-        "cyber_limit_cr": _explicit_cr(profile, "cyber_limit_cr") or round(cyber_base, 2),
-        "dno_limit_cr": _explicit_cr(profile, "dno_limit_cr") or round(dno_base, 2),
-        "pi_limit_cr": _explicit_cr(profile, "pi_limit_cr", "professional_indemnity_limit_cr") or round(pi_base, 2),
-        "public_liability_limit_cr": _explicit_cr(profile, "public_liability_limit_cr") or round(max(1.0, property_si * 0.75), 2),
-        "product_liability_limit_cr": _explicit_cr(profile, "product_liability_limit_cr") or round(max(1.0, annual_revenue * 0.20), 2),
+        "cyber_limit_cr": _explicit_cr(profile, "cyber_limit_cr") or round(min(cyber_base, 50.0), 2),
+        "dno_limit_cr": _explicit_cr(profile, "dno_limit_cr") or round(min(dno_base, 30.0), 2),
+        "pi_limit_cr": _explicit_cr(profile, "pi_limit_cr", "professional_indemnity_limit_cr") or round(min(pi_base, 25.0), 2),
+        "public_liability_limit_cr": _explicit_cr(profile, "public_liability_limit_cr") or round(min(max(1.0, property_si * 0.75), 25.0), 2),
+        "product_liability_limit_cr": _explicit_cr(profile, "product_liability_limit_cr") or round(min(max(1.0, annual_revenue * 0.20), 25.0), 2),
         "payroll_cr": _explicit_cr(profile, "payroll_cr") or round(max(0.25, team * 0.12), 2),
         "employee_count": employee_count,
         "cargo_turnover_cr": _explicit_cr(profile, "cargo_annual_turnover_cr", "cargo_turnover_cr") or round(max(0.25, cargo_turnover), 2),
-        "receivables_on_credit_cr": _explicit_cr(profile, "receivables_on_credit_cr") or round(max(0.25, receivables), 2),
+        "receivables_on_credit_cr": _explicit_cr(profile, "receivables_on_credit_cr") or round(min(max(0.25, receivables), 500.0), 2),
         "project_value_cr": _explicit_cr(profile, "project_value_cr", "capex_project_value_cr") or round(max(0.50, project_value), 2),
         "weather_exposed_si_cr": _explicit_cr(profile, "weather_exposed_si_cr") or round(max(0.50, property_si + stock_default), 2),
         "cash_limit_cr": _explicit_cr(profile, "cash_limit_cr") or 0.10,
-        "crime_limit_cr": _explicit_cr(profile, "crime_limit_cr") or round(max(0.50, annual_revenue * 0.10), 2),
+        "crime_limit_cr": _explicit_cr(profile, "crime_limit_cr") or round(min(max(0.50, annual_revenue * 0.05), 15.0), 2),
         "drone_hull_si_cr": _explicit_cr(profile, "drone_hull_si_cr") or (1.00 if _has_any(physical_assets, "Drones / UAV equipment") else 0.25),
         "fleet_count": int(_explicit_cr(profile, "fleet_count") or fleet_count or 1),
-        "healthcare_pi_limit_cr": _explicit_cr(profile, "healthcare_pi_limit_cr") or round(healthcare_limit, 2),
-        "fi_pi_limit_cr": _explicit_cr(profile, "fi_pi_limit_cr") or round(fi_limit, 2),
-        "payment_protection_limit_cr": _explicit_cr(profile, "payment_protection_limit_cr") or round(payment_limit, 2),
-        "recall_limit_cr": _explicit_cr(profile, "recall_limit_cr") or round(recall_limit, 2),
+        "healthcare_pi_limit_cr": _explicit_cr(profile, "healthcare_pi_limit_cr") or round(min(healthcare_limit, 25.0), 2),
+        "fi_pi_limit_cr": _explicit_cr(profile, "fi_pi_limit_cr") or round(min(fi_limit, 50.0), 2),
+        "payment_protection_limit_cr": _explicit_cr(profile, "payment_protection_limit_cr") or round(min(payment_limit, 25.0), 2),
+        "recall_limit_cr": _explicit_cr(profile, "recall_limit_cr") or round(min(recall_limit, 25.0), 2),
         "production_budget_cr": _explicit_cr(profile, "production_budget_cr") or round(production_budget, 2),
-        "employment_practices_limit_cr": _explicit_cr(profile, "employment_practices_limit_cr", "epli_limit_cr") or round(max(1.0, annual_revenue * 0.15), 2),
+        "employment_practices_limit_cr": _explicit_cr(profile, "employment_practices_limit_cr", "epli_limit_cr") or round(min(max(1.0, annual_revenue * 0.05), 10.0), 2),
         "_assumption_notes": notes,
     }
     return inputs

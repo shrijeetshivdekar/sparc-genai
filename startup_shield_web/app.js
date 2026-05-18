@@ -3719,7 +3719,10 @@ function renderClaimsScenarios(result) {
   const bundle = result.bundle_match;
   if (!bundle) return "";
   const sector = result.profile?.sector || result.sector || "";
-  const mandatory = bundle.mandatory_covers || [];
+  // bundle_match.mandatory_covers uses short ALL-CAPS keys (e.g. "CYBER", "D_AND_O")
+  // from research_config.json — normalise to the snake_case keys CLAIMS_SCENARIOS uses.
+  const normKey = k => COVER_ALIASES[k] || COVER_ALIASES[String(k).toUpperCase()] || k;
+  const mandatory = (bundle.mandatory_covers || []).map(normKey);
 
   // Build ordered list of covers to show: mandatory first, then high-risk optionals
   const scores = result.scores || {};
@@ -3730,7 +3733,7 @@ function renderClaimsScenarios(result) {
     return keys.reduce((s, k) => s + (_float(scores[k], 0)), 0) / keys.length;
   };
 
-  const coverPriority = [...mandatory, ...(bundle.optional_covers || [])].filter(c => CLAIMS_SCENARIOS[c]);
+  const coverPriority = [...mandatory, ...(bundle.optional_covers || []).map(normKey)].filter(c => CLAIMS_SCENARIOS[c]);
   coverPriority.sort((a, b) => (mandatory.includes(b) ? 1 : 0) - (mandatory.includes(a) ? 1 : 0) || scoreOf(b) - scoreOf(a));
 
   const toShow = coverPriority.slice(0, 3);

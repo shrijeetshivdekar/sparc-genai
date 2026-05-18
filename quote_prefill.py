@@ -35,11 +35,11 @@ def suggest_quote_inputs(profile: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     pi_limit = _pi_limit(profile, stage, sector, revenue, b2b_pct)
     product_limit = _product_liability_limit(profile, sector, revenue, assets, data)
     public_limit = _explicit_cr(profile, "public_liability_limit_cr") or round(max(1.0, property_si * 0.75), 2)
-    crime_limit = _explicit_cr(profile, "crime_limit_cr") or {
+    crime_limit = _explicit_cr(profile, "crime_limit_cr") or min(15.0, {
         "pre_seed": 0.5, "seed": 1.0, "series_a": 2.0, "series_b": 5.0,
         "series_b_plus": 10.0, "growth": 10.0, "late_stage": 15.0,
-    }.get(stage, 2.0)
-    epli_limit = _explicit_cr(profile, "employment_practices_limit_cr") or round(max(0.5, pi_limit * 0.5), 2)
+    }.get(stage, 2.0))
+    epli_limit = _explicit_cr(profile, "employment_practices_limit_cr") or min(10.0, round(max(0.5, pi_limit * 0.4), 2))
 
     has_trade = _has_any(assets, "Warehouse / fulfilment centre", "Retail stores / kiosks") or "Physical inventory / goods" in data
     export_share = _float(profile.get("export_eu_pct")) + _float(profile.get("export_us_pct")) + _float(profile.get("export_china_pct"))
@@ -311,7 +311,9 @@ def _cyber_limit(profile: Dict[str, Any], stage: str, sector: str, data_sensitiv
         base *= 1.5
     if sector in ("Fintech", "Healthtech"):
         base *= 1.3
-    return round(max(base, revenue * 0.12), 2)
+    # Scale with revenue but cap at 50 Cr — Indian cyber market max for startup segment
+    scaled = max(base, min(revenue * 0.12, 50.0))
+    return round(scaled, 2)
 
 
 def _dno_limit(profile: Dict[str, Any], stage: str, revenue: float) -> float:
@@ -321,7 +323,9 @@ def _dno_limit(profile: Dict[str, Any], stage: str, revenue: float) -> float:
     base = {"Pre-seed": 1.0, "Seed": 2.0, "Series A": 5.0, "Series B+": 25.0}.get(stage, 2.0)
     if profile.get("has_investors") == "Yes":
         base *= 1.2
-    return round(max(base, revenue * 0.10), 2)
+    # Cap at 30 Cr — Indian D&O market limit for pre-IPO startups
+    scaled = max(base, min(revenue * 0.10, 30.0))
+    return round(scaled, 2)
 
 
 def _pi_limit(profile: Dict[str, Any], stage: str, sector: str, revenue: float, b2b_pct: float) -> float:
@@ -332,7 +336,9 @@ def _pi_limit(profile: Dict[str, Any], stage: str, sector: str, revenue: float, 
     if sector in ("Fintech", "Healthtech", "SaaS / Enterprise Software"):
         base *= 1.25
     base *= 1.0 + b2b_pct * 0.25
-    return round(max(base, revenue * 0.12), 2)
+    # Cap at 25 Cr — standard Indian PI/Tech E&O market ceiling for startups
+    scaled = max(base, min(revenue * 0.12, 25.0))
+    return round(scaled, 2)
 
 
 def _product_liability_limit(profile: Dict[str, Any], sector: str, revenue: float, assets: Iterable[str], data: Iterable[str]) -> float:

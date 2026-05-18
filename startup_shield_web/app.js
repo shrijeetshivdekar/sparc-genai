@@ -3730,7 +3730,7 @@ function renderClaimsScenarios(result) {
     const spec = { cyber_liability: ["Cyber Technical Risk","Data Privacy Risk"], dno_liability: ["Governance & Fraud Risk","Regulatory Compliance Risk"], professional_indemnity: ["Liability Risk","IP Infringement Risk"], product_liability: ["Liability Risk","Reputation Risk"], employment_practices: ["Gig & Labour Risk","Governance & Fraud Risk"], crime_fidelity: ["Governance & Fraud Risk"], property_all_risk: ["Property Risk","ESG & Climate Risk"], healthcare_pi: ["Liability Risk"] };
     const keys = spec[cover] || [];
     if (!keys.length) return 0;
-    return keys.reduce((s, k) => s + (_float(scores[k], 0)), 0) / keys.length;
+    return keys.reduce((s, k) => s + (parseFloat(scores[k]) || 0), 0) / keys.length;
   };
 
   const coverPriority = [...mandatory, ...(bundle.optional_covers || []).map(normKey)].filter(c => CLAIMS_SCENARIOS[c]);

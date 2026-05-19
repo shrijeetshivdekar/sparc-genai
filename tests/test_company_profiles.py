@@ -7,7 +7,7 @@ from company_profiles import company_profile_count, get_company_profile, search_
 
 
 def test_seed_database_contains_100_company_profiles():
-    assert company_profile_count() == 130
+    assert company_profile_count() >= 230
 
 
 def test_company_profile_search_and_exact_lookup():
@@ -40,6 +40,13 @@ def test_company_profile_database_has_seed_and_pre_seed_demos():
     assert {"Seed", "Pre-seed"} <= stages
     assert get_company_profile("AstraPay Labs")["funding_stage"] == "Seed"
     assert get_company_profile("LedgerLeaf")["funding_stage"] == "Pre-seed"
+
+
+def test_company_profile_database_includes_real_startup_style_profiles():
+    assert get_company_profile("Niro")["funding_stage"] == "Series A"
+    assert get_company_profile("BlueLearn")["funding_stage"] == "Pre-seed"
+    assert get_company_profile("GalaxEye")["sector"] == "Deeptech / AI / Robotics"
+    assert get_company_profile("Climes")["funding_stage"] == "Pre-seed"
 
 
 def test_unknown_company_returns_none():

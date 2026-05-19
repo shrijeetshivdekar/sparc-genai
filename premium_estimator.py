@@ -187,15 +187,57 @@ PREMIUM_RANGES = {
     },
 }
 
+BENCHMARK_STANDARD_ASSUMPTIONS = {
+    "cyber_liability": "Standard startup cyber limit, India-first operations, basic controls, no confirmed prior claims.",
+    "dno_liability": "Unlisted Indian startup, institutional investor exposure where applicable, no IPO/M&A/restatement facts supplied.",
+    "professional_indemnity": "B2B software/services or professional work with standard contract wording and no known claims.",
+    "employee_health": "Employee-only group health benchmark without dependent, maternity, PED, age-band, or claims-census calibration.",
+    "property_fire": "One-location property benchmark on reinstatement-style asset values with ordinary protections.",
+    "property_all_risk": "Asset-heavy startup benchmark with ordinary occupancy, protection, and catastrophe assumptions.",
+    "marine_transit": "Annual domestic transit turnover benchmark with standard packed non-hazardous goods and ordinary routes.",
+    "trade_credit": "Indicative receivables/turnover benchmark without debtor-book concentration or payment-tenor data.",
+}
+
+BENCHMARK_SOURCE_TYPES = {
+    "cyber_liability": "market_observation",
+    "dno_liability": "market_observation",
+    "professional_indemnity": "heuristic",
+    "employee_health": "market_observation",
+    "property_fire": "public_source",
+    "property_all_risk": "public_source",
+    "marine_transit": "heuristic",
+    "trade_credit": "heuristic",
+}
+
+BENCHMARK_CATALOG = {
+    product_key: {
+        bucket: {
+            **values,
+            "product_key": product_key,
+            "startup_segment": bucket,
+            "sector_cluster": "general_startup",
+            "standard_assumptions": BENCHMARK_STANDARD_ASSUMPTIONS.get(
+                product_key,
+                "Directional startup benchmark under ordinary controls, no confirmed prior claims, and standard Indian operations.",
+            ),
+            "base_exposure_or_plan": values.get("basis", ""),
+            "source_type": BENCHMARK_SOURCE_TYPES.get(product_key, "heuristic"),
+            "last_calibration": "2026-05",
+            "comparability_status": "assumption_led",
+        }
+        for bucket, values in buckets.items()
+    }
+    for product_key, buckets in PREMIUM_RANGES.items()
+}
+
 PREMIUM_FOOTNOTE = (
-    "Indicative estimates only. Actual premium is subject to underwriting, "
-    "sum insured selection, risk controls, and claims history. Base rates reflect "
-    "post-IRDAI fire de-tariff (April 2024) market and Indian startup segment "
-    "benchmarks as of Q1 2026. Sources: Mitigata Cyber Insurance India 2026; "
-    "BimaKavach D&O startup benchmarks; BusinessStandard fire premium analysis "
-    "Dec 2024; NivaaBupa/Pazcare group health data; IRDAI Annual Report 2023-24. "
-    "Products recommended are individual ICICI Lombard policies or curated "
-    "co-cover sets - not all bundle names are single named policies."
+    "Directional benchmark only. Ranges are assumption-led and are not bindable "
+    "quotes, insurer-approved tariffs, or final underwriting rates. Actual premium "
+    "depends on selected limits, census/asset schedules, claims history, controls, "
+    "policy wording, deductibles, exclusions, taxes, and underwriter appetite. "
+    "Public and market references support product structure and order-of-magnitude "
+    "context; exact rate curves remain heuristic until calibrated against real "
+    "quote and placement data."
 )
 
 
@@ -208,7 +250,7 @@ def get_size_bucket(funding_stage: str, team_size: int) -> str:
 
 
 def estimate_premium(product_key: str, size_bucket: str) -> dict | None:
-    return PREMIUM_RANGES.get(product_key, {}).get(size_bucket)
+    return BENCHMARK_CATALOG.get(product_key, {}).get(size_bucket)
 
 
 def format_premium(min_lakh: float, max_lakh: float) -> str:

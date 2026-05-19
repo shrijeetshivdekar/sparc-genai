@@ -23,6 +23,90 @@ ENGINE_VERSION = "pricing-2026.05.r1"
 # Prevents pathological compounding (risk×stage×sector×climate×claims can
 # theoretically reach 7x; 4x is the auditable ceiling).
 MAX_COMBINED_LOADING = 4.0
+MAX_RISK_LOADING = 1.5
+
+# Cyber enterprise accounts should not reuse SME/startup base-rate math.
+# For SI > 25 Cr, quote a marketable technical ROL band and push uncertainty
+# into referral flags, retentions, and control questionnaires instead of
+# compounding multiplicative penalties into a non-bindable price.
+CYBER_ENTERPRISE_SI_THRESHOLD_CR = 25.0
+CYBER_ENTERPRISE_MIN_ROL = 0.003
+CYBER_ENTERPRISE_MAX_ROL = 0.008
+ENTERPRISE_LIABILITY_SI_THRESHOLD_CR = 25.0
+ENTERPRISE_LIABILITY_ROL_BANDS = {
+    "cyber_liability": (0.0030, 0.0080),
+    "dno_liability": (0.0010, 0.0025),
+    "professional_indemnity": (0.0010, 0.0020),
+    "financial_services_pi": (0.0010, 0.0020),
+    "healthcare_pi": (0.0010, 0.0020),
+    "comprehensive_general_liability": (0.0005, 0.0010),
+    "public_liability": (0.0005, 0.0010),
+    "crime_fidelity": (0.0005, 0.0015),
+    "employment_practices": (0.0005, 0.0015),
+}
+
+# Sector-specific rate multipliers applied on top of COVER_SPECS base rates.
+# Rationale: a flat base rate is calibrated to the median startup; these adjustments
+# correct for systematic over/under-pricing in sectors where exposure materially differs.
+# Keys are canonical cover IDs; sector strings match profile["sector"] values.
+SECTOR_RATE_ADJUSTMENTS: Dict[str, Dict[str, float]] = {
+    "cyber_liability": {
+        # Fintech/Healthtech: high data density, regulatory scrutiny, incident response cost
+        "Fintech": 1.30,
+        "Healthtech": 1.20,
+        # D2C/Logistics/Agri: consumer purchase data only, limited PII depth
+        "D2C / Consumer Brands": 0.45,
+        "Logistics / Mobility": 0.55,
+        "Agritech / Foodtech": 0.50,
+        "Gaming / Media / Content": 0.70,
+        "Deeptech / AI / Robotics": 0.90,
+    },
+    "professional_indemnity": {
+        # Physical-product companies rarely face PI/E&O claims — PI is a services-sector cover
+        "D2C / Consumer Brands": 0.40,
+        "Logistics / Mobility": 0.50,
+        "Agritech / Foodtech": 0.50,
+        # High for advice/code/data-intensive sectors
+        "Fintech": 1.25,
+        "Healthtech": 1.20,
+        "SaaS / Enterprise Software": 1.15,
+        "Edtech / HRtech": 1.10,
+    },
+    "marine_transit": {
+        # Domestic-only cargo: standard inland rate ~0.10–0.20 L/Cr
+        # Export-heavy companies stay at base; multipliers below assume domestic-first profiles
+        "D2C / Consumer Brands": 0.45,   # domestic retail goods, well-packed, standard risks
+        "Agritech / Foodtech": 0.55,     # domestic perishable; slightly higher spoilage risk
+        "Logistics / Mobility": 0.60,    # fleet-based; moderate
+        "Fintech": 0.25,                 # minimal physical goods
+        "SaaS / Enterprise Software": 0.25,
+        "Healthtech": 0.70,              # pharma/device transit; moderate
+    },
+    "product_liability": {
+        # Higher for consumer hardware/food where recall + injury risk is real
+        "D2C / Consumer Brands": 1.15,
+        "Agritech / Foodtech": 1.20,
+        "Healthtech": 1.30,
+        # Software companies: product liability rarely applies
+        "SaaS / Enterprise Software": 0.40,
+        "Fintech": 0.40,
+        "Edtech / HRtech": 0.50,
+    },
+}
+
+# Sector-specific cyber SI caps (in Cr) — overrides stage-only inference.
+# Prevents data-light sectors from inheriting fintech-grade limits.
+SECTOR_CYBER_SI_CAP_CR: Dict[str, float] = {
+    "D2C / Consumer Brands": 8.0,
+    "Logistics / Mobility": 8.0,
+    "Agritech / Foodtech": 6.0,
+    "Gaming / Media / Content": 10.0,
+    "Deeptech / AI / Robotics": 12.0,
+    "Fintech": 50.0,
+    "Healthtech": 30.0,
+    "SaaS / Enterprise Software": 25.0,
+    "Edtech / HRtech": 15.0,
+}
 
 BAD_RISK_REASONS_SHORT = {
     "cyber_liability": {
@@ -137,6 +221,15 @@ class CoverSpec:
     min_lakh: float
     risk_keys: tuple[str, ...]
     pricing_unit: str = "sum_insured"
+
+
+@dataclass(frozen=True)
+class PricingRule:
+    pricing_basis: str
+    max_benchmark_exposure_cr: Optional[float] = None
+    max_precise_exposure_cr: Optional[float] = None
+    underwriter_exposure_cr: Optional[float] = None
+    calibration_basis: tuple[str, ...] = ("heuristic_rate_curve", "proposal_form_proxy")
 
 
 # Base rates below are calibrated to Indian SME/startup market mid-points as of Q1 2026.
@@ -291,7 +384,7 @@ COVER_SPECS: Dict[str, CoverSpec] = {
     ),
     # rate 0.45 → effective ~0.51% of limit; emerging EPLI market in India (Marsh/AON EPL data 2025)
     "employment_practices": CoverSpec(
-        "Employment Practices Liability", "pi_limit_cr", 0.45, 1.00,
+        "Employment Practices Liability", "employment_practices_limit_cr", 0.45, 1.00,
         ("Gig & Labour Risk", "Governance & Fraud Risk", "Reputation Risk"),
     ),
     # rate 0.05 lakh/employee → effective ~₹5,600/emp at mid-loading; critical illness rider market India 2025
@@ -306,6 +399,38 @@ COVER_SPECS: Dict[str, CoverSpec] = {
         ("Key Person Risk", "Gig & Labour Risk"),
         pricing_unit="per_employee",
     ),
+}
+
+PRICING_RULES: Dict[str, PricingRule] = {
+    "cyber_liability": PricingRule("limit_based_liability", 10.0, 25.0, 50.0, ("confirmed_customer_inputs", "heuristic_rate_curve", "proposal_form_proxy")),
+    "dno_liability": PricingRule("limit_based_liability", 10.0, 15.0, 25.0),
+    "professional_indemnity": PricingRule("limit_based_liability", 10.0, 25.0, 25.0),
+    "financial_services_pi": PricingRule("limit_based_liability", 10.0, 25.0, 25.0),
+    "healthcare_pi": PricingRule("limit_based_liability", 10.0, 15.0, 25.0),
+    "comprehensive_general_liability": PricingRule("premises_operations_liability", 10.0, 15.0, 25.0),
+    "public_liability": PricingRule("premises_operations_liability", 10.0, 15.0, 25.0),
+    "product_liability": PricingRule("turnover_plus_limit_liability", 10.0, 15.0, 25.0),
+    "crime_fidelity": PricingRule("fidelity_limit_with_controls", 10.0, 15.0, 25.0),
+    "employment_practices": PricingRule("headcount_limit_liability", 10.0, 15.0, 25.0),
+    "employee_health": PricingRule("employee_benefit_census", None, None, None, ("proposal_form_proxy", "heuristic_rate_curve")),
+    "group_pa": PricingRule("employee_benefit_census", None, None, None, ("proposal_form_proxy", "heuristic_rate_curve")),
+    "group_criti_shield": PricingRule("employee_benefit_census", None, None, None, ("proposal_form_proxy", "heuristic_rate_curve")),
+    "group_hospishield": PricingRule("employee_benefit_census", None, None, None, ("proposal_form_proxy", "heuristic_rate_curve")),
+    "property_fire": PricingRule("asset_value_property", 50.0, 50.0, 75.0, ("public_benchmark", "heuristic_rate_curve", "proposal_form_proxy")),
+    "property_all_risk": PricingRule("asset_value_property", 50.0, 50.0, 75.0, ("public_benchmark", "heuristic_rate_curve", "proposal_form_proxy")),
+    "business_interruption": PricingRule("asset_value_property", 25.0, 50.0, 75.0),
+    "electronic_equipment": PricingRule("asset_value_property", 25.0, 50.0, 75.0),
+    "machinery_breakdown": PricingRule("asset_value_property", 25.0, 50.0, 75.0),
+    "engineering": PricingRule("project_value_engineering", 10.0, 25.0, 50.0),
+    "surety": PricingRule("contract_value_referral", 0.0, 0.0, 0.0, ("proposal_form_proxy",)),
+    "marine_transit": PricingRule("annual_transit_turnover", 25.0, 50.0, 100.0),
+    "trade_credit": PricingRule("credit_turnover_or_receivables", 25.0, 50.0, 100.0),
+}
+
+QUOTE_CONFIDENCE_LABELS = {
+    "technically_priced": "Technically priced",
+    "directional_only": "Directional only",
+    "underwriter_required": "Underwriter validation required",
 }
 
 INPUT_FIELD_LABELS = {
@@ -388,7 +513,7 @@ REQUIRED_INPUTS_BY_COVER = {
     "payment_protection": (("payment_protection_limit_cr",), ("annual_revenue_cr", "revenue_cr"), ("claims_last_3_years",)),
     "product_recall": (("recall_limit_cr",), ("annual_revenue_cr", "revenue_cr"), ("claims_last_3_years",)),
     "event_production": (("production_budget_cr",), ("claims_last_3_years",)),
-    "employment_practices": (("pi_limit_cr", "employment_practices_limit_cr"), ("claims_last_3_years",)),
+    "employment_practices": (("employment_practices_limit_cr", "epli_limit_cr"), ("claims_last_3_years",)),
     "group_criti_shield": (("employee_count", "team_size", "headcount_total"),),
     "group_hospishield": (("employee_count", "team_size", "headcount_total"),),
 }
@@ -484,6 +609,15 @@ def _infer_property_si(profile: Dict[str, Any]) -> tuple[float, List[str]]:
 
 def infer_underwriting_inputs(profile: Dict[str, Any]) -> Dict[str, Any]:
     property_si, notes = _infer_property_si(profile)
+    suggestions = suggest_quote_inputs(profile)
+
+    def suggested_value(key: str, default: Any = None) -> Any:
+        item = suggestions.get(key)
+        if not item:
+            return default
+        value = item.get("value")
+        return default if value in (None, "") else value
+
     stage = _stage(profile)
     team = _team_size(profile)
     # Bug fix: read explicit employee_count before falling back to team_size/headcount_total.
@@ -510,6 +644,9 @@ def infer_underwriting_inputs(profile: Dict[str, Any]) -> Dict[str, Any]:
         cyber_base *= 1.5
     if sector in ("Fintech", "Healthtech"):
         cyber_base *= 1.3
+    # Sector cap: data-light sectors should not inherit fintech-grade cyber SI
+    sector_cyber_cap = SECTOR_CYBER_SI_CAP_CR.get(sector, 50.0)
+    cyber_base = min(cyber_base, sector_cyber_cap)
 
     dno_base = {"Pre-seed": 1.0, "Seed": 2.0, "Series A": 5.0, "Series B+": 25.0}.get(stage, 2.0)
     if profile.get("has_investors") == "Yes":
@@ -549,31 +686,31 @@ def infer_underwriting_inputs(profile: Dict[str, Any]) -> Dict[str, Any]:
         gross_profit_default = max(1.00, annual_revenue * 0.35)
 
     inputs = {
-        "property_sum_insured_cr": _explicit_cr(profile, "property_sum_insured_cr") or property_si,
-        "stock_sum_insured_cr": _explicit_cr(profile, "stock_sum_insured_cr") or round(max(0.10, stock_default), 2),
-        "equipment_sum_insured_cr": _explicit_cr(profile, "equipment_sum_insured_cr") or round(max(0.10, equipment_default), 2),
-        "gross_profit_si_cr": _explicit_cr(profile, "gross_profit_si_cr", "gross_profit_cr") or round(gross_profit_default, 2),
-        "cyber_limit_cr": _explicit_cr(profile, "cyber_limit_cr") or round(min(cyber_base, 50.0), 2),
-        "dno_limit_cr": _explicit_cr(profile, "dno_limit_cr") or round(min(dno_base, 30.0), 2),
-        "pi_limit_cr": _explicit_cr(profile, "pi_limit_cr", "professional_indemnity_limit_cr") or round(min(pi_base, 25.0), 2),
-        "public_liability_limit_cr": _explicit_cr(profile, "public_liability_limit_cr") or round(min(max(1.0, property_si * 0.75), 25.0), 2),
-        "product_liability_limit_cr": _explicit_cr(profile, "product_liability_limit_cr") or round(min(max(1.0, annual_revenue * 0.20), 25.0), 2),
-        "payroll_cr": _explicit_cr(profile, "payroll_cr") or round(max(0.25, team * 0.12), 2),
+        "property_sum_insured_cr": _float(suggested_value("property_sum_insured_cr", property_si)),
+        "stock_sum_insured_cr": _float(suggested_value("stock_sum_insured_cr", round(max(0.10, stock_default), 2))),
+        "equipment_sum_insured_cr": _float(suggested_value("equipment_sum_insured_cr", round(max(0.10, equipment_default), 2))),
+        "gross_profit_si_cr": _float(suggested_value("gross_profit_si_cr", round(gross_profit_default, 2))),
+        "cyber_limit_cr": _float(suggested_value("cyber_limit_cr", round(min(cyber_base, 50.0), 2))),
+        "dno_limit_cr": _float(suggested_value("dno_limit_cr", round(min(dno_base, 30.0), 2))),
+        "pi_limit_cr": _float(suggested_value("pi_limit_cr", round(min(pi_base, 25.0), 2))),
+        "public_liability_limit_cr": _float(suggested_value("public_liability_limit_cr", round(min(max(1.0, property_si * 0.75), 25.0), 2))),
+        "product_liability_limit_cr": _float(suggested_value("product_liability_limit_cr", round(min(max(1.0, annual_revenue * 0.20), 25.0), 2))),
+        "payroll_cr": _float(suggested_value("payroll_cr", round(max(0.25, team * 0.12), 2))),
         "employee_count": employee_count,
-        "cargo_turnover_cr": _explicit_cr(profile, "cargo_annual_turnover_cr", "cargo_turnover_cr") or round(max(0.25, cargo_turnover), 2),
-        "receivables_on_credit_cr": _explicit_cr(profile, "receivables_on_credit_cr") or round(min(max(0.25, receivables), 500.0), 2),
-        "project_value_cr": _explicit_cr(profile, "project_value_cr", "capex_project_value_cr") or round(max(0.50, project_value), 2),
-        "weather_exposed_si_cr": _explicit_cr(profile, "weather_exposed_si_cr") or round(max(0.50, property_si + stock_default), 2),
-        "cash_limit_cr": _explicit_cr(profile, "cash_limit_cr") or 0.10,
-        "crime_limit_cr": _explicit_cr(profile, "crime_limit_cr") or round(min(max(0.50, annual_revenue * 0.05), 15.0), 2),
-        "drone_hull_si_cr": _explicit_cr(profile, "drone_hull_si_cr") or (1.00 if _has_any(physical_assets, "Drones / UAV equipment") else 0.25),
-        "fleet_count": int(_explicit_cr(profile, "fleet_count") or fleet_count or 1),
-        "healthcare_pi_limit_cr": _explicit_cr(profile, "healthcare_pi_limit_cr") or round(min(healthcare_limit, 25.0), 2),
-        "fi_pi_limit_cr": _explicit_cr(profile, "fi_pi_limit_cr") or round(min(fi_limit, 50.0), 2),
-        "payment_protection_limit_cr": _explicit_cr(profile, "payment_protection_limit_cr") or round(min(payment_limit, 25.0), 2),
-        "recall_limit_cr": _explicit_cr(profile, "recall_limit_cr") or round(min(recall_limit, 25.0), 2),
-        "production_budget_cr": _explicit_cr(profile, "production_budget_cr") or round(production_budget, 2),
-        "employment_practices_limit_cr": _explicit_cr(profile, "employment_practices_limit_cr", "epli_limit_cr") or round(min(max(1.0, annual_revenue * 0.05), 10.0), 2),
+        "cargo_turnover_cr": _float(suggested_value("cargo_turnover_cr", round(max(0.25, cargo_turnover), 2))),
+        "receivables_on_credit_cr": _float(suggested_value("receivables_on_credit_cr", round(min(max(0.25, receivables), 500.0), 2))),
+        "project_value_cr": _float(suggested_value("project_value_cr", round(max(0.50, project_value), 2))),
+        "weather_exposed_si_cr": _float(suggested_value("weather_exposed_si_cr", round(max(0.50, property_si + stock_default), 2))),
+        "cash_limit_cr": _float(suggested_value("cash_limit_cr", 0.10)),
+        "crime_limit_cr": _float(suggested_value("crime_limit_cr", round(min(max(0.50, annual_revenue * 0.05), 15.0), 2))),
+        "drone_hull_si_cr": _float(suggested_value("drone_hull_si_cr", 1.00 if _has_any(physical_assets, "Drones / UAV equipment") else 0.25)),
+        "fleet_count": int(suggested_value("fleet_count", fleet_count or 1)),
+        "healthcare_pi_limit_cr": _float(suggested_value("healthcare_pi_limit_cr", round(min(healthcare_limit, 25.0), 2))),
+        "fi_pi_limit_cr": _float(suggested_value("fi_pi_limit_cr", round(min(fi_limit, 50.0), 2))),
+        "payment_protection_limit_cr": _float(suggested_value("payment_protection_limit_cr", round(min(payment_limit, 25.0), 2))),
+        "recall_limit_cr": _float(suggested_value("recall_limit_cr", round(min(recall_limit, 25.0), 2))),
+        "production_budget_cr": _float(suggested_value("production_budget_cr", round(production_budget, 2))),
+        "employment_practices_limit_cr": _float(suggested_value("employment_practices_limit_cr", round(min(max(1.0, annual_revenue * 0.05), 10.0), 2))),
         "_assumption_notes": notes,
     }
     return inputs
@@ -637,15 +774,19 @@ def _stage_loading(stage: str) -> float:
 
 
 def _sector_loading(cover: str, profile: Dict[str, Any]) -> float:
-    sector = profile.get("sector")
-    if cover == "cyber_liability" and sector in ("Fintech", "Healthtech"):
-        return 1.20
+    sector = str(profile.get("sector") or "")
+
+    # Use SECTOR_RATE_ADJUSTMENTS first — covers both upward and downward corrections
+    if cover in SECTOR_RATE_ADJUSTMENTS:
+        adj = SECTOR_RATE_ADJUSTMENTS[cover].get(sector)
+        if adj is not None:
+            return adj
+
+    # Legacy upward-only loadings for covers not yet in SECTOR_RATE_ADJUSTMENTS
     if cover in ("property_fire", "property_all_risk", "business_interruption") and sector in (
         "D2C / Consumer Brands", "Logistics / Mobility", "Foodtech / Cloud Kitchen", "Cleantech / Climatetech",
     ):
         return 1.15
-    if cover == "product_liability" and sector in ("D2C / Consumer Brands", "Healthtech", "Deeptech / AI / Robotics"):
-        return 1.20
     if cover in ("engineering", "surety") and sector in ("Cleantech / Climatetech", "Deeptech / AI / Robotics"):
         return 1.15
     if cover == "motor_fleet" and sector in ("Logistics / Mobility", "D2C / Consumer Brands", "Foodtech / Cloud Kitchen"):
@@ -697,7 +838,7 @@ def _claims_loading(profile: Dict[str, Any]) -> float:
 
 
 def _risk_loading(avg_risk: float) -> float:
-    return round(0.75 + (max(0.0, min(avg_risk, 100.0)) / 100.0) * 0.85, 3)
+    return round(min(MAX_RISK_LOADING, 0.75 + (max(0.0, min(avg_risk, 100.0)) / 100.0) * 0.75), 3)
 
 
 def _revenue_loading(cover: str, profile: Dict[str, Any]) -> float:
@@ -742,6 +883,235 @@ def _records_loading(cover: str, profile: Dict[str, Any]) -> float:
     return 1.30
 
 
+def _claims_unknown(profile: Dict[str, Any]) -> bool:
+    raw = profile.get("claims_last_3_years")
+    return raw in (None, "", "unknown", "Unknown", "UNKNOWN")
+
+
+def _explicit_input_present(profile: Dict[str, Any], *keys: str) -> bool:
+    for key in keys:
+        if key in profile and profile.get(key) not in (None, ""):
+            return True
+    return False
+
+
+def _pricing_rule(cover_key: str) -> PricingRule:
+    spec = COVER_SPECS.get(cover_key)
+    if cover_key in PRICING_RULES:
+        return PRICING_RULES[cover_key]
+    if spec and spec.pricing_unit == "per_employee":
+        return PricingRule("employee_benefit_census")
+    if spec and spec.pricing_unit == "per_vehicle":
+        return PricingRule("fleet_count")
+    return PricingRule("startup_base_rate")
+
+
+def _specialty_reason_codes(profile: Dict[str, Any]) -> List[str]:
+    sector = str(profile.get("sector") or "")
+    sub_sector = str(profile.get("sub_sector") or "")
+    desc = str(profile.get("product_description") or "").lower()
+    assets = profile.get("physical_assets") or []
+    export_share = _float(profile.get("export_eu_pct")) + _float(profile.get("export_us_pct")) + _float(profile.get("export_china_pct"))
+    reasons = []
+    if sector == "Deeptech / AI / Robotics" and (
+        _float(profile.get("hardware_software_split"), 0) >= 0.5
+        or _has_any(assets, "Lab / R&D equipment", "Manufacturing plant / factory")
+    ):
+        reasons.append("specialty_deeptech_hardware")
+    if "space" in sub_sector.lower() or "spacetech" in sector.lower() or "satellite" in desc:
+        reasons.append("specialty_spacetech")
+    if profile.get("healthcare_operations") or sector == "Healthtech":
+        reasons.append("specialty_healthcare_delivery")
+    if _has_any(assets, "Medical devices / diagnostic equipment") or "medical device" in desc:
+        reasons.append("specialty_med_device")
+    if _float(profile.get("fleet_count"), 0) >= 50 or (sector == "Logistics / Mobility" and _team_size(profile) >= 200):
+        reasons.append("specialty_large_logistics_fleet")
+    if export_share >= 0.10:
+        reasons.append("specialty_export_product")
+    return reasons
+
+
+def _cover_confidence(
+    cover_key: str,
+    exposure: float,
+    profile: Dict[str, Any],
+    inputs: Dict[str, Any],
+) -> Dict[str, Any]:
+    rule = _pricing_rule(cover_key)
+    band = "technically_priced"
+    precision = "point_estimate"
+    score = 82
+    reason_codes: List[str] = []
+    benchmark_status = "comparable"
+    benchmark_explanation = "Selected structure remains inside SPARC's startup benchmark box."
+
+    if _claims_unknown(profile):
+        score -= 8
+        reason_codes.append("claims_history_unknown")
+
+    if rule.max_benchmark_exposure_cr is not None and exposure > rule.max_benchmark_exposure_cr:
+        benchmark_status = "not_comparable"
+        benchmark_explanation = (
+            f"{COVER_SPECS[cover_key].label} exposure exceeds the startup benchmark assumption; "
+            "use quote/referral view instead."
+        )
+        score -= 14
+
+    if rule.max_precise_exposure_cr is not None and exposure > rule.max_precise_exposure_cr:
+        band = "directional_only"
+        precision = "range"
+        reason_codes.append("outside_precise_operating_box")
+        score -= 12
+
+    if rule.underwriter_exposure_cr is not None and exposure > rule.underwriter_exposure_cr:
+        band = "underwriter_required"
+        precision = "suppressed"
+        reason_codes.append("underwriter_limit_threshold")
+        score -= 25
+
+    if cover_key == "employee_health" and not (
+        _explicit_input_present(profile, "group_health_avg_age", "group_health_census_confirmed", "employee_census_confirmed")
+    ):
+        band = "directional_only"
+        precision = "range"
+        reason_codes.append("group_health_census_missing")
+        benchmark_status = "not_comparable"
+        benchmark_explanation = "Group Health is headcount-based here; census, age, location, and plan design are still missing."
+        score -= 15
+
+    if cover_key == "marine_transit":
+        explicit_cargo = _explicit_input_present(profile, "cargo_annual_turnover_cr", "cargo_turnover_cr")
+        revenue = _float(profile.get("annual_revenue_cr") or profile.get("revenue_cr"), 0.0)
+        if not explicit_cargo or not _explicit_input_present(profile, "max_send_cr", "marine_max_send_cr", "cargo_max_send_cr"):
+            band = "directional_only"
+            precision = "range"
+            reason_codes.append("marine_turnover_or_max_send_unconfirmed")
+            benchmark_status = "not_comparable"
+            benchmark_explanation = "Marine open-cover pricing needs annual transit turnover and max-send/route details."
+            score -= 16
+        if revenue > 0 and not explicit_cargo and exposure > revenue * 0.40:
+            reason_codes.append("inferred_cargo_turnover_capped")
+            score -= 8
+
+    if cover_key == "trade_credit" and not _explicit_input_present(profile, "debtor_concentration_pct", "credit_terms_days", "top_buyer_concentration_pct"):
+        band = "directional_only"
+        precision = "range"
+        reason_codes.append("debtor_book_missing")
+        benchmark_status = "not_comparable"
+        benchmark_explanation = "Trade Credit is directional until debtor spread and payment terms are confirmed."
+        score -= 15
+
+    if cover_key == "surety":
+        band = "underwriter_required"
+        precision = "suppressed"
+        reason_codes.append("surety_referral_first")
+        benchmark_status = "suppressed"
+        benchmark_explanation = "Surety pricing requires contract wording, balance-sheet strength, and underwriter validation."
+        score = min(score, 45)
+
+    specialty = _specialty_reason_codes(profile)
+    specialty_sensitive = {
+        "product_liability", "product_recall", "professional_indemnity", "healthcare_pi",
+        "engineering", "machinery_breakdown", "drone_insurance", "marine_transit",
+    }
+    if specialty and cover_key in specialty_sensitive:
+        if band == "technically_priced":
+            band = "directional_only"
+            precision = "range"
+        reason_codes.extend(code for code in specialty if code not in reason_codes)
+        benchmark_status = "not_comparable"
+        benchmark_explanation = "Specialty operations need product, site, controls, and loss-history validation before precise pricing."
+        score -= 12
+
+    score = max(20, min(95, score))
+    return {
+        "band": band,
+        "score": score,
+        "reason_codes": reason_codes,
+        "precision_mode": precision,
+        "pricing_basis": rule.pricing_basis,
+        "calibration_basis": list(rule.calibration_basis),
+        "benchmark_comparison": {
+            "status": benchmark_status,
+            "explanation": benchmark_explanation,
+        },
+    }
+
+
+def _premium_display_metadata(premium_lakh: float, precision_mode: str) -> Dict[str, Any]:
+    if precision_mode == "range":
+        low = round(max(0.0, premium_lakh * 0.85), 2)
+        high = round(premium_lakh * 1.20, 2)
+        return {"display_premium_range_lakh": {"min": low, "max": high}}
+    if precision_mode == "suppressed":
+        return {"display_premium_lakh": None}
+    return {"display_premium_lakh": premium_lakh}
+
+
+def _portfolio_confidence(covers: List[Dict[str, Any]], scale: Dict[str, Any]) -> Dict[str, Any]:
+    order = {"technically_priced": 0, "directional_only": 1, "underwriter_required": 2}
+    worst = "technically_priced"
+    reason_codes: List[str] = []
+    score_values = []
+    for item in covers:
+        conf = item.get("quote_confidence") or {}
+        band = conf.get("band", "technically_priced")
+        if order.get(band, 0) > order.get(worst, 0):
+            worst = band
+        score_values.append(_float(conf.get("score"), 82.0))
+        for reason in conf.get("reason_codes", []):
+            if reason not in reason_codes:
+                reason_codes.append(reason)
+    if scale.get("segment") == "enterprise" and worst == "technically_priced":
+        worst = "directional_only"
+        reason_codes.append("enterprise_account_estimate")
+    score = int(round(sum(score_values) / len(score_values))) if score_values else 82
+    if worst == "underwriter_required":
+        score = min(score, 55)
+    elif worst == "directional_only":
+        score = min(score, 70)
+    return {"band": worst, "score": score, "reason_codes": reason_codes}
+
+
+def _portfolio_precision(covers: List[Dict[str, Any]], quote_confidence: Dict[str, Any]) -> str:
+    if quote_confidence.get("band") == "underwriter_required":
+        return "suppressed"
+    if quote_confidence.get("band") == "directional_only":
+        return "range"
+    if any(item.get("precision_mode") == "range" for item in covers):
+        return "range"
+    return "point_estimate"
+
+
+def _enterprise_liability_rol(cover_key: str, avg_risk: float, profile: Dict[str, Any]) -> Optional[float]:
+    band = ENTERPRISE_LIABILITY_ROL_BANDS.get(cover_key)
+    if not band:
+        return None
+    min_rol, max_rol = band
+    risk = max(0.0, min(avg_risk, 100.0))
+    rol = min_rol + (risk / 100.0) * (max_rol - min_rol)
+    if cover_key == "cyber_liability" and profile.get("cert_in_poc_designated"):
+        rol -= 0.0005
+    if cover_key == "cyber_liability" and profile.get("data_localisation_status") == "Full_onshore":
+        rol -= 0.0003
+    if profile.get("claims_last_3_years") and not _claims_unknown(profile):
+        rol += (max_rol - min_rol) * 0.20
+    if cover_key == "cyber_liability" and _float(profile.get("data_records_lakhs"), 0.0) >= 100:
+        rol += 0.0005
+    return round(max(min_rol, min(max_rol, rol)), 5)
+
+
+def _group_health_per_head_lakh(avg_risk: float, employee_count: float) -> float:
+    if employee_count >= 500:
+        low, high = 0.12, 0.18
+    elif employee_count >= 100:
+        low, high = 0.13, 0.20
+    else:
+        low, high = 0.15, 0.24
+    risk = max(0.0, min(avg_risk, 100.0)) / 100.0
+    return round(low + (high - low) * risk, 4)
+
+
 def _price_cover(
     cover_key: str,
     spec: CoverSpec,
@@ -765,10 +1135,25 @@ def _price_cover(
     for value in loadings.values():
         raw_combined *= value
     # Cap prevents pathological compounding (theoretical max without cap ≈ 7×).
-    cap_applied = raw_combined > MAX_COMBINED_LOADING
-    combined_loading = min(raw_combined, MAX_COMBINED_LOADING)
+    liability_like = cover_key in {
+        "cyber_liability", "dno_liability", "professional_indemnity", "financial_services_pi",
+        "healthcare_pi", "comprehensive_general_liability", "public_liability",
+        "product_liability", "crime_fidelity", "employment_practices",
+    }
+    loading_cap = 2.0 if liability_like else MAX_COMBINED_LOADING
+    cap_applied = raw_combined > loading_cap
+    combined_loading = min(raw_combined, loading_cap)
 
-    if spec.pricing_unit == "per_employee":
+    group_health_per_head = None
+    if cover_key == "employee_health":
+        group_health_per_head = _group_health_per_head_lakh(avg_risk, exposure)
+        technical = exposure * group_health_per_head
+        exposure_label = f"{int(exposure)} employees"
+        sum_insured_cr = 0.0
+        cap_applied = raw_combined > MAX_RISK_LOADING
+        combined_loading = round(group_health_per_head / max(spec.rate_lakh_per_cr, 0.01), 3)
+        loadings["per_head_lakh"] = group_health_per_head
+    elif spec.pricing_unit == "per_employee":
         technical = exposure * spec.rate_lakh_per_cr * combined_loading
         exposure_label = f"{int(exposure)} employees"
         # per_employee covers have no sum-insured denomination; intentionally 0 so
@@ -783,14 +1168,26 @@ def _price_cover(
         exposure_label = f"INR {exposure:.2f} Cr"
         sum_insured_cr = exposure
 
+    enterprise_rol = None
+    if spec.pricing_unit == "sum_insured" and exposure >= ENTERPRISE_LIABILITY_SI_THRESHOLD_CR:
+        enterprise_rol = _enterprise_liability_rol(cover_key, avg_risk, profile)
+    if enterprise_rol is not None:
+        technical = exposure * 100.0 * enterprise_rol
+        cap_applied = True
+        combined_loading = round(technical / max(exposure * spec.rate_lakh_per_cr, 0.01), 3)
+        loadings["enterprise_rol"] = enterprise_rol
+
     if cover_key == "dno_liability" and _stage(profile) in ("Series A", "Series B+"):
         spec_min = max(spec.min_lakh, 2.50)
     else:
         spec_min = spec.min_lakh
     premium_lakh = round(max(spec_min, technical), 2)
+    confidence = _cover_confidence(cover_key, exposure, profile, inputs)
+    display = _premium_display_metadata(premium_lakh, confidence["precision_mode"])
     return {
         "cover_key": cover_key,
         "cover_name": spec.label,
+        "pricing_basis": confidence["pricing_basis"],
         "exposure_field": spec.exposure_field,
         "exposure_value": round(exposure, 2),
         "exposure_label": exposure_label,
@@ -800,8 +1197,27 @@ def _price_cover(
         "loadings": {key: round(value, 3) for key, value in loadings.items()},
         "raw_combined_loading": round(raw_combined, 3),
         "loading_cap_applied": cap_applied,
+        "effective_rol": round(premium_lakh / (sum_insured_cr * 100), 4) if sum_insured_cr else None,
+        "enterprise_rol_cap_applied": enterprise_rol is not None,
+        "per_head_lakh": group_health_per_head,
         "premium_lakh": premium_lakh,
-        "basis": f"{spec.label}: {exposure_label} x base rate {spec.rate_lakh_per_cr:.3f}L/unit x loadings.",
+        "precision_mode": confidence["precision_mode"],
+        "quote_confidence_band": confidence["band"],
+        "quote_confidence": {
+            "band": confidence["band"],
+            "score": confidence["score"],
+            "reason_codes": confidence["reason_codes"],
+        },
+        "calibration_basis": confidence["calibration_basis"],
+        "benchmark_comparison": confidence["benchmark_comparison"],
+        **display,
+        "basis": (
+            f"{spec.label}: {exposure_label} x enterprise ROL {enterprise_rol * 100:.2f}%."
+            if enterprise_rol is not None
+            else f"{spec.label}: {exposure_label} x per-head burning cost INR {group_health_per_head:.4f}L."
+            if group_health_per_head is not None
+            else f"{spec.label}: {exposure_label} x base rate {spec.rate_lakh_per_cr:.3f}L/unit x loadings."
+        ),
     }
 
 
@@ -954,7 +1370,9 @@ def _referral_flags(
         flags.append("Property SI exceeds INR 25 Cr; validate occupancy, protection, and catastrophe exposure.")
     if profile.get("facility_climate_risk_zone") in ("High", "Extreme", "Very High"):
         flags.append("High climate zone; check flood/cyclone exposure and deductibles.")
-    if profile.get("claims_last_3_years"):
+    if _claims_unknown(profile):
+        flags.append("Claims history is unknown; validate loss runs before treating pricing as technical.")
+    elif profile.get("claims_last_3_years"):
         flags.append("Prior claims disclosed; validate loss runs before binding.")
     if "motor_fleet" in covers and _float(inputs.get("fleet_count")) >= 50:
         flags.append("Fleet count is 50+; validate driver vetting, telematics, route controls, and motor loss history.")
@@ -981,6 +1399,29 @@ def _referral_flags(
     return flags
 
 
+def _pricing_scale(profile: Dict[str, Any], inputs: Dict[str, Any]) -> Dict[str, Any]:
+    revenue = _float(profile.get("annual_revenue_cr") or profile.get("revenue_cr"), 0.0)
+    team = _team_size(profile)
+    aggregate_limit = sum(_float(inputs.get(field)) for field in (
+        "cyber_limit_cr", "dno_limit_cr", "pi_limit_cr", "public_liability_limit_cr",
+        "product_liability_limit_cr", "fi_pi_limit_cr", "payment_protection_limit_cr",
+    ))
+    enterprise = revenue >= 500 or team >= 1000 or aggregate_limit > 150
+    if enterprise:
+        return {
+            "segment": "enterprise",
+            "benchmark_range_applicable": False,
+            "label": "Enterprise account estimate",
+            "message": "Startup benchmark premium ranges are suppressed because the account scale requires underwriter-led enterprise validation.",
+        }
+    return {
+        "segment": "startup",
+        "benchmark_range_applicable": True,
+        "label": "Startup indicative estimate",
+        "message": "Benchmark premium ranges remain comparable for this startup-scale account.",
+    }
+
+
 def price_output_stage(
     profile: Dict[str, Any],
     scores: Dict[str, Any],
@@ -1001,31 +1442,69 @@ def price_output_stage(
 
     pricing_profile = _pricing_profile(profile)
     inputs = infer_underwriting_inputs(pricing_profile)
+    scale = _pricing_scale(pricing_profile, inputs)
     priced = [
         _price_cover(cover, COVER_SPECS[cover], inputs, scores, pricing_profile)
         for cover in covers
     ]
+    cover_benchmark_issues = [
+        item.get("benchmark_comparison", {})
+        for item in priced
+        if (item.get("benchmark_comparison") or {}).get("status") in ("not_comparable", "suppressed")
+    ]
+    if cover_benchmark_issues:
+        scale = dict(scale)
+        scale["benchmark_range_applicable"] = False
+        scale["segment"] = "specialty_or_enterprise" if scale.get("segment") != "enterprise" else "enterprise"
+        scale["label"] = "Specialty / underwriter-led estimate" if scale.get("segment") != "enterprise" else scale.get("label")
+        scale["message"] = cover_benchmark_issues[0].get(
+            "explanation",
+            "Startup benchmark premium ranges are not comparable to the selected limits or specialty exposure.",
+        )
     flags = _referral_flags(pricing_profile, scores, inputs, covers)
+    if scale["segment"] == "enterprise":
+        flags.insert(0, "Enterprise-scale account; treat output as a technical estimate and validate limits, retentions, controls, and tower structure with an underwriter.")
     if any(item.get("loading_cap_applied") for item in priced):
         flags.append(
-            "Combined risk loading was capped at 4.0x on one or more covers - "
-            "actual technical rate may be higher. Route to senior underwriter."
+            "Risk or enterprise ROL cap was applied on one or more covers - "
+            "validate final rate, retention, and controls with an underwriter."
         )
 
     subtotal = round(sum(item["premium_lakh"] for item in priced), 2)
     discount_rate = 0.0
     if bundle and bundle.get("name") and len(priced) >= 3:
-        discount_rate = 0.08 if len(priced) >= 5 else 0.05
+        discount_rate = 0.10 if len(priced) >= 5 else 0.05
     discount = round(subtotal * discount_rate, 2)
     net = round(max(0.0, subtotal - discount), 2)
     gst = round(net * GST_RATE, 2)
     gross = round(net + gst, 2)
+    quote_confidence = _portfolio_confidence(priced, scale)
+    precision_mode = _portfolio_precision(priced, quote_confidence)
+    if precision_mode == "range":
+        display_range = {"min": round(gross * 0.85, 2), "max": round(gross * 1.20, 2)}
+        display_premium = None
+    elif precision_mode == "suppressed":
+        display_range = None
+        display_premium = None
+    else:
+        display_range = None
+        display_premium = gross
+    benchmark_status = "comparable" if scale.get("benchmark_range_applicable", True) else "not_comparable"
+    benchmark_explanation = scale.get("message") or "Benchmark range remains comparable for this startup-scale account."
+    explanation_items = [
+        "Premium math is deterministic and non-bindable; GenAI does not set price.",
+        "Bundle discount is applied to subtotal before GST.",
+    ]
+    if precision_mode != "point_estimate":
+        explanation_items.append("Precision is downgraded because one or more covers need richer underwriting inputs.")
+    if quote_confidence.get("reason_codes"):
+        explanation_items.append("Confidence drivers: " + ", ".join(quote_confidence["reason_codes"][:5]) + ".")
 
     return {
         "engine_version": ENGINE_VERSION,
         "quote_type": "indicative_underwriting_quote",
         "currency": "INR",
-        "method": f"Base rate x sum insured/exposure x risk, stage, sector, climate, control, and claims loadings. Combined loading capped at {MAX_COMBINED_LOADING}x per cover.",
+        "method": f"SPARC uses line-specific pre-underwriting pricing bases, capped loadings, referral rules, and {int(GST_RATE * 100)}% GST. Estimates are indicative and non-bindable.",
         "bundle_name": (bundle or {}).get("name"),
         "covers_priced": priced,
         "cover_count": len(priced),
@@ -1038,6 +1517,18 @@ def price_output_stage(
         "gst_lakh": gst,
         "gross_premium_lakh": gross,
         "gross_premium_inr": int(round(gross * 100_000)),
+        "display_premium_lakh": display_premium,
+        "display_premium_range_lakh": display_range,
+        "precision_mode": precision_mode,
+        "quote_confidence": quote_confidence,
+        "quote_confidence_label": QUOTE_CONFIDENCE_LABELS.get(quote_confidence["band"], quote_confidence["band"]),
+        "calibration_basis": sorted({basis for item in priced for basis in item.get("calibration_basis", [])}),
+        "benchmark_comparison": {
+            "status": benchmark_status,
+            "explanation": benchmark_explanation,
+        },
+        "explanation_items": explanation_items,
+        "pricing_scale": scale,
         "underwriting_inputs": {key: value for key, value in inputs.items() if not key.startswith("_")},
         "assumptions": inputs.get("_assumption_notes", []),
         "missing_inputs": _missing_inputs(pricing_profile, covers),

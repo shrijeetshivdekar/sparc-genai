@@ -267,6 +267,41 @@ COMPANY_SEEDS = [
     ("AgroPulse", "agritech", "seed"), ("RainLedger Farms", "agritech", "pre_seed"),
 ]
 
+STARTUP_COMPANY_SEEDS = [
+    ("Niro", "fintech_lending", "series_a"), ("CheQ", "fintech_lending", "series_a"), ("Mintoak", "fintech_payments", "series_a"),
+    ("Zolve", "fintech_lending", "mid"), ("Decentro", "fintech_payments", "series_a"), ("Setu", "fintech_payments", "mid"),
+    ("Signzy", "fintech_lending", "mid"), ("Hyperface", "fintech_payments", "seed"), ("Cashfree Payments", "fintech_payments", "large"),
+    ("Juspay", "fintech_payments", "large"),
+    ("Qure.ai", "healthtech", "mid"), ("Niramai", "healthtech", "series_a"), ("Dozee", "healthtech", "series_a"),
+    ("SigTuple", "healthtech", "series_a"), ("Wysa", "healthtech", "series_a"), ("Eka Care", "healthtech", "series_a"),
+    ("Clinikally", "healthtech", "seed"), ("HexaHealth", "healthtech", "series_a"), ("Loop Health", "healthtech", "series_a"),
+    ("BeatO", "healthtech", "series_a"),
+    ("Sprinto", "saas", "series_a"), ("Scrut Automation", "saas", "series_a"), ("Testsigma", "saas", "series_a"),
+    ("Zluri", "saas", "series_a"), ("Rocketlane", "saas", "series_a"), ("Spendflo", "saas", "seed"),
+    ("Factors.ai", "saas", "seed"), ("BiteSpeed", "saas", "seed"), ("DevRev", "saas", "mid"), ("Fyle", "saas", "series_a"),
+    ("BlissClub", "d2c", "series_a"), ("Snitch", "d2c", "series_a"), ("The Souled Store", "d2c", "mid"),
+    ("Slurrp Farm", "foodtech", "series_a"), ("Yoga Bar", "foodtech", "series_a"), ("Epigamia", "foodtech", "mid"),
+    ("Open Secret", "foodtech", "series_a"), ("Go Desi", "foodtech", "seed"), ("Chaayos", "foodtech", "mid"), ("Chai Point", "foodtech", "mid"),
+    ("Zypp Electric", "logistics", "series_a"), ("Yulu", "cleantech", "mid"), ("Euler Motors", "cleantech", "mid"),
+    ("MoEVing", "logistics", "series_a"), ("LetsTransport", "logistics", "mid"), ("GoBolt", "logistics", "series_a"),
+    ("Statiq", "cleantech", "series_a"), ("Kazam", "cleantech", "seed"), ("Exponent Energy", "cleantech", "series_a"), ("River", "cleantech", "series_a"),
+    ("Newton School", "edtech", "series_a"), ("Scaler", "edtech", "mid"), ("Masai School", "edtech", "series_a"),
+    ("Teachmint", "edtech", "mid"), ("Doubtnut", "edtech", "series_a"), ("Cuemath", "edtech", "mid"),
+    ("Adda247", "edtech", "large"), ("Sunstone", "edtech", "series_a"), ("Filo", "edtech", "series_a"), ("BlueLearn", "edtech", "pre_seed"),
+    ("GalaxEye", "spacetech", "seed"), ("Bellatrix Aerospace", "spacetech", "series_a"), ("Digantara", "spacetech", "series_a"),
+    ("Astrogate Labs", "spacetech", "seed"), ("InspeCity", "spacetech", "pre_seed"), ("Ethereal Machines", "deeptech", "series_a"),
+    ("CynLr", "deeptech", "series_a"), ("Minus Zero", "deeptech", "seed"), ("Tonbo Imaging", "deeptech", "mid"), ("Detect Technologies", "deeptech", "series_a"),
+    ("Chakr Innovation", "cleantech", "series_a"), ("GPS Renewables", "cleantech", "mid"), ("Greenjoules", "cleantech", "seed"),
+    ("Bambrew", "cleantech", "seed"), ("Beco", "d2c", "seed"), ("Climes", "cleantech", "pre_seed"),
+    ("Varaha", "agritech", "series_a"), ("Oorja Development", "cleantech", "seed"), ("Ecozen", "agritech", "mid"), ("String Bio", "cleantech", "series_a"),
+    ("Bijak", "agritech", "series_a"), ("Fasal", "agritech", "series_a"), ("BharatAgri", "agritech", "seed"),
+    ("Aquaconnect", "agritech", "series_a"), ("Animall", "agritech", "series_a"), ("Vegrow", "agritech", "mid"),
+    ("Otipy", "agritech", "series_a"), ("Clover", "agritech", "seed"), ("FarMart", "agritech", "series_a"), ("KisanKonnect", "agritech", "seed"),
+    ("Loco", "gaming_media", "series_a"), ("Rooter", "gaming_media", "series_a"), ("Rusk Media", "gaming_media", "series_a"),
+    ("Eloelo", "gaming_media", "series_a"), ("Pocket FM", "gaming_media", "large"), ("Kuku FM", "gaming_media", "mid"),
+    ("FanClash", "gaming_media", "seed"), ("STAN", "gaming_media", "seed"), ("WinZO", "gaming_media", "mid"), ("Zupee", "gaming_media", "mid"),
+]
+
 
 def _slug(value: str) -> str:
     return "".join(ch.lower() for ch in value if ch.isalnum())
@@ -302,7 +337,7 @@ def _build_profile(name: str, archetype_key: str, scale_key: str) -> dict:
 
 COMPANY_PROFILES = {
     name: _build_profile(name, archetype, scale)
-    for name, archetype, scale in COMPANY_SEEDS
+    for name, archetype, scale in [*COMPANY_SEEDS, *STARTUP_COMPANY_SEEDS]
 }
 
 

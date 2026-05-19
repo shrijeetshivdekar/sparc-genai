@@ -273,7 +273,17 @@ window.resetSectionInputs = (sectionId) => {
 window.importProfileFromJson = (analyse = false) => {
   const input = $("profile-import-json");
   try {
-    const parsed = extractProfileJson(input?.value || "");
+    const raw = (input?.value || "").trim();
+    if (!raw) {
+      if (analyse && state.profile?.startup_name) {
+        updateProfileImportStatus(`Analysing loaded form for ${state.profile.startup_name}.`, "success");
+        runAnalysis();
+      } else {
+        updateProfileImportStatus("Paste JSON or load a company record before importing.", "error");
+      }
+      return;
+    }
+    const parsed = extractProfileJson(raw);
     const { profile, importedKeys, ignored } = normalizeImportedProfile(parsed);
     state.profile = profile;
     state.quoteInputs = {};
@@ -300,7 +310,11 @@ function applyImportedCompanyProfile(profile, analyse = false) {
   state.maxVisitedSection = SECTIONS.length - 1;
   saveDraftProfile();
   refreshAdaptiveSections();
-  updateProfileImportStatus(`Loaded database record for ${profile.startup_name}. Review inferred fields before quoting.`, "success");
+  const query = $("company-profile-query");
+  const results = $("company-profile-results");
+  if (query) query.value = profile.startup_name || "";
+  if (results) results.classList.remove("open");
+  updateProfileImportStatus(`Loaded database record for ${profile.startup_name}. Review the populated fields, then click Import and analyse when ready.`, "success");
   if (analyse) runAnalysis();
 }
 
@@ -325,8 +339,7 @@ window.searchCompanyProfiles = async () => {
             <span>${esc(item.sector)} · ${esc(item.funding_stage)} · ${esc(item.team_size)} people</span>
           </div>
           <div class="company-profile-actions">
-            <button type="button" class="btn btn-ghost" onclick="loadCompanyProfile('${esc(item.name)}', false)">Load</button>
-            <button type="button" class="btn btn-primary" onclick="loadCompanyProfile('${esc(item.name)}', true)">Analyse</button>
+            <button type="button" class="btn btn-primary" onclick="loadCompanyProfile('${esc(item.name)}', false)">Load into form</button>
           </div>
         </div>`).join("");
     }
@@ -355,12 +368,12 @@ function renderCompanyLookupDropdown(matches, query = "") {
   results.innerHTML = `
     <div class="company-profile-dropdown-head">${query ? `${matches.length} matching company record${matches.length === 1 ? "" : "s"}` : `Showing ${matches.length} company records from database`}</div>
     ${matches.map(item => `
-      <button class="company-profile-option" type="button" data-company-name="${esc(item.name)}" onclick="loadCompanyProfileFromOption(this, true)">
+      <button class="company-profile-option" type="button" data-company-name="${esc(item.name)}" onclick="loadCompanyProfileFromOption(this, false)">
         <span>
           <strong>${esc(item.name)}</strong>
           <em>${esc(item.sector)} · ${esc(item.funding_stage)} · ${esc(item.team_size)} people</em>
         </span>
-        <b>Analyse</b>
+        <b>Load</b>
       </button>`).join("")}
     ${!query && count > matches.length ? `<div class="company-profile-empty">Type to narrow the ${esc(count)} company database records.</div>` : ""}`;
   results.classList.add("open");
@@ -394,7 +407,7 @@ window.searchCompanyProfiles = async () => {
   }
 };
 
-window.loadCompanyProfileFromOption = (button, analyse = true) => {
+window.loadCompanyProfileFromOption = (button, analyse = false) => {
   const name = button?.dataset?.companyName;
   if (name) window.loadCompanyProfile(name, analyse);
 };

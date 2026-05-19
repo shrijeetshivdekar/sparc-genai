@@ -1373,7 +1373,7 @@ function showEmailDraftModal(result) {
         <textarea class="email-body-area" id="email-body-area" spellcheck="true">${esc(body)}</textarea>
       </div>
       <div class="email-modal-actions">
-        <button class="btn btn-primary" id="email-copy-btn">Copy email</button>
+        <button class="btn btn-primary" id="email-gmail-btn">Open in Gmail</button>
         <button class="btn btn-ghost" id="email-modal-dismiss">Close</button>
       </div>
     </div>`;
@@ -1385,14 +1385,12 @@ function showEmailDraftModal(result) {
   document.getElementById("email-modal-dismiss").onclick = close;
   overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
 
-  document.getElementById("email-copy-btn").onclick = () => {
+  document.getElementById("email-gmail-btn").onclick = () => {
     const ta = document.getElementById("email-body-area");
-    const fullText = `Subject: ${subject}\n\n${ta.value}`;
-    navigator.clipboard.writeText(fullText).then(() => {
-      const btn = document.getElementById("email-copy-btn");
-      btn.textContent = "Copied!";
-      setTimeout(() => { btn.textContent = "Copy email"; }, 2000);
-    });
+    const gmailUrl = "https://mail.google.com/mail/?view=cm&fs=1"
+      + "&su=" + encodeURIComponent(subject)
+      + "&body=" + encodeURIComponent(ta.value);
+    window.open(gmailUrl, "_blank");
   };
 }
 

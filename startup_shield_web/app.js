@@ -2268,7 +2268,6 @@ function renderResults(result) {
           ${renderGenAIStatus(result)}
           ${renderBundleHero(result.bundle_match, result.recommendations, result.why_it_matters)}
           ${renderBundleAlternatives(result.bundle_alternatives)}
-          ${renderV2Insights(result)}
         </div>
         ${renderClaimsScenarios(result)}
         <div class="result-section">
@@ -2304,6 +2303,7 @@ function renderResults(result) {
 
       <!-- ── TAB: Estimated Quote ── -->
       <div class="tab-panel" id="tab-quote" style="display:none">
+        ${renderV2Insights(result)}
         ${renderMethodologyModal(result)}
         <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
           <button class="hc-trigger-btn" type="button" onclick="toggleHowCalculated(true)">

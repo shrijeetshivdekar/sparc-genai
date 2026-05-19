@@ -48,7 +48,6 @@ from bundle_scoring_utils import load_config  # noqa: E402
 from custom_product_triggers import check_custom_triggers  # noqa: E402
 from company_profiles import company_profile_count, get_company_profile, search_company_profiles  # noqa: E402
 from competitor_catalog_expanded import get_top5_global  # noqa: E402
-from genai_recommender import normalize_mode, rerank_payload  # noqa: E402
 from policy_wording import compare_policy_wording  # noqa: E402
 from premium_estimator import PREMIUM_FOOTNOTE, estimate_premium, get_size_bucket  # noqa: E402
 from pricing_engine import price_output_stage  # noqa: E402
@@ -64,6 +63,13 @@ GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 GEMINI_MAX_TOKENS = int(os.environ.get("GEMINI_MAX_TOKENS", "4096"))
 GEMINI_TIMEOUT_SECONDS = int(os.environ.get("GEMINI_TIMEOUT_SECONDS", "30"))
 SPARC_ENGINE = os.environ.get("SPARC_ENGINE", "v2")
+
+# Load pitch/objection library once at startup — never sent to Gemini in full
+_PITCH_LIBRARY_PATH = ROOT / "pitch_objection_library.json"
+try:
+    _PITCH_LIBRARY = json.loads(_PITCH_LIBRARY_PATH.read_text(encoding="utf-8"))
+except Exception:
+    _PITCH_LIBRARY = {}
 
 
 SUB_SECTOR_OPTIONS = {
@@ -864,6 +870,10 @@ def _bundle_cover_keys(bundle):
 COVER_REASON_FALLBACKS = {
     "CYBER": "Covers breach response, ransomware recovery, and data-related regulatory costs.",
     "cyber_liability": "Covers breach response, ransomware recovery, and data-related regulatory costs.",
+    "property_fire": "Protects premises, stock, furniture, fixtures, and business contents from fire and allied perils.",
+    "burglary": "Protects inventory and business assets against burglary or theft from insured premises.",
+    "money_insurance": "Covers loss of cash or money in transit where collections or retail handling exists.",
+    "comprehensive_general_liability": "Covers third-party bodily injury, property damage, and personal injury claims.",
     "D_AND_O": "Protects founders and directors if investors, regulators, or employees challenge management decisions.",
     "dno_liability": "Protects founders and directors if investors, regulators, or employees challenge management decisions.",
     "PI_TECH_EO": "Covers defence and client claims if software, APIs, or professional services cause financial loss.",
@@ -1385,6 +1395,218 @@ def group_safeguard_companion_candidates(primary_bundle, alternatives, legacy_pa
     )
 
 
+def _outreach_cover_label(key):
+    labels = {
+        "BHARAT_SOOKSHMA": "Bharat Sookshma Udyam Suraksha",
+        "CYBER": "Cyber liability",
+        "D_AND_O": "Directors and officers liability",
+        "PI_TECH_EO": "Professional indemnity / Tech E&O",
+        "CGL_I_ELITE": "Comprehensive general liability",
+        "PUBLIC_LIABILITY": "Public liability",
+        "EMPLOYERS_COMP": "Employees compensation",
+        "EMPLOYMENT_PRACTICES": "Employment practices liability",
+        "CRIME_FIDELITY": "Crime / fidelity",
+        "GROUP_HEALTH": "Group health",
+        "GROUP_PA": "Group personal accident",
+        "PROPERTY_ALL_RISK": "Property all risk",
+        "BUSINESS_INTERRUPTION": "Business interruption",
+        "MACHINERY_BREAKDOWN": "Machinery breakdown",
+        "ELECTRONIC_EQUIPMENT": "Electronic equipment",
+        "PRODUCT_LIABILITY": "Product liability",
+        "MARINE_CARGO": "Marine cargo",
+        "SURETY": "Surety / contract bonds",
+        "Drone_RPAS": "Drone RPAS",
+        "property_fire": "Property fire and allied perils",
+        "burglary": "Burglary and theft",
+        "business_interruption": "Business interruption",
+        "cyber_liability": "Cyber liability",
+        "product_liability": "Product liability",
+        "money_insurance": "Money insurance",
+        "public_liability": "Public liability",
+        "employees_comp": "Employees compensation",
+        "machinery_breakdown": "Machinery breakdown",
+        "electronic_equipment": "Electronic equipment",
+        "comprehensive_general_liability": "Comprehensive general liability",
+        "dno_liability": "Directors and officers liability",
+        "professional_indemnity": "Professional indemnity / Tech E&O",
+        "crime_fidelity": "Crime / fidelity",
+        "marine_transit": "Marine cargo",
+    }
+    if key in labels:
+        return labels[key]
+    return str(key or "").replace("_", " ").replace("-", " ").title()
+
+
+def _outreach_top_risks(scores, limit=3):
+    return sorted((scores or {}).items(), key=lambda item: item[1], reverse=True)[:limit]
+
+
+def _outreach_cover_facts(bundle):
+    facts = []
+    for key in _bundle_cover_keys(bundle):
+        expanded = _outreach_expanded_component_facts(key)
+        if expanded:
+            facts.extend(expanded)
+            continue
+        facts.append({
+            "key": key,
+            "label": _outreach_cover_label(key),
+            "summary": _fallback_cover_reason(bundle, key),
+        })
+    return facts
+
+
+def _outreach_expanded_component_facts(key):
+    expansions = {
+        "BHARAT_SOOKSHMA": [
+            {
+                "key": "property_fire",
+                "label": "Property fire and allied perils",
+                "summary": "Protects the insured premises, contents, stock, furniture, fixtures, and fittings from fire and allied physical damage events.",
+            },
+            {
+                "key": "stock_inventory",
+                "label": "Stock and inventory protection",
+                "summary": "Covers finished goods, raw materials, and packaging kept at the insured location, which is critical for a D2C brand.",
+            },
+            {
+                "key": "plant_equipment",
+                "label": "Plant, machinery, and equipment",
+                "summary": "Protects operating equipment and business assets that would be expensive to replace after insured damage.",
+            },
+            {
+                "key": "burglary",
+                "label": "Burglary and theft extension",
+                "summary": "Relevant where inventory or equipment is stored in offices, warehouses, or fulfilment locations.",
+            },
+            {
+                "key": "business_interruption",
+                "label": "Business interruption add-on",
+                "summary": "Helps protect gross profit and continuing expenses if an insured property event disrupts fulfilment or sales.",
+            },
+        ],
+        "Bharat_Sookshma": [
+            {
+                "key": "property_fire",
+                "label": "Property fire and allied perils",
+                "summary": "Protects the insured premises, contents, stock, furniture, fixtures, and fittings from fire and allied physical damage events.",
+            },
+            {
+                "key": "stock_inventory",
+                "label": "Stock and inventory protection",
+                "summary": "Covers finished goods, raw materials, and packaging kept at the insured location, which is critical for a D2C brand.",
+            },
+            {
+                "key": "plant_equipment",
+                "label": "Plant, machinery, and equipment",
+                "summary": "Protects operating equipment and business assets that would be expensive to replace after insured damage.",
+            },
+            {
+                "key": "burglary",
+                "label": "Burglary and theft extension",
+                "summary": "Relevant where inventory or equipment is stored in offices, warehouses, or fulfilment locations.",
+            },
+            {
+                "key": "business_interruption",
+                "label": "Business interruption add-on",
+                "summary": "Helps protect gross profit and continuing expenses if an insured property event disrupts fulfilment or sales.",
+            },
+        ],
+    }
+    return expansions.get(key) or expansions.get(str(key or "").upper())
+
+
+def _outreach_fit_summary(profile, scores, bundle, cover_facts):
+    company = (profile or {}).get("startup_name") or "this startup"
+    sector = (profile or {}).get("sector") or "startup"
+    stage = (profile or {}).get("funding_stage") or "current stage"
+    risks = ", ".join(name for name, _ in _outreach_top_risks(scores))
+    subproduct_reasons = _outreach_subproduct_fit_summary(cover_facts)
+    if bundle:
+        return (
+            f"{bundle.get('name')} is relevant for {company} because its {sector} profile at {stage} "
+            f"shows {risks or 'material operating risk'}. The fit comes from the bundle sub-products: "
+            f"{subproduct_reasons or 'the included covers map to the startup exposures'}."
+        )
+    return (
+        f"This cover fits {company} because its {sector} profile at {stage} "
+        f"shows {risks or 'material operating risk'}."
+    )
+
+
+def _outreach_subproduct_fit_summary(cover_facts, max_items=4):
+    parts = []
+    for fact in (cover_facts or [])[:max_items]:
+        label = fact.get("label")
+        summary = _outreach_short_summary(fact.get("summary"))
+        if label and summary:
+            parts.append(f"{label} for {summary}")
+        elif label:
+            parts.append(label)
+    remaining = len(cover_facts or []) - len(parts)
+    if remaining > 0:
+        parts.append(f"{remaining} additional cover{'s' if remaining != 1 else ''} for the remaining operating exposures")
+    return "; ".join(parts)
+
+
+def _outreach_short_summary(text, limit=86):
+    value = str(text or "").strip().rstrip(".")
+    if not value:
+        return ""
+    first_sentence = value.split(". ", 1)[0].strip()
+    if len(first_sentence) <= limit:
+        return first_sentence[:1].lower() + first_sentence[1:]
+    return first_sentence[:limit].rsplit(" ", 1)[0].strip().lower() + "..."
+
+
+def _format_cover_lines(cover_facts, max_items=8):
+    lines = []
+    for fact in cover_facts[:max_items]:
+        lines.append(f"- {fact['label']}: {fact['summary']}")
+    remaining = len(cover_facts) - len(lines)
+    if remaining > 0:
+        names = ", ".join(fact["label"] for fact in cover_facts[max_items:])
+        lines.append(f"- Also included: {names}")
+    return "\n".join(lines)
+
+
+def _outreach_context(profile, scores, recommendations, bundle, size_bucket=None):
+    bundle_cover_facts = _outreach_cover_facts(bundle) if bundle else []
+    products = []
+    if bundle:
+        products.append({
+            "key": "bundle",
+            "name": bundle.get("name") or "Bundle recommendation",
+            "fit_summary": _outreach_fit_summary(profile, scores, bundle, bundle_cover_facts),
+            "coverage_facts": bundle_cover_facts,
+            "description": bundle.get("description") or "",
+        })
+    for product in (recommendations or [])[:5]:
+        key = product.get("key")
+        name = product.get("name") or key
+        if not key or not name:
+            continue
+        summary = product.get("what_it_covers") or product.get("nudge") or ""
+        products.append({
+            "key": key,
+            "name": name,
+            "fit_summary": _outreach_fit_summary(profile, scores, None, []),
+            "coverage_facts": [{"key": key, "label": name, "summary": summary}] if summary else [],
+            "description": summary,
+        })
+    return {
+        "company": (profile or {}).get("startup_name", ""),
+        "sector": (profile or {}).get("sector", ""),
+        "stage": (profile or {}).get("funding_stage", ""),
+        "team_size": (profile or {}).get("team_size", ""),
+        "operations": (profile or {}).get("operations", ""),
+        "data_sensitivity": (profile or {}).get("data_sensitivity", ""),
+        "size_bucket": size_bucket,
+        "top_risks": [name for name, _ in _outreach_top_risks(scores)],
+        "products": [p for p in products[:6] if p.get("key") and p.get("name")],
+    }
+
+
 def fallback_outreach_prompts(profile, scores, recommendations, bundle):
     contacts = load_contacts()
     top_scores = sorted(scores.items(), key=lambda item: item[1], reverse=True)[:3]
@@ -1447,10 +1669,7 @@ def outreach_prompt_payload(profile, scores, recommendations, bundle, size_bucke
     for product in recommendations[:5]:
         products.append({"key": product.get("key"), "name": product.get("name", product.get("key"))})
     products = [product for product in products[:6] if product.get("key") and product.get("name")]
-
-    product_lines = "\n".join(
-        f"- {product['key']}: {product['name']}" for product in products
-    )
+    product_lines = "\n".join(f"- {product['key']}: {product['name']}" for product in products)
     top_risk_names = ", ".join(name for name, _ in top_scores)
     profile_highlights = [
         f"Customer types: {', '.join(profile.get('customer_type') or ['not specified'])}",
@@ -1459,7 +1678,6 @@ def outreach_prompt_payload(profile, scores, recommendations, bundle, size_bucke
         f"Operations: {profile.get('operations')}; data sensitivity: {profile.get('data_sensitivity')}",
         f"Size bucket: {size_bucket}",
     ]
-
     return f"""
 You are a warm, knowledgeable ICICI Lombard Relationship Manager writing personalised outreach for
 {profile.get('startup_name')} ({profile.get('sector')}, {profile.get('funding_stage')}, {profile.get('team_size')} people).
@@ -1508,7 +1726,6 @@ def normalize_outreach_response(raw, profile, scores, recommendations, bundle):
     fallback = fallback_outreach_prompts(profile, scores, recommendations, bundle)
     if not isinstance(raw, dict):
         return fallback, "fallback"
-
     normalized = {}
     for key, fallback_item in fallback.items():
         item = raw.get(key)
@@ -1535,6 +1752,168 @@ def outreach_prompts(profile, scores, recommendations, bundle, size_bucket):
     raw, error = call_gemini_json(prompt)
     prompts, source = normalize_outreach_response(raw, profile, scores, recommendations, bundle)
     return prompts, source, error
+
+
+def _get_pitch_library_entry(bundle_match):
+    """Return the matching library entry for the recommended bundle or None.
+    Supports both schema versions:
+      v1 (old): product_type.bundle / product_type.standalone
+      v2 (new): bundle / standalone at root, shared_objection_library at root
+    """
+    if not _PITCH_LIBRARY or not bundle_match:
+        return None
+    # v2 schema: bundle at root; v1 fallback: product_type.bundle
+    bundle_map = (
+        _PITCH_LIBRARY.get("bundle")
+        or _PITCH_LIBRARY.get("product_type", {}).get("bundle", {})
+    )
+    raw = (bundle_match.get("key") or bundle_match.get("name") or "").lower()
+    bundle_slug = raw.replace(" ", "_").replace("-", "_")
+    for lib_key, entry in bundle_map.items():
+        if lib_key == bundle_slug or lib_key in bundle_slug or bundle_slug in lib_key:
+            return entry
+    return None
+
+
+def _resolve_objections(lib_entry):
+    """Resolve objection IDs through shared_objection_library (v2 schema),
+    or return raw objects (v1 schema). Returns up to 3 full objection dicts."""
+    if not lib_entry:
+        return []
+    raw = lib_entry.get("objections", [])[:3]
+    if not raw:
+        return []
+    # v2: list of string IDs
+    if isinstance(raw[0], str):
+        shared = _PITCH_LIBRARY.get("shared_objection_library", {})
+        return [shared[k] for k in raw if k in shared]
+    # v1: list of dicts
+    return raw
+
+
+def build_pitch_bullets(profile, bundle_match, scores, pricing_quote):
+    """Return 3 data-driven, founder-facing pitch bullets. Zero tokens."""
+    company = profile.get("startup_name", "Your company")
+    sector  = profile.get("sector", "your sector")
+    stage   = profile.get("funding_stage", "this stage")
+    team    = profile.get("team_size", 0)
+    records = profile.get("data_records_lakhs", 0)
+
+    top_risks = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    risk1 = top_risks[0][0] if len(top_risks) > 0 else "Cyber"
+    risk2 = top_risks[1][0] if len(top_risks) > 1 else "Liability"
+
+    mandatory = (bundle_match or {}).get("mandatory_covers", [])
+    optional  = (bundle_match or {}).get("optional_covers",  [])
+
+    # Bullet 1 — risk-to-cover mapping, specific to company
+    bullet1 = (
+        f"{company} shows elevated exposure on {risk1} and {risk2} — "
+        f"the bundle's mandatory covers address both directly."
+    )
+
+    # Bullet 2 — peer-group framing with real profile numbers
+    team_str    = f"{int(team):,} team" if team else ""
+    records_str = f"{float(records):.1f}M records" if records else ""
+    profile_str = ", ".join(filter(None, [team_str, records_str]))
+    profile_clause = f" with {profile_str}" if profile_str else ""
+    bullet2 = (
+        f"{stage} {sector} businesses{profile_clause} typically need this exact "
+        f"combination of financial-line and operational covers."
+    )
+
+    # Bullet 3 — optional add-ons or regulatory urgency
+    if optional:
+        addon_word = "Two" if len(optional) == 2 else str(len(optional))
+        bullet3 = (
+            f"{addon_word} optional add-ons are pre-staged based on regulatory flags "
+            f"— review and confirm before quoting."
+        )
+    else:
+        bullet3 = (
+            f"The cover structure is designed to survive regulatory scrutiny — "
+            f"every mandatory line maps to a specific {sector} compliance obligation."
+        )
+
+    return [bullet1, bullet2, bullet3]
+
+
+def build_pitch_meta(bundle_match):
+    """Return trigger_question and best_timing from library. Zero tokens."""
+    lib_entry = _get_pitch_library_entry(bundle_match)
+    return {
+        "trigger_question": (lib_entry or {}).get("trigger_question", ""),
+        "best_timing": (lib_entry or {}).get("best_timing", ""),
+    }
+
+
+def generate_objection_handlers(profile, bundle_match, scores, triggers):
+    """Gemini-personalized objection handlers using normalized library. ~900 tokens."""
+    lib_entry = _get_pitch_library_entry(bundle_match)
+    seed_objections = _resolve_objections(lib_entry)
+
+    if not seed_objections:
+        return []
+
+    company = profile.get("startup_name", "this company")
+    sector = profile.get("sector", "")
+    stage = profile.get("funding_stage", "seed")
+    team_size = profile.get("team_size", "")
+    records_count = profile.get("records_count", 0)
+
+    # Determine stage bucket for stage_sensitivity guidance
+    stage_bucket = "series_b_plus" if any(s in (stage or "").lower() for s in ("series b", "series c", "growth", "ipo")) else "seed"
+
+    top_risks = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:3]
+    top_risk_names = [r for r, _ in top_risks]
+
+    trigger_labels = []
+    for t in (triggers or [])[:3]:
+        if isinstance(t, dict):
+            trigger_labels.append(t.get("label") or t.get("trigger") or str(t))
+        else:
+            trigger_labels.append(str(t))
+
+    if not gemini_enabled():
+        return [{"underlying_fear": o.get("underlying_fear", ""), "scripted_response": o.get("scripted_response", "")} for o in seed_objections]
+
+    # Build seed with stage_sensitivity hint inline
+    enriched = []
+    for o in seed_objections:
+        sensitivity_hint = (o.get("stage_sensitivity") or {}).get(stage_bucket, "")
+        enriched.append({
+            "underlying_fear": o.get("underlying_fear", ""),
+            "scripted_response": o.get("scripted_response", ""),
+            "tone": o.get("tone", ""),
+            "stage_guidance": sensitivity_hint,
+        })
+
+    prompt = f"""You are a senior ICICI Lombard RM coaching a colleague on handling pushback from {company} ({stage} {sector} startup, {team_size} employees{f', {int(records_count):,} data records' if records_count else ''}).
+
+Company risk context:
+- Top risk dimensions: {', '.join(top_risk_names)}
+- Regulatory flags: {', '.join(trigger_labels) if trigger_labels else 'none identified'}
+- Stage guidance: {stage_bucket.replace('_', ' ')}
+
+For each objection below, rewrite scripted_response to be specific to {company}. Use their risk dimensions, scale, and the stage_guidance hint provided. Tone should match the tone field. Keep each response under 60 words. Sound like a trusted advisor, not a salesperson.
+
+{json.dumps(enriched, indent=2, ensure_ascii=False)}
+
+Return ONLY valid JSON:
+{{
+  "handlers": [
+    {{
+      "underlying_fear": "...",
+      "scripted_response": "..."
+    }}
+  ]
+}}""".strip()
+
+    raw, _ = call_gemini_json(prompt)
+    if raw and isinstance(raw, dict) and raw.get("handlers"):
+        return raw["handlers"]
+
+    return [{"underlying_fear": o.get("underlying_fear", ""), "scripted_response": o.get("scripted_response", "")} for o in seed_objections]
 
 
 def _legacy_score(raw):
@@ -1610,6 +1989,9 @@ def _legacy_score(raw):
         "outreach_prompts": outreach,
         "outreach_source": outreach_source,
         "outreach_error": outreach_error,
+        "pitch_bullets": build_pitch_bullets(profile, safe_bundle, rounded_scores, json_safe(pricing_quote)),
+        "pitch_meta": build_pitch_meta(safe_bundle),
+        "objection_handlers": json_safe(generate_objection_handlers(profile, safe_bundle, rounded_scores, regulatory_triggers(profile))),
         "rm": {k: v for k, v in load_contacts().items()},
         "gemini_enabled": gemini_enabled(),
         # ── New fields (appended; never replaces existing keys) ──────────
@@ -1774,6 +2156,19 @@ def _v2_score(raw):
     payload["outreach_prompts"] = json_safe(outreach)
     payload["outreach_source"] = outreach_source
     payload["outreach_error"] = outreach_error
+    payload["pitch_bullets"] = build_pitch_bullets(
+        payload["profile"],
+        payload.get("bundle_match"),
+        payload["scores"],
+        payload.get("pricing_engine_quote"),
+    )
+    payload["pitch_meta"] = build_pitch_meta(payload.get("bundle_match"))
+    payload["objection_handlers"] = json_safe(generate_objection_handlers(
+        payload["profile"],
+        payload.get("bundle_match"),
+        payload["scores"],
+        payload.get("display_regulatory_triggers") or payload.get("regulatory_triggers_fired") or [],
+    ))
 
     return payload
 
@@ -1819,111 +2214,15 @@ def _log_diff(payload_legacy, payload_v2):
         return
 
 
-def _genai_mode():
-    return normalize_mode(os.environ.get("SPARC_GENAI_MODE", "off"))
-
-
-def _log_genai_shadow_diff(payload):
-    if not payload.get("genai_shadow_diff"):
-        return
-    entry = {
-        "timestamp": datetime.utcnow().isoformat(),
-        "mode": payload.get("recommendation_mode"),
-        "source": payload.get("genai_source"),
-        "genai_error": payload.get("genai_error"),
-        "diff": payload.get("genai_shadow_diff"),
-        "config_version": payload.get("config_version"),
-    }
-    path = _shadow_log_path()
-    if path is None:
-        return
-    try:
-        with path.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(entry, ensure_ascii=False, sort_keys=True) + "\n")
-    except Exception:
-        return
-
-
-def _refresh_primary_genai_dependents(payload):
-    if payload.get("genai_source") != "gemini" or payload.get("recommendation_mode") != "primary":
-        return payload
-    if "profile" not in payload or "scores" not in payload:
-        return payload
-
-    recommendations = payload.get("recommendations", [])
-    bundle = payload.get("bundle_match")
-    profile = payload["profile"]
-    scores = payload["scores"]
-    payload["bundles"] = bundle_recommendations(recommendations)
-    payload["product_mapping"] = product_mapping(recommendations, scores)
-    payload["pricing_engine_quote"] = json_safe(price_output_stage(
-        profile,
-        scores,
-        recommendations,
-        bundle,
-    ))
-    payload["premium_summary"] = premium_summary(
-        recommendations,
-        bundle,
-        payload.get("global_products", []),
-        payload.get("size_bucket"),
-    )
-    if bundle:
-        payload["bundle_only_pricing_quote"] = json_safe(price_output_stage(
-            payload["profile"],
-            payload["scores"],
-            [],
-            {
-                "name": bundle.get("name"),
-                "mandatory_covers": bundle.get("mandatory_covers", []),
-                "optional_covers": bundle.get("optional_covers", []),
-            },
-        ))
-    scoped_triggers = display_regulatory_triggers(
-        payload.get("regulatory_triggers_fired", []),
-        bundle,
-        recommendations,
-    )
-    payload["display_regulatory_triggers"] = json_safe(scoped_triggers)
-    payload["coverage_roadmap"] = json_safe(contextual_coverage_roadmap(profile, bundle))
-    payload["why_it_matters"] = json_safe(generate_why_it_matters(
-        profile,
-        bundle,
-        recommendations,
-    ))
-    payload["bundle_insights"] = json_safe(generate_bundle_insights(
-        profile,
-        bundle,
-        payload.get("revenue_breakdown", []),
-        scoped_triggers,
-        payload.get("coverage_roadmap", []),
-    ))
-    return payload
-
-
-def _apply_genai_recommendation_mode(payload):
-    mode = _genai_mode()
-    result = rerank_payload(
-        payload,
-        mode=mode,
-        model_available=gemini_enabled(),
-        call_json=call_gemini_json,
-    )
-    updated = _refresh_primary_genai_dependents(result.payload)
-    if mode == "shadow" and updated.get("genai_source") == "gemini":
-        _log_genai_shadow_diff(updated)
-    return updated
-
-
 def score(profile):
     if SPARC_ENGINE == "legacy":
-        return _apply_genai_recommendation_mode(_legacy_score(profile))
+        return _legacy_score(profile)
     payload_v2 = _v2_score(profile)
     if SPARC_ENGINE == "shadow":
         payload_legacy = _legacy_score(profile)
         _log_diff(payload_legacy, payload_v2)
-        return _apply_genai_recommendation_mode(payload_legacy)
-    return _apply_genai_recommendation_mode(payload_v2)
+        return payload_legacy
+    return payload_v2
 
 
 def analyze(raw):
@@ -2019,7 +2318,6 @@ def meta():
         "aiTiers": ["None", "Embedded", "Applied", "Foundational"],
         "geminiEnabled": gemini_enabled(),
         "geminiModel": GEMINI_MODEL,
-        "genaiRecommendationMode": _genai_mode(),
         "seedCompanyProfiles": company_profile_count(),
     }
 

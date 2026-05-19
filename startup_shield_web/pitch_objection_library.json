@@ -1,0 +1,952 @@
+{
+  "meta": {
+    "generated_on": "2026-05-18",
+    "locale": "en-IN",
+    "schema_version": "1.0",
+    "normalization_note": "Each product lists top 5 objection IDs in priority order. Resolve them against shared_objection_library."
+  },
+  "shared_objection_library": {
+    "U_CA_HANDLES": {
+      "flag": "universal",
+      "objection": "My CA handles this; insurance is not urgent.",
+      "underlying_fear": "I do not want one more recurring cost, owner or process.",
+      "scripted_response": "A CA helps with accounting and statutory filings, but a CA does not fund forensic response, plaintiff defence, stock replacement or third-party compensation after a live incident. Insurance is balance-sheet financing for sudden shocks, not a paperwork substitute.",
+      "tone": "reframe",
+      "stage_sensitivity": {
+        "seed": "Position it as runway protection against one bad event.",
+        "series_b_plus": "Position it as governance hygiene expected by the board, lenders and counterparties."
+      }
+    },
+    "U_WAIT_SERIES_B": {
+      "flag": "universal",
+      "objection": "We will sort insurance at Series B.",
+      "underlying_fear": "Runway is tight and I would rather spend on growth.",
+      "scripted_response": "The company is most fragile before Series B, not after. The right test is whether one incident can freeze payroll, shipping, collections or fundraising momentum; if yes, waiting is effectively a self-insurance decision.",
+      "tone": "urgency",
+      "stage_sensitivity": {
+        "seed": "Emphasise that one uninsured loss can consume months of runway.",
+        "series_b_plus": "Emphasise that larger balance sheets create larger claim values and more stakeholder scrutiny."
+      }
+    },
+    "U_INVESTOR_WAIT": {
+      "flag": "universal",
+      "objection": "Our investors told us to wait.",
+      "underlying_fear": "I do not want to buy the wrong cover before the exposure is clear.",
+      "scripted_response": "That is fair, but the answer is event-based buying, not indefinite delay. Board seat means D&O, live customer data means cyber, physical inventory means property and transit, site workforce means WC and group covers.",
+      "tone": "data-backed",
+      "stage_sensitivity": {
+        "seed": "Suggest one or two high-severity covers only.",
+        "series_b_plus": "Suggest a mapped risk stack linked to governance, contracts and scale."
+      }
+    },
+    "U_IRDAI_WEAK": {
+      "flag": "universal",
+      "objection": "IRDAI coverage is weak; claims always get cut.",
+      "underlying_fear": "I will pay premium and still discover exclusions when I need help.",
+      "scripted_response": "Claims disputes usually come from wrong declarations, underinsurance, or buying the wrong wording for the risk. The fix is precise cover selection, complete values and clean underwriting data; good buying discipline matters more than cynical assumptions about all claims.",
+      "tone": "reassuring",
+      "stage_sensitivity": {
+        "seed": "Offer tighter, simpler wording with fewer moving parts.",
+        "series_b_plus": "Offer structured schedules, board sign-off on declarations and cover mapping by asset/process."
+      }
+    },
+    "U_TOO_SMALL": {
+      "flag": "universal",
+      "objection": "We are too early for this.",
+      "underlying_fear": "Our exposure is still small and insurance feels like large-company theatre.",
+      "scripted_response": "Insurance should follow exposure, not vanity. If you already have customer data, shipped inventory, a field team, site contractors or a board, then you are not too early for the covers tied to those exposures.",
+      "tone": "reframe",
+      "stage_sensitivity": {
+        "seed": "Keep the answer sharp: fewer covers, higher severity.",
+        "series_b_plus": "Tie the answer to scaled exposures and institutional expectations."
+      }
+    },
+    "U_ALREADY_SECURED": {
+      "flag": "universal",
+      "objection": "We already have strong controls, cloud setups or AMCs; this feels duplicative.",
+      "underlying_fear": "I do not want to pay twice for risk reduction.",
+      "scripted_response": "Controls reduce frequency; insurance funds severity. Good security, redundancy, audits and maintenance are exactly what improve underwriting, but they do not replace cash when a covered event still causes loss.",
+      "tone": "data-backed",
+      "stage_sensitivity": {
+        "seed": "Use it to show they may qualify for better terms sooner than they think.",
+        "series_b_plus": "Use it to show that strong controls are a reason to insure intelligently, not to remain uninsured."
+      }
+    },
+    "O_CYBER_NO_DATA": {
+      "flag": "product_specific",
+      "objection": "We do not store sensitive data; AWS or a vendor handles it.",
+      "underlying_fear": "Cyber insurance is only for big consumer apps with millions of records.",
+      "scripted_response": "If you process KYC, employee HR files, payment data, health data, customer emails or partner credentials, you already have breach, contract and response exposure. Vendor infrastructure does not remove your reporting and liability obligations when your stack is involved.",
+      "tone": "urgency",
+      "stage_sensitivity": {
+        "seed": "Focus on founder distraction, incident response cost and customer trust.",
+        "series_b_plus": "Focus on regulator visibility, customer indemnities and board-level escalation."
+      }
+    },
+    "O_DNO_NOT_LISTED": {
+      "flag": "product_specific",
+      "objection": "We are not listed, so D&O does not apply.",
+      "underlying_fear": "Public market governance risk is irrelevant to a private startup.",
+      "scripted_response": "D&O is about wrongful acts in managerial capacity, not stock-market listing. Private company directors still owe duties, face allegations from shareholders, employees, creditors and regulators, and often need defence costs before any final judgment.",
+      "tone": "data-backed",
+      "stage_sensitivity": {
+        "seed": "Anchor to founder-directors and first external board seat.",
+        "series_b_plus": "Anchor to investor nominees, independent directors, ESOP disputes and transaction diligence."
+      }
+    },
+    "O_PI_CONTRACT_COVERS": {
+      "flag": "product_specific",
+      "objection": "Our MSA caps liability; that should be enough.",
+      "underlying_fear": "Contract drafting is cheaper than buying insurance.",
+      "scripted_response": "A client can still sue, seek urgent relief, or frame the issue as negligence or professional error outside the neat liability cap you expected. PI/E&O is what funds defence, settlement and court process when that happens.",
+      "tone": "data-backed",
+      "stage_sensitivity": {
+        "seed": "Position PI as essential before first meaningful enterprise logo.",
+        "series_b_plus": "Position PI as necessary once uptime, underwriting or clinical workflow failures can move revenue materially."
+      }
+    },
+    "O_PROPERTY_RENTED_PREMISES": {
+      "flag": "product_specific",
+      "objection": "We do not own the building, so property cover is the landlord's job.",
+      "underlying_fear": "If the landlord insures the shell, I should avoid duplicate premium.",
+      "scripted_response": "Landlord cover usually protects the building shell, not your stock, fit-outs, servers, leasehold improvements or downtime. Most startup losses sit in what you placed inside the premises and the business that stops when it is unusable.",
+      "tone": "reframe",
+      "stage_sensitivity": {
+        "seed": "Focus on stock, laptops, racks, routers and leased interiors.",
+        "series_b_plus": "Add business interruption, customer penalties and multi-site dependencies."
+      }
+    },
+    "O_PEOPLE_COVERS_TEAM_TOO_SMALL": {
+      "flag": "product_specific",
+      "objection": "We are only 15 to 40 people; health and accident covers can wait.",
+      "underlying_fear": "This is a nice-to-have, not a survival issue.",
+      "scripted_response": "Early teams feel every ICU bill, accident or employee family crisis disproportionately. People covers are not only retention tools; they prevent one human event from becoming a founder cash-call or employer-brand problem.",
+      "tone": "reassuring",
+      "stage_sensitivity": {
+        "seed": "Sell it as decisive offer-closing and goodwill protection.",
+        "series_b_plus": "Sell it as retention hygiene, culture signalling and board-visible HR infrastructure."
+      }
+    },
+    "O_WC_CONTRACTORS": {
+      "flag": "product_specific",
+      "objection": "Those installers, riders or field workers are contractors, not our employees.",
+      "underlying_fear": "I do not want to absorb liability that belongs to vendors.",
+      "scripted_response": "If the work is in the course of your business, compensation exposure and contract backflow can still land on you. This is exactly why contractor, sub-contractor and site-worker structures need to be reflected in WC/CAR before the accident happens.",
+      "tone": "urgency",
+      "stage_sensitivity": {
+        "seed": "Keep it about one accident causing an out-of-plan cash hit.",
+        "series_b_plus": "Keep it about principal-employer exposure, audits and large-site contracting."
+      }
+    },
+    "O_MARINE_3PL": {
+      "flag": "product_specific",
+      "objection": "Our transporter or 3PL should pay if goods are damaged.",
+      "underlying_fear": "I want liability to sit with the logistics partner, not us.",
+      "scripted_response": "Carrier recovery is slow, capped and fact-heavy, while your cash is already stuck in replacement inventory and missed dispatches. Marine cover protects your working capital first; recovery from the transporter can be pursued separately.",
+      "tone": "data-backed",
+      "stage_sensitivity": {
+        "seed": "Anchor to a single lost shipment hurting cash conversion.",
+        "series_b_plus": "Anchor to recurring transit volume and service-level penalties."
+      }
+    },
+    "O_PUBLIC_PRODUCT_NO_EXPOSURE": {
+      "flag": "product_specific",
+      "objection": "We are only a platform or brand; product and premises risk sit with someone else.",
+      "underlying_fear": "Outsourcing operations should outsource liability too.",
+      "scripted_response": "Consumer and third-party claims do not vanish just because part of the chain is outsourced. If your brand, premises, staff, dispatch process or product-service stack touched the event, you can still be pulled into the claim.",
+      "tone": "urgency",
+      "stage_sensitivity": {
+        "seed": "Use simple examples like customer injury on premises or defective batch sold under your label.",
+        "series_b_plus": "Add distributor networks, recalls, vendor indemnity fights and class-like claimant behaviour."
+      }
+    },
+    "O_KEYPERSON_TERM_ENOUGH": {
+      "flag": "product_specific",
+      "objection": "We already have founder term life; why buy key person?",
+      "underlying_fear": "I do not want overlapping cover that protects the same event twice.",
+      "scripted_response": "Personal term life protects the family; key person cover protects the company from execution, lender and hiring disruption if a critical founder or executive is lost. Those are different economic problems.",
+      "tone": "reframe",
+      "stage_sensitivity": {
+        "seed": "Focus on founder dependency and sales/investor concentration risk.",
+        "series_b_plus": "Focus on lender covenants, revenue concentration and succession planning."
+      }
+    },
+    "O_EPLI_HR_POLICY_ENOUGH": {
+      "flag": "product_specific",
+      "objection": "We have HR policies and an Internal Committee; EPLI is overkill.",
+      "underlying_fear": "A policy manual should be enough to keep employment disputes under control.",
+      "scripted_response": "Policies help prevention and internal process, but they do not pay for defence, settlement or crisis management when allegations of harassment, retaliation or wrongful termination become external disputes. The cost often starts before final liability is decided.",
+      "tone": "urgency",
+      "stage_sensitivity": {
+        "seed": "Frame it around founder time, hiring signal and a single toxic-culture allegation.",
+        "series_b_plus": "Frame it around multi-city teams, manager layers and reputational spillover."
+      }
+    },
+    "O_CRIME_TRUST_TEAM": {
+      "flag": "product_specific",
+      "objection": "This feels like distrust; I do not want to insure against my own people.",
+      "underlying_fear": "Buying crime cover sends the wrong cultural signal internally.",
+      "scripted_response": "Crime and fidelity cover is not a comment on your culture; it is protection against fast-growth control gaps such as payment diversion, payroll manipulation, vendor fraud and inventory theft. The policy exists for the outlier event, not because you expect routine dishonesty.",
+      "tone": "reassuring",
+      "stage_sensitivity": {
+        "seed": "Keep the discussion around lightweight controls and founder visibility limits.",
+        "series_b_plus": "Keep it around delegated approvals, larger spend, and finance-team separation."
+      }
+    },
+    "O_EEI_REPLACE_IT": {
+      "flag": "product_specific",
+      "objection": "If laptops or hardware fail, we will just buy new ones.",
+      "underlying_fear": "The replacement cost is manageable, so insurance adds little.",
+      "scripted_response": "The hardware invoice is often the smallest part of the loss. What hurts is downtime, data recovery, delayed demos, lab stoppage, missed dispatches or field-team idle time while the setup is rebuilt.",
+      "tone": "data-backed",
+      "stage_sensitivity": {
+        "seed": "Use founder laptop, router or PoS failure examples that halt the business for days.",
+        "series_b_plus": "Use server room, lab equipment, warehouse scanning and multi-team dependency examples."
+      }
+    },
+    "O_CLINICAL_SITE_INDEMNITY": {
+      "flag": "product_specific",
+      "objection": "The hospital or CRO indemnity should cover clinical trial risk.",
+      "underlying_fear": "The sponsor should not bear first-response cost if the site was involved.",
+      "scripted_response": "Clinical-trial injury and compensation questions in India can involve sponsor, investigator and site responsibilities together. Contract allocation helps later, but liability cover helps fund the response and compensation path when the issue arises now.",
+      "tone": "urgency",
+      "stage_sensitivity": {
+        "seed": "Position it as mandatory seriousness before first human study.",
+        "series_b_plus": "Position it as portfolio, protocol and investor-governance protection."
+      }
+    },
+    "O_BI_CAN_SELF_FUND": {
+      "flag": "product_specific",
+      "objection": "If we have downtime, we will absorb it.",
+      "underlying_fear": "I can use working capital instead of buying a BI premium.",
+      "scripted_response": "Founders usually mean they will finance downtime from the same cash needed for payroll, inventory and growth. Business interruption exists for exactly the period when revenue pauses but the cost base does not.",
+      "tone": "reframe",
+      "stage_sensitivity": {
+        "seed": "Translate downtime into runway burned while customers wait.",
+        "series_b_plus": "Translate downtime into SLA penalties, covenant pressure and board escalations."
+      }
+    },
+    "O_MACHINERY_AMC_ENOUGH": {
+      "flag": "product_specific",
+      "objection": "We already have AMC or warranty; breakdown insurance is redundant.",
+      "underlying_fear": "Maintenance vendor support should make insurance unnecessary.",
+      "scripted_response": "AMCs cover maintenance and some repairs; they usually do not fund collateral damage, urgent replacement economics, or the income loss from the machine being unavailable. Insurance addresses the severe event, not routine maintenance.",
+      "tone": "data-backed",
+      "stage_sensitivity": {
+        "seed": "Keep it to one machine taking the line down.",
+        "series_b_plus": "Tie it to production bottlenecks and machinery loss-of-profit extensions."
+      }
+    },
+    "O_MOTOR_STATUTORY_TP_ENOUGH": {
+      "flag": "product_specific",
+      "objection": "Our vehicles already carry mandatory insurance, so we are covered.",
+      "underlying_fear": "Legal compliance should be enough for fleet risk.",
+      "scripted_response": "Statutory third-party is only the floor. Your real startup exposure sits in own damage, cargo dependency, driver continuity, vehicle downtime and replacement dispatch economics.",
+      "tone": "reframe",
+      "stage_sensitivity": {
+        "seed": "Anchor to one vehicle off-road disrupting dispatch.",
+        "series_b_plus": "Anchor to route density, utilisation and fleet uptime metrics."
+      }
+    },
+    "O_TRADECREDIT_BUYER_ALWAYS_PAYS": {
+      "flag": "product_specific",
+      "objection": "Our buyers are solid; delayed payment is just part of sales.",
+      "underlying_fear": "Receivable stress is annoying, but not insurable priority.",
+      "scripted_response": "Trade credit is not bought because all buyers fail; it is bought because one default or protracted delay can squeeze working capital exactly when inventory and payroll are scaling. The existence of TReDS-driven policy attention shows how serious delayed MSME receivables can be.",
+      "tone": "data-backed",
+      "stage_sensitivity": {
+        "seed": "Position it around concentration to a few anchor buyers.",
+        "series_b_plus": "Position it around channel expansion, debtor ageing and lender conversations."
+      }
+    },
+    "O_MONEY_NO_CASH": {
+      "flag": "product_specific",
+      "objection": "We are digital-first; hardly any cash moves.",
+      "underlying_fear": "Money insurance is for old-school cash businesses, not startups.",
+      "scripted_response": "If you still handle COD, petty cash, event cash, store collections or field cash, the residual exposure is concentrated even if volume is lower. Money insurance is for the sharp, ugly incident, not for only cash-heavy retail chains.",
+      "tone": "reassuring",
+      "stage_sensitivity": {
+        "seed": "Focus on COD and event cash leakage.",
+        "series_b_plus": "Add multi-location collections and cash-in-transit control gaps."
+      }
+    },
+    "O_DRONE_DEMO_ONLY": {
+      "flag": "product_specific",
+      "objection": "We fly drones only for demos, surveys or field mapping.",
+      "underlying_fear": "Low-frequency flights do not justify a dedicated insurance line.",
+      "scripted_response": "Third-party drone liability in India is still a legal exposure even if flights are infrequent. One crash into a passer-by, field asset, vehicle or facility can cost far more than the drone itself.",
+      "tone": "urgency",
+      "stage_sensitivity": {
+        "seed": "Use it as a flight-permission and founder-caution argument.",
+        "series_b_plus": "Use it as a client-contract, scale and field-operations argument."
+      }
+    },
+    "O_ENTERTAINMENT_SMALL_SHOOTS": {
+      "flag": "product_specific",
+      "objection": "Our shoots are small; we can self-insure them.",
+      "underlying_fear": "Production insurance sounds cinematic and oversized for us.",
+      "scripted_response": "The problem is not only camera damage. One postponed shoot day, cast/crew injury, location incident, data-card loss or set damage can derail a launch calendar and force expensive rework.",
+      "tone": "reframe",
+      "stage_sensitivity": {
+        "seed": "Position it around asset-light teams with no schedule redundancy.",
+        "series_b_plus": "Position it around bigger campaigns, agencies, talent contracts and brand launches."
+      }
+    }
+  },
+  "bundle": {
+    "msme_suraksha_kavach": {
+      "display_name": "MSME Suraksha Kavach",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_MSK_2023"],
+      "sectors": ["D2C", "Logistics", "Agritech", "Foodtech"],
+      "coverage_basis": "Bundled MSME property product with defined perils; optional STFI and terrorism positioning from launch note.",
+      "pitch_bullets": [
+        "This is the cover for the founder whose stock, racks, packaging or small warehouse gets hit before the company has the cash buffer to recover cleanly.",
+        "ICICI Lombard launched MSME Suraksha Kavach specifically as a bundled property product for MSMEs, with optional storm, flood and terrorism protection.",
+        "For D2C, agritech, foodtech and logistics teams, the real risk is not the fire itself; it is missing the next dispatch cycle while payroll and vendor dues continue."
+      ],
+      "objections": ["U_TOO_SMALL", "U_WAIT_SERIES_B", "O_PROPERTY_RENTED_PREMISES", "O_MARINE_3PL", "U_IRDAI_WEAK"],
+      "trigger_question": "If your current stockroom or micro-warehouse was unusable tomorrow morning, how many days before shipping resumes without founders putting fresh cash in?",
+      "best_timing": "Right after first warehouse/stock point goes live, before festive inventory build, or when a lender / vendor asks for asset proof.",
+      "highest_resistance_subcovers": [
+        {"cover": "Business Interruption", "why": "Founders underestimate how quickly fixed costs burn during downtime."},
+        {"cover": "STFI / flood-related protection", "why": "Looks optional until the first monsoon-exposed location is actually mapped."},
+        {"cover": "Terrorism extension", "why": "Seen as remote and easy to cut when budgets are tight."}
+      ]
+    },
+    "corporate_cover_ii": {
+      "display_name": "Corporate Cover II",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_CORP_COVER_II_WORDING"],
+      "sectors": ["SaaS", "Fintech", "Healthtech", "D2C", "Logistics"],
+      "coverage_basis": "Property-led package wording for unforeseen physical loss or damage to insured property.",
+      "pitch_bullets": [
+        "Think of this as the 'bigger startup office / fulfilment / operations site' cover: one incident can hit interiors, equipment, stock and continuity together.",
+        "Corporate Cover II is not about pretty office furniture; it is about the day your core operating location cannot function and customers still expect service.",
+        "For fintech, SaaS and healthtech, the hidden loss is often in fit-outs, electronics and service continuity, not just fire damage."
+      ],
+      "objections": ["U_ALREADY_SECURED", "U_WAIT_SERIES_B", "O_PROPERTY_RENTED_PREMISES", "O_BI_CAN_SELF_FUND", "U_CA_HANDLES"],
+      "trigger_question": "If your main operating site went dark for ten business days, which customer commitments or internal deadlines would slip first?",
+      "best_timing": "After leasing a larger office / ops site, setting up a server or hardware room, or moving from coworking to a branded premises.",
+      "highest_resistance_subcovers": [
+        {"cover": "Business Interruption", "why": "Seen as abstract until founders translate downtime into salary burn and customer churn."},
+        {"cover": "Electronic Equipment", "why": "Founders wrongly assume AMC or cloud reliance removes local hardware risk."},
+        {"cover": "Crime / Fidelity", "why": "Internal fraud feels culturally awkward to discuss in an early scaling team."}
+      ]
+    },
+    "business_shield_sme": {
+      "display_name": "Business Shield SME",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_BUSINESS_SHIELD_PAGE"],
+      "sectors": ["SaaS", "Fintech", "Healthtech", "Edtech", "HRtech"],
+      "coverage_basis": "Holistic package bringing together fire, burglary, loss of profit and legal liability.",
+      "pitch_bullets": [
+        "Business Shield is useful when the founder says, 'I do not want four separate policies for one office or operating site.'",
+        "ICICI Lombard explicitly positions this package as a holistic alternative to separate Fire, Burglary, Loss of Profit and Legal Liability covers.",
+        "For office-heavy startups, this shifts the conversation from 'buy insurance' to 'protect the place where your team, equipment and contracts sit today.'"
+      ],
+      "objections": ["U_TOO_SMALL", "O_PROPERTY_RENTED_PREMISES", "O_BI_CAN_SELF_FUND", "U_IRDAI_WEAK", "U_INVESTOR_WAIT"],
+      "trigger_question": "If there were a burglary or electrical fire over a long weekend, what part of Monday would fail first: people, systems, or customer work?",
+      "best_timing": "When moving into a dedicated office, opening a centre, installing higher-value electronics, or signing enterprise customer SLAs.",
+      "highest_resistance_subcovers": [
+        {"cover": "Loss of Profit", "why": "Founders can see property damage but struggle to price downtime."},
+        {"cover": "Legal Liability", "why": "Office-based startups often assume third-party injury/property risk is negligible."},
+        {"cover": "Burglary", "why": "Teams over-index on digital security and underweight physical theft."}
+      ]
+    },
+    "bharat_sookshma_udyam_suraksha": {
+      "display_name": "Bharat Sookshma Udyam Suraksha",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_BSUS_PAGE"],
+      "sectors": ["Micro enterprises", "Agritech", "Foodtech"],
+      "coverage_basis": "Standardised fire and allied perils cover for total risk values up to ₹5 crore with built-in protections.",
+      "pitch_bullets": [
+        "This is the fastest way to protect a smaller operating unit whose building, machinery, stock and contents already sit in one physical location.",
+        "ICICI Lombard positions Bharat Sookshma for total risk values up to ₹5 crore and highlights broad protection across fire, natural calamity, terrorism and business assets.",
+        "It works well when the founder is still small but no longer simple: one shed, one cold room, one processing point, one stock cluster."
+      ],
+      "objections": ["U_TOO_SMALL", "O_PROPERTY_RENTED_PREMISES", "U_CA_HANDLES", "U_WAIT_SERIES_B", "U_IRDAI_WEAK"],
+      "trigger_question": "What exact amount of stock, equipment and interiors would you have to replace if your current unit had a fire tonight?",
+      "best_timing": "Before first meaningful inventory accumulation, before monsoon, or when formalising a single primary business location.",
+      "highest_resistance_subcovers": [
+        {"cover": "Full value declaration", "why": "Micro founders try to insure only the part they most visibly worry about."},
+        {"cover": "Terrorism / catastrophe mindset", "why": "Seen as distant despite location-level exposure."},
+        {"cover": "Municipal / debris / related built-ins", "why": "Founders under-appreciate non-obvious restoration costs."}
+      ]
+    },
+    "industrial_all_risk_policy": {
+      "display_name": "Industrial All Risk Policy",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_IAR_PAGE"],
+      "sectors": ["Deeptech", "Cleantech", "Healthtech", "Agritech"],
+      "coverage_basis": "Exclusion-based package for larger industrial risks; includes material damage, theft & burglary, machinery breakdown, BI and EEI.",
+      "pitch_bullets": [
+        "This is the policy for startups that have crossed from 'office plus prototypes' into actual industrial risk—pilot plants, manufacturing lines, test facilities or high-value machinery.",
+        "ICICI Lombard’s IAR page is explicit: this is an exclusion-based package for large insured values, with machinery breakdown, electronic equipment and business interruption built into the conversation.",
+        "For deeptech and cleantech founders, the problem is not only damage to one machine; it is the loss-of-output period that follows."
+      ],
+      "objections": ["U_ALREADY_SECURED", "O_BI_CAN_SELF_FUND", "O_MACHINERY_AMC_ENOUGH", "U_IRDAI_WEAK", "U_CA_HANDLES"],
+      "trigger_question": "Which one machine, line or test rig would shut the entire facility if it failed unexpectedly this quarter?",
+      "best_timing": "Before pilot plant commissioning, before capex drawdown, before lender site visits, or when insured values move toward serious industrial scale.",
+      "highest_resistance_subcovers": [
+        {"cover": "Machinery Breakdown", "why": "Founders assume OEM warranty or AMC handles severe breakdown economics."},
+        {"cover": "Business Interruption / Machinery Loss of Profit", "why": "Revenue-loss periods are harder to picture than damaged equipment."},
+        {"cover": "Electronic Equipment", "why": "Control systems and diagnostics are often overlooked next to the main machine."}
+      ]
+    },
+    "group_safeguard_insurance_policy": {
+      "display_name": "Group Safeguard Insurance Policy",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_GROUP_SAFEGUARD_WORDING"],
+      "sectors": ["All sectors", "HR-heavy teams"],
+      "coverage_basis": "Group accident / safeguard form with death, disability and multiple add-on benefits.",
+      "pitch_bullets": [
+        "Use this when the founder has many people exposure points but is not ready for a full, rich employee-benefits stack.",
+        "The published wording is heavy on accidental death, disability and family-support style benefits, which makes it strong for field teams, distributed teams and cost-sensitive HR design.",
+        "It is often the cleanest starting point when one serious accident would create both a human tragedy and an employer-brand crisis."
+      ],
+      "objections": ["O_PEOPLE_COVERS_TEAM_TOO_SMALL", "U_WAIT_SERIES_B", "U_IRDAI_WEAK", "U_CA_HANDLES", "U_INVESTOR_WAIT"],
+      "trigger_question": "If one field employee or critical operator had a life-changing accident this month, what would the company actually pay and how quickly?",
+      "best_timing": "Before field expansion, before adding riders / technicians / installers, or when attrition and hiring start becoming board topics.",
+      "highest_resistance_subcovers": [
+        {"cover": "Family-oriented add-ons", "why": "Founders first see only premium, not employer-brand value."},
+        {"cover": "Permanent disability benefits", "why": "Death is intuitive; long-tail disability is usually underpriced mentally."},
+        {"cover": "Wide group enrolment", "why": "Some founders want to cherry-pick senior staff only."}
+      ]
+    },
+    "contractor_all_risk_bundle": {
+      "display_name": "Contractor All Risk",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_CAR_PAGE"],
+      "sectors": ["Cleantech", "Deeptech", "Construction-phase"],
+      "coverage_basis": "Construction-phase cover for civil works with material damage and third-party liability.",
+      "pitch_bullets": [
+        "The dangerous phase is not after commissioning; it is during civil work, installation and handover when ownership, contractor and third-party risks overlap.",
+        "ICICI Lombard’s CAR wording explicitly combines material damage with third-party liability for accidental bodily injury or property damage during the project period.",
+        "This is the right pitch for EV infra, plants, depots, battery facilities, robotics sites and cleantech build-outs."
+      ],
+      "objections": ["O_WC_CONTRACTORS", "U_IRDAI_WEAK", "O_BI_CAN_SELF_FUND", "U_CA_HANDLES", "U_INVESTOR_WAIT"],
+      "trigger_question": "If a contractor error caused collapse, third-party injury or rework on-site next week, whose balance sheet would absorb it first?",
+      "best_timing": "At EPC / civil contract signing, before first material unload, or before lender / investor construction monitoring starts.",
+      "highest_resistance_subcovers": [
+        {"cover": "Third-party liability", "why": "Founders focus on own works and underweight adjacent property / bodily injury risk."},
+        {"cover": "Hired-in plant / tools", "why": "Temporary on-site assets feel 'someone else’s problem' until damaged."},
+        {"cover": "Maintenance extension", "why": "Seen as post-project and easy to trim out."}
+      ]
+    },
+    "business_edge_policy": {
+      "display_name": "Business Edge Policy",
+      "public_detail_status": "limited_public_filing",
+      "source_basis_ids": ["SB_BUSINESS_EDGE_FILING"],
+      "sectors": ["D2C", "Agritech", "Foodtech", "Logistics"],
+      "coverage_basis": "New commercial fire/package filing; positioned here as a flexible SME operating-site package based on filing class and adjacent ICICI property products.",
+      "pitch_bullets": [
+        "Pitch this as the founder-friendly step up from 'basic fire cover' to a sharper operating-site risk conversation for growing commerce businesses.",
+        "The public filing confirms Business Edge as a live ICICI Lombard commercial fire product, which makes it a credible SPARC shell for stock, premises and continuity-led discussions.",
+        "Use it where the founder has real physical exposure but still wants a simple business-facing package rather than a large industrial structure."
+      ],
+      "objections": ["U_TOO_SMALL", "O_PROPERTY_RENTED_PREMISES", "U_WAIT_SERIES_B", "U_IRDAI_WEAK", "O_MARINE_3PL"],
+      "trigger_question": "When you think of your next serious physical loss, is it more likely to be stock, interiors, equipment, or a dispatch stoppage—and what is the rupee hit?",
+      "best_timing": "At first proper warehouse / processing unit setup, or when orders scale faster than the founder’s informal risk controls.",
+      "highest_resistance_subcovers": [
+        {"cover": "Business interruption logic", "why": "Founders want tangible damage cover first and postpone continuity thinking."},
+        {"cover": "Burglary / stock exposure", "why": "Physical shrinkage is often managed informally until loss appears."},
+        {"cover": "Transit adjacency", "why": "Commerce founders split warehouse and in-transit thinking too late."}
+      ]
+    },
+    "enterprise_secure_package": {
+      "display_name": "Enterprise Secure Package",
+      "public_detail_status": "limited_public_filing",
+      "source_basis_ids": ["SB_ENTERPRISE_SECURE_FILING"],
+      "sectors": ["SaaS", "Fintech", "Healthtech", "Logistics"],
+      "coverage_basis": "Legacy packaged/bundled misc-class enterprise product; positioned here as an office / enterprise package for mid-scale startups.",
+      "pitch_bullets": [
+        "This is the right conversation when the startup starts looking like an institution: multiple teams, larger premises, electronics, governance pressure and higher service-dependency.",
+        "The active ICICI Lombard filing confirms Enterprise Secure as a live package product even though public wording detail is sparse.",
+        "Use it as the 'you are no longer an incidental startup office' package for scale-stage operations."
+      ],
+      "objections": ["U_ALREADY_SECURED", "U_WAIT_SERIES_B", "O_CYBER_NO_DATA", "O_DNO_NOT_LISTED", "U_IRDAI_WEAK"],
+      "trigger_question": "What changed in the last 12 months that would make a site incident, internal allegation or systems event materially harder to absorb than before?",
+      "best_timing": "After Series A / B, after moving into a larger office or multi-team facility, or when procurement / due diligence questions become more formal.",
+      "highest_resistance_subcovers": [
+        {"cover": "D&O-style liability thinking", "why": "Private founders still assume governance insurance starts only at IPO stage."},
+        {"cover": "Cyber and PI adjacency", "why": "Office package buyers often mentally separate digital liability from operational package design."},
+        {"cover": "Fidelity / crime style components", "why": "Internal-fraud conversations feel uncomfortable in founder-led teams."}
+      ]
+    },
+    "entertainment_production_package": {
+      "display_name": "Entertainment Production Package",
+      "public_detail_status": "limited_public_filing",
+      "source_basis_ids": ["SB_ENTERTAINMENT_PACKAGE_FILING"],
+      "sectors": ["Gaming", "Media", "Content"],
+      "coverage_basis": "New commercial entertainment-production package filing; positioned here around production-day, crew, equipment and liability risk.",
+      "pitch_bullets": [
+        "For content-led startups, one lost shoot day can cost more than the camera—talent, location, launch calendars and campaign dependencies all shift together.",
+        "ICICI Lombard has filed an Entertainment Production Package Policy, which makes this a natural SPARC wrapper for media-tech and content businesses.",
+        "Use it when founders say they are 'not a studio' but are already spending real money on shoots, sets, talent and production schedules."
+      ],
+      "objections": ["O_ENTERTAINMENT_SMALL_SHOOTS", "U_WAIT_SERIES_B", "U_IRDAI_WEAK", "O_EEI_REPLACE_IT", "U_CA_HANDLES"],
+      "trigger_question": "If tomorrow’s shoot or live production was cancelled at the last minute, what exactly do you lose apart from the rented equipment?",
+      "best_timing": "Before a major campaign shoot, branded content launch, gaming trailer production, or when external locations and creators enter the process.",
+      "highest_resistance_subcovers": [
+        {"cover": "Postponement / cancellation", "why": "Seen as vanity until one schedule slip burns campaign timing."},
+        {"cover": "Cast / crew accident cover", "why": "Founders treat shoots as vendor-managed and miss employer / organiser exposure."},
+        {"cover": "Equipment and media loss", "why": "Teams think only about replacement hardware, not reshoot cost."}
+      ]
+    },
+    "merchants_cover_iii": {
+      "display_name": "Merchants Cover III",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_MERCHANTS_FILING"],
+      "sectors": ["D2C", "Foodtech", "Agritech", "Logistics"],
+      "coverage_basis": "Shop / merchant package suited to smaller retail, storage and trading locations.",
+      "pitch_bullets": [
+        "This is the right package when the founder’s risk is concentrated in one shopfront, dark store, small retail outlet, pickup point or merchant-like stock location.",
+        "Merchants Cover III remains an active ICICI Lombard product and works naturally for commerce founders with smaller but tangible stock and cash exposure.",
+        "Pitch it as protection for the place where inventory, collections and customer-facing operations physically meet."
+      ],
+      "objections": ["U_TOO_SMALL", "O_MONEY_NO_CASH", "O_PROPERTY_RENTED_PREMISES", "O_MARINE_3PL", "U_IRDAI_WEAK"],
+      "trigger_question": "If a theft or fire happened at your retail / dark-store location this weekend, how much saleable inventory would vanish before Monday?",
+      "best_timing": "At first store / dark-store opening, before adding COD-heavy operations, or when stock starts sitting overnight in one physical point.",
+      "highest_resistance_subcovers": [
+        {"cover": "Money insurance adjacency", "why": "Digital-first founders dismiss residual collection risk too quickly."},
+        {"cover": "Burglary", "why": "Shrinkage is normalised until a severe event happens."},
+        {"cover": "Business interruption", "why": "Small store founders rarely model downtime explicitly."}
+      ]
+    },
+    "bharat_laghu_udyam_suraksha": {
+      "display_name": "Bharat Laghu Udyam Suraksha",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_BLUS_PAGE"],
+      "sectors": ["D2C", "Logistics", "Agritech", "Cleantech"],
+      "coverage_basis": "Standardised fire and allied perils cover for total risk values above ₹5 crore and up to ₹50 crore; underinsurance waived up to 15%.",
+      "pitch_bullets": [
+        "Once insured values move past the micro bracket, informal fire cover stops being enough; Bharat Laghu is the standardised next step.",
+        "ICICI Lombard positions this for ₹5 crore to ₹50 crore values, with inbuilt protections and underinsurance waiver up to 15 percent.",
+        "This matters for startups whose stock, plant, warehouse contents or working facilities have quietly become material without the founder noticing the total insurable value."
+      ],
+      "objections": ["U_ALREADY_SECURED", "O_PROPERTY_RENTED_PREMISES", "O_BI_CAN_SELF_FUND", "U_CA_HANDLES", "U_IRDAI_WEAK"],
+      "trigger_question": "Have you ever totaled building, plant, stock and fit-outs at replacement value—or are you still thinking in pieces?",
+      "best_timing": "When asset values cross the Sookshma bracket, before lender reviews, before monsoon, or before a scale-up in plant / stock holding.",
+      "highest_resistance_subcovers": [
+        {"cover": "Complete value declaration", "why": "Founders try to under-schedule unseen asset inflation."},
+        {"cover": "Deductible / excess understanding", "why": "Claim maths is often not discussed until renewal."},
+        {"cover": "Consequential loss adjacency", "why": "Property buyers still delay BI conversation."}
+      ]
+    },
+    "i_select_liability_insurance": {
+      "display_name": "i-Select Liability Insurance",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_ISELECT_2023"],
+      "sectors": ["SaaS", "Fintech", "Healthtech", "Edtech", "HRtech"],
+      "coverage_basis": "Startup-friendly liability shell positioned by ICICI Lombard for SMEs and startups with easy buying and real-time issuance.",
+      "pitch_bullets": [
+        "This is the cleanest SPARC pitch when the founder’s biggest risks are board decisions, customer loss, data, advice, hiring disputes and reputational fallout—not fire or stock.",
+        "ICICI Lombard’s launch note explicitly positioned i-Select Liability as apt for SMEs and startups with easier buying and issuance, which makes it a natural liability bundle for venture-backed founders.",
+        "Use it when the startup sells trust, judgment, code, payments, health outcomes or people management rather than physical goods alone."
+      ],
+      "objections": ["O_DNO_NOT_LISTED", "O_CYBER_NO_DATA", "O_PI_CONTRACT_COVERS", "U_INVESTOR_WAIT", "U_IRDAI_WEAK"],
+      "trigger_question": "Which would hurt faster right now: a board allegation, a customer negligence claim, or a data incident—and who personally pays the legal bill first?",
+      "best_timing": "At first board institutionalisation, first enterprise contracts, first regulated customer, or when legal diligence starts becoming real.",
+      "highest_resistance_subcovers": [
+        {"cover": "D&O Liability", "why": "Private founders still think D&O is only for listed companies."},
+        {"cover": "Cyber Liability", "why": "Cloud / vendor dependence creates false comfort."},
+        {"cover": "PI / EPLI", "why": "Founders over-trust contracts and internal HR policies to absorb external disputes."}
+      ]
+    }
+  },
+  "standalone": {
+    "cyber_liability": {
+      "display_name": "Cyber Liability",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_CYBER_PAGE", "SB_LAWS_DPDP_CERTIN", "SB_LAWS_RBI_PA_PG"],
+      "coverage_basis": "Corporate cyber cover for breach response, privacy management, media liability, extortion and network security liability.",
+      "pitch_bullets": [
+        "A breach is now an operations event, a legal event and a board event at the same time.",
+        "CERT-In’s six-hour reporting rule and India’s active privacy-rule environment mean founders do not get the luxury of a slow response anymore.",
+        "For fintech and startup apps, cyber liability pays for the response costs that your security tooling does not fund."
+      ],
+      "objections": ["O_CYBER_NO_DATA", "U_WAIT_SERIES_B", "U_IRDAI_WEAK", "U_ALREADY_SECURED", "U_CA_HANDLES"],
+      "trigger_question": "If a reportable incident hit tonight, who would run forensics, legal notices and customer communication by breakfast?",
+      "best_timing": "Before first enterprise customer, before storing KYC / health / payment data, or at RBI / infosec audit stage."
+    },
+    "d_and_o_liability": {
+      "display_name": "D&O Liability",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_DNO_PAGE", "SB_LAWS_COMPANIES_166"],
+      "coverage_basis": "Protection for personal liability of directors and officers, with defence costs payable in advance.",
+      "pitch_bullets": [
+        "D&O is for the founder and board member, not the building.",
+        "Companies Act duties do not wait for listing, and defence costs can start the moment an allegation of breach, misstatement or wrongful act appears.",
+        "The real founder fear is not judgment day; it is paying counsel while the company is fundraising."
+      ],
+      "objections": ["O_DNO_NOT_LISTED", "U_WAIT_SERIES_B", "U_INVESTOR_WAIT", "U_IRDAI_WEAK", "U_CA_HANDLES"],
+      "trigger_question": "If an investor, employee or creditor alleged mismanagement next quarter, would the company or the individual director fund the defence first?",
+      "best_timing": "At first priced round with board rights, ESOP expansion, acquisition diligence, or when adding an investor nominee / independent director."
+    },
+    "professional_indemnity_eo": {
+      "display_name": "Professional Indemnity / E&O",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_PI_PAGE"],
+      "coverage_basis": "Cover for defence cost, settlements, judgments and court costs when services/advice cause client loss.",
+      "pitch_bullets": [
+        "PI is the startup cover for 'your product did not physically break anything, but your service caused me loss.'",
+        "Use it for SaaS, underwriting, analytics, claims workflows, telemedicine, edtech outcomes and outsourced HR processing.",
+        "One API error, wrong recommendation or failed implementation can become a financial-loss claim even if your office is untouched."
+      ],
+      "objections": ["O_PI_CONTRACT_COVERS", "U_WAIT_SERIES_B", "U_IRDAI_WEAK", "U_CA_HANDLES", "U_INVESTOR_WAIT"],
+      "trigger_question": "Which customer outcome would lead to the ugliest 'you cost us money' email if your product or team got it wrong?",
+      "best_timing": "Before first enterprise MSA, before implementation-heavy projects, or when SLAs / service credits become commercially meaningful."
+    },
+    "group_health": {
+      "display_name": "Group Health",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_GH_PAGE"],
+      "coverage_basis": "Hospitalisation-led employee health insurance with extension to family depending plan design.",
+      "pitch_bullets": [
+        "Group health is less about perk inflation and more about preventing one medical event from becoming a founder-funded emergency.",
+        "ICICI Lombard’s published group health design focuses on hospitalisation, day care, expert charges and pre/post hospitalisation economics.",
+        "For startups hiring in India, it is one of the fastest trust-builders in an offer letter."
+      ],
+      "objections": ["O_PEOPLE_COVERS_TEAM_TOO_SMALL", "U_WAIT_SERIES_B", "U_IRDAI_WEAK", "U_INVESTOR_WAIT", "U_CA_HANDLES"],
+      "trigger_question": "If one mid-level employee needed an unexpected hospital admission next month, what exactly would your company cover today?",
+      "best_timing": "At first 10 to 20 person team, before aggressive hiring, or when attrition / offer declines cite benefits gaps."
+    },
+    "group_personal_accident": {
+      "display_name": "Group Personal Accident",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_GPA_PAGE"],
+      "coverage_basis": "Accidental death, PTD, PPD and TTD with relevant add-ons.",
+      "pitch_bullets": [
+        "GPA is the fastest way to protect teams exposed to travel, site work, warehouses, road movement or field operations.",
+        "It addresses the event that founders hate discussing: accidental death or disablement before the company has thought through support.",
+        "For HR-heavy or field-heavy teams, it is a practical first layer even when group health budgets are still developing."
+      ],
+      "objections": ["O_PEOPLE_COVERS_TEAM_TOO_SMALL", "U_WAIT_SERIES_B", "U_IRDAI_WEAK", "U_CA_HANDLES", "U_INVESTOR_WAIT"],
+      "trigger_question": "If a field employee suffered a serious accident on duty, what would the nominee receive from the company today?",
+      "best_timing": "Before sales travel, field-tech rollout, rider hiring, or enterprise site visits start ramping."
+    },
+    "workmen_compensation": {
+      "display_name": "Workmen's Compensation",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_WC_PAGE", "SB_LAWS_EMP_COMP"],
+      "coverage_basis": "Employer liability cover under the Employees’ Compensation Act, 1923 plus related legal exposure.",
+      "pitch_bullets": [
+        "This is the 'one site injury can become a statutory payout' policy.",
+        "ICICI Lombard itself frames WC as helping employers fulfil legal obligations under the Employees’ Compensation Act and related liability bases.",
+        "It becomes immediate the moment your startup depends on workforce categories that can be injured in the course of work."
+      ],
+      "objections": ["O_WC_CONTRACTORS", "U_CA_HANDLES", "U_WAIT_SERIES_B", "U_IRDAI_WEAK", "O_PEOPLE_COVERS_TEAM_TOO_SMALL"],
+      "trigger_question": "Which part of your workforce could be injured while doing work that is unmistakably for your business this month?",
+      "best_timing": "Before site work, warehousing, installation, manufacturing, rider / driver onboarding, or contractor-heavy operations."
+    },
+    "fire_and_property": {
+      "display_name": "Fire & Property",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_PROPERTY_PAGE"],
+      "coverage_basis": "Commercial property / fire protection for premises, contents, equipment and stock depending structure.",
+      "pitch_bullets": [
+        "Fire and property cover is where founders stop assuming 'nothing physical can really hurt us.'",
+        "Once there is stock, fit-outs, servers, lab gear or machinery in one place, there is already a live balance-sheet risk.",
+        "The question is not whether a fire is likely; it is whether your current cash can replace what is inside that premises."
+      ],
+      "objections": ["O_PROPERTY_RENTED_PREMISES", "U_WAIT_SERIES_B", "U_IRDAI_WEAK", "U_CA_HANDLES", "O_BI_CAN_SELF_FUND"],
+      "trigger_question": "If you had to rebuild your current premises contents from zero next week, how much of that cheque can you write without pausing growth?",
+      "best_timing": "Immediately after moving into a dedicated site, stocking inventory, or capitalising interiors / equipment."
+    },
+    "public_liability": {
+      "display_name": "Public Liability",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_PUBLIC_LIABILITY_PAGE", "SB_LAWS_PUBLIC_LIAB"],
+      "coverage_basis": "Third-party bodily injury / property damage liability; includes statutory Public Liability Act version for hazardous substances.",
+      "pitch_bullets": [
+        "Public liability is the cover for someone who is not your employee getting hurt or having property damaged because of your premises or operations.",
+        "In India, the Public Liability Insurance Act creates a mandatory statutory version for hazardous-substance handlers.",
+        "Even non-industrial startups with offices, stores, experience centres or field installations can still face third-party claims."
+      ],
+      "objections": ["O_PUBLIC_PRODUCT_NO_EXPOSURE", "U_WAIT_SERIES_B", "U_IRDAI_WEAK", "U_CA_HANDLES", "U_INVESTOR_WAIT"],
+      "trigger_question": "If a visitor, delivery person or nearby third party were injured because of your premises or operations tomorrow, who pays the legal bill first?",
+      "best_timing": "Before opening a public-facing site, before storing hazardous materials, or before heavy visitor / vendor movement begins."
+    },
+    "product_liability": {
+      "display_name": "Product Liability",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_LIABILITY_PAGE", "SB_LAWS_CONSUMER_PRODUCT"],
+      "coverage_basis": "Third-party liability arising from bodily injury or property damage due to product use.",
+      "pitch_bullets": [
+        "The minute you sell a product under your brand, product-liability conversations become real even if manufacturing is outsourced.",
+        "India’s Consumer Protection Act 2019 introduced clear product-liability hooks across manufacturers, sellers and service providers.",
+        "This matters most for D2C, food, health, agritech hardware and climate hardware founders."
+      ],
+      "objections": ["O_PUBLIC_PRODUCT_NO_EXPOSURE", "U_WAIT_SERIES_B", "U_IRDAI_WEAK", "U_CA_HANDLES", "O_PI_CONTRACT_COVERS"],
+      "trigger_question": "If one customer says your product caused injury or damaged something they own, how quickly does that escalate beyond a refund issue?",
+      "best_timing": "Before first scaled batch launch, marketplace expansion, export, or retail distribution growth."
+    },
+    "marine_transit": {
+      "display_name": "Marine Transit",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_MARINE_PAGE"],
+      "coverage_basis": "Transit cover for goods moved by road, rail, air, sea, courier or post; open declaration for recurring shipments.",
+      "pitch_bullets": [
+        "Marine transit is working-capital protection, not just transport paperwork.",
+        "ICICI Lombard’s marine page explicitly covers multiple modes of transport and common transit events like collision, overturning, theft, malicious damage and loading / unloading damage.",
+        "For startups, the pain is not the damaged shipment alone; it is the broken cash-conversion cycle."
+      ],
+      "objections": ["O_MARINE_3PL", "U_IRDAI_WEAK", "U_CA_HANDLES", "U_WAIT_SERIES_B", "U_TOO_SMALL"],
+      "trigger_question": "How many replacement orders could you fund immediately if one large transit load was damaged or never delivered?",
+      "best_timing": "As soon as recurring dispatch starts, before inter-city shipping scale, or before export / import cycles begin."
+    },
+    "key_person": {
+      "display_name": "Key Person",
+      "public_detail_status": "limited_public_filing",
+      "source_basis_ids": ["SB_LIMITED_PUBLIC_DETAIL"],
+      "coverage_basis": "Company-protection cover for economic loss arising from loss of a critical founder / executive.",
+      "pitch_bullets": [
+        "This cover exists because some startups are effectively underwritten by one founder’s execution, network or technical brain.",
+        "The real risk is continuity: revenue slows, hiring stalls, lenders worry and investors reassess the next round.",
+        "Use it where one person is disproportionately tied to sales, product, regulation, fundraising or clinical / technical credibility."
+      ],
+      "objections": ["O_KEYPERSON_TERM_ENOUGH", "U_WAIT_SERIES_B", "U_INVESTOR_WAIT", "U_CA_HANDLES", "U_IRDAI_WEAK"],
+      "trigger_question": "If one named founder or executive disappeared from the business for six months, what exactly stops first?",
+      "best_timing": "After first institutional round, after debt / venture debt, or when one founder carries outsized customer / regulator / product concentration."
+    },
+    "employment_practices_liability_epli": {
+      "display_name": "Employment Practices Liability (EPLI)",
+      "public_detail_status": "limited_public_filing",
+      "source_basis_ids": ["SB_POSH_ENFORCEMENT_CONTEXT"],
+      "coverage_basis": "Employment-dispute liability cover for claims like harassment, discrimination, retaliation and wrongful termination.",
+      "pitch_bullets": [
+        "EPLI is the board-facing answer to the founder who says, 'Our real exposure is people-process blowback, not property damage.'",
+        "Once manager layers form, allegations around hiring, firing, appraisal, harassment or retaliation can become legal and reputational events quickly.",
+        "The Indian context matters because workplace-safety compliance failures are not theoretical; enforcement and public scrutiny do happen."
+      ],
+      "objections": ["O_EPLI_HR_POLICY_ENOUGH", "U_WAIT_SERIES_B", "U_CA_HANDLES", "U_IRDAI_WEAK", "U_INVESTOR_WAIT"],
+      "trigger_question": "If a terminated employee or harassment complainant went external tomorrow, who would manage defence cost, settlement strategy and reputation control?",
+      "best_timing": "After 25+ employees, after first HRBP / manager layer, after a painful exit, or before expanding across cities."
+    },
+    "crime_and_fidelity": {
+      "display_name": "Crime & Fidelity",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_FIDELITY_FILING"],
+      "coverage_basis": "Internal fraud, employee dishonesty, fidelity and related crime-style loss protection.",
+      "pitch_bullets": [
+        "Fast-growth startups usually fear external threats more than internal leakage, which is exactly why crime losses surprise them.",
+        "ICICI Lombard’s active list includes Fidelity Guarantee Insurance, and legacy crime product history supports SPARC’s combined crime-and-fidelity framing.",
+        "Use this for payment-heavy, inventory-heavy or delegated-approval startups where internal control maturity is lagging growth."
+      ],
+      "objections": ["O_CRIME_TRUST_TEAM", "U_WAIT_SERIES_B", "U_CA_HANDLES", "U_IRDAI_WEAK", "U_TOO_SMALL"],
+      "trigger_question": "Which single approval flow in your company would hurt most if it were quietly compromised by someone inside the process?",
+      "best_timing": "When finance ops split across founders and team, when approval delegation increases, or when inventory and vendor payments scale."
+    },
+    "gadget_and_electronic_equipment": {
+      "display_name": "Gadget & Electronic Equipment",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_EEI_FILING"],
+      "coverage_basis": "Protection for critical business electronics and gadgets; startup framing here emphasises portable and semi-portable business devices.",
+      "pitch_bullets": [
+        "This matters when your business is operationally dependent on devices, not because the device is expensive in isolation.",
+        "A damaged founder laptop, PoS terminal, rugged field device or portable diagnostic unit can stop revenue faster than a modest repair bill suggests.",
+        "Use it where device uptime is business uptime."
+      ],
+      "objections": ["O_EEI_REPLACE_IT", "U_WAIT_SERIES_B", "U_IRDAI_WEAK", "U_CA_HANDLES", "U_TOO_SMALL"],
+      "trigger_question": "Which device failure would quietly stop your team from collecting money, shipping orders or serving customers for the rest of the week?",
+      "best_timing": "Before scaling field devices, POS, rugged hardware or high-value portable equipment."
+    },
+    "clinical_trials_liability": {
+      "display_name": "Clinical Trials Liability",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_LIABILITY_PAGE", "SB_LAWS_NDCTR"],
+      "coverage_basis": "Protection against damages / compensation / expenses in claims by research subjects for injury or death.",
+      "pitch_bullets": [
+        "The founder pitch here is simple: if you are testing on humans, you need a compensation plan that is not improvised after an SAE.",
+        "ICICI Lombard’s liability page expressly recognises clinical-trial coverage for injury / death claims by research subjects.",
+        "In India, NDCTR 2019 keeps compensation and procedural scrutiny squarely alive for sponsors and study stakeholders."
+      ],
+      "objections": ["O_CLINICAL_SITE_INDEMNITY", "U_WAIT_SERIES_B", "U_CA_HANDLES", "U_IRDAI_WEAK", "U_INVESTOR_WAIT"],
+      "trigger_question": "If a subject injury allegation landed this week, what would you show the ethics committee, investor and legal counsel immediately?",
+      "best_timing": "Before first human study, protocol approval, or investor diligence on trial-readiness."
+    },
+    "comprehensive_general_liability": {
+      "display_name": "Comprehensive General Liability (CGL)",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_CGL_PAGE"],
+      "coverage_basis": "Broad third-party liability protection for bodily injury and property damage from business operations / premises / products.",
+      "pitch_bullets": [
+        "CGL is the 'you are in the frame even if you did not intend the event' cover.",
+        "Use it where the founder has multiple ways to touch third parties: premises, staff conduct, installations, demos, events, completed operations or finished products.",
+        "It is especially useful when a startup is no longer small enough for single-claim improvisation."
+      ],
+      "objections": ["O_PUBLIC_PRODUCT_NO_EXPOSURE", "U_WAIT_SERIES_B", "U_IRDAI_WEAK", "U_CA_HANDLES", "O_PI_CONTRACT_COVERS"],
+      "trigger_question": "What third-party event would be most expensive for you: bodily injury, property damage, or the legal process that follows either one?",
+      "best_timing": "Before opening facilities, institutional pilots, product demos or broader customer interaction footprints."
+    },
+    "business_interruption": {
+      "display_name": "Business Interruption",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_IAR_PAGE", "SB_BUSINESS_SHIELD_PAGE"],
+      "coverage_basis": "Loss-of-profit / continuity cover following an insured operational event.",
+      "pitch_bullets": [
+        "This is the cover founders least want to buy until they actually model downtime in rupees.",
+        "ICICI Lombard’s property-family pages explicitly reference business interruption as loss of profit due to fire and allied perils and, in IAR, machinery-driven disruption too.",
+        "The policy is for the month after the incident, not the moment of the incident."
+      ],
+      "objections": ["O_BI_CAN_SELF_FUND", "U_WAIT_SERIES_B", "U_IRDAI_WEAK", "U_CA_HANDLES", "O_PROPERTY_RENTED_PREMISES"],
+      "trigger_question": "If revenue paused for 30 days after a covered event, which monthly outflows would still hit your account anyway?",
+      "best_timing": "Whenever property / machinery / stock cover becomes material enough that downtime would hurt more than repair alone."
+    },
+    "property_all_risk": {
+      "display_name": "Property All Risk",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_PROPERTY_ALL_RISK_2023"],
+      "coverage_basis": "Wide property cover for buildings, machinery, stock and furniture against accidental or fortuitous loss unless excluded.",
+      "pitch_bullets": [
+        "Property All Risk is for founders who dislike named-peril thinking and want the broader 'covered unless excluded' conversation.",
+        "ICICI Lombard described PAR in its MSME launch note as covering buildings, machinery, stocks and furniture against loss or damage caused by accidents or misfortunes unless specifically excluded.",
+        "It fits growth-stage startups with mixed property, machinery and stock exposure that no longer map cleanly to a basic fire-only mindset."
+      ],
+      "objections": ["O_PROPERTY_RENTED_PREMISES", "U_WAIT_SERIES_B", "U_IRDAI_WEAK", "U_CA_HANDLES", "O_BI_CAN_SELF_FUND"],
+      "trigger_question": "Do you want to argue peril-by-peril after a loss, or do you want a broader property frame before the loss happens?",
+      "best_timing": "When the business has mixed assets, machinery and stock that make named-peril simplification feel too narrow."
+    },
+    "electronic_equipment_insurance": {
+      "display_name": "Electronic Equipment Insurance",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_EEI_FILING", "SB_IAR_PAGE"],
+      "coverage_basis": "Breakdown and all-risk style coverage for electronic equipment; especially relevant for servers, control units, lab electronics and office electronics.",
+      "pitch_bullets": [
+        "EEI is the correct product when the critical asset is the electronic system itself rather than just the surrounding property.",
+        "ICICI Lombard’s IAR page explicitly recognises electronic equipment insurance for breakdown and all-risk coverage of electronic equipment.",
+        "For healthtech, SaaS infra rooms, diagnostic setups and automation-heavy operations, electronics failure can be a direct continuity event."
+      ],
+      "objections": ["O_EEI_REPLACE_IT", "U_WAIT_SERIES_B", "U_IRDAI_WEAK", "U_CA_HANDLES", "U_ALREADY_SECURED"],
+      "trigger_question": "Which server, controller, scanner or diagnostic unit would stop operations if it failed unexpectedly this week?",
+      "best_timing": "Before server-room buildout, hardware deployments, lab electronics installations or automation expansion."
+    },
+    "machinery_breakdown": {
+      "display_name": "Machinery Breakdown",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_IAR_PAGE", "SB_MB_FILING"],
+      "coverage_basis": "Mechanical / electrical breakdown cover for machinery during operational phase.",
+      "pitch_bullets": [
+        "This is for when a machine stops because of internal breakdown, not because the building burnt down.",
+        "Industrial policies often cover the severe breakdown event that maintenance vendors do not financially absorb for you.",
+        "Deeptech, cleantech, agritech processing and manufacturing startups should pitch this as uptime protection for irreplaceable equipment."
+      ],
+      "objections": ["O_MACHINERY_AMC_ENOUGH", "U_WAIT_SERIES_B", "U_IRDAI_WEAK", "U_CA_HANDLES", "U_ALREADY_SECURED"],
+      "trigger_question": "If your most critical machine failed internally next month, how long would procurement, repair and lost output really take?",
+      "best_timing": "After commissioning of operational machinery, before preventive-maintenance cycles become complex, or before debt-backed capex goes live."
+    },
+    "motor_fleet_goods_vehicle": {
+      "display_name": "Motor Fleet / Goods Vehicle",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_MOTOR_STATUTORY_CONTEXT"],
+      "coverage_basis": "Fleet-led risk protection for business vehicles beyond minimum statutory third-party compliance.",
+      "pitch_bullets": [
+        "For logistics and mobility startups, one vehicle off-road is an operations problem before it is an insurance problem.",
+        "Minimum motor compliance is not the same as fleet resilience.",
+        "Use this when the dispatch promise depends on vehicle uptime, not just legal registration."
+      ],
+      "objections": ["O_MOTOR_STATUTORY_TP_ENOUGH", "U_WAIT_SERIES_B", "U_CA_HANDLES", "U_IRDAI_WEAK", "U_TOO_SMALL"],
+      "trigger_question": "How many cancelled routes or delayed orders does one damaged vehicle create in your current network?",
+      "best_timing": "Before adding owned / leased fleet, before route density increases, or when uptime starts affecting revenue forecasting."
+    },
+    "trade_credit": {
+      "display_name": "Trade Credit",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_TRADE_CREDIT_FILING", "SB_TREDS_CONTEXT"],
+      "coverage_basis": "Receivables protection against buyer default / protracted delay, especially relevant to scaling working-capital cycles.",
+      "pitch_bullets": [
+        "Trade credit protects the startup that has figured out sales but not yet insulated itself from buyer payment failure.",
+        "ICICI Lombard’s product filings and sandbox history indicate active trade-credit capability in the MSME / commercial context.",
+        "For founders, this is really a working-capital and lender-comfort conversation."
+      ],
+      "objections": ["O_TRADECREDIT_BUYER_ALWAYS_PAYS", "U_WAIT_SERIES_B", "U_CA_HANDLES", "U_IRDAI_WEAK", "U_INVESTOR_WAIT"],
+      "trigger_question": "Which buyer delay would hurt more: the biggest invoice, or the fact that payroll and inventory move before collections do?",
+      "best_timing": "When receivables stretch, anchor buyers concentrate revenue, or debt / invoice financing discussions begin."
+    },
+    "money_insurance": {
+      "display_name": "Money Insurance",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_MONEY_FILING"],
+      "coverage_basis": "Protection for cash in safe, cash in transit and certain money-handling situations.",
+      "pitch_bullets": [
+        "Money insurance is not obsolete just because the business is digital-first.",
+        "COD, stores, event cash, petty cash and field collections still create concentrated loss moments.",
+        "Pitch it when the founder says cash is small but cannot explain exactly where it sits at risk."
+      ],
+      "objections": ["O_MONEY_NO_CASH", "U_WAIT_SERIES_B", "U_CA_HANDLES", "U_IRDAI_WEAK", "U_TOO_SMALL"],
+      "trigger_question": "Where does the largest single pocket of business cash physically sit or move today?",
+      "best_timing": "Before COD expansion, store rollouts, events, or field collection operations."
+    },
+    "contractors_all_risk_car_ear": {
+      "display_name": "Contractors All Risk (CAR/EAR)",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_CAR_PAGE", "SB_EAR_PAGE"],
+      "coverage_basis": "Construction / erection phase cover across civil and installation projects, including third-party liability.",
+      "pitch_bullets": [
+        "Use CAR for civil construction-heavy projects and EAR for erection / installation-heavy projects.",
+        "Both are build-phase covers, not steady-state operating covers.",
+        "For cleantech, infra-tech and deeptech rollouts, this is the difference between a project setback and a project finance problem."
+      ],
+      "objections": ["O_WC_CONTRACTORS", "U_WAIT_SERIES_B", "U_CA_HANDLES", "U_IRDAI_WEAK", "O_BI_CAN_SELF_FUND"],
+      "trigger_question": "At your current project stage, is the bigger threat collapse / damage to works, or the legal liability if someone else gets hurt alongside it?",
+      "best_timing": "Before unloading first consignment on-site, before testing / commissioning, or at EPC award."
+    },
+    "drone_insurance": {
+      "display_name": "Drone Insurance",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_DRONE_FILING", "SB_LAWS_DRONE"],
+      "coverage_basis": "Drone liability and asset-risk cover in the context of Indian drone regulation and third-party exposure.",
+      "pitch_bullets": [
+        "If the drone is in the air, the exposure is already more than hardware value.",
+        "India’s Drone Rules tie third-party insurance logic to drone operations, so founder conversations should start from liability, not gadget replacement.",
+        "Agritech, logistics, mapping and industrial inspection startups should pitch this as permission-to-operate support."
+      ],
+      "objections": ["O_DRONE_DEMO_ONLY", "U_WAIT_SERIES_B", "U_CA_HANDLES", "U_IRDAI_WEAK", "U_TOO_SMALL"],
+      "trigger_question": "If your drone struck a person, vehicle or facility during a legitimate field mission, what would the company have in place besides an apology?",
+      "best_timing": "Before the first commercial flight, before client pilot programs, or before scaling field missions across districts."
+    },
+    "business_edge_package": {
+      "display_name": "Business Edge Package",
+      "public_detail_status": "limited_public_filing",
+      "source_basis_ids": ["SB_BUSINESS_EDGE_FILING"],
+      "coverage_basis": "SPARC pack built on the Business Edge product family; positioned as an SME package for premises, stock and continuity.",
+      "pitch_bullets": [
+        "This is for founders who want a smart SME package conversation without jumping into large industrial structures.",
+        "Use it when asset, stock and operational continuity have become real but the founder still wants speed and simplicity.",
+        "It is a strong bridge product for fast-scaling commerce and operations-led startups."
+      ],
+      "objections": ["O_PROPERTY_RENTED_PREMISES", "U_WAIT_SERIES_B", "U_IRDAI_WEAK", "O_BI_CAN_SELF_FUND", "U_CA_HANDLES"],
+      "trigger_question": "Which single physical loss at your operating site would hurt growth the most over the next 30 days?",
+      "best_timing": "At early warehouse maturity or when a founder asks for a simpler packaged answer instead of multiple standalone covers."
+    },
+    "msme_suraksha_kavach_package": {
+      "display_name": "MSME Suraksha Kavach Package",
+      "public_detail_status": "published",
+      "source_basis_ids": ["SB_MSK_2023"],
+      "coverage_basis": "SPARC package built on MSME Suraksha Kavach property-led design for smaller but growing startups.",
+      "pitch_bullets": [
+        "This package is the quickest way to make a founder feel their first real stock / site risk is being handled seriously.",
+        "It works best where the business is still lean but a single insured event would clearly interrupt operations.",
+        "The founder benefit is simplicity: one package that speaks startup language instead of old-style insurance fragmentation."
+      ],
+      "objections": ["U_TOO_SMALL", "O_PROPERTY_RENTED_PREMISES", "U_WAIT_SERIES_B", "U_IRDAI_WEAK", "O_MARINE_3PL"],
+      "trigger_question": "Which asset cluster would you miss first if something happened tonight: stock, site, equipment or dispatch flow?",
+      "best_timing": "Before a meaningful stock build, before monsoon, or at first formal site setup."
+    },
+    "enterprise_secure_package": {
+      "display_name": "Enterprise Secure Package",
+      "public_detail_status": "limited_public_filing",
+      "source_basis_ids": ["SB_ENTERPRISE_SECURE_FILING"],
+      "coverage_basis": "SPARC package built on Enterprise Secure for scale-stage startups with broader institutional risk posture.",
+      "pitch_bullets": [
+        "This package fits startups that now look like managed enterprises to customers, investors and counterparties.",
+        "It is best used when multiple risk threads—premises, governance, staff scale, electronics and continuity—need a cleaner package story.",
+        "The founder pitch is institutional readiness, not just insurance buying."
+      ],
+      "objections": ["O_DNO_NOT_LISTED", "O_CYBER_NO_DATA", "U_WAIT_SERIES_B", "U_IRDAI_WEAK", "U_INVESTOR_WAIT"],
+      "trigger_question": "Which one risk would embarrass the company more in diligence today: uninsured board exposure, a site loss, or a cyber event?",
+      "best_timing": "From Series A onward, especially before procurement diligence, board expansion or regulated-customer sales."
+    }
+  }
+}

@@ -2155,7 +2155,7 @@ function renderResults(result) {
         ${renderKPI("Top risk", (result.top_risks||[])[0]?.name?.replace(" Risk","") || "—")}
         ${renderKPI("Critical covers", (result.recommendations||[]).filter(r=>r.priority==="Critical").length + " products")}
         ${renderKPI("Bundle quote", result.bundle_only_pricing_quote?.gross_premium_lakh ? `INR ${result.bundle_only_pricing_quote.gross_premium_lakh}L` : "Input needed")}
-        ${renderKPI("Premium range", result.premium_summary ? `INR ${result.premium_summary.min_lakh}-${result.premium_summary.max_lakh}L` : "N/A")}
+        ${renderKPI("Premium range", shouldSuppressBenchmarkRange(result) ? "Enterprise UW" : (result.premium_summary ? `INR ${result.premium_summary.min_lakh}-${result.premium_summary.max_lakh}L` : "N/A"))}
         ${renderKPI("Risk clusters", Object.keys(result.clusters||{}).length + " analysed")}
       </div>
 
@@ -2203,6 +2203,7 @@ function renderResults(result) {
 
       <!-- ── TAB: Outreach ── -->
       <div class="tab-panel" id="tab-outreach" style="display:none">
+        ${renderFounderPitch(result)}
         ${renderOutreach(result.outreach_prompts, result.outreach_source, result.outreach_error)}
       </div>
 
@@ -2215,12 +2216,18 @@ function renderResults(result) {
             How is this calculated?
           </button>
         </div>
+        ${renderPricingSeparation(result)}
         ${renderDualPricingPanel(result)}
-        ${result.premium_summary ? `
+        ${shouldSuppressBenchmarkRange(result) ? `
         <div class="premium-card">
-          <div class="premium-card-label">Total premium potential</div>
+          <div class="premium-card-label">Benchmark range, not a quote</div>
+          <div class="premium-card-value">Suppressed for enterprise account</div>
+          <div class="premium-card-note">${esc((result.pricing_engine_quote?.pricing_scale || result.bundle_only_pricing_quote?.pricing_scale || {}).message || "The submitted limits are outside startup benchmark range. Use the quote estimate and underwriter checks instead.")}</div>
+        </div>` : result.premium_summary ? `
+        <div class="premium-card">
+          <div class="premium-card-label">Benchmark range, not a quote</div>
           <div class="premium-card-value">INR ${result.premium_summary.min_lakh} - ${result.premium_summary.max_lakh} lakhs</div>
-          <div class="premium-card-note">Across ${result.premium_summary.count} products · ${esc(result.premium_footnote||"Indicative estimates only.")}</div>
+          <div class="premium-card-note">Pre-quote product benchmark across ${result.premium_summary.count} products. It does not use selected SI, GST, bundle discount, or underwriter checks. ${esc(result.premium_footnote||"Indicative estimates only.")}</div>
         </div>` : ""}
         <details class="expander-card" style="margin-bottom:14px;">
           <summary>Product comparison table</summary>
@@ -2780,59 +2787,182 @@ function renderKPI(label, value) {
     </div>`;
 }
 
-function renderGenAIStatus(result) {
-  const mode = result.recommendation_mode || "off";
-  const source = result.genai_source || (result.genai_enabled ? "unknown" : "disabled");
-  const enabled = result.genai_enabled === true;
-  const err = result.genai_error;
-  const diff = result.genai_shadow_diff || {};
-  const genaiBundle = result.genai_bundle_match?.name || "none";
-  const genaiProducts = (result.genai_recommendations || []).map(r => r.name || r.product_key).slice(0, 4);
-  const statusClass = source === "gemini" ? "good" : source === "fallback" ? "warn" : "neutral";
-  const statusText = source === "gemini"
-    ? (mode === "primary" ? "GenAI primary reranker applied" : "GenAI shadow reranker ran")
-    : source === "fallback"
-      ? "Deterministic fallback served"
-      : "GenAI recommendation disabled";
+function bundleCoverItems(bundle, why, limit = 4) {
+  if (!bundle) return [];
+  const raw = [
+    ...(bundle.mandatory_covers || []),
+    ...(bundle.optional_covers || []),
+    ...(bundle.companion_bundle?.mandatory_covers || []),
+    ...(bundle.companion_bundle?.optional_covers || []),
+  ];
+  const seen = new Set();
+  return raw
+    .filter(key => {
+      const normalised = COVER_ALIASES[key] || key;
+      if (seen.has(normalised)) return false;
+      seen.add(normalised);
+      return true;
+    })
+    .slice(0, limit)
+    .map(key => ({
+      key,
+      label: labelize(key),
+      why: getCoverWhy(key, why, bundle.companion_bundle?.mandatory_covers?.includes(key) ? "companion_covers" : "bundle_covers"),
+    }));
+}
+
+function renderDecisionBrief(result) {
+  const bundle = result.bundle_match || {};
+  if (!bundle?.name) return "";
+  const profile = result.profile || {};
+  const topRisks = (result.top_risks || []).slice(0, 3).map(r => r.name?.replace(" Risk", "")).filter(Boolean);
+  const covers = bundleCoverItems(bundle, result.why_it_matters || {}, 4);
+  const quote = result.bundle_only_pricing_quote;
+  const quoted = isQuoted(quote);
+  const quoteText = quoted
+    ? `Bundle quote: INR ${quote.gross_premium_lakh}L incl. GST`
+    : "Quote pending: confirm underwriting inputs";
+  const nextAction = quoted
+    ? "Next action: review underwriter checks and use the quote tab for pricing discussion."
+    : "Next action: open Estimated Quote, confirm suggested limits, then generate the bundle price.";
+  const genaiPrimary = result.recommendation_mode === "primary" && result.genai_source === "gemini";
+  const decisionSource = genaiPrimary ? "GenAI-ranked with deterministic guardrails" : "Deterministic recommendation";
+  const why = bundle.genai_why_it_fits || result.why_it_matters?.bundle || bundle.description || `${bundle.name} is the best current package fit for ${profile.sector || "this startup"}.`;
 
   return `
-    <div class="genai-status-card ${statusClass}">
-      <div class="genai-status-top">
-        <div>
-          <div class="genai-status-label">Recommendation engine</div>
-          <div class="genai-status-title">${esc(statusText)}</div>
-        </div>
-        <div class="genai-status-pills">
-          <span>mode: ${esc(mode)}</span>
-          <span>source: ${esc(source)}</span>
-          <span>${enabled ? "model enabled" : "model not used"}</span>
+    <div class="decision-brief">
+      <div class="decision-main">
+        <div class="decision-label">Recommended decision</div>
+        <h3>${esc(bundle.name)}</h3>
+        <p>${esc(why)}</p>
+        <div class="decision-meta">
+          <span>${esc(decisionSource)}</span>
+          <span>${esc(bundle.fit_pct || 0)}% profile fit</span>
+          <span>${esc(quoteText)}</span>
         </div>
       </div>
-      ${err ? `<div class="genai-status-error">${esc(err)}</div>` : ""}
-      ${source === "gemini" ? `
-        <div class="genai-status-grid">
-          <div><strong>GenAI bundle</strong><span>${esc(genaiBundle)}</span></div>
-          <div><strong>GenAI product order</strong><span>${esc(genaiProducts.join(", ") || "not returned")}</span></div>
-          <div><strong>Changed vs deterministic</strong><span>${diff.changed ? "Yes" : "No"}</span></div>
-        </div>` : ""}
+      <div class="decision-side">
+        <div class="decision-side-title">Why it matters now</div>
+        <div class="decision-risk-line">${esc(topRisks.length ? topRisks.join(", ") : "Current exposure profile")}</div>
+        <div class="decision-cover-list">
+          ${covers.map(item => `
+            <div class="decision-cover">
+              <strong>${esc(item.label)}</strong>
+              <span>${esc(item.why || "Mapped to one of the startup's current risk exposures.")}</span>
+            </div>`).join("")}
+        </div>
+        <div class="decision-next">${esc(nextAction)}</div>
+      </div>
     </div>`;
+}
+
+function renderPricingSeparation(result) {
+  const bundleQuote = result.bundle_only_pricing_quote;
+  const fullQuote = result.pricing_engine_quote;
+  const quoteReady = isQuoted(bundleQuote) || isQuoted(fullQuote);
+  const suppressBenchmark = shouldSuppressBenchmarkRange(result);
+  const scale = fullQuote?.pricing_scale || bundleQuote?.pricing_scale || {};
+  const activeQuote = bundleQuote?.covers_priced?.length ? bundleQuote : fullQuote;
+  const benchmark = activeQuote?.benchmark_comparison || {};
+  const summary = result.premium_summary;
+  const benchmarkValue = suppressBenchmark
+    ? "Startup benchmark not comparable"
+    : summary
+      ? `INR ${summary.min_lakh}-${summary.max_lakh}L`
+      : "Unavailable";
+  const benchmarkNote = suppressBenchmark
+    ? (benchmark.explanation || scale.message || "Selected limits or specialty operations need underwriter-led validation, so startup benchmark ranges are hidden.")
+    : "Early benchmark only. It does not include selected SI, GST, bundle discount, claims loadings, or underwriter checks.";
+  const quoteValue = quoteReady
+    ? quoteDisplayText(activeQuote)
+    : "Input needed";
+  const quoteNote = quoteReady
+    ? "Generated from submitted underwriting inputs, line-specific pricing bases, confidence rules, bundle discount, and GST."
+    : "Use the suggested limits below as a starting point, then generate a quote.";
+
+  return `
+    <div class="pricing-mode-brief">
+      <div class="pricing-mode-card ${suppressBenchmark ? "muted" : ""}">
+        <div class="pricing-mode-label">Benchmark range</div>
+        <div class="pricing-mode-value">${esc(benchmarkValue)}</div>
+        <p>${esc(benchmarkNote)}</p>
+      </div>
+      <div class="pricing-mode-card ${quoteReady ? "active" : ""}">
+        <div class="pricing-mode-label">Quote estimate</div>
+        <div class="pricing-mode-value">${esc(quoteValue)}</div>
+        ${quoteReady ? confidenceBadge(activeQuote?.quote_confidence) : ""}
+        <p>${esc(quoteNote)}</p>
+      </div>
+    </div>`;
+}
+
+function renderGenAIStatus(result) {
+  const source = result.genai_source;
+  const err = result.genai_error;
+  // Only surface a visible indicator when there's an actionable error or GenAI is live
+  if (source === "gemini") {
+    return `<div style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-muted);margin-bottom:12px;"><span style="width:6px;height:6px;border-radius:50%;background:#059669;flex-shrink:0;"></span>AI-enhanced recommendation</div>`;
+  }
+  if (err) {
+    return `<div style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-muted);margin-bottom:12px;" title="${esc(err)}"><span style="width:6px;height:6px;border-radius:50%;background:var(--ink-faint);flex-shrink:0;"></span>Deterministic recommendation</div>`;
+  }
+  return "";
 }
 
 function isQuoted(q) {
   return q?.covers_priced?.length > 0;
 }
 
+function confidenceLabel(band) {
+  return {
+    technically_priced: "Technically priced",
+    directional_only: "Directional only",
+    underwriter_required: "Underwriter validation required",
+  }[band || ""] || "Indicative";
+}
+
+function confidenceClass(band) {
+  return band === "underwriter_required" ? "danger" : band === "directional_only" ? "warn" : "ok";
+}
+
+function confidenceBadge(conf) {
+  const band = typeof conf === "string" ? conf : conf?.band;
+  return `<span class="pricing-confidence ${confidenceClass(band)}">${esc(confidenceLabel(band))}</span>`;
+}
+
+function quoteDisplayText(quote) {
+  if (!quote) return "Input needed";
+  if (quote.precision_mode === "suppressed") return "Underwriter validation required";
+  const range = quote.display_premium_range_lakh;
+  if (quote.precision_mode === "range" && range) return `INR ${range.min}-${range.max}L`;
+  return `INR ${quote.display_premium_lakh || quote.gross_premium_lakh}L`;
+}
+
+function coverPremiumText(c) {
+  if (c?.precision_mode === "suppressed") return "UW review";
+  if (c?.precision_mode === "range" && c.display_premium_range_lakh) {
+    return `INR ${c.display_premium_range_lakh.min}-${c.display_premium_range_lakh.max}L`;
+  }
+  return `INR ${c?.display_premium_lakh || c?.premium_lakh}L`;
+}
+
 function renderPricePanel(quote, tagLabel, tagClass, subtitle) {
   if (!quote || !isQuoted(quote)) return "";
   const covers = quote.covers_priced || [];
   const flags  = quote.underwriter_referral_flags || [];
+  const scale = quote.pricing_scale || {};
+  const benchmark = quote.benchmark_comparison || {};
+  const explanation = quote.explanation_items || [];
   return `
     <div class="pricing-card">
       <span class="pricing-panel-tag ${tagClass}">${esc(tagLabel)}</span>
       <div class="pricing-head">
         <div>
-          <div class="pricing-title">INR ${esc(quote.gross_premium_lakh)} lakhs</div>
+          <div class="pricing-title">${esc(quoteDisplayText(quote))}</div>
           <div class="premium-card-note">${esc(subtitle)} &nbsp;·&nbsp; incl. 18% GST</div>
+          ${confidenceBadge(quote.quote_confidence)}
+          ${scale.label ? `<div class="premium-card-note"><strong>${esc(scale.label)}</strong> - ${esc(scale.message || "")}</div>` : ""}
+          ${benchmark.status && benchmark.status !== "comparable" ? `<div class="premium-card-note"><strong>Benchmark:</strong> ${esc(benchmark.explanation || "Startup benchmark is not comparable to this selected structure.")}</div>` : ""}
         </div>
         <div class="pricing-totals">
           <div class="kv-row"><span class="kv-key">Net premium</span><span class="kv-val">INR ${esc(quote.net_premium_lakh)}L</span></div>
@@ -2844,11 +2974,12 @@ function renderPricePanel(quote, tagLabel, tagClass, subtitle) {
       <div class="pricing-cover-grid">
         ${covers.map(c => `
           <div class="pricing-cover">
-            <div class="pricing-cover-name">${esc(c.cover_name || labelize(c.cover_key))}</div>
-            <div class="pricing-cover-premium">INR ${esc(c.premium_lakh)}L</div>
-            <div class="pricing-cover-basis">${esc(c.exposure_label || "")} | risk ${esc(c.average_risk_score ?? "n/a")}/100</div>
+            <div class="pricing-cover-name">${esc(c.cover_name || labelize(c.cover_key))} ${confidenceBadge(c.quote_confidence_band)}</div>
+            <div class="pricing-cover-premium">${esc(coverPremiumText(c))}</div>
+            <div class="pricing-cover-basis">${esc(c.exposure_label || "")} | ${esc((c.pricing_basis || "").replace(/_/g, " "))} | risk ${esc(c.average_risk_score ?? "n/a")}/100</div>
           </div>`).join("")}
       </div>
+      ${explanation.length ? `<div class="pricing-explain">${explanation.map(x => `<div>${esc(x)}</div>`).join("")}</div>` : ""}
       ${flags.length ? `
         <div class="pricing-notes" style="grid-template-columns:1fr;">
           <div><div class="card-label">Underwriter checks</div>${flags.map(f => `<div class="callout-item compact"><span>${esc(f)}</span></div>`).join("")}</div>
@@ -2859,6 +2990,11 @@ function renderPricePanel(quote, tagLabel, tagClass, subtitle) {
 function reviseQuoteInputs() {
   state.quotePanelMode = "edit";
   renderResults(window.__result);
+}
+
+function shouldSuppressBenchmarkRange(result) {
+  const scale = result?.pricing_engine_quote?.pricing_scale || result?.bundle_only_pricing_quote?.pricing_scale;
+  return scale?.benchmark_range_applicable === false;
 }
 
 const SLIDER_RANGES = {
@@ -2902,6 +3038,8 @@ function renderLiveSliderField(row) {
   const range = SLIDER_RANGES[row.key];
   if (!range || row.unit === "yes/no") return null;
   const val = quoteFieldValue(row) || range.min;
+  const numericVal = Number(val) || range.min;
+  const rangeMax = Math.max(range.max, numericVal);
   const isCount = row.unit === "count";
   return `
     <div class="ls-row">
@@ -2909,17 +3047,17 @@ function renderLiveSliderField(row) {
         <span class="ls-label">${esc(row.label)}</span>
         <div class="ls-value-wrap">
           <input type="number" class="ls-num" id="qs-input-${esc(row.key)}"
-            min="${range.min}" max="${range.max}" step="${range.step}"
+            min="${range.min}" max="${rangeMax}" step="${range.step}"
             value="${esc(String(val))}"
             oninput="syncSlider('${esc(row.key)}', this.value)">
           <span class="ls-unit">${esc(row.unit || "Cr")}</span>
         </div>
       </div>
       <input type="range" class="ls-range" id="qs-slider-${esc(row.key)}"
-        min="${range.min}" max="${range.max}" step="${range.step}"
+        min="${range.min}" max="${rangeMax}" step="${range.step}"
         value="${esc(String(val))}"
         oninput="syncSlider('${esc(row.key)}', this.value)">
-      <div class="ls-endpoints"><span>${isCount ? range.min : `${range.min} Cr`}</span><span>${isCount ? range.max : `${range.max} Cr`}</span></div>
+      <div class="ls-endpoints"><span>${isCount ? range.min : `${range.min} Cr`}</span><span>${isCount ? rangeMax : `${rangeMax} Cr`}</span></div>
     </div>`;
 }
 
@@ -2958,192 +3096,60 @@ function renderMethodologyModal() {
         <button class="hc-close" onclick="toggleHowCalculated(false)" aria-label="Close">&#x2715;</button>
       </div>
       <div class="hc-body">
-
         <div class="hc-step">
-          <div class="hc-step-head"><div class="hc-step-num">1</div><div class="hc-step-title">Pick which covers to price</div></div>
+          <div class="hc-step-head"><div class="hc-step-num">1</div><div class="hc-step-title">Benchmark layer</div></div>
           <div class="hc-step-body">
-            <p>The engine starts with your bundle's mandatory covers — the ones flagged as required for your sector, stage, and regulatory exposure. For a fintech like Razorpay that's Cyber, D&amp;O, PI/Tech E&amp;O, Crime/Fidelity, and Employment Practices. It prices each one individually, then adds them together.</p>
+            <p>SPARC keeps startup benchmark ranges separate from quote math. Benchmarks are assumption-led orientation ranges under standard startup conditions, not insurer-approved tariffs, bindable quotes, or final market averages.</p>
+            <p class="hc-note">If the selected structure is outside the startup benchmark box, the benchmark is suppressed and the UI shows why it is not comparable.</p>
           </div>
         </div>
 
         <div class="hc-step">
-          <div class="hc-step-head"><div class="hc-step-num">2</div><div class="hc-step-title">Look up a base rate for each cover</div></div>
+          <div class="hc-step-head"><div class="hc-step-num">2</div><div class="hc-step-title">Quote layer</div></div>
           <div class="hc-step-body">
-            <p>Every cover has a market-calibrated rate in rupees per crore of coverage limit. These come from published Indian market data — Mitigata, IRDAI tariff filings, Pazcare, Liberty General, Bajaj Allianz, and others.</p>
+            <p>Each cover is priced using a line-specific basis before any risk adjustment is applied. This prevents marine, group health, property, and liability covers from being forced through one generic formula.</p>
             <table class="hc-mini-table">
-              <thead><tr><th>Cover</th><th>Base rate</th><th>Source</th></tr></thead>
+              <thead><tr><th>Product type</th><th>Pricing basis</th><th>Primary exposure</th></tr></thead>
               <tbody>
-                <tr><td>Cyber Liability</td><td>&#8377;1.75L / Cr</td><td>Mitigata India 2026</td></tr>
-                <tr><td>Directors &amp; Officers</td><td>&#8377;0.75L / Cr</td><td>Liberty / IFFCO Tokio market</td></tr>
-                <tr><td>PI / Tech E&amp;O</td><td>&#8377;0.70L / Cr</td><td>IRDAI PI Guidelines 2021</td></tr>
-                <tr><td>Crime / Fidelity</td><td>&#8377;0.35L / Cr</td><td>Bajaj Allianz fidelity range</td></tr>
-                <tr><td>Employment Practices</td><td>&#8377;0.45L / Cr</td><td>Indian EPL market benchmark</td></tr>
-                <tr><td>Group Health</td><td>&#8377;0.13L / employee</td><td>NivaaBupa / Pazcare 2026</td></tr>
-                <tr><td>Property Fire</td><td>&#8377;0.50L / Cr SI</td><td>BusinessStandard Dec 2024</td></tr>
-              </tbody>
-            </table>
-            <p class="hc-note">Example: Cyber limit &#8377;15 Cr &#8594; 15 &times; 1.75 = <strong>&#8377;26.25L</strong> before any adjustments.</p>
-          </div>
-        </div>
-
-        <div class="hc-step">
-          <div class="hc-step-head"><div class="hc-step-num">3</div><div class="hc-step-title">Apply 8 multipliers for this specific startup</div></div>
-          <div class="hc-step-body">
-            <p>Each multiplier adjusts the base premium up or down depending on your profile. All 8 are multiplied together. If the result exceeds 4&times;, it's hard-capped at 4&times; to prevent runaway numbers.</p>
-            <table class="hc-mini-table">
-              <thead><tr><th>Multiplier</th><th>What it does</th><th>Range</th></tr></thead>
-              <tbody>
-                <tr><td>Risk score</td><td>Higher SPARC score &rarr; higher premium. Formula: 0.75 + (score / 100 &times; 0.85)</td><td>0.75&times; &ndash; 1.60&times;</td></tr>
-                <tr><td>Stage</td><td>Later-stage = larger company, bigger exposure, more auditable claims surface</td><td>0.90&times; &ndash; 1.28&times;</td></tr>
-                <tr><td>Sector</td><td>Some sectors carry higher loss frequency for specific covers (e.g. fintech for cyber)</td><td>1.00&times; &ndash; 1.25&times;</td></tr>
-                <tr><td>Climate zone</td><td>Surcharges property covers for assets in cyclone or flood-prone districts</td><td>1.00&times; &ndash; 1.32&times;</td></tr>
-                <tr><td>Controls</td><td>Discounts for verified controls: CERT-In POC, POSH committee, data localisation</td><td>0.88&times; &ndash; 1.00&times;</td></tr>
-                <tr><td>Prior claims</td><td>+15% per claim in the last 3 years, capped at 1.75&times;</td><td>1.00&times; &ndash; 1.75&times;</td></tr>
-                <tr><td>Revenue</td><td>Higher revenue = larger Cyber and PI target for plaintiffs and regulators</td><td>0.92&times; &ndash; 1.20&times;</td></tr>
-                <tr><td>Data records</td><td>More customer records = higher Cyber exposure (DPDP Significant Data Fiduciary threshold: 100 lakh records)</td><td>0.95&times; &ndash; 1.30&times;</td></tr>
+                <tr><td>Cyber, D&amp;O, PI, Crime</td><td>limit_based_liability / fidelity_limit_with_controls</td><td>Selected liability limit plus controls and claims history</td></tr>
+                <tr><td>Public, CGL, Product Liability</td><td>premises_operations_liability / turnover_plus_limit_liability</td><td>Limit, site or product hazard, and operating footprint</td></tr>
+                <tr><td>Group Health / PA</td><td>employee_benefit_census</td><td>Lives, census, age mix, plan design, and claims experience</td></tr>
+                <tr><td>Property / Engineering</td><td>asset_value_property / project_value_engineering</td><td>Declared asset value, project value, occupancy, and site complexity</td></tr>
+                <tr><td>Marine / Trade Credit</td><td>annual_transit_turnover / credit_turnover_or_receivables</td><td>Transit turnover, max-send, routes, debtors, and payment terms</td></tr>
               </tbody>
             </table>
           </div>
         </div>
 
         <div class="hc-step">
-          <div class="hc-step-head"><div class="hc-step-num">4</div><div class="hc-step-title">Calculate each cover's premium</div></div>
+          <div class="hc-step-head"><div class="hc-step-num">3</div><div class="hc-step-title">Referral layer</div></div>
           <div class="hc-step-body">
-            <div class="hc-formula">Premium = Limit (Cr) &times; Base rate &times; Combined loading
-(subject to a minimum floor for each cover)
-
-Example &mdash; Cyber at &#8377;15 Cr, combined loading 1.47&times;:
-15 &times; 1.75 &times; 1.47 = <strong>&#8377;38.6L</strong> (gross, before discount &amp; GST)</div>
+            <p>When a cover leaves SPARC's calibrated operating box, the engine reduces precision instead of compounding penalties into a false point estimate. Large limits, missing census data, unconfirmed marine max-send, missing debtor data, specialty hardware, or unknown claims history can move a cover to directional-only or underwriter-required.</p>
+            <table class="hc-mini-table">
+              <thead><tr><th>Confidence mode</th><th>Display</th><th>Meaning</th></tr></thead>
+              <tbody>
+                <tr><td>Technically priced</td><td>Point estimate</td><td>Inputs are inside the deterministic startup pricing box.</td></tr>
+                <tr><td>Directional only</td><td>Premium range</td><td>Useful for planning, but richer underwriting data is needed.</td></tr>
+                <tr><td>Underwriter validation required</td><td>Precise display suppressed</td><td>Risk needs insurer or underwriter review before price presentation.</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
         <div class="hc-step">
-          <div class="hc-step-head"><div class="hc-step-num">5</div><div class="hc-step-title">Sum all covers and apply a bundle discount</div></div>
+          <div class="hc-step-head"><div class="hc-step-num">4</div><div class="hc-step-title">Explanation layer</div></div>
           <div class="hc-step-body">
-            <p>All cover premiums are totalled. Buying covers together as a bundle earns a discount: <strong>8% for 5 or more covers</strong>, 5% for 3&ndash;4 covers. Single-cover purchases get no discount.</p>
+            <p>Every quote carries confidence metadata, calibration basis, precision mode, benchmark comparability, and short explanation items. The UI uses that metadata to decide whether to show a point estimate, a range, or an underwriter-led referral message.</p>
+            <p class="hc-note">Gross, net, discount, and GST totals remain numeric for auditability. Bundle discount is applied to subtotal first, then GST is calculated on the discounted net premium.</p>
           </div>
         </div>
 
         <div class="hc-step">
-          <div class="hc-step-head"><div class="hc-step-num">6</div><div class="hc-step-title">Add 18% GST</div></div>
+          <div class="hc-step-head"><div class="hc-step-num">5</div><div class="hc-step-title">Claims discipline</div></div>
           <div class="hc-step-body">
-            <div class="hc-formula">Gross premium = Net premium (after discount) &times; 1.18</div>
-            <p>All amounts shown in the quote panel are gross, inclusive of GST. The net premium and GST breakdown appear separately in the totals column.</p>
+            <p>SPARC is a deterministic, non-bindable pre-underwriting estimate tool. It can support planning and broker conversations, but it should not be read as a bindable quote, insurer-approved premium, compulsory cover determination, or final underwriting decision.</p>
           </div>
         </div>
-
-        <div class="hc-step">
-          <div class="hc-step-head"><div class="hc-step-num">7</div><div class="hc-step-title">Check referral flags before showing the number</div></div>
-          <div class="hc-step-body">
-            <p>The engine scans for conditions that require human underwriter review. These don't block the quote &mdash; they appear alongside it so the RM knows the exact next step.</p>
-            <ul class="hc-flag-list">
-              <li>Cyber risk score &ge; 85 &rarr; send a control questionnaire first</li>
-              <li>Total SI across all covers &gt; &#8377;50 Cr &rarr; route to underwriter approval</li>
-              <li>Prior claims disclosed &rarr; validate loss runs</li>
-              <li>Data records &gt; 100 lakh &rarr; confirm DPDP Significant Data Fiduciary compliance</li>
-            </ul>
-            <p class="hc-note">The calculation is fully deterministic &mdash; same inputs always produce the same number. No AI guesswork in the pricing math. GenAI only touches the bundle recommendation ranking, never the premium figure.</p>
-          </div>
-        </div>
-
-        <hr class="hc-divider" />
-
-        <div style="margin-bottom:16px;">
-          <div class="card-label">Research &amp; regulatory backing</div>
-          <p style="font-size:13px;color:var(--ink-sub);margin:6px 0 16px">The source and calibration evidence behind each of the 8 multipliers.</p>
-        </div>
-
-        <details class="hc-ref-details">
-          <summary>Risk loading &mdash; 0.75 + (score / 100 &times; 0.85)</summary>
-          <div class="hc-ref-body">
-            <ul>
-              <li><span class="hc-src">IRDAI Annual Report 2024&ndash;25</span> Loss ratios across cyber, D&amp;O, and PI lines in India range 45&ndash;85% depending on sub-segment. A flat rate ignores this spread entirely.</li>
-              <li><span class="hc-src">Swiss Re Sigma 1/2024</span> <span class="hc-src">Munich Re India SME Study 2023</span> Risk-scored underwriting produces loss ratios 18&ndash;22 points lower than flat-rate books.</li>
-              <li>The 0.75&times; floor reflects Indian market practice: even the cleanest risk carries minimum acquisition and admin cost. The 1.60&times; ceiling is the point at which an insurer would typically decline rather than surcharge further.</li>
-            </ul>
-          </div>
-        </details>
-
-        <details class="hc-ref-details">
-          <summary>Stage loading &mdash; Pre-seed 0.90&times; &rarr; Series B+ 1.28&times;</summary>
-          <div class="hc-ref-body">
-            <ul>
-              <li><span class="hc-src">NASSCOM&ndash;DSCI Startup Cyber Security Report 2023</span> Series A+ companies experience 3.4&times; more security incidents per employee than Seed-stage companies &mdash; systems scaled faster than controls.</li>
-              <li><span class="hc-src">Marsh India D&amp;O Survey 2024</span> D&amp;O claims frequency increases 2.1&times; between Seed and Series B. Trigger: institutional board members, investor scrutiny, first employment decisions at scale.</li>
-              <li><span class="hc-src">AXA XL Asia Pacific Startup Liability Report 2024</span> Pre-seed companies are near-claim-free: no meaningful contracts, no employees, no regulatory exposure. The 0.90&times; discount reflects this.</li>
-            </ul>
-          </div>
-        </details>
-
-        <details class="hc-ref-details">
-          <summary>Sector loading &mdash; Fintech Cyber +20%, Financial Services PI +25%, D2C Product Liability +20%</summary>
-          <div class="hc-ref-body">
-            <ul>
-              <li><span class="hc-src">CERT-In Incident Report 2023&ndash;24</span> Financial services entities accounted for 31% of all reportable cyber incidents while comprising ~14% of the high-risk entity population &mdash; ~2.2&times; base rate. 1.20&times; is a conservative capture.</li>
-              <li><span class="hc-src">RBI Digital Lending Directions 2025</span> Lenders are now directly liable for third-party lending service provider errors &mdash; a new PI liability surface for fintech.</li>
-              <li><span class="hc-src">NCDRC claims data</span> Consumer electronics claims increased 38% between 2021 and 2024 under Consumer Protection Act 2019 strict product liability. Earphones and wearables are a flagged sub-category.</li>
-              <li><span class="hc-src">IRDAI de-tariff Apr 2024</span> <span class="hc-src">BusinessStandard Dec 2024</span> Fire insurance de-tariffication drove market rates up 60&ndash;80% for renewable energy assets. 1.15&times; is the Cleantech property floor.</li>
-            </ul>
-          </div>
-        </details>
-
-        <details class="hc-ref-details">
-          <summary>Climate loading &mdash; Low 1.00&times; &rarr; Extreme 1.32&times;</summary>
-          <div class="hc-ref-body">
-            <ul>
-              <li><span class="hc-src">Swiss Re Sigma 2/2024</span> India's insured catastrophe losses grew at 14% CAGR since 2018. Maharashtra Coastal, Tamil Nadu, Odisha, and Gujarat now attract explicit GIC Re surcharges in reinsurance treaties.</li>
-              <li><span class="hc-src">IRDAI Circular IRDA/NL/CIR/MISC/157/08/2023</span> Requires all non-life insurers to disclose climate risk concentration by zone and adjust reserves accordingly &mdash; formalised zone-based surcharging.</li>
-              <li><span class="hc-src">IMD / NDMA 2024 Hazard Atlas</span> The 1.32&times; Extreme loading maps to NDMA's highest composite score: coastal districts with cyclone + storm surge + flood risk combined.</li>
-            </ul>
-          </div>
-        </details>
-
-        <details class="hc-ref-details">
-          <summary>Controls loading &mdash; CERT-In POC 0.92&times;, POSH committee 0.97&times;, Data localisation 0.96&times;</summary>
-          <div class="hc-ref-body">
-            <ul>
-              <li><span class="hc-src">CERT-In Directions 2022 (MeitY)</span> <span class="hc-src">IBM Cost of a Data Breach India 2024</span> Organisations with a designated IR team contain breaches 54 days faster, with breach cost 23% lower. The 8% cyber discount is calibrated conservatively against this 23% cost reduction.</li>
-              <li><span class="hc-src">CII POSH Compliance Survey 2023</span> Active Internal Committees reduce employment claims reaching tribunal stage by 60%. Discount is small because IC constitution is a mandatory legal requirement, not a voluntary investment.</li>
-              <li><span class="hc-src">Beazley Breach Insights 2024</span> Onshore-only data eliminates cross-border transfer risks &mdash; two of the top five cyber claim amplifiers. RBI mandates full onshore storage for payment aggregators.</li>
-            </ul>
-          </div>
-        </details>
-
-        <details class="hc-ref-details">
-          <summary>Claims loading &mdash; +15% per claim, capped at 1.75&times;</summary>
-          <div class="hc-ref-body">
-            <ul>
-              <li><span class="hc-src">IRDAI Annual Report 2024</span> Companies with one prior claim in 3 years have 2.1&times; higher probability of a second claim in the next policy year &mdash; base rate recidivism data.</li>
-              <li>10&ndash;20% per claim is standard Indian non-life market convention. 15% is the mid-point &mdash; conservative enough to be defensible in any underwriting review.</li>
-              <li>The 1.75&times; cap reflects the market ceiling: above this, insurers require referral underwriting rather than continuing to surcharge.</li>
-            </ul>
-          </div>
-        </details>
-
-        <details class="hc-ref-details">
-          <summary>Revenue loading &mdash; Sub-5 Cr 0.92&times; &rarr; 100 Cr+ 1.20&times;</summary>
-          <div class="hc-ref-body">
-            <ul>
-              <li><span class="hc-src">IBM Cost of a Data Breach India 2024</span> Companies with &gt;500 employees have average breach costs 1.8&times; higher than &lt;100-employee peers. Revenue is the accessible proxy for company size.</li>
-              <li><span class="hc-src">Howden India PI Market Survey 2025</span> Tech E&amp;O claim severity increases with revenue because courts use revenue as a reference for damages quantum. A 100 Cr+ SaaS company facing downtime faces larger quantum than a 5 Cr pre-revenue startup for the same root cause.</li>
-              <li><span class="hc-src">RBI Digital Lending Directions 2025</span> Penalty quantum is linked to transaction volume, which correlates with revenue &mdash; reinforces revenue as the correct scaling variable for financial services PI.</li>
-            </ul>
-          </div>
-        </details>
-
-        <details class="hc-ref-details">
-          <summary>Records loading &mdash; &lt;1L records 0.95&times; &rarr; 100L+ 1.30&times;</summary>
-          <div class="hc-ref-body">
-            <ul>
-              <li><span class="hc-src">DPDP Act 2023, Section 10</span> Significant Data Fiduciary designation &mdash; the highest compliance tier &mdash; will apply to entities holding data of 10 million (100 lakh) or more individuals. This is the 1.30&times; trigger in the engine.</li>
-              <li><span class="hc-src">Ponemon / IBM 2024</span> Per-record breach cost in India averages INR 5,500&ndash;6,200. For 1 crore records, a full breach = INR 550&ndash;620 crore &mdash; well beyond standard policy limits without surcharging.</li>
-              <li><span class="hc-src">Aon Cyber Resilience Report Asia Pacific 2024</span> Organisations holding 50M+ records have 2.4&times; higher claim frequency than those under 1M, driven by elevated database attack-surface value.</li>
-              <li><span class="hc-src">CERT-In Directions 2022</span> The 6-hour reporting window and 180-day mandatory log retention create significant forensic and notification costs. Larger record populations directly increase these.</li>
-            </ul>
-          </div>
-        </details>
-
-        <div style="height:32px;"></div>
       </div>
     </div>
   </div>`;
@@ -3178,13 +3184,19 @@ function renderPricingQuote(quote) {
   const flags = quote.underwriter_referral_flags || [];
   const missing = quote.missing_inputs || [];
   const assumptions = quote.assumptions || [];
+  const scale = quote.pricing_scale || {};
+  const benchmark = quote.benchmark_comparison || {};
+  const explanation = quote.explanation_items || [];
   return `
     <div class="pricing-card">
       <div class="pricing-head">
         <div>
           <div class="premium-card-label">Pricing engine quote</div>
-          <div class="pricing-title">INR ${esc(quote.gross_premium_lakh)} lakhs incl. GST</div>
-          <div class="premium-card-note">${esc(quote.method || "Base rate x sum insured x risk loadings.")}</div>
+          <div class="pricing-title">${esc(quoteDisplayText(quote))}</div>
+          <div class="premium-card-note">${esc(quote.method || "Line-specific indicative pricing with capped loadings and referral rules.")}</div>
+          ${confidenceBadge(quote.quote_confidence)}
+          ${scale.label ? `<div class="premium-card-note"><strong>${esc(scale.label)}</strong> - ${esc(scale.message || "")}</div>` : ""}
+          ${benchmark.status && benchmark.status !== "comparable" ? `<div class="premium-card-note"><strong>Benchmark:</strong> ${esc(benchmark.explanation || "Startup benchmark is not comparable to this selected structure.")}</div>` : ""}
         </div>
         <div class="pricing-totals">
           <div class="kv-row"><span class="kv-key">Net premium</span><span class="kv-val">INR ${esc(quote.net_premium_lakh)}L</span></div>
@@ -3195,11 +3207,12 @@ function renderPricingQuote(quote) {
       <div class="pricing-cover-grid">
         ${covers.slice(0, 8).map(c => `
           <div class="pricing-cover">
-            <div class="pricing-cover-name">${esc(c.cover_name || labelize(c.cover_key))}</div>
-            <div class="pricing-cover-premium">INR ${esc(c.premium_lakh)}L</div>
-            <div class="pricing-cover-basis">${esc(c.exposure_label || "")} | risk ${esc(c.average_risk_score ?? "n/a")}/100</div>
+            <div class="pricing-cover-name">${esc(c.cover_name || labelize(c.cover_key))} ${confidenceBadge(c.quote_confidence_band)}</div>
+            <div class="pricing-cover-premium">${esc(coverPremiumText(c))}</div>
+            <div class="pricing-cover-basis">${esc(c.exposure_label || "")} | ${esc((c.pricing_basis || "").replace(/_/g, " "))} | risk ${esc(c.average_risk_score ?? "n/a")}/100</div>
           </div>`).join("")}
       </div>
+      ${explanation.length ? `<div class="pricing-explain">${explanation.map(x => `<div>${esc(x)}</div>`).join("")}</div>` : ""}
       ${flags.length || missing.length || assumptions.length ? `
         <div class="pricing-notes">
           ${flags.length ? `<div><div class="card-label">Underwriter checks</div>${flags.map(f => `<div class="callout-item compact"><span>${esc(f)}</span></div>`).join("")}</div>` : ""}
@@ -3277,11 +3290,84 @@ window.applyQuoteSuggestion = (key) => {
   }
 };
 
+function renderQfChip(row) {
+  const val = quoteFieldValue(row);
+  const hasSlider = !!SLIDER_RANGES[row.key] && row.unit !== "yes/no";
+  const isToggle = row.unit === "yes/no";
+  const conf = row.suggestion?.confidence || "medium";
+
+  let displayVal;
+  if (isToggle) {
+    displayVal = val ? "Yes" : "No";
+  } else if (row.unit === "count") {
+    displayVal = `${Math.round(Number(val) || 0)} ${row.unit}`;
+  } else {
+    const n = Number(val);
+    displayVal = `${Number.isFinite(n) ? (n % 1 === 0 ? n.toFixed(0) : n.toFixed(2)) : (val || "—")} ${row.unit || "Cr"}`;
+  }
+
+  const confBadge = conf !== "high"
+    ? `<span class="qf-chip-conf qf-conf-${conf}">${conf === "medium" ? "MED" : "LOW"}</span>`
+    : "";
+
+  if (hasSlider) {
+    return `
+      <div class="qf-chip qf-chip--expandable" id="qf-chip-${esc(row.key)}" onclick="toggleQfChip('${esc(row.key)}')">
+        <div class="qf-chip-inner">
+          <span class="qf-chip-label">${esc(row.label)}</span>
+          <div class="qf-chip-right">
+            ${confBadge}
+            <span class="qf-chip-val">${esc(displayVal)}</span>
+            <svg class="qf-chip-icon" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6l4 4 4-4"/></svg>
+          </div>
+        </div>
+        <div class="qf-chip-expand" id="qf-expand-${esc(row.key)}" style="display:none;">
+          ${renderLiveSliderField(row)}
+          ${row.help ? `<small style="font-size:11px;color:var(--ink-muted);margin-top:4px;display:block;">${esc(row.help)}</small>` : ""}
+        </div>
+      </div>`;
+  }
+
+  if (isToggle) {
+    return `
+      <div class="qf-chip qf-chip--toggle">
+        <div class="qf-chip-inner">
+          <span class="qf-chip-label">${esc(row.label)}</span>
+          <div class="qf-chip-right">
+            ${confBadge}
+            <select class="qf-chip-select"
+              onchange="setQuoteInput('${esc(row.key)}', this.value === 'yes'); event.stopPropagation();">
+              <option value="no" ${!val ? "selected" : ""}>No</option>
+              <option value="yes" ${val ? "selected" : ""}>Yes</option>
+            </select>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  return `
+    <div class="qf-chip">
+      <div class="qf-chip-inner">
+        <span class="qf-chip-label">${esc(row.label)}</span>
+        <div class="qf-chip-right">
+          ${confBadge}
+          <span class="qf-chip-val">${esc(displayVal)}</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+window.toggleQfChip = (key) => {
+  const chip = document.getElementById(`qf-chip-${key}`);
+  const expand = document.getElementById(`qf-expand-${key}`);
+  if (!chip || !expand) return;
+  const open = expand.style.display !== "none";
+  expand.style.display = open ? "none" : "block";
+  chip.classList.toggle("qf-chip--open", !open);
+};
+
 function renderQuoteInputPanel(quote) {
   const fields = quote.required_inputs || [];
-  // Compute missing client-side from current state — server's missing_required_inputs
-  // is stale (computed before the user pre-filled any values via suggestions).
-  const missing = fields.filter(row => !quoteFieldHasValue(row));
   const covers = quote.covers_to_price || [];
   // Pre-fill every field on first render — never leave a blank that blocks quoting.
   // Priority: suggestion value → slider min → type default. Never overwrites user edits.
@@ -3302,64 +3388,34 @@ function renderQuoteInputPanel(quote) {
     });
     state.quoteSuggestionsPreFilled = true;
   }
+
   const html = `
     <div class="pricing-card">
-      <div class="pricing-head">
+      <div class="qf-card-head">
         <div>
           <div class="premium-card-label">Estimated quote</div>
-          <div class="pricing-title">Enter coverage limits to get a quote</div>
-          <div class="premium-card-note">Fields are pre-filled with suggested values based on your profile. Adjust any limit before generating. The estimate uses these inputs plus the risk assessment already calculated.</div>
+          <div class="qf-confirmed-line">
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="2,8 6,12 14,4"/></svg>
+            Coverage limits confirmed from your profile
+          </div>
+          <div class="qf-hint">All inputs pre-filled. Tap any field to adjust, then generate.</div>
         </div>
-        <div class="pricing-totals">
-          <div class="kv-row"><span class="kv-key">Status</span><span class="kv-val">${quote.status === "awaiting_inputs" ? "Ready to quote" : "Not requested"}</span></div>
-          <div class="kv-row"><span class="kv-key">Covers</span><span class="kv-val">${covers.length}</span></div>
-        </div>
+        <button class="btn btn-primary qf-generate-btn" type="button" onclick="generatePricingEstimate()">Generate quote</button>
       </div>
       ${covers.length ? `
-        <div class="cover-pills" style="margin-bottom:14px;">
+        <div class="cover-pills qf-cover-pills">
           ${covers.slice(0, 10).map(c => `<span class="cover-pill">${esc(c.cover_name || labelize(c.cover_key))}</span>`).join("")}
         </div>` : ""}
-      <div class="quote-input-grid">
-        ${fields.map(row => {
-          const val = quoteFieldValue(row);
-          const hasValue = quoteFieldHasValue(row);
-          const hasSlider = !!SLIDER_RANGES[row.key] && row.unit !== "yes/no" && row.unit !== "count";
-          if (hasSlider) {
-            return `
-            <div class="quote-input-field">
-              ${renderLiveSliderField(row)}
-              ${row.help ? `<small style="font-size:11px;color:var(--ink-muted);margin-top:2px;display:block;">${esc(row.help)}</small>` : ""}
-            </div>`;
-          }
-          const placeholder = quoteSuggestionPlaceholder(row);
-          const inputHtml = row.unit === "yes/no"
-            ? `<select class="f-select" style="height:36px;font-size:13px;"
-                 onchange="setQuoteInput('${esc(row.key)}', this.value === '' ? '' : this.value === 'yes')">
-                 <option value="" ${!hasValue ? "selected" : ""}>Select</option>
-                 <option value="no" ${hasValue && !val ? "selected" : ""}>No</option>
-                 <option value="yes" ${hasValue && val ? "selected" : ""}>Yes</option>
-               </select>`
-            : `<input class="f-input" type="number" min="0" step="${row.unit === "count" ? "1" : "0.01"}"
-                 value="${esc(String(val))}"
-                 placeholder="${esc(placeholder)}"
-                 oninput="setQuoteInput('${esc(row.key)}', this.value === '' ? '' : Number(this.value)); triggerLiveQuote();" />`;
-          return `
-          <label class="quote-input-field">
-            <span>${esc(row.label)} ${row.unit && row.unit !== "yes/no" ? `<em>${esc(row.unit)}</em>` : ""}</span>
-            ${inputHtml}
-            ${row.help ? `<small>${esc(row.help)}</small>` : ""}
-            ${renderQuoteSuggestion(row)}
-          </label>`;
-        }).join("")}
+      <div class="qf-chips-grid">
+        ${fields.map(row => renderQfChip(row)).join("")}
       </div>
-      <div style="display:flex;gap:10px;align-items:center;margin-top:16px;flex-wrap:wrap;">
-        <button class="btn btn-primary" type="button" onclick="generatePricingEstimate()">Generate quote</button>
+      <div class="qf-footer">
         <span id="pricing-estimate-status" style="font-size:12px;color:var(--ink-muted);"></span>
         <span id="quote-live-badge" class="ls-badge" style="opacity:0">Updating…</span>
       </div>
     </div>`;
 
-  // Auto-generate if all required slider fields are pre-filled
+  // Auto-generate when inputs are available
   if (fields.length > 0) {
     setTimeout(() => {
       if (window.__result && !isQuoted(window.__result?.bundle_only_pricing_quote) && !isQuoted(window.__result?.pricing_engine_quote)) {
@@ -3733,6 +3789,158 @@ const CLAIMS_SCENARIOS = {
       with_cover: "Healthcare PI covers professional negligence claims against the platform and its partner doctors — including AI-assisted clinical decision support errors that cause patient harm.",
     },
   },
+  property_fire: {
+    "Foodtech / Cloud Kitchen": {
+      event: "A gas leak in a cloud kitchen ignites during peak service hours; the unit is gutted and operations halt for 11 weeks",
+      exposure_label: "Asset loss + downtime",
+      exposure: "₹1.5–4 Cr",
+      costs: [
+        "Kitchen equipment and fitout replacement: ₹80L–2 Cr",
+        "Stock and raw material write-off: ₹20–50L",
+        "11 weeks of lost revenue with fixed costs continuing: ₹60L–1.5 Cr",
+        "Landlord's reinstatement demand under lease terms",
+      ],
+      with_cover: "Property Fire policy reinstates your kitchen assets at replacement value — letting you reopen without wiping out working capital or taking emergency debt.",
+    },
+    default: {
+      event: "Electrical fault causes a fire at the primary office; servers, fixtures, and stock destroyed overnight",
+      exposure_label: "Asset replacement cost",
+      exposure: "₹1–3 Cr",
+      costs: [
+        "Equipment and furniture replacement: ₹60L–1.5 Cr",
+        "Stock and inventory loss: ₹30–80L",
+        "Emergency relocation + fit-out: ₹20–50L",
+        "Weeks of downtime with payroll and rent continuing",
+      ],
+      with_cover: "Property Fire policy pays for reinstatement of damaged assets at current replacement cost — covering the full rebuild without dipping into working capital.",
+    },
+  },
+  public_liability: {
+    "Foodtech / Cloud Kitchen": {
+      event: "A delivery rider slips on wet flooring at a cloud kitchen pickup bay; fractured wrist, consumer forum notice served within 48 hours",
+      exposure_label: "Third-party bodily injury",
+      exposure: "₹20–80L",
+      costs: [
+        "Hospitalization and medical bills: ₹5–15L",
+        "Consumer forum or civil court claim: ₹15–50L",
+        "Legal defence costs: ₹10–25L",
+        "Reputational risk from social media coverage of the incident",
+      ],
+      with_cover: "Public Liability pays third-party injury and property damage claims arising from your premises or operations — covering legal defence and compensation without touching operating funds.",
+    },
+    default: {
+      event: "A visitor at your office is injured when a ceiling fixture falls; they file a ₹40L negligence claim",
+      exposure_label: "Third-party liability",
+      exposure: "₹20–60L",
+      costs: [
+        "Medical costs and compensation: ₹15–40L",
+        "Legal defence: ₹5–20L",
+        "Court or settlement timeline: 12–24 months of management distraction",
+      ],
+      with_cover: "Public Liability covers compensation and legal defence costs for bodily injury or property damage to third parties at your premises — fully funded by the policy.",
+    },
+  },
+  machinery_breakdown: {
+    "Foodtech / Cloud Kitchen": {
+      event: "A central blast chiller fails mid-week; ₹18L of perishable inventory is lost and the kitchen is offline for 9 days awaiting a replacement compressor",
+      exposure_label: "Equipment + inventory loss",
+      exposure: "₹25–70L",
+      costs: [
+        "Perishable stock write-off: ₹15–25L",
+        "Emergency repair or replacement of compressor unit: ₹8–20L",
+        "9 days of lost kitchen revenue: ₹10–30L",
+        "Penalty clauses from food aggregator SLAs",
+      ],
+      with_cover: "Machinery Breakdown policy covers sudden mechanical failure and repair costs — plus consequential stock loss — so a single equipment failure doesn't cascade into a working capital crisis.",
+    },
+    default: {
+      event: "A key production machine breaks down unexpectedly; a 3-week lead time on parts halts output entirely",
+      exposure_label: "Repair + lost output",
+      exposure: "₹30–90L",
+      costs: [
+        "Repair or replacement of the failed component: ₹15–40L",
+        "Lost production revenue over 3 weeks: ₹20–60L",
+        "Client penalties for delayed delivery: ₹10–25L",
+      ],
+      with_cover: "Machinery Breakdown covers sudden mechanical or electrical failure — repair costs, parts, and consequential business interruption — with no waiting for depreciation disputes.",
+    },
+  },
+  group_personal_accident: {
+    "Foodtech / Cloud Kitchen": {
+      event: "A kitchen team member sustains a severe burn injury during service; permanently loses the use of two fingers on the dominant hand",
+      exposure_label: "Employer liability + compensation",
+      exposure: "₹15–50L",
+      costs: [
+        "Immediate hospitalization and surgery: ₹5–12L",
+        "Permanent partial disability compensation (statutory): ₹10–30L",
+        "Legal claim if no GPA cover; ESIC gap for non-covered workers",
+        "Potential labour department inquiry",
+      ],
+      with_cover: "Group Personal Accident pays accidental death and disability benefits directly to the employee or dependants — covering the gap above ESIC and shielding the company from personal claims.",
+    },
+    default: {
+      event: "Two field executives are involved in a road accident during a client visit; one sustains permanent partial disability",
+      exposure_label: "Disability + legal exposure",
+      exposure: "₹10–40L",
+      costs: [
+        "Medical treatment and rehabilitation: ₹5–15L",
+        "Disability compensation statutory obligation: ₹8–25L",
+        "Civil claim from employee if no group cover in place",
+        "EPFO/ESIC compliance scrutiny triggered",
+      ],
+      with_cover: "Group Personal Accident pays accidental death, permanent disability, and temporary disability benefits — directly and promptly — without the company funding compensation from cash reserves.",
+    },
+  },
+  employees_compensation: {
+    "Foodtech / Cloud Kitchen": {
+      event: "A delivery packer suffers a repetitive strain injury deemed work-related; Employees' Compensation Commissioner orders ₹6.2L payment within 30 days",
+      exposure_label: "Statutory compensation order",
+      exposure: "₹5–20L",
+      costs: [
+        "Commissioner's compensation award: ₹6.2L (immediate payment required)",
+        "Legal defence before the EC Commissioner: ₹2–5L",
+        "Penalty for delayed payment under ECA 1923: 50% additional sum",
+        "Labour department follow-up audit across other workers",
+      ],
+      with_cover: "Employees' Compensation policy pays the statutory award directly — including the penalty for delayed payment — so the company avoids a cash crisis from an unexpected regulatory order.",
+    },
+    default: {
+      event: "A warehouse worker falls from a loading platform; Employees' Compensation Commissioner orders ₹9L in statutory compensation",
+      exposure_label: "Statutory EC award",
+      exposure: "₹8–25L",
+      costs: [
+        "EC Commissioner award: ₹9L (must be paid within 30 days)",
+        "Legal representation costs: ₹1–3L",
+        "50% penalty if payment is delayed beyond the deadline",
+        "Risk of labour department audit across all workers",
+      ],
+      with_cover: "Employees' Compensation cover pays the full statutory award, legal costs, and any penalty — activated the moment the Commissioner's order is issued, with no working capital impact.",
+    },
+  },
+  money_insurance: {
+    "Foodtech / Cloud Kitchen": {
+      event: "A cash float held at a cloud kitchen for change and petty expenses is stolen during a break-in overnight",
+      exposure_label: "Cash theft loss",
+      exposure: "₹2–8L",
+      costs: [
+        "Cash-in-premises loss: ₹2–5L",
+        "Safe damage and security upgrade: ₹50K–1.5L",
+        "Police FIR and insurance documentation time: operational distraction",
+      ],
+      with_cover: "Money Insurance covers cash stolen from your premises, in transit, or from a safe — reimbursed promptly so petty cash operations and float management are not disrupted.",
+    },
+    default: {
+      event: "Cash collected during a field sales drive is stolen from the courier; ₹4L unrecovered",
+      exposure_label: "Cash-in-transit theft",
+      exposure: "₹2–8L",
+      costs: [
+        "Direct cash loss: ₹4L (unrecoverable from courier unless proven negligence)",
+        "Police and legal process: ₹20–50K",
+        "Operational disruption and finance reconciliation costs",
+      ],
+      with_cover: "Money Insurance covers cash in transit and on premises against theft — reimbursing the full loss without needing to establish courier liability.",
+    },
+  },
 };
 
 function renderClaimsScenarios(result) {
@@ -3747,7 +3955,7 @@ function renderClaimsScenarios(result) {
   // Build ordered list of covers to show: mandatory first, then high-risk optionals
   const scores = result.scores || {};
   const scoreOf = (cover) => {
-    const spec = { cyber_liability: ["Cyber Technical Risk","Data Privacy Risk"], dno_liability: ["Governance & Fraud Risk","Regulatory Compliance Risk"], professional_indemnity: ["Liability Risk","IP Infringement Risk"], product_liability: ["Liability Risk","Reputation Risk"], employment_practices: ["Gig & Labour Risk","Governance & Fraud Risk"], crime_fidelity: ["Governance & Fraud Risk"], property_all_risk: ["Property Risk","ESG & Climate Risk"], healthcare_pi: ["Liability Risk"] };
+    const spec = { cyber_liability: ["Cyber Technical Risk","Data Privacy Risk"], dno_liability: ["Governance & Fraud Risk","Regulatory Compliance Risk"], professional_indemnity: ["Liability Risk","IP Infringement Risk"], product_liability: ["Liability Risk","Reputation Risk"], employment_practices: ["Gig & Labour Risk","Governance & Fraud Risk"], crime_fidelity: ["Governance & Fraud Risk"], property_all_risk: ["Property Risk","ESG & Climate Risk"], property_fire: ["Property Risk","ESG & Climate Risk"], public_liability: ["Liability Risk","Operational Continuity Risk"], machinery_breakdown: ["Operational Continuity Risk","Property Risk"], group_personal_accident: ["People & HR Risk","Gig & Labour Risk"], employees_compensation: ["People & HR Risk","Gig & Labour Risk"], money_insurance: ["Governance & Fraud Risk"], healthcare_pi: ["Liability Risk"] };
     const keys = spec[cover] || [];
     if (!keys.length) return 0;
     return keys.reduce((s, k) => s + (parseFloat(scores[k]) || 0), 0) / keys.length;
@@ -3768,7 +3976,7 @@ function renderClaimsScenarios(result) {
 
   if (!scenarios.length) return "";
 
-  const coverLabel = (k) => ({ cyber_liability:"Cyber Liability", dno_liability:"Directors & Officers", professional_indemnity:"PI / Tech E&O", product_liability:"Product Liability", employment_practices:"Employment Practices", crime_fidelity:"Crime / Fidelity", property_all_risk:"Property All Risk", property_fire:"Property Fire", healthcare_pi:"Healthcare PI", drone_rpas:"Drone RPAS" }[k] || labelize(k));
+  const coverLabel = (k) => ({ cyber_liability:"Cyber Liability", dno_liability:"Directors & Officers", professional_indemnity:"PI / Tech E&O", product_liability:"Product Liability", employment_practices:"Employment Practices", crime_fidelity:"Crime / Fidelity", property_all_risk:"Property All Risk", property_fire:"Property Fire", public_liability:"Public Liability", machinery_breakdown:"Machinery Breakdown", group_personal_accident:"Group Personal Accident", employees_compensation:"Employees' Compensation", money_insurance:"Money Insurance", healthcare_pi:"Healthcare PI", drone_rpas:"Drone RPAS" }[k] || labelize(k));
 
   return `
     <div class="result-section">
@@ -4351,6 +4559,7 @@ const _RISK_DESCRIPTIONS = {
 
 let _outreachItems = {};
 
+
 function _ilRiskCards(riskNames) {
   return (riskNames || []).slice(0, 3).map((name, i) => `
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FFFFFF;border:1px solid #D1CFBB;border-radius:4px;margin-bottom:10px;">
@@ -4370,15 +4579,15 @@ function _ilRiskCards(riskNames) {
 
 function buildILEmailHtml(subject, body, d) {
   d = d || {};
-  const company  = d.company      || "your company";
-  const industry = d.industry     || "your sector";
-  const product  = d.product_name || "this policy";
-  const bodyPara = d.body_para    || "";
-  const riskNames = d.risk_names  || [];
-  const rmName   = d.rm_name      || "{{RM_NAME}}";
-  const rmPhone  = d.rm_phone     || "{{RM_PHONE}}";
-  const rmEmail  = d.rm_email     || "{{RM_EMAIL}}";
-  const cards    = _ilRiskCards(riskNames);
+  const company   = d.company      || "your company";
+  const industry  = d.industry     || "your sector";
+  const product   = d.product_name || "this policy";
+  const riskNames = d.risk_names   || [];
+  const bodyPara  = d.body_para    || "";
+  const rmName    = d.rm_name      || "{{RM_NAME}}";
+  const rmPhone   = d.rm_phone     || "{{RM_PHONE}}";
+  const rmEmail   = d.rm_email     || "{{RM_EMAIL}}";
+  const cards     = _ilRiskCards(riskNames);
 
   return `<!doctype html>
 <html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
@@ -4395,83 +4604,81 @@ table,td{mso-table-lspace:0pt;mso-table-rspace:0pt;border-collapse:collapse;}
 img{border:0;display:block;}a{text-decoration:none;}
 body{margin:0;padding:0;width:100%!important;background:#D1CFBB;}
 @media screen and (max-width:620px){
-  .container{width:100%!important;}.px-32{padding-left:24px!important;padding-right:24px!important;}
-  .h1{font-size:26px!important;line-height:1.2!important;}.hide-sm{display:none!important;}
+  .container{width:100%!important;}
+  .px-body{padding-left:28px!important;padding-right:28px!important;}
 }
 </style>
 </head>
 <body style="margin:0;padding:0;background:#D1CFBB;">
-<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#D1CFBB;">A tailored conversation about ${product} for ${company} &mdash; no pressure, just clarity.</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#D1CFBB;">
-<tr><td align="center" style="padding:24px 12px;">
-<table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background:#FFF3EC;border-radius:6px;overflow:hidden;">
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#D1CFBB;">A tailored coverage recommendation for ${company} from ICICI Lombard.</div>
 
-  <tr><td style="background:#053C6D;padding:20px 32px;" class="px-32">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#D1CFBB;">
+<tr><td align="center" style="padding:32px 16px;">
+<table role="presentation" class="container" width="580" cellpadding="0" cellspacing="0" border="0" style="width:580px;max-width:580px;border-radius:6px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.10);">
+
+  <!-- ── HEADER ── -->
+  <tr><td style="background:#053C6D;padding:28px 40px;" class="px-body">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-      <td align="left" style="vertical-align:middle;">
-        <div style="font-family:Georgia,'Times New Roman',serif;color:#FFF3EC;font-size:20px;letter-spacing:0.06em;line-height:1;">ICICI LOMBARD</div>
-        <div style="font-family:Arial,Helvetica,sans-serif;color:#F15E2A;font-size:10px;letter-spacing:0.32em;line-height:1;margin-top:6px;">GENERAL&nbsp;&nbsp;INSURANCE</div>
+      <td>
+        <div style="font-family:Georgia,'Times New Roman',serif;color:#FFFFFF;font-size:20px;letter-spacing:0.06em;line-height:1;">ICICI LOMBARD</div>
+        <div style="font-family:Arial,Helvetica,sans-serif;color:#F15E2A;font-size:9px;letter-spacing:0.32em;margin-top:4px;">GENERAL&nbsp;&nbsp;INSURANCE</div>
       </td>
-      <td align="right" class="hide-sm" style="vertical-align:middle;font-family:Arial,Helvetica,sans-serif;color:#A9B7CC;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;">Commercial&nbsp;Lines</td>
+      <td align="right" style="font-family:Arial,Helvetica,sans-serif;color:#7B9CBB;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;vertical-align:middle;">Commercial Lines</td>
     </tr></table>
   </td></tr>
 
-  <tr><td style="height:3px;background:#F15E2A;line-height:3px;font-size:3px;">&nbsp;</td></tr>
-
-  <tr><td class="px-32" style="padding:48px 56px 8px 56px;">
-    <div style="font-family:Arial,Helvetica,sans-serif;color:#F15E2A;font-size:11px;letter-spacing:0.24em;text-transform:uppercase;font-weight:bold;margin-bottom:18px;">For the ${industry} sector</div>
-    <h1 class="h1" style="margin:0;font-family:Georgia,'Times New Roman',serif;color:#053C6D;font-size:34px;line-height:1.16;font-weight:normal;letter-spacing:-0.005em;">
-      A tailored approach to protecting <em style="font-style:italic;color:#F15E2A;">${company}'s journey</em>.
-    </h1>
-    <div style="width:48px;height:2px;background:#F15E2A;line-height:2px;font-size:2px;margin:28px 0 0 0;">&nbsp;</div>
+  <!-- ── EYEBROW + HEADLINE ── -->
+  <tr><td style="background:#FFFFFF;padding:36px 40px 20px 40px;" class="px-body">
+    <div style="font-family:Arial,Helvetica,sans-serif;color:#F15E2A;font-size:10px;font-weight:bold;letter-spacing:0.24em;text-transform:uppercase;margin-bottom:10px;">For the ${esc(industry)} sector</div>
+    <div style="font-family:Georgia,'Times New Roman',serif;color:#053C6D;font-size:26px;line-height:1.25;font-weight:normal;margin-bottom:20px;">A tailored approach to protecting ${esc(company)}&rsquo;s journey</div>
+    <p style="margin:0 0 6px 0;font-family:Arial,Helvetica,sans-serif;color:#22262E;font-size:15px;line-height:1.65;">Dear ${esc(company)} team,</p>
+    <p style="margin:0 0 20px 0;font-family:Arial,Helvetica,sans-serif;color:#22262E;font-size:15px;line-height:1.65;">Greetings from ICICI Lombard!</p>
+    <p style="margin:0 0 28px 0;font-family:Arial,Helvetica,sans-serif;color:#374151;font-size:14px;line-height:1.7;">Our expert underwriters have been closely studying risk profiles across the ${esc(industry)} landscape, and ${esc(company)} stood out. Based on their assessment, your most significant risk dimensions deserve proactive, well-structured coverage — especially at your current stage of growth.</p>
   </td></tr>
 
-  <tr><td class="px-32" style="padding:28px 56px 8px 56px;font-family:Arial,Helvetica,sans-serif;color:#22262E;font-size:16px;line-height:1.65;">
-    <p style="margin:0 0 16px 0;">Dear ${company} team,</p>
-    <p style="margin:0 0 20px 0;">Greetings from ICICI Lombard General Insurance Company Limited.</p>
-    <p style="margin:0 0 8px 0;">Our expert underwriters have been closely studying risk profiles across the <strong style="color:#053C6D;">${industry}</strong> landscape, and ${company} stood out. Based on their assessment, your most significant risk dimensions are:</p>
+  <!-- ── RISK CARDS ── -->
+  <tr><td style="background:#FFFFFF;padding:0 40px 28px 40px;" class="px-body">
+    <div style="font-family:Arial,Helvetica,sans-serif;color:#6B7280;font-size:10px;font-weight:bold;letter-spacing:0.2em;text-transform:uppercase;margin-bottom:14px;">Most material risk dimensions</div>
+    ${cards}
   </td></tr>
 
-  <tr><td class="px-32" style="padding:8px 56px 8px 56px;">${cards}</td></tr>
-
-  <tr><td class="px-32" style="padding:24px 56px 8px 56px;font-family:Arial,Helvetica,sans-serif;color:#22262E;font-size:16px;line-height:1.65;">
-    <p style="margin:0 0 20px 0;">Our <strong style="color:#053C6D;">${product}</strong>${bodyPara ? " &mdash; " + bodyPara : ""} is thoughtfully designed for companies at your stage, and we believe it can give your team real peace of mind as you scale.</p>
-    <p style="margin:0 0 28px 0;">We'd be delighted to walk you through how <strong style="color:#053C6D;">${product}</strong> fits your journey &mdash; <em>no pressure, just a friendly conversation</em> at a time that works for you.</p>
-  </td></tr>
-
-  <tr><td class="px-32" align="left" style="padding:4px 56px 44px 56px;">
+  <!-- ── PRODUCT PARA ── -->
+  <tr><td style="background:#FFFFFF;padding:0 40px 36px 40px;" class="px-body">
+    <p style="margin:0 0 28px 0;font-family:Arial,Helvetica,sans-serif;color:#374151;font-size:14px;line-height:1.7;">We&rsquo;d love to introduce you to <strong style="color:#053C6D;">${esc(product)}</strong>. ${esc(bodyPara)} It is thoughtfully designed for companies like yours and we believe it can give your team real peace of mind as you scale.</p>
+    <p style="margin:0 0 28px 0;font-family:Arial,Helvetica,sans-serif;color:#374151;font-size:14px;line-height:1.7;">We&rsquo;d be delighted to walk you through how ${esc(product)} fits your journey &mdash; no pressure, just a friendly conversation at a time that works for you.</p>
     <!--[if !mso]><!-- -->
-    <a href="mailto:${rmEmail}" style="display:inline-block;background:#F15E2A;color:#FFFFFF;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;letter-spacing:0.04em;line-height:48px;padding:0 28px;border-radius:4px;text-decoration:none;">Book a 20-min call &rarr;</a>
+    <a href="mailto:${rmEmail}" style="display:inline-block;background:#F15E2A;color:#FFFFFF;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;letter-spacing:0.04em;line-height:48px;padding:0 30px;border-radius:4px;text-decoration:none;">Book a 20-min call &rarr;</a>
     <!--<![endif]-->
-    <div style="font-family:Arial,Helvetica,sans-serif;color:#6B7280;font-size:13px;margin-top:14px;">Or simply reply to this email &mdash; we'll take it from there.</div>
   </td></tr>
 
-  <tr><td class="px-32" style="padding:0 56px;"><div style="height:1px;background:#D1CFBB;line-height:1px;font-size:1px;">&nbsp;</div></td></tr>
+  <!-- ── DIVIDER ── -->
+  <tr><td style="background:#FFFFFF;padding:0 40px;" class="px-body"><div style="height:1px;background:#E4E7ED;line-height:1px;font-size:1px;">&nbsp;</div></td></tr>
 
-  <tr><td class="px-32" style="padding:28px 56px 44px 56px;">
-    <div style="font-family:Georgia,'Times New Roman',serif;color:#6B7280;font-style:italic;font-size:14px;margin-bottom:14px;">Warm regards,</div>
-    <div style="font-family:Arial,Helvetica,sans-serif;font-weight:bold;color:#053C6D;font-size:16px;">${rmName}</div>
-    <div style="font-family:Arial,Helvetica,sans-serif;color:#6B7280;font-size:13px;margin-top:2px;">ICICI Lombard General Insurance Company Limited &mdash; Commercial Lines</div>
-    <div style="margin-top:12px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#22262E;">
-      <a href="tel:${rmPhone}" style="color:#22262E;text-decoration:none;">${rmPhone}</a>
-      <span style="color:#F15E2A;padding:0 8px;">|</span>
-      <a href="mailto:${rmEmail}" style="color:#22262E;text-decoration:none;">${rmEmail}</a>
+  <!-- ── SIGNATURE ── -->
+  <tr><td style="background:#FFFFFF;padding:24px 40px 36px 40px;" class="px-body">
+    <div style="font-family:Georgia,'Times New Roman',serif;color:#9CA3AF;font-style:italic;font-size:13px;margin-bottom:8px;">Warm regards,</div>
+    <div style="font-family:Arial,Helvetica,sans-serif;font-weight:bold;color:#053C6D;font-size:14px;">${esc(rmName)}</div>
+    <div style="font-family:Arial,Helvetica,sans-serif;color:#9CA3AF;font-size:12px;margin-top:3px;">ICICI Lombard &mdash; Commercial Lines</div>
+    <div style="margin-top:8px;font-family:Arial,Helvetica,sans-serif;font-size:13px;">
+      <a href="tel:${rmPhone}" style="color:#22262E;text-decoration:none;">${esc(rmPhone)}</a>
+      <span style="color:#F15E2A;padding:0 6px;">&middot;</span>
+      <a href="mailto:${rmEmail}" style="color:#22262E;text-decoration:none;">${esc(rmEmail)}</a>
     </div>
   </td></tr>
 
-  <tr><td style="background:#053C6D;padding:28px 56px;" class="px-32">
-    <div style="color:#FFF3EC;font-family:Georgia,'Times New Roman',serif;font-size:13px;letter-spacing:0.06em;margin-bottom:10px;">ICICI LOMBARD GENERAL INSURANCE COMPANY LIMITED</div>
-    <div style="font-family:Arial,Helvetica,sans-serif;color:#A9B7CC;font-size:11px;line-height:1.7;letter-spacing:0.02em;">
-      <div>ICICI Lombard House, 414, Veer Savarkar Marg, Near Siddhi Vinayak Temple, Prabhadevi, Mumbai &mdash; 400025</div>
-      <div style="margin-top:10px;">Reg. No. 115 &nbsp;&middot;&nbsp; <a href="mailto:customersupport@icicilombard.com" style="color:#A9B7CC;text-decoration:none;">customersupport@icicilombard.com</a></div>
-      <div style="margin-top:14px;">
-        <a href="https://www.icicilombard.com" style="color:#F15E2A;text-decoration:none;">Visit website</a>
-        <span style="color:#3A5078;padding:0 8px;">&middot;</span>
-        <a href="#" style="color:#A9B7CC;text-decoration:underline;">Unsubscribe</a>
-        <span style="color:#3A5078;padding:0 8px;">&middot;</span>
-        <a href="https://www.icicilombard.com/privacy-policy" style="color:#A9B7CC;text-decoration:underline;">Privacy</a>
+  <!-- ── FOOTER ── -->
+  <tr><td style="background:#053C6D;padding:20px 40px;" class="px-body">
+    <div style="font-family:Georgia,'Times New Roman',serif;color:#4A6080;font-size:11px;letter-spacing:0.05em;margin-bottom:6px;">ICICI LOMBARD GENERAL INSURANCE COMPANY LIMITED</div>
+    <div style="font-family:Arial,Helvetica,sans-serif;color:#4A6080;font-size:10px;line-height:1.7;">
+      <div>414, Veer Savarkar Marg, Prabhadevi, Mumbai &mdash; 400025 &nbsp;&middot;&nbsp; Reg. No. 115</div>
+      <div style="margin-top:8px;">
+        <a href="https://www.icicilombard.com" style="color:#F15E2A;text-decoration:none;">icicilombard.com</a>
+        <span style="color:#253A52;padding:0 6px;">&middot;</span>
+        <a href="#" style="color:#4A6080;text-decoration:underline;">Unsubscribe</a>
+        <span style="color:#253A52;padding:0 6px;">&middot;</span>
+        <a href="https://www.icicilombard.com/privacy-policy" style="color:#4A6080;text-decoration:underline;">Privacy</a>
       </div>
-      <div style="margin-top:14px;color:#7C8CA8;font-size:10px;line-height:1.6;">Insurance is the subject matter of solicitation. For more details on risk factors, terms and conditions, please read the sales brochure / policy wordings carefully before concluding a sale.</div>
+      <div style="margin-top:10px;color:#2E4060;font-size:9px;line-height:1.6;">Insurance is the subject matter of solicitation. Please read the sales brochure and policy wordings carefully before concluding a sale.</div>
     </div>
   </td></tr>
 
@@ -4543,13 +4750,66 @@ function openEmailModal(subject, body, htmlData) {
   });
 }
 
+function renderFounderPitch(result) {
+  const bullets  = result.pitch_bullets || [];
+  const handlers = result.objection_handlers || [];
+  const meta     = result.pitch_meta || {};
+  if (!bullets.length && !handlers.length) return "";
+
+  const bulletText = bullets.map((b, i) =>
+    `<div class="fp-bullet">
+      <span class="fp-num">0${i+1}</span>
+      <span class="fp-text">${esc(b)}</span>
+    </div>`
+  ).join("");
+
+  const allBulletText = bullets.join("\n\n");
+
+  const objectionHtml = handlers.map(h => `
+    <div class="fp-objection">
+      <div class="fp-obj-q">${esc(h.objection || h.underlying_fear || "")}</div>
+      <div class="fp-obj-a">${esc(h.scripted_response || "")}</div>
+    </div>`
+  ).join("");
+
+  const metaHtml = (meta.trigger_question || meta.best_timing) ? `
+    <div class="fp-meta">
+      ${meta.trigger_question ? `<div class="fp-meta-row"><span class="fp-meta-l">Trigger question</span><span class="fp-meta-v">${esc(meta.trigger_question)}</span></div>` : ""}
+      ${meta.best_timing     ? `<div class="fp-meta-row"><span class="fp-meta-l">Best timing</span><span class="fp-meta-v">${esc(meta.best_timing)}</span></div>` : ""}
+    </div>` : "";
+
+  return `
+    <div class="result-section" id="founder-pitch">
+      <div class="result-section-head">
+        <div class="result-section-bar"></div>
+        <div class="result-section-title">The pitch</div>
+      </div>
+      <div class="r-card" style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <span style="font-size:13px;color:var(--ink-muted);">Use these three lines on your founder call.</span>
+          <button class="btn btn-ghost" style="height:32px;padding:0 12px;font-size:12px;" data-copy="${esc(allBulletText)}">Copy bullets</button>
+        </div>
+        <div class="fp-bullets">${bulletText}</div>
+        ${metaHtml}
+      </div>
+      ${handlers.length ? `
+      <div class="r-card">
+        <div style="font-family:var(--font-head);font-size:15px;font-weight:700;margin-bottom:4px;letter-spacing:-.02em;">If they push back</div>
+        <div style="font-size:12px;color:var(--ink-muted);margin-bottom:16px;">${handlers.length} scripted response${handlers.length !== 1 ? "s" : ""}</div>
+        <div class="fp-objections">${objectionHtml}</div>
+      </div>` : ""}
+    </div>`;
+}
+
 function renderOutreach(prompts, source, error) {
   _outreachItems = prompts || {};
   const entries = Object.entries(_outreachItems);
   if (!entries.length) return "";
+
   const sourceText = source === "gemini"
     ? "AI-crafted outreach drafts active."
     : "Using local fallback drafts. Add GEMINI_API_KEY to enable AI-crafted drafts.";
+
   return `
     <div class="result-section" id="outreach">
       <div class="result-section-head">

@@ -1770,8 +1770,10 @@ def _get_pitch_library_entry(bundle_match):
 
     def _slug(s):
         s = _re.sub(r'\([^)]*\)', '', s or "")           # drop "(CAR)", "(EAR)" etc.
+        s = s.replace('_', ' ')                           # underscores → spaces so \b fires on lib keys too
         s = _re.sub(r'\b(insurance|policy|cover|bundle|package|plan)\b', '', s, flags=_re.I)
         s = _re.sub(r'[^a-z0-9]+', '_', s.lower())
+        s = _re.sub(r'_+', '_', s)                       # collapse consecutive underscores
         return s.strip('_')
 
     candidate = _slug(bundle_match.get("key") or bundle_match.get("name") or "")

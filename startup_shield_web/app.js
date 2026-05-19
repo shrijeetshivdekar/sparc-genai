@@ -919,19 +919,19 @@ function renderRoleSelection() {
       <section class="role-panel">
         <div class="role-copy">
           <div class="intake-eyebrow">Choose experience</div>
-          <h1>Start with the input view that fits your role</h1>
-          <p>Select the customer route for a short business-friendly recommendation. Select the underwriter route for the full SPARC intake and risk report.</p>
+          <h1>How are you running this session?</h1>
+          <p>Fast-track classification for an RM in a prospect meeting, or full underwriting intake with scoring, pricing, and a detailed risk report.</p>
         </div>
         <div class="role-options">
           <button class="role-card role-card-primary" type="button" id="customer-role-btn">
-            <span class="role-card-kicker">Customer End Input</span>
-            <strong>Quick recommendation</strong>
-            <span>Short profile questions, simple language, and a clear recommendation you can act on.</span>
+            <span class="role-card-kicker">RM Quick Classify</span>
+            <strong>Fast prospect classification</strong>
+            <span>Fewer fields, plain-English output. Run it in a meeting and walk out with a bundle recommendation and pitch.</span>
           </button>
           <button class="role-card" type="button" id="underwriter-role-btn">
-            <span class="role-card-kicker">Underwriter End Input</span>
-            <strong>Full underwriting analysis</strong>
-            <span>Use the existing detailed intake, scoring model, pricing views, and report output.</span>
+            <span class="role-card-kicker">Full Underwriting Intake</span>
+            <strong>Complete risk analysis</strong>
+            <span>Full SPARC intake with scoring model, pricing views, regulatory signals, and detailed report output.</span>
           </button>
         </div>
       </section>

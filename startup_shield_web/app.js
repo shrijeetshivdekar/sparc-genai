@@ -4467,8 +4467,11 @@ function renderV2Insights(result) {
           <p class="wtr-section-desc">Each bundle is scored on three commercial factors: how large the insurance market is for that bundle type, how many startups at your stage actually buy it, and the margin ICICI Lombard earns on it. The recommended bundle scored highest on all three combined.</p>
           <div class="wtr-bundle-list">
             ${revenue.slice(0, 3).map(r => {
-              const addressable = (r.tam_cr && r.adoption && r.margin)
-                ? Math.round(r.tam_cr * r.adoption * r.margin)
+              const adoptedPool = (r.tam_cr && r.adoption)
+                ? Math.round(r.tam_cr * r.adoption)
+                : null;
+              const marginAdjusted = (adoptedPool != null && r.margin)
+                ? Math.round(adoptedPool * r.margin)
                 : null;
               const traj = trajectoryLabel(r.trajectory);
               return `
@@ -4478,10 +4481,11 @@ function renderV2Insights(result) {
                   ${traj ? `<span class="wtr-traj ${r.trajectory || ""}">${r.trajectory === "up" ? "↑" : r.trajectory === "down" ? "↓" : "→"} ${esc(traj)}</span>` : ""}
                 </div>
                 <div class="wtr-bundle-stats">
-                  ${r.tam_cr != null ? `<div class="wtr-stat"><div class="wtr-stat-val">INR ${r.tam_cr.toLocaleString("en-IN")} Cr</div><div class="wtr-stat-lbl">Market size</div><div class="wtr-stat-tip">Total premium pool in India for this type of bundle</div></div>` : ""}
-                  ${r.adoption != null ? `<div class="wtr-stat"><div class="wtr-stat-val">${Math.round(r.adoption * 100)}%</div><div class="wtr-stat-lbl">Adoption rate</div><div class="wtr-stat-tip">Share of startups at your funding stage that carry this bundle</div></div>` : ""}
-                  ${r.margin != null ? `<div class="wtr-stat"><div class="wtr-stat-val">${Math.round(r.margin * 100)}%</div><div class="wtr-stat-lbl">IL margin</div><div class="wtr-stat-tip">ICICI Lombard's expected net margin on this bundle type</div></div>` : ""}
-                  ${addressable != null ? `<div class="wtr-stat wtr-stat-hi"><div class="wtr-stat-val">INR ${addressable} Cr</div><div class="wtr-stat-lbl">Addressable</div><div class="wtr-stat-tip">Market size × adoption × margin — the revenue pocket IL can realistically capture</div></div>` : ""}
+                  ${r.tam_cr != null ? `<div class="wtr-stat"><div class="wtr-stat-val">INR ${r.tam_cr.toLocaleString("en-IN")} Cr</div><div class="wtr-stat-lbl">Estimated premium pool</div><div class="wtr-stat-tip">Total annual Indian premium opportunity for this bundle category.</div></div>` : ""}
+                  ${r.adoption != null ? `<div class="wtr-stat"><div class="wtr-stat-val">${Math.round(r.adoption * 100)}%</div><div class="wtr-stat-lbl">Estimated adoption</div><div class="wtr-stat-tip">Share of comparable startups likely to carry this bundle at this stage.</div></div>` : ""}
+                  ${adoptedPool != null ? `<div class="wtr-stat"><div class="wtr-stat-val">INR ${adoptedPool.toLocaleString("en-IN")} Cr</div><div class="wtr-stat-lbl">Adopted premium pool</div><div class="wtr-stat-tip">Estimated premium pool × estimated adoption rate.</div></div>` : ""}
+                  ${r.margin != null ? `<div class="wtr-stat"><div class="wtr-stat-val">${Math.round(r.margin * 100)}%</div><div class="wtr-stat-lbl">Expected contribution margin</div><div class="wtr-stat-tip">Illustrative net margin after claims, expenses, and distribution assumptions.</div></div>` : ""}
+                  ${marginAdjusted != null ? `<div class="wtr-stat wtr-stat-hi"><div class="wtr-stat-val">INR ${marginAdjusted.toLocaleString("en-IN")} Cr</div><div class="wtr-stat-lbl">Margin-adjusted opportunity</div><div class="wtr-stat-tip">Adopted premium pool × expected contribution margin. Treat as an illustrative model assumption unless backed by internal data.</div></div>` : ""}
                 </div>
               </div>`;
             }).join("")}

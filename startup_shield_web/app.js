@@ -1296,10 +1296,10 @@ function renderCustomerResults(result) {
       <section class="customer-rm-banner">
         <div>
           <div class="customer-rm-label">Next best action</div>
-          <h2>Talk with your RM</h2>
+          <h2>Send to customer</h2>
           <p>${esc(customerNudge(result))}</p>
         </div>
-        <button class="btn btn-primary btn-lg" type="button">Talk with RM</button>
+        <button class="btn btn-primary btn-lg" type="button" id="email-draft-btn">Draft outreach email</button>
       </section>
 
       <div class="customer-result-actions">
@@ -1310,6 +1310,90 @@ function renderCustomerResults(result) {
 
   state.profile = structuredClone(p);
   window.__customerResult = result;
+
+  const emailBtn = $("email-draft-btn");
+  if (emailBtn) emailBtn.onclick = () => showEmailDraftModal(result);
+}
+
+function buildEmailDraft(result) {
+  const p = result.profile || {};
+  const company   = p.startup_name || "your company";
+  const sector    = p.sector || "your sector";
+  const stage     = p.funding_stage || "this stage";
+  const team      = p.team_size ? `${p.team_size}-person team` : "your team";
+  const bundle    = result.bundle_match?.name || "the recommended bundle";
+  const risks     = (result.top_risks || []).slice(0, 2).map(r => r.name.replace(" Risk", "")).join(" and ") || "your top risk areas";
+  const bullets   = (result.pitch_bullets || []).filter(Boolean);
+
+  const subject = `Insurance cover recommendation for ${company} — ${bundle}`;
+
+  const bulletLines = bullets.length
+    ? bullets.map(b => `  • ${b}`).join("\n")
+    : `  • ${bundle} directly maps to your highest-risk exposure areas: ${risks}.`;
+
+  const body =
+`Hi [Founder name],
+
+Following our conversation about ${company}, I ran a quick profile through our startup risk tool.
+
+Based on your stage (${stage}), sector (${sector}), and ${team}, the strongest fit is ${bundle}.
+
+Here is why this matters for ${company}:
+
+${bulletLines}
+
+Your top risk areas — ${risks} — are directly addressed by this bundle's mandatory covers.
+
+I would be happy to walk you through the specifics and get an indicative quote across in 24 hours. When works for a quick call this week?
+
+Warm regards,
+[Your name]
+ICICI Lombard`;
+
+  return { subject, body };
+}
+
+function showEmailDraftModal(result) {
+  const { subject, body } = buildEmailDraft(result);
+
+  const overlay = document.createElement("div");
+  overlay.className = "email-modal-overlay";
+  overlay.innerHTML = `
+    <div class="email-modal">
+      <div class="email-modal-head">
+        <span class="email-modal-kicker">Outreach email draft</span>
+        <button class="email-modal-close" id="email-modal-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="email-modal-field">
+        <label class="email-modal-label">Subject</label>
+        <div class="email-subject-line">${esc(subject)}</div>
+      </div>
+      <div class="email-modal-field">
+        <label class="email-modal-label">Body</label>
+        <textarea class="email-body-area" id="email-body-area" spellcheck="true">${esc(body)}</textarea>
+      </div>
+      <div class="email-modal-actions">
+        <button class="btn btn-primary" id="email-copy-btn">Copy email</button>
+        <button class="btn btn-ghost" id="email-modal-dismiss">Close</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+
+  const close = () => document.body.removeChild(overlay);
+  document.getElementById("email-modal-close").onclick  = close;
+  document.getElementById("email-modal-dismiss").onclick = close;
+  overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
+
+  document.getElementById("email-copy-btn").onclick = () => {
+    const ta = document.getElementById("email-body-area");
+    const fullText = `Subject: ${subject}\n\n${ta.value}`;
+    navigator.clipboard.writeText(fullText).then(() => {
+      const btn = document.getElementById("email-copy-btn");
+      btn.textContent = "Copied!";
+      setTimeout(() => { btn.textContent = "Copy email"; }, 2000);
+    });
+  };
 }
 
 function renderForm() {

@@ -1760,17 +1760,24 @@ def _get_pitch_library_entry(bundle_match):
       v1 (old): product_type.bundle / product_type.standalone
       v2 (new): bundle / standalone at root, shared_objection_library at root
     """
+    import re as _re
     if not _PITCH_LIBRARY or not bundle_match:
         return None
-    # v2 schema: bundle at root; v1 fallback: product_type.bundle
     bundle_map = (
         _PITCH_LIBRARY.get("bundle")
         or _PITCH_LIBRARY.get("product_type", {}).get("bundle", {})
     )
-    raw = (bundle_match.get("key") or bundle_match.get("name") or "").lower()
-    bundle_slug = raw.replace(" ", "_").replace("-", "_")
+
+    def _slug(s):
+        s = _re.sub(r'\([^)]*\)', '', s or "")           # drop "(CAR)", "(EAR)" etc.
+        s = _re.sub(r'\b(insurance|policy|cover|bundle|package|plan)\b', '', s, flags=_re.I)
+        s = _re.sub(r'[^a-z0-9]+', '_', s.lower())
+        return s.strip('_')
+
+    candidate = _slug(bundle_match.get("key") or bundle_match.get("name") or "")
     for lib_key, entry in bundle_map.items():
-        if lib_key == bundle_slug or lib_key in bundle_slug or bundle_slug in lib_key:
+        norm_key = _slug(lib_key)
+        if norm_key == candidate or norm_key in candidate or candidate in norm_key:
             return entry
     return None
 

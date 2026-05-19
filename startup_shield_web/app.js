@@ -929,9 +929,9 @@ function renderRoleSelection() {
             <span>Fewer fields, plain-English output. Run it in a meeting and walk out with a bundle recommendation and pitch.</span>
           </button>
           <button class="role-card" type="button" id="underwriter-role-btn">
-            <span class="role-card-kicker">Full Underwriting Intake</span>
-            <strong>Complete risk analysis</strong>
-            <span>Full SPARC intake with scoring model, pricing views, regulatory signals, and detailed report output.</span>
+            <span class="role-card-kicker">Full SPARC Assessment</span>
+            <strong>Startup profiling + risk identification</strong>
+            <span>Full intake across all risk dimensions, GenAI-powered scoring, and tailored insurance recommendations with pricing.</span>
           </button>
         </div>
       </section>

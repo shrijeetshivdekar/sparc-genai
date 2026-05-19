@@ -926,7 +926,7 @@ function renderRoleSelection() {
           <button class="role-card role-card-primary" type="button" id="customer-role-btn">
             <span class="role-card-kicker">Customer End Input</span>
             <strong>Quick recommendation</strong>
-            <span>Short profile questions, simple language, and an RM-ready recommendation screen.</span>
+            <span>Short profile questions, simple language, and a clear recommendation you can act on.</span>
           </button>
           <button class="role-card" type="button" id="underwriter-role-btn">
             <span class="role-card-kicker">Underwriter End Input</span>
@@ -2222,7 +2222,7 @@ function renderResults(result) {
 
       <!-- ── TAB: Estimated Quote ── -->
       <div class="tab-panel" id="tab-quote" style="display:none">
-        ${renderMethodologyModal()}
+        ${renderMethodologyModal(result)}
         <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
           <button class="hc-trigger-btn" type="button" onclick="toggleHowCalculated(true)">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
@@ -3097,7 +3097,170 @@ window.toggleHowCalculated = (show) => {
   document.body.style.overflow = next ? "hidden" : "";
 };
 
-function renderMethodologyModal() {
+function fmtMethodMult(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? `${n.toFixed(3)}x` : "n/a";
+}
+
+function fmtMethodRate(cover) {
+  const rol = Number(cover?.loadings?.enterprise_rol);
+  if (Number.isFinite(rol) && rol > 0) return `Enterprise ROL ${(rol * 100).toFixed(2)}%`;
+  const rate = Number(cover?.base_rate_lakh_per_cr);
+  return Number.isFinite(rate) ? `${rate.toFixed(3)}L/unit` : "n/a";
+}
+
+function renderQuoteMathSummaryRows(quote, label) {
+  if (!quote || quote.quote_type === "input_required") return "";
+  return `
+    <tr>
+      <td>${esc(label)}</td>
+      <td>${esc(quote.cover_count ?? quote.covers_priced?.length ?? "n/a")}</td>
+      <td>INR ${esc(quote.total_sum_insured_cr ?? "n/a")}Cr</td>
+      <td>INR ${esc(quote.subtotal_premium_lakh ?? "n/a")}L</td>
+      <td>${Math.round(Number(quote.bundle_discount_rate || 0) * 100)}% / INR ${esc(quote.bundle_discount_lakh ?? 0)}L</td>
+      <td>INR ${esc(quote.net_premium_lakh ?? "n/a")}L</td>
+      <td>INR ${esc(quote.gst_lakh ?? "n/a")}L</td>
+      <td>INR ${esc(quote.gross_premium_lakh ?? "n/a")}L</td>
+      <td>${esc(quote.quote_confidence_label || quote.quote_confidence?.band || quote.precision_mode || "n/a")}</td>
+    </tr>`;
+}
+
+function renderQuoteLoadingRows(quote, quoteLabel) {
+  if (!quote?.covers_priced?.length) return "";
+  return quote.covers_priced.map(cover => {
+    const l = cover.loadings || {};
+    return `
+      <tr>
+        <td>${esc(quoteLabel)}</td>
+        <td>${esc(cover.cover_name || labelize(cover.cover_key))}</td>
+        <td>${esc(cover.exposure_label || "")}</td>
+        <td>${esc(fmtMethodRate(cover))}</td>
+        <td>${fmtMethodMult(l.risk)}</td>
+        <td>${fmtMethodMult(l.stage)}</td>
+        <td>${fmtMethodMult(l.sector)}</td>
+        <td>${fmtMethodMult(l.climate)}</td>
+        <td>${fmtMethodMult(l.controls)}</td>
+        <td>${fmtMethodMult(l.claims)}</td>
+        <td>${fmtMethodMult(l.revenue)}</td>
+        <td>${fmtMethodMult(l.records)}</td>
+        <td>${cover.loading_cap_applied ? "Yes" : "No"}</td>
+        <td>${esc(cover.quote_confidence?.band || cover.quote_confidence_band || cover.precision_mode || "n/a")}</td>
+      </tr>`;
+  }).join("");
+}
+
+function renderPricingMethodologyAppendix(result = {}) {
+  const bundleQ = result.bundle_only_pricing_quote || {};
+  const fullQ = result.pricing_engine_quote || {};
+  const profile = result.profile || {};
+  const loadingRows = [
+    renderQuoteLoadingRows(bundleQ, "Bundle quote"),
+    renderQuoteLoadingRows(fullQ, "Full recommended cover"),
+  ].join("");
+  const summaryRows = [
+    renderQuoteMathSummaryRows(bundleQ, "Bundle quote"),
+    renderQuoteMathSummaryRows(fullQ, "Full recommended cover"),
+  ].join("");
+  const stage = profile.funding_stage || "not supplied";
+  const sector = profile.sector || "not supplied";
+  const climate = profile.facility_climate_risk_zone || "Low / default";
+  const records = profile.data_records_lakhs ?? profile.records_count ?? "not supplied";
+  const revenue = profile.annual_revenue_cr ?? profile.revenue_cr ?? "not supplied";
+  const claims = profile.claims_last_3_years ?? "unknown / not confirmed";
+
+  return `
+    <div class="hc-step">
+      <div class="hc-step-head"><div class="hc-step-num">6</div><div class="hc-step-title">Actual quote views priced by SPARC</div></div>
+      <div class="hc-step-body">
+        <p>SPARC creates two quote views. <strong>Bundle quote</strong> prices only the covers inside the recommended bundle. <strong>Full recommended cover</strong> prices the bundle covers plus additional critical or recommended standalone products.</p>
+        <table class="hc-mini-table hc-wide-table">
+          <thead><tr><th>Quote view</th><th>Covers</th><th>Total SI</th><th>Subtotal</th><th>Bundle discount</th><th>Net</th><th>GST</th><th>Gross</th><th>Precision</th></tr></thead>
+          <tbody>${summaryRows || `<tr><td colspan="9">Quote has not been generated yet.</td></tr>`}</tbody>
+        </table>
+        <p class="hc-note">Formula: Gross premium = (sum of cover premiums - bundle discount) x 1.18. GST is applied after the discount, not before it.</p>
+      </div>
+    </div>
+
+    <div class="hc-step">
+      <div class="hc-step-head"><div class="hc-step-num">7</div><div class="hc-step-title">Input-derived weightages used in this quote</div></div>
+      <div class="hc-step-body">
+        <p>The table below shows the actual multipliers returned by the pricing engine for the current SPARC input. These are the weightages applied after the selected exposure, base rate, and pricing basis are chosen.</p>
+        <table class="hc-mini-table hc-wide-table">
+          <thead>
+            <tr>
+              <th>View</th><th>Cover</th><th>Exposure</th><th>Base / ROL</th><th>Risk</th><th>Stage</th><th>Sector</th><th>Climate</th><th>Controls</th><th>Claims</th><th>Revenue</th><th>Records</th><th>Cap?</th><th>Confidence</th>
+            </tr>
+          </thead>
+          <tbody>${loadingRows || `<tr><td colspan="14">No cover-level weightages available yet.</td></tr>`}</tbody>
+        </table>
+        <p class="hc-note">For liability covers at enterprise limits, SPARC may replace base-rate multiplication with enterprise Rate on Line (ROL). In those rows, the displayed ROL is the governing pricing rate.</p>
+      </div>
+    </div>
+
+    <div class="hc-step">
+      <div class="hc-step-head"><div class="hc-step-num">8</div><div class="hc-step-title">How entered inputs change the weightages</div></div>
+      <div class="hc-step-body">
+        <table class="hc-mini-table">
+          <thead><tr><th>Input entered in SPARC</th><th>Current value</th><th>Pricing effect</th><th>Weightage rule</th></tr></thead>
+          <tbody>
+            <tr><td>Funding stage</td><td>${esc(stage)}</td><td>Later-stage companies carry higher stakeholder, investor, and contract exposure.</td><td>Pre-seed 0.90x, Seed 1.00x, Series A 1.12x, Series B+ 1.28x.</td></tr>
+            <tr><td>Average risk score per cover</td><td>Cover-specific</td><td>Higher score increases the risk loading, but it is capped.</td><td>Risk loading = 0.75 + 0.75 x risk_score/100, capped at 1.50x.</td></tr>
+            <tr><td>Sector</td><td>${esc(sector)}</td><td>Sector modifies only relevant covers, e.g. fintech cyber/PI, logistics motor, healthtech healthcare PI.</td><td>Sector loading comes from cover-specific adjustment maps; default is 1.00x.</td></tr>
+            <tr><td>Climate zone</td><td>${esc(climate)}</td><td>Applies to property, BI, parametric, and marine-style physical exposure.</td><td>Low 1.00x, Medium 1.08x, High 1.18x, Extreme / Very High 1.32x.</td></tr>
+            <tr><td>Controls</td><td>CERT-In POC, POSH IC, data localisation where supplied</td><td>Good controls reduce specific cover loading.</td><td>Cyber CERT-In POC 0.92x; full onshore data localisation 0.96x; POSH controls for benefit/people covers 0.97x.</td></tr>
+            <tr><td>Claims history</td><td>${esc(String(claims))}</td><td>Confirmed prior claims increase premium; unknown claims reduce confidence and trigger checks.</td><td>Claims loading = 1.00 + 0.15 per claim, capped at 1.75x.</td></tr>
+            <tr><td>Revenue</td><td>${esc(String(revenue))}</td><td>Applies to cyber, PI, financial services PI, healthcare PI, payment protection, product recall.</td><td>&lt;5Cr 0.92x; 5-20Cr 1.00x; 20-50Cr 1.08x; 50-100Cr 1.15x; 100Cr+ 1.20x.</td></tr>
+            <tr><td>Data records</td><td>${esc(String(records))}</td><td>Applies to cyber; large record counts also trigger DPDP/SDF validation.</td><td>&lt;1 lakh 0.95x; 1-10 lakh 1.00x; 10-50 lakh 1.10x; 50-100 lakh 1.20x; 100 lakh+ 1.30x.</td></tr>
+            <tr><td>Employee count</td><td>${esc(String(profile.team_size || "not supplied"))}</td><td>Drives group health, PA, EPL, and people-risk exposure.</td><td>Group health uses per-head burning cost: 500+ lives 0.12-0.18L; 100-499 lives 0.13-0.20L; below 100 lives 0.15-0.24L, risk-adjusted.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="hc-step">
+      <div class="hc-step-head"><div class="hc-step-num">9</div><div class="hc-step-title">Step-by-step premium calculation</div></div>
+      <div class="hc-step-body">
+        <ol class="hc-list">
+          <li><strong>Select covers to price:</strong> bundle quote uses only bundle mandatory covers; full recommended cover uses bundle covers plus critical/recommended standalone products.</li>
+          <li><strong>Infer or read underwriting inputs:</strong> limits, property SI, employee count, fleet count, cargo turnover, receivables, and other exposures are prepared before pricing.</li>
+          <li><strong>Price each cover individually:</strong> most covers use Exposure x Base rate x Combined loading.</li>
+          <li><strong>Apply loadings:</strong> risk, stage, sector, climate, controls, claims, revenue, and records are multiplied together.</li>
+          <li><strong>Cap excessive loading:</strong> risk loading is capped at 1.50x; combined loading is capped at 4.00x, with liability-like covers capped more tightly at 2.00x.</li>
+          <li><strong>Use enterprise ROL for large liability limits:</strong> for large liability SI, premium may be Limit x Rate on Line instead of startup base-rate math.</li>
+          <li><strong>Apply minimum premium:</strong> each cover has a minimum viable premium floor.</li>
+          <li><strong>Sum all cover premiums:</strong> subtotal = sum of all priced covers.</li>
+          <li><strong>Apply bundle discount:</strong> 5% for 3-4 covers and 10% for 5+ covers when a named bundle is priced.</li>
+          <li><strong>Add GST:</strong> GST = net premium x 18%; gross = net + GST.</li>
+          <li><strong>Set precision mode:</strong> technically priced, directional only, or underwriter validation required depending on missing data, large limits, specialty exposures, and benchmark comparability.</li>
+        </ol>
+        <p class="hc-note">Complete formula: cover premium = max(minimum premium, exposure x base rate x capped loading). For enterprise liability: cover premium = limit x ROL. Portfolio gross = (sum of covers - discount) x 1.18.</p>
+      </div>
+    </div>
+
+    <div class="hc-step">
+      <div class="hc-step-head"><div class="hc-step-num">10</div><div class="hc-step-title">References behind the pricing structure</div></div>
+      <div class="hc-step-body">
+        <table class="hc-mini-table">
+          <thead><tr><th>Reference type</th><th>What it supports</th><th>Source</th></tr></thead>
+          <tbody>
+            <tr><td>Code reference</td><td>Premium math is deterministic and outside GenAI.</td><td><code>pricing_engine.py</code> module header and <code>_price_cover</code>.</td></tr>
+            <tr><td>Code reference</td><td>GST, caps, enterprise thresholds, ROL bands, PricingRule metadata.</td><td><code>pricing_engine.py</code>: constants, <code>ENTERPRISE_LIABILITY_ROL_BANDS</code>, <code>PricingRule</code>.</td></tr>
+            <tr><td>Code reference</td><td>Bundle-only vs full recommended cover quote split.</td><td><code>startup_shield_web/server.py</code>: two calls to <code>price_output_stage</code>.</td></tr>
+            <tr><td>GST</td><td>Commercial/group insurance premiums use 18% GST in the app.</td><td><a href="https://www.financialservices.gov.in/beta/index.php/en/exemption-on-gst" target="_blank" rel="noopener">Department of Financial Services GST note</a>.</td></tr>
+            <tr><td>Property segmentation</td><td>Bharat Sookshma up to INR 5Cr and Bharat Laghu from INR 5Cr to INR 50Cr support property thresholds.</td><td><a href="https://taxguru.in/corporate-law/standard-products-fire-allied-perils-insurance-business.html" target="_blank" rel="noopener">Standard fire/allied perils products summary</a>.</td></tr>
+            <tr><td>Tariff status</td><td>IRDAI tariff de-notification supports market-driven indicative pricing, not fixed tariff lookup.</td><td><a href="https://irdai.gov.in/notifications" target="_blank" rel="noopener">IRDAI notifications</a>.</td></tr>
+            <tr><td>D&amp;O underwriting basis</td><td>D&amp;O pricing/referral uses ownership, governance, securities exposure, transactions, prior notices, and claims-made context.</td><td><a href="https://www.hdfcergo.com/documents/Downloads/proposalform/directors-and-officers-liability-insurance-proposal-form.pdf" target="_blank" rel="noopener">HDFC ERGO D&amp;O proposal form</a>.</td></tr>
+            <tr><td>Marine basis</td><td>Marine open policy pricing is turnover / limit-per-sending led, not generic SI-led.</td><td><a href="https://www.newindia.co.in/marine/open-policy-for-cargo" target="_blank" rel="noopener">New India Assurance Open Policy for Cargo</a>.</td></tr>
+            <tr><td>Trade credit basis</td><td>Trade credit depends on turnover, payment terms, buyers, countries, and loss history.</td><td><a href="https://www.allianz-trade.com/en_US/what-is-trade-credit-insurance/credit-insurance-cost.html" target="_blank" rel="noopener">Allianz Trade credit insurance cost guide</a>.</td></tr>
+            <tr><td>Group health basis</td><td>Group health requires census-style employee/dependent data; headcount-only output should remain directional.</td><td><a href="https://www.rahejaqbe.com/uploads/images/group-health/pdf/download/Proposal-Form-Group-Health-Insurance-V01.pdf" target="_blank" rel="noopener">Example group health proposal form</a>.</td></tr>
+          </tbody>
+        </table>
+        <p class="hc-note">Heuristic disclosure: exact base rates, enterprise ROL bands, risk/stage/sector multipliers, bundle discounts, confidence thresholds, and 85%-120% display ranges are commercial assumptions for an indicative engine. They should be calibrated against real quote logs, sold-policy premiums, underwriter appetite matrices, and loss-ratio reviews before being described as market-calibrated.</p>
+      </div>
+    </div>`;
+}
+
+function renderMethodologyModal(result = {}) {
   return `
   <div id="how-calc-modal" class="hc-overlay" style="display:none" onclick="if(event.target===this)toggleHowCalculated(false)">
     <div class="hc-drawer" onclick="event.stopPropagation()">
@@ -3163,6 +3326,7 @@ function renderMethodologyModal() {
             <p>SPARC is a deterministic, non-bindable pre-underwriting estimate tool. It can support planning and broker conversations, but it should not be read as a bindable quote, insurer-approved premium, compulsory cover determination, or final underwriting decision.</p>
           </div>
         </div>
+        ${renderPricingMethodologyAppendix(result)}
       </div>
     </div>
   </div>`;

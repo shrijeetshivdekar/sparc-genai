@@ -5975,10 +5975,12 @@ pre {
 }
 .pipeline-count { font-size: 13px; color: var(--ink-muted); }
 
+.tap-row-preseed    { border-left: 3px solid #a855f7; }
 .tap-row-untapped   { border-left: 3px solid #ef4444; }
 .tap-row-strike_now { border-left: 3px solid #f97316; }
 .tap-row-covered    { border-left: 3px solid #22c55e; }
 
+.badge-preseed  { background: #faf5ff; color: #7e22ce; }
 .badge-untapped { background: #fef2f2; color: #b91c1c; }
 .badge-strike   { background: #fff7ed; color: #c2410c; }
 

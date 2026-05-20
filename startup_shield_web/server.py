@@ -2784,7 +2784,9 @@ def get_pipeline(sector_filter: str = "", stage_filter: str = "", limit: int = 2
                     raw_src = prof.get("profile_source", "")
                     src = "verified" if raw_src == "verified" else "seeded"
                     stage = prof.get("funding_stage", "")
-                    if stage in ("Pre-seed", "Seed"):
+                    if stage == "Pre-seed":
+                        tap = "preseed"
+                    elif stage == "Seed":
                         tap = "untapped"
                     elif stage == "Series A":
                         tap = "strike_now"

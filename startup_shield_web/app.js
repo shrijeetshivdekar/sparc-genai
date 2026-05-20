@@ -1078,15 +1078,22 @@ async function renderPipelineDashboard(sectorFilter = "", stageFilter = "", tapF
   }
 
   // Apply filters client-side from cache
+  const TAP_ORDER = { preseed: 0, untapped: 1, strike_now: 2, covered: 3 };
   let companies = _pipelineData.companies || [];
   if (sectorFilter) companies = companies.filter(c => c.sector.toLowerCase().includes(sectorFilter.toLowerCase()));
   if (stageFilter)  companies = companies.filter(c => c.funding_stage.toLowerCase().includes(stageFilter.toLowerCase()));
   if (tapFilter)    companies = companies.filter(c => c.tap_status === tapFilter);
+  // "All" view: Seed first, then Series A, then Series B+ (opportunities first)
+  if (!tapFilter) companies = [...companies].sort((a, b) =>
+    (TAP_ORDER[a.tap_status] ?? 2) - (TAP_ORDER[b.tap_status] ?? 2) ||
+    (b.max_lakh || 0) - (a.max_lakh || 0)
+  );
 
   const kpis = _pipelineData.kpis || {};
   const totalPoolCr = Math.round(companies.reduce((s, c) => s + (c.max_lakh || 0), 0) / 100);
   const untappedPoolCr = Math.round(companies.filter(c => c.tap_status !== "covered").reduce((s,c) => s + (c.max_lakh||0), 0) / 100);
   const untappedCount = companies.filter(c => c.tap_status !== "covered").length;
+
   const sectors = companies.map(c => c.sector).filter(Boolean);
   const topSector = sectors.length ? [...sectors].sort((a, b) => sectors.filter(x=>x===b).length - sectors.filter(x=>x===a).length)[0] : "";
   const avgScore = companies.length ? (companies.reduce((s,c) => s + (c.overall_score||0), 0) / companies.length).toFixed(1) : "—";
@@ -1125,7 +1132,8 @@ async function renderPipelineDashboard(sectorFilter = "", stageFilter = "", tapF
         </div>
         <div class="pipeline-filter-divider"></div>
         <button class="btn pipeline-tap-btn tap-all ${!tapFilter ? "active" : ""}" data-tap="">All</button>
-        <button class="btn pipeline-tap-btn tap-untapped ${tapFilter === "untapped" ? "active" : ""}" data-tap="untapped">🔴 Uninsured</button>
+        <button class="btn pipeline-tap-btn tap-preseed ${tapFilter === "preseed" ? "active" : ""}" data-tap="preseed">🟣 Pre-seed</button>
+        <button class="btn pipeline-tap-btn tap-untapped ${tapFilter === "untapped" ? "active" : ""}" data-tap="untapped">🔴 Seed</button>
         <button class="btn pipeline-tap-btn tap-strike ${tapFilter === "strike_now" ? "active" : ""}" data-tap="strike_now">⚡ Strike Now</button>
         <div class="pipeline-filters-right">
           <select id="pipeline-sector-filter" class="pipeline-select">
@@ -1206,7 +1214,7 @@ function renderSectorHeat(allCompanies) {
     map[s].total++;
     map[s].total_lakh += c.max_lakh || 0;
     map[s].risk_sum += c.overall_score || 0;
-    if (c.tap_status === "untapped" || c.tap_status === "strike_now") {
+    if (c.tap_status === "preseed" || c.tap_status === "untapped" || c.tap_status === "strike_now") {
       map[s].untapped++;
       map[s].untapped_lakh += c.max_lakh || 0;
     }
@@ -1265,7 +1273,8 @@ function renderSectorHeat(allCompanies) {
 }
 
 function tapBadge(tap) {
-  if (tap === "untapped")   return `<span class="badge badge-untapped">🔴 Uninsured</span>`;
+  if (tap === "preseed")    return `<span class="badge badge-preseed">🟣 Pre-seed</span>`;
+  if (tap === "untapped")   return `<span class="badge badge-untapped">🔴 Seed</span>`;
   if (tap === "strike_now") return `<span class="badge badge-strike">⚡ Strike Now</span>`;
   return `<span class="badge badge-covered">✓ Covered</span>`;
 }

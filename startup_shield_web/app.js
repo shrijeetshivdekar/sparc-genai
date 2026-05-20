@@ -912,11 +912,97 @@ function resetCustomerProfile() {
   };
 }
 
+function renderAutoProfilingLoader(companyName) {
+  $("main-content").innerHTML = `
+    <main class="profiling-loader-shell">
+      <div class="profiling-loader-inner">
+        <div class="intake-eyebrow">SPARC Intelligence</div>
+        <h1 class="profiling-loader-title">Profiling ${esc(companyName)}<span class="profiling-dots"></span></h1>
+        <div class="profiling-steps">
+          <div class="profiling-step" id="pstep-0">Searching public sources</div>
+          <div class="profiling-step" id="pstep-1">Running SPARC risk model</div>
+          <div class="profiling-step" id="pstep-2">Generating recommendation</div>
+        </div>
+        <p class="profiling-disclaimer">Powered by Gemini + Google Search grounding</p>
+      </div>
+    </main>`;
+
+  let step = 0;
+  const stepEl = (i) => $(`pstep-${i}`);
+  stepEl(0).classList.add("active");
+  const stepTimer = setInterval(() => {
+    step = Math.min(step + 1, 2);
+    [0, 1, 2].forEach(i => {
+      stepEl(i).classList.toggle("active", i === step);
+      stepEl(i).classList.toggle("done", i < step);
+    });
+  }, 4000);
+  return () => clearInterval(stepTimer);
+}
+
+async function triggerAutoProfiling(companyName) {
+  const cancelLoader = renderAutoProfilingLoader(companyName);
+  try {
+    const res = await fetch("/api/autofill", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ company_name: companyName }),
+    });
+    const result = await res.json();
+    cancelLoader();
+    if (!res.ok || result.error) throw new Error(result.error || "Auto-profile failed");
+    renderResults(result);
+  } catch (err) {
+    cancelLoader();
+    $("main-content").innerHTML = `
+      <main class="role-shell">
+        <section class="role-panel">
+          <div class="role-autofill-error">
+            <div class="intake-eyebrow">Auto-profile failed</div>
+            <h2>${esc(companyName)}</h2>
+            <p>${esc(err.message)}</p>
+            <button class="btn btn-primary" type="button" id="autofill-error-back">Back to home</button>
+          </div>
+        </section>
+      </main>`;
+    $("autofill-error-back").onclick = () => renderRoleSelection();
+  }
+}
+
 function renderRoleSelection() {
   state.view = "role";
   $("main-content").innerHTML = `
     <main class="role-shell">
       <section class="role-panel">
+
+        <div class="role-autofill-hero">
+          <div class="intake-eyebrow">Pre-meeting intelligence</div>
+          <h2 class="role-autofill-title">Profile any Indian startup in seconds</h2>
+          <p class="role-autofill-sub">Type a company name. We pull live public data and run the full SPARC risk model — no form required.</p>
+          <div class="role-autofill-row">
+            <input id="autofill-company-input" class="autofill-input" type="text"
+              placeholder="e.g. Zepto, Razorpay, Meesho" autocomplete="off" spellcheck="false" />
+            <button id="autofill-company-btn" class="btn btn-primary autofill-btn" type="button">
+              Profile this company →
+            </button>
+          </div>
+        </div>
+
+        <div class="role-divider"><span>Or explore the pipeline</span></div>
+
+        <div class="pipeline-entry-row">
+          <button class="btn pipeline-entry-btn" type="button" id="pipeline-entry-btn">
+            <span class="pipeline-entry-icon">⚡</span>
+            <span>
+              <strong>Pipeline Intelligence</strong>
+              <span class="pipeline-entry-sub">All 144 real Indian startups ranked by premium opportunity</span>
+            </span>
+            <span class="pipeline-entry-arrow">→</span>
+          </button>
+        </div>
+
+        <div class="role-divider"><span>Or run manually</span></div>
+
         <div class="role-copy">
           <div class="intake-eyebrow">Choose experience</div>
           <h1>How are you running this session?</h1>
@@ -934,8 +1020,23 @@ function renderRoleSelection() {
             <span>Full intake across all risk dimensions, GenAI-powered scoring, and tailored insurance recommendations with pricing.</span>
           </button>
         </div>
+
       </section>
     </main>`;
+
+  const input = $("autofill-company-input");
+  const btn = $("autofill-company-btn");
+
+  const go = () => {
+    const name = input.value.trim();
+    if (!name) { input.focus(); return; }
+    triggerAutoProfiling(name);
+  };
+
+  btn.onclick = go;
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+
+  $("pipeline-entry-btn").onclick = () => renderPipelineDashboard();
 
   $("customer-role-btn").onclick = () => {
     if (!state.customerProfile?.industry) resetCustomerProfile();
@@ -943,6 +1044,244 @@ function renderRoleSelection() {
   };
   $("underwriter-role-btn").onclick = () => renderForm();
 }
+
+// ─── Pipeline Intelligence dashboard ─────────────────────────────────────────
+
+let _pipelineData = null; // cache so we don't re-fetch on filter change
+let _pipelineView = "table"; // "table" | "heat"
+
+async function renderPipelineDashboard(sectorFilter = "", stageFilter = "", tapFilter = "untapped") {
+  state.view = "pipeline";
+  const mc = $("main-content");
+
+  // Loading skeleton
+  mc.innerHTML = `
+    <main class="pipeline-shell">
+      <div class="pipeline-header">
+        <button class="btn btn-ghost pipeline-back-btn" type="button" id="pipeline-back">← Back</button>
+        <h1 class="pipeline-title">Pipeline Intelligence</h1>
+        <span class="pipeline-subtitle">Real Indian startups · ranked by estimated premium</span>
+      </div>
+      <div class="pipeline-loading">Loading pipeline data…</div>
+    </main>`;
+  $("pipeline-back").onclick = () => renderRoleSelection();
+
+  // Fetch (use cache after first load)
+  if (!_pipelineData) {
+    try {
+      const res = await fetch("/api/pipeline?limit=200");
+      _pipelineData = await res.json();
+    } catch (e) {
+      mc.querySelector(".pipeline-loading").textContent = "Failed to load pipeline. Is the server running?";
+      return;
+    }
+  }
+
+  // Apply filters client-side from cache
+  let companies = _pipelineData.companies || [];
+  if (sectorFilter) companies = companies.filter(c => c.sector.toLowerCase().includes(sectorFilter.toLowerCase()));
+  if (stageFilter)  companies = companies.filter(c => c.funding_stage.toLowerCase().includes(stageFilter.toLowerCase()));
+  if (tapFilter)    companies = companies.filter(c => c.tap_status === tapFilter);
+
+  const kpis = _pipelineData.kpis || {};
+  const totalPoolCr = Math.round(companies.reduce((s, c) => s + (c.max_lakh || 0), 0) / 100);
+  const untappedPoolCr = Math.round(companies.filter(c => c.tap_status !== "covered").reduce((s,c) => s + (c.max_lakh||0), 0) / 100);
+  const untappedCount = companies.filter(c => c.tap_status !== "covered").length;
+  const sectors = companies.map(c => c.sector).filter(Boolean);
+  const topSector = sectors.length ? [...sectors].sort((a, b) => sectors.filter(x=>x===b).length - sectors.filter(x=>x===a).length)[0] : "";
+  const avgScore = companies.length ? (companies.reduce((s,c) => s + (c.overall_score||0), 0) / companies.length).toFixed(1) : "—";
+
+  // Sector options
+  const allSectors = [...new Set((_pipelineData.companies||[]).map(c => c.sector).filter(Boolean))].sort();
+  const allStages = [...new Set((_pipelineData.companies||[]).map(c => c.funding_stage).filter(Boolean))].sort();
+
+  mc.innerHTML = `
+    <main class="pipeline-shell">
+      <div class="pipeline-header">
+        <button class="btn btn-ghost pipeline-back-btn" type="button" id="pipeline-back">← Back</button>
+        <div>
+          <h1 class="pipeline-title">Pipeline Intelligence</h1>
+          <span class="pipeline-subtitle">Real Indian startups · ranked by estimated premium</span>
+        </div>
+      </div>
+
+      <div class="pipeline-kpis">
+        <div class="pipeline-kpi pipeline-kpi-accent">
+          <span class="kpi-val">₹${kpis.untapped_pool_cr || untappedPoolCr} Cr</span>
+          <span class="kpi-label">🔴 Untapped Premium</span>
+        </div>
+        <div class="pipeline-kpi">
+          <span class="kpi-val">${kpis.untapped_count || untappedCount}</span>
+          <span class="kpi-label">Seed + Series A companies</span>
+        </div>
+        <div class="pipeline-kpi"><span class="kpi-val">₹${totalPoolCr} Cr</span><span class="kpi-label">Total Premium Pool</span></div>
+        <div class="pipeline-kpi"><span class="kpi-val">${topSector || "—"}</span><span class="kpi-label">Top Sector</span></div>
+      </div>
+
+      <div class="pipeline-filters pipeline-filters-sticky">
+        <div class="pipeline-view-toggle">
+          <button class="pvt-btn ${_pipelineView === "table" ? "pvt-active" : ""}" id="pvt-table">☰ Table</button>
+          <button class="pvt-btn ${_pipelineView === "heat" ? "pvt-active" : ""}" id="pvt-heat">🔥 Heat</button>
+        </div>
+        <div class="pipeline-filter-divider"></div>
+        <button class="btn pipeline-tap-btn tap-all ${!tapFilter ? "active" : ""}" data-tap="">All</button>
+        <button class="btn pipeline-tap-btn tap-untapped ${tapFilter === "untapped" ? "active" : ""}" data-tap="untapped">🔴 Uninsured</button>
+        <button class="btn pipeline-tap-btn tap-strike ${tapFilter === "strike_now" ? "active" : ""}" data-tap="strike_now">⚡ Strike Now</button>
+        <div class="pipeline-filters-right">
+          <select id="pipeline-sector-filter" class="pipeline-select">
+            <option value="">All sectors</option>
+            ${allSectors.map(s => `<option value="${s}" ${s === sectorFilter ? "selected" : ""}>${s}</option>`).join("")}
+          </select>
+          <select id="pipeline-stage-filter" class="pipeline-select">
+            <option value="">All stages</option>
+            ${allStages.map(s => `<option value="${s}" ${s === stageFilter ? "selected" : ""}>${s}</option>`).join("")}
+          </select>
+          <span class="pipeline-count">${companies.length} co.</span>
+        </div>
+      </div>
+
+      ${_pipelineView === "heat" ? renderSectorHeat(_pipelineData.companies || []) : `
+      <div class="pipeline-table-wrap">
+        <table class="pipeline-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Company</th>
+              <th>Sector</th>
+              <th>Stage</th>
+              <th>Market Status</th>
+              <th>Recommended Bundle</th>
+              <th>Est. Premium</th>
+              <th>Risk Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${companies.map((c, i) => `
+              <tr class="pipeline-row tap-row-${c.tap_status || "covered"}" data-name="${escHtml(c.startup_name)}">
+                <td class="pipeline-rank">${i + 1}</td>
+                <td class="pipeline-company"><strong>${escHtml(c.startup_name)}</strong></td>
+                <td class="pipeline-sector">${escHtml(c.sector)}</td>
+                <td>${escHtml(c.funding_stage)}</td>
+                <td>${tapBadge(c.tap_status)}</td>
+                <td class="pipeline-bundle">${escHtml(c.bundle_name || "—")}</td>
+                <td class="pipeline-premium">${c.max_lakh ? `₹${c.min_lakh}–${c.max_lakh}L` : "—"}</td>
+                <td><span class="pipeline-score score-${scoreClass(c.overall_score)}">${c.overall_score || "—"}</span></td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>`}
+    </main>`;
+
+  $("pipeline-back").onclick = () => renderRoleSelection();
+  $("pvt-table").onclick = () => { _pipelineView = "table"; renderPipelineDashboard(sectorFilter, stageFilter, tapFilter); };
+  $("pvt-heat").onclick  = () => { _pipelineView = "heat";  renderPipelineDashboard(sectorFilter, stageFilter, tapFilter); };
+
+  if (_pipelineView === "table") {
+    $("pipeline-sector-filter").onchange = e => renderPipelineDashboard(e.target.value, $("pipeline-stage-filter").value, tapFilter);
+    $("pipeline-stage-filter").onchange  = e => renderPipelineDashboard($("pipeline-sector-filter").value, e.target.value, tapFilter);
+    mc.querySelectorAll(".pipeline-tap-btn").forEach(btn => {
+      btn.onclick = () => renderPipelineDashboard(
+        $("pipeline-sector-filter").value,
+        $("pipeline-stage-filter").value,
+        btn.dataset.tap
+      );
+    });
+    mc.querySelectorAll(".pipeline-row").forEach(row => {
+      row.onclick = () => triggerAutoProfiling(row.dataset.name);
+    });
+  } else {
+    // Heat view: clicking a sector row filters the table
+    mc.querySelectorAll(".heat-row[data-sector]").forEach(row => {
+      row.onclick = () => { _pipelineView = "table"; renderPipelineDashboard(row.dataset.sector, "", ""); };
+    });
+  }
+}
+
+function renderSectorHeat(allCompanies) {
+  // Group by sector
+  const map = {};
+  for (const c of allCompanies) {
+    const s = c.sector || "Unknown";
+    if (!map[s]) map[s] = { total: 0, untapped: 0, untapped_lakh: 0, total_lakh: 0, risk_sum: 0 };
+    map[s].total++;
+    map[s].total_lakh += c.max_lakh || 0;
+    map[s].risk_sum += c.overall_score || 0;
+    if (c.tap_status === "untapped" || c.tap_status === "strike_now") {
+      map[s].untapped++;
+      map[s].untapped_lakh += c.max_lakh || 0;
+    }
+  }
+
+  const rows = Object.entries(map)
+    .map(([sector, d]) => ({
+      sector,
+      ...d,
+      untapped_cr: Math.round(d.untapped_lakh / 100 * 10) / 10,
+      total_cr: Math.round(d.total_lakh / 100 * 10) / 10,
+      pct_untapped: Math.round(d.untapped / d.total * 100),
+      avg_risk: Math.round(d.risk_sum / d.total),
+    }))
+    .sort((a, b) => b.untapped_lakh - a.untapped_lakh);
+
+  const maxLakh = Math.max(...rows.map(r => r.untapped_lakh), 1);
+
+  return `
+    <div class="heat-wrap">
+      <div class="heat-legend">
+        <span class="heat-leg-item"><span class="heat-bar-demo heat-bar-untapped"></span> Uninsured (Seed)</span>
+        <span class="heat-leg-item"><span class="heat-bar-demo heat-bar-strike"></span> Strike Now (Series A)</span>
+        <span class="heat-leg-item text-muted">Click any row to filter the table</span>
+      </div>
+      ${rows.map(r => {
+        const barW = Math.round(r.untapped_lakh / maxLakh * 100);
+        const seedLakh = allCompanies.filter(c => c.sector === r.sector && c.tap_status === "untapped").reduce((s,c) => s+(c.max_lakh||0), 0);
+        const strikeLakh = allCompanies.filter(c => c.sector === r.sector && c.tap_status === "strike_now").reduce((s,c) => s+(c.max_lakh||0), 0);
+        const seedW = r.untapped_lakh > 0 ? Math.round(seedLakh / r.untapped_lakh * barW) : 0;
+        const strikeW = barW - seedW;
+        return `
+        <div class="heat-row" data-sector="${escHtml(r.sector)}">
+          <div class="heat-sector">${escHtml(r.sector)}</div>
+          <div class="heat-bar-wrap">
+            <div class="heat-bar-track">
+              <div class="heat-bar-fill heat-bar-untapped" style="width:${seedW}%"></div><div class="heat-bar-fill heat-bar-strike" style="width:${strikeW}%"></div>
+            </div>
+            <span class="heat-bar-label">₹${r.untapped_cr} Cr untapped</span>
+          </div>
+          <div class="heat-stats">
+            <span class="heat-stat-main">${r.untapped} / ${r.total}</span>
+            <span class="heat-stat-sub">uninsured</span>
+          </div>
+          <div class="heat-stats">
+            <span class="heat-stat-main">${r.pct_untapped}%</span>
+            <span class="heat-stat-sub">untapped</span>
+          </div>
+          <div class="heat-stats">
+            <span class="heat-stat-main heat-risk-${r.avg_risk >= 70 ? "high" : r.avg_risk >= 45 ? "med" : "low"}">${r.avg_risk}</span>
+            <span class="heat-stat-sub">avg risk</span>
+          </div>
+        </div>`;
+      }).join("")}
+    </div>`;
+}
+
+function tapBadge(tap) {
+  if (tap === "untapped")   return `<span class="badge badge-untapped">🔴 Uninsured</span>`;
+  if (tap === "strike_now") return `<span class="badge badge-strike">⚡ Strike Now</span>`;
+  return `<span class="badge badge-covered">✓ Covered</span>`;
+}
+
+function scoreClass(s) {
+  if (!s) return "na";
+  if (s >= 75) return "high";
+  if (s >= 45) return "med";
+  return "low";
+}
+
+function escHtml(str) {
+  return String(str || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 function renderCustomerInput() {
   state.view = "customer";

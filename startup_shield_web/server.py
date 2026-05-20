@@ -807,6 +807,171 @@ def call_gemini_json(prompt):
     return parsed, None
 
 
+def call_gemini_grounded(prompt):
+    """Call Gemini with Google Search grounding. Returns (parsed_dict_or_None, error_str_or_None)."""
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        return None, "GEMINI_API_KEY is not configured."
+
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{GEMINI_MODEL}:generateContent?key={api_key}"
+    )
+    payload = {
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "tools": [{"google_search": {}}],
+        "generationConfig": {
+            "temperature": 0.1,
+            "maxOutputTokens": 8192,  # grounded call needs more room than standard calls
+        },
+    }
+    data = json.dumps(payload).encode("utf-8")
+    body = None
+    for attempt in range(2):
+        try:
+            req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
+            with urllib.request.urlopen(req, timeout=GEMINI_TIMEOUT_SECONDS) as response:
+                body = json.loads(response.read().decode("utf-8"))
+            break
+        except urllib.error.HTTPError as exc:
+            try:
+                detail = exc.read().decode("utf-8")[:500]
+            except Exception:
+                detail = str(exc)
+            if exc.code == 503 and attempt == 0:
+                import time as _time
+                _time.sleep(2)
+                continue
+            return None, f"Gemini HTTP {exc.code}: {detail}"
+        except urllib.error.URLError as exc:
+            return None, f"Gemini network error: {exc.reason}"
+        except TimeoutError:
+            return None, "Gemini request timed out."
+        except json.JSONDecodeError:
+            return None, "Gemini returned a non-JSON API envelope."
+    if body is None:
+        return None, "Gemini unavailable after retry."
+
+    candidate = body.get("candidates", [{}])[0]
+    finish_reason = candidate.get("finishReason", "")
+    parts = candidate.get("content", {}).get("parts", [])
+    text = "".join(part.get("text", "") for part in parts)
+    usage = body.get("usageMetadata", {})
+    print(
+        f"[gemini_grounded] tokens — input: {usage.get('promptTokenCount', '?')}, "
+        f"output: {usage.get('candidatesTokenCount', '?')}, "
+        f"total: {usage.get('totalTokenCount', '?')}",
+        flush=True,
+    )
+    if finish_reason == "MAX_TOKENS":
+        return None, f"Gemini response truncated (MAX_TOKENS={GEMINI_MAX_TOKENS})."
+    parsed = extract_json_object(text)
+    if not isinstance(parsed, dict):
+        print(f"[gemini_grounded] Could not parse JSON; finishReason={finish_reason!r}; raw: {text[:500]!r}", flush=True)
+        return None, "Gemini grounded response did not contain a valid JSON object."
+    return parsed, None
+
+
+def _build_autofill_prompt(company_name):
+    return f"""You are an expert startup analyst. Research "{company_name}" using current public information and return a JSON object with the fields below.
+
+CRITICAL: Use ONLY the exact string values listed for each enum field. Do not paraphrase or invent values.
+
+Return this JSON object filled in for {company_name}:
+{{
+  "startup_name": "{company_name}",
+  "sector": <exactly one of: "Fintech", "Healthtech", "SaaS / Enterprise Software", "Deeptech / AI / Robotics", "Edtech", "D2C / Consumer Brands", "Logistics / Mobility", "Agritech / Foodtech", "Cleantech / Climatetech", "Gaming / Media / Content", "HRtech", "Legaltech", "Proptech", "Spacetech", "Insurtech", "Other">,
+  "funding_stage": <exactly one of: "Pre-seed", "Seed", "Series A", "Series B+">,
+  "team_size": <integer — full-time employees from latest public info>,
+  "operations": <exactly one of: "Digital-only", "Hybrid (online+offline)", "Offline / Physical", "Hardware / IoT", "Marketplace">,
+  "data_handled": <array, zero or more from exactly: ["Payments / financial transactions", "Health / medical records", "Personal identity data (KYC / Aadhaar)", "Employee / HR data (payroll, biometrics)", "Minors' / children's data", "Location / GPS tracking data", "Intellectual property / source code", "Customer behavioural / usage data", "Physical inventory / goods", "Sensitive personal data (DPDP Act)", "None of the above"]>,
+  "regulatory": <array, zero or more from exactly: ["RBI / SEBI / IRDAI licensed", "FSSAI / food safety", "CDSCO / medical devices", "DPDP Act obligations", "DGCA / drone operations", "IT Act / CERT-In obligations", "Labour Codes / gig worker regulations", "BIS / QCO product certification", "NMC / telemedicine regulations", "MV Act / transport regulations", "SEBI BRSR / ESG reporting", "Competition Act / CCI", "EPR / environmental compliance", "None / minimal"]>,
+  "physical_assets": <array, zero or more from exactly: ["Office / coworking space", "Warehouse / fulfilment centre", "Manufacturing plant / factory", "Lab / R&D equipment", "Medical devices / diagnostic equipment", "Vehicles / delivery fleet", "Drones / UAV equipment", "Kitchen / food processing", "Cold chain / refrigeration", "Solar / clean energy infrastructure", "Retail stores / kiosks", "Data centre / server room", "None - fully cloud"]>,
+  "ai_in_product": <true or false>,
+  "has_investors": <"Yes" or "No">,
+  "annual_revenue_cr": <number — annual revenue in INR crores, best estimate from public sources, 0 if unknown>,
+  "healthcare_operations": <true or false>,
+  "payment_or_card_program": <true or false>
+}}
+
+Return ONLY the JSON object. No explanation, no markdown fences."""
+
+
+_VERIFIED_JSON_PATH = ROOT / "startup_shield_web" / "verified_companies.json"
+
+
+def _persist_verified_profile(profile: dict) -> None:
+    """Append or update the profile in verified_companies.json and live COMPANY_PROFILES."""
+    try:
+        name = profile.get("startup_name", "").strip()
+        if not name:
+            return
+        # Build a compact verified record from the autofilled profile
+        record = {
+            "startup_name": name,
+            "sector": profile.get("sector", ""),
+            "funding_stage": profile.get("funding_stage", ""),
+            "team_size": profile.get("team_size", 0),
+            "annual_revenue_cr": profile.get("annual_revenue_cr", 0),
+            "operations": profile.get("operations", ""),
+            "data_handled": profile.get("data_handled", []),
+            "regulatory": profile.get("regulatory", []),
+            "physical_assets": profile.get("physical_assets", []),
+            "ai_in_product": bool(profile.get("ai_in_product", False)),
+            "has_investors": profile.get("has_investors", "Unknown"),
+            "healthcare_operations": bool(profile.get("healthcare_operations", False)),
+            "payment_or_card_program": bool(profile.get("payment_or_card_program", False)),
+            "profile_source": "verified",
+        }
+        # Load existing, replace if name exists, else append
+        json_path = ROOT / "verified_companies.json"
+        existing: list = json.loads(json_path.read_text(encoding="utf-8")) if json_path.exists() else []
+        updated = [e for e in existing if e.get("startup_name", "").strip().lower() != name.lower()]
+        updated.append(record)
+        json_path.write_text(json.dumps(updated, indent=None, ensure_ascii=False), encoding="utf-8")
+        # Also update in-memory COMPANY_PROFILES and invalidate pipeline cache
+        from company_profiles import COMPANY_PROFILES as _CP
+        _CP[name] = record
+        global _pipeline_cache
+        _pipeline_cache = None
+        print(f"[autofill] Persisted '{name}' to verified_companies.json ({len(updated)} total)", flush=True)
+    except Exception as exc:
+        print(f"[autofill] Failed to persist profile: {exc}", flush=True)
+
+
+def autofill_and_analyze(company_name):
+    if not gemini_enabled():
+        return {"error": "Gemini API key not configured. Cannot auto-profile."}
+
+    prompt = _build_autofill_prompt(company_name)
+    autofilled, err = call_gemini_grounded(prompt)
+    if err or not isinstance(autofilled, dict):
+        return {"error": err or "Auto-profile failed — could not parse Gemini response."}
+
+    profile_data = {**DEFAULT_PROFILE, **{k: v for k, v in autofilled.items() if v is not None}}
+
+    for int_field in ("team_size", "fleet_count"):
+        if int_field in profile_data:
+            try:
+                profile_data[int_field] = int(profile_data[int_field])
+            except (TypeError, ValueError):
+                pass
+    for float_field in ("annual_revenue_cr", "total_insurable_asset_value_cr", "gross_profit_cr",
+                        "investor_cn_hk_pct", "b2b_pct", "gig_headcount_pct"):
+        if float_field in profile_data:
+            try:
+                profile_data[float_field] = float(profile_data[float_field])
+            except (TypeError, ValueError):
+                pass
+
+    _persist_verified_profile(profile_data)
+
+    result = analyze(profile_data)
+    result["autofilled_fields"] = list(autofilled.keys())
+    result["autofill_warning"] = "Pre-filled from public sources via Gemini + Google Search. Verify before underwriting."
+    return result
+
+
 def _non_empty_profile_value(value):
     if value in (None, "", False):
         return None
@@ -1041,22 +1206,22 @@ def generate_why_it_matters(profile, bundle_match, recommendations):
     ]
 
     template = {
-        "bundle": f"<two detailed simple sentences on why {bundle_name} matters>",
+        "bundle": f"<one punchy stat-backed sentence on why {bundle_name} matters for this startup>",
         "bundle_covers": {
-            key: f"<two detailed simple sentences on why {key} matters inside {bundle_name}>"
+            key: f"<one punchy stat-backed sentence on why {key} matters inside {bundle_name}>"
             for key in fallback["bundle_covers"]
         },
         "companion_bundle": (
-            f"<two detailed simple sentences on why {companion.get('name')} should be reviewed alongside Group Safeguard>"
+            f"<one punchy stat-backed sentence on why {companion.get('name')} should be reviewed alongside Group Safeguard>"
             if companion.get("name")
             else None
         ),
         "companion_covers": {
-            key: f"<two detailed simple sentences on why {key} matters inside {companion.get('name', 'the companion bundle')}>"
+            key: f"<one punchy stat-backed sentence on why {key} matters inside {companion.get('name', 'the companion bundle')}>"
             for key in fallback["companion_covers"]
         },
         "products": {
-            p["key"]: f"<two detailed simple sentences on why {p['name']} matters>"
+            p["key"]: f"<one punchy stat-backed sentence on why {p['name']} matters>"
             for p in products
         },
     }
@@ -1064,14 +1229,12 @@ def generate_why_it_matters(profile, bundle_match, recommendations):
 
     prompt = (
         "You are a concise insurance risk analyst for Indian startups. Fill the JSON template with "
-        "plain-English explanations that make the recommended insurance attractive to a founder or RM.\n\n"
+        "one-sentence explanations that make each insurance cover feel urgent and relevant to a founder or RM.\n\n"
         f"Startup context:\n{profile_context_for_why(profile)}\n\n"
         "Rules:\n"
         "- Keep the exact JSON shape and all keys exactly as provided; do not add or remove keys.\n"
-        "- Each non-null value must be exactly two detailed but simple sentences.\n"
-        "- The first sentence should explain what business risk the bundle or cover protects.\n"
-        "- The second sentence should connect that protection to this startup's profile and why it matters now.\n"
-        "- Personalise using the startup's sector, stage, team size, operations, data, people, asset, and regulatory context where relevant.\n"
+        "- Each non-null value must be exactly ONE sentence: engaging, specific to this startup, and anchored to a real business risk or stat where possible.\n"
+        "- Weave in the startup's sector, stage, team size, data exposure, or regulatory context — make it feel personal, not generic.\n"
         "- Explain business importance only; do not invent policy limits, prices, exclusions, guarantees, or legal advice.\n"
         f"- This is a {sector} startup at {stage} stage.\n\n"
         f"Template to fill:\n{template_str}"
@@ -1801,47 +1964,315 @@ def _resolve_objections(lib_entry):
 
 
 def build_pitch_bullets(profile, bundle_match, scores, pricing_quote):
-    """Return 3 data-driven, founder-facing pitch bullets. Zero tokens."""
-    company = profile.get("startup_name", "Your company")
-    sector  = profile.get("sector", "your sector")
-    stage   = profile.get("funding_stage", "this stage")
-    team    = profile.get("team_size", 0)
-    records = profile.get("data_records_lakhs", 0)
+    """Return 3 consequence-first, company-specific pitch bullets. Zero tokens."""
+    company    = profile.get("startup_name", "This company")
+    sector     = profile.get("sector", "your sector")
+    stage      = profile.get("funding_stage", "this stage")
+    team       = int(profile.get("team_size", 0) or 0)
+    records    = float(profile.get("data_records_lakhs", 0) or 0)
+    revenue    = float(profile.get("revenue_cr", 0) or 0)
+    regs       = profile.get("regulatory", []) or []
+    data_types = profile.get("data_handled", []) or []
+    b2b_pct    = int(profile.get("b2b_pct", 0) or 0)
+    payment    = bool(profile.get("payment_or_card_program", False))
+    ai_prod    = bool(profile.get("ai_in_product", False))
+    health_ops = bool(profile.get("healthcare_operations", False))
+    export_eu  = float(profile.get("export_eu_pct", 0) or 0)
+    operations = profile.get("operations", "") or ""
+    physical   = profile.get("physical_assets", "none") or "none"
+    cust_type  = profile.get("customer_type", []) or []
+    biz_model  = profile.get("business_model", "") or ""
 
     top_risks = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-    risk1 = top_risks[0][0] if len(top_risks) > 0 else "Cyber"
-    risk2 = top_risks[1][0] if len(top_risks) > 1 else "Liability"
+    risk1_key = top_risks[0][0] if top_risks else ""
+    risk2_key = top_risks[1][0] if len(top_risks) > 1 else ""
 
-    mandatory = (bundle_match or {}).get("mandatory_covers", [])
-    optional  = (bundle_match or {}).get("optional_covers",  [])
+    mandatory = (bundle_match or {}).get("mandatory_covers", []) or []
+    optional  = (bundle_match or {}).get("optional_covers",  []) or []
 
-    # Bullet 1 — risk-to-cover mapping, specific to company
-    bullet1 = (
-        f"{company} shows elevated exposure on {risk1} and {risk2} — "
-        f"the bundle's mandatory covers address both directly."
-    )
+    cover_labels = [_outreach_cover_label(k) for k in mandatory[:3]]
 
-    # Bullet 2 — peer-group framing with real profile numbers
-    team_str    = f"{int(team):,} team" if team else ""
-    records_str = f"{float(records):.1f}M records" if records else ""
-    profile_str = ", ".join(filter(None, [team_str, records_str]))
-    profile_clause = f" with {profile_str}" if profile_str else ""
-    bullet2 = (
-        f"{stage} {sector} businesses{profile_clause} typically need this exact "
-        f"combination of financial-line and operational covers."
-    )
+    is_early      = stage in ("Pre-seed", "Seed")
+    is_growth     = stage == "Series A"
+    is_late       = stage == "Series B+"
+    has_payment   = payment or "payment_data" in data_types
+    has_pii       = "PII" in data_types
+    has_health    = health_ops or "health_data" in data_types
+    is_b2b        = b2b_pct >= 50 or "B2B" in biz_model or any(c in ("SME", "enterprise", "B2B") for c in cust_type)
+    is_physical   = "Physical" in operations or physical not in ("none", "", "no", "n/a")
 
-    # Bullet 3 — optional add-ons or regulatory urgency
-    if optional:
-        addon_word = "Two" if len(optional) == 2 else str(len(optional))
+    def _rl(key): return key.lower()
+
+    def _risk_bucket(key):
+        k = _rl(key)
+        if any(w in k for w in ("cyber", "data", "privacy", "breach")):
+            return "cyber"
+        if any(w in k for w in ("d&o", "director", "officer", "governance")):
+            return "dno"
+        if any(w in k for w in ("pi", "professional", "tech e&o", "error", "omission", "indemnity")):
+            return "pi"
+        if any(w in k for w in ("employ", "epl", "hr", "workplace")):
+            return "epl"
+        if any(w in k for w in ("product", "recall", "defect")):
+            return "product"
+        if any(w in k for w in ("property", "fire", "asset", "machinery")):
+            return "property"
+        if any(w in k for w in ("crime", "fraud", "fidelity", "theft")):
+            return "crime"
+        if any(w in k for w in ("cargo", "marine", "transit", "logistics")):
+            return "cargo"
+        return "other"
+
+    r1 = _risk_bucket(risk1_key)
+    r2 = _risk_bucket(risk2_key)
+
+    records_str = f"{int(records * 10):,}K+" if records else ""
+    rev_str     = f"Rs. {int(revenue):,} Cr" if revenue else ""
+    team_str    = f"{team:,}" if team else ""
+
+    # ── BULLET 1: what's exposed and what happens without cover ─────────────────
+    if r1 == "cyber" or r2 == "cyber":
+        if has_payment and "RBI" in regs:
+            bullet1 = (
+                f"{company} processes payments -- without Cyber cover, a breach triggers "
+                f"mandatory RBI/CERT-In notification, card network penalties, and customer "
+                f"litigation with zero insurance backstop."
+            )
+        elif has_payment:
+            bullet1 = (
+                f"{company} runs a payment programme -- a PCI-DSS incident without Cyber cover "
+                f"means forensics, card network fines, and class-action exposure all land on the balance sheet."
+            )
+        elif has_health:
+            bullet1 = (
+                f"{company} holds health records -- a breach without Cyber cover triggers DPDP "
+                f"enforcement, patient litigation, and reputational collapse; health data breaches "
+                f"carry the highest per-record cost under Indian law."
+            )
+        elif records:
+            bullet1 = (
+                f"{company} carries {records_str} personal records; without Cyber cover "
+                f"a single breach means DPDP penalties (up to Rs. 250 Cr), notification costs, "
+                f"and third-party claims hit the P&L directly."
+            )
+        else:
+            bullet1 = (
+                f"{sector} businesses without Cyber cover average 90+ days of operational disruption "
+                f"per incident -- {company} has no transfer mechanism for that exposure today."
+            )
+
+    elif r1 == "dno" or r2 == "dno":
+        if is_late:
+            bullet1 = (
+                f"At {stage}, investor disputes, SEBI/MCA enforcement, and shareholder actions "
+                f"are personal liability for {company}'s directors -- D&O is the only legal transfer "
+                f"mechanism, and it's absent today."
+            )
+        elif is_growth:
+            bullet1 = (
+                f"Series A boards face institutional investor scrutiny on every major decision; "
+                f"without D&O, {company}'s founders carry personal liability if an investor "
+                f"challenges a governance call in court."
+            )
+        else:
+            bullet1 = (
+                f"Without D&O in place, {company}'s next term sheet will require it as a closing "
+                f"condition -- arriving uninsured at due diligence adds weeks of delay and "
+                f"re-negotiation at a critical fundraising moment."
+            )
+
+    elif r1 == "pi" or r2 == "pi":
+        if is_b2b and ai_prod:
+            bullet1 = (
+                f"{company} deploys AI in a B2B context -- without PI / Tech E&O, an AI model "
+                f"error that causes client financial loss is an uninsured indemnity clause "
+                f"waiting to be triggered."
+            )
+        elif is_b2b:
+            bullet1 = (
+                f"{company}'s B2B contracts carry indemnity clauses; without Professional "
+                f"Indemnity / Tech E&O, a software failure or service dispute becomes an "
+                f"uninsured court event with no defence budget."
+            )
+        else:
+            bullet1 = (
+                f"Without PI / Tech E&O, a platform error or service dispute at {company} "
+                f"goes to court with the founder's personal assets as the only backstop."
+            )
+
+    elif r1 == "product" or r2 == "product":
+        bullet1 = (
+            f"Without Product Liability cover, a single defective-item claim or recall "
+            f"at {company} freezes operations and triggers consumer-forum litigation "
+            f"that runs 18-24 months with no insurer defending."
+        )
+
+    elif r1 == "epl" or r2 == "epl":
+        if team >= 200:
+            bullet1 = (
+                f"With {team_str} employees, {company} faces statistical probability of "
+                f"an employment dispute; without EPL cover, settlements and legal costs "
+                f"are fully uninsured P&L events."
+            )
+        else:
+            bullet1 = (
+                f"Employment disputes are the fastest-growing liability category in {sector}; "
+                f"without EPL cover, {company} absorbs settlements and legal fees directly."
+            )
+
+    elif r1 == "property" and is_physical:
+        asset_word = physical if physical not in ("none", "") else "physical assets"
+        bullet1 = (
+            f"{company} operates {asset_word}; without Property cover, a fire, flood, "
+            f"or equipment failure shuts operations with no recovery mechanism -- "
+            f"business interruption costs typically exceed the asset loss."
+        )
+
+    elif r1 == "crime":
+        bullet1 = (
+            f"Internal fraud and vendor collusion are the leading undetected loss in "
+            f"{sector} businesses at this scale; without Crime / Fidelity cover, "
+            f"{company} absorbs 100% of any discovered fraud."
+        )
+
+    else:
+        # Sector-aware fallback — use profile signals rather than ambiguous risk key names
+        sec_l = sector.lower()
+        if "fssai" in regs or any(w in sec_l for w in ("food", "fmcg", "d2c", "consumer", "brand", "agri")):
+            bullet1 = (
+                f"A product recall or consumer-forum claim without Product Liability cover "
+                f"freezes {company}'s operations; FSSAI enforcement can compound the exposure "
+                f"with regulatory penalties on top of civil claims."
+            )
+        elif any(w in sec_l for w in ("manufactur", "hardware", "industrial")):
+            asset_word = physical if physical not in ("none", "") else "production assets"
+            bullet1 = (
+                f"Without Property and Product Liability cover, a machinery failure or "
+                f"defective batch at {company} means uninsured downtime plus customer claims -- "
+                f"manufacturing incidents average 3-6 months of disrupted revenue."
+            )
+        elif any(w in sec_l for w in ("logistics", "transport", "supply", "cargo", "fleet")):
+            bullet1 = (
+                f"Uninsured in-transit cargo loss at {company} hits the P&L directly; "
+                f"without Marine Cargo and liability cover, a single lost or damaged consignment "
+                f"opens both shipper claims and third-party liability."
+            )
+        elif any(w in sec_l for w in ("saas", "software", "tech", "platform", "developer")):
+            bullet1 = (
+                f"Without PI / Tech E&O, a platform outage or API failure at {company} "
+                f"that causes client financial loss becomes an uninsured court event -- "
+                f"B2B indemnity clauses activate faster than founders expect."
+            )
+        elif is_physical and physical not in ("none", ""):
+            bullet1 = (
+                f"Without Property cover, a fire, flood, or theft event at {company}'s "
+                f"{physical} shuts operations with no recovery mechanism -- "
+                f"business interruption costs typically exceed the physical asset loss."
+            )
+        else:
+            covers_str = " + ".join(cover_labels[:2]) if cover_labels else "the mandatory covers"
+            bullet1 = (
+                f"Without {covers_str} in place, {company} carries {risk1_key.lower() or 'its core liability'} "
+                f"as an entirely uninsured balance-sheet event today."
+            )
+
+    # ── BULLET 2: financial / personal / operational consequence, anchored to numbers ──
+    if revenue >= 500:
+        bullet2 = (
+            f"At {rev_str} revenue, even a 3-5% uninsured liability event means "
+            f"Rs. {int(revenue * 0.04):,}+ Cr off the P&L -- larger than most founders' "
+            f"entire insurance budget for the year."
+        )
+    elif revenue >= 50:
+        bullet2 = (
+            f"At {rev_str} revenue with no cover in place, a single regulatory fine "
+            f"or client indemnity claim can consume 6-12 months of operating surplus."
+        )
+    elif revenue >= 5:
+        bullet2 = (
+            f"{rev_str} revenue means {company} is past the stage where personal-assets "
+            f"coverage is enough -- institutional claims at this scale target the company "
+            f"entity, not just the founder."
+        )
+    elif team >= 500:
+        bullet2 = (
+            f"With {team_str} employees, an uninsured D&O or employment claim "
+            f"in {sector} routinely runs Rs. 2-10 Cr in defence costs alone "
+            f"before any settlement is reached."
+        )
+    elif team >= 100:
+        bullet2 = (
+            f"At {team_str} people, {company} has crossed the size threshold where "
+            f"employment and director liability claims become statistically likely -- "
+            f"none of that exposure is transferred today."
+        )
+    elif is_early:
+        bullet2 = (
+            f"{stage} founders carry full personal director liability until D&O is placed; "
+            f"a single investor dispute or regulatory notice at this stage ends the "
+            f"fundraising round while litigation runs."
+        )
+    else:
+        bullet2 = (
+            f"{stage} {sector} companies that skip insurance at this stage "
+            f"typically face their first claim within 24 months -- "
+            f"by then, retroactive cover is unavailable."
+        )
+
+    # ── BULLET 3: regulatory urgency with named acts, or optional add-on urgency ──
+    reg_label = {
+        "DPDP":  "DPDP (Rs. 250 Cr penalty ceiling, 2025 enforcement)",
+        "SEBI":  "SEBI LODR director liability rules",
+        "RBI":   "RBI PPI / PA licence conditions",
+        "IRDAI": "IRDAI conduct and fit-and-proper rules",
+        "FSSAI": "FSSAI food safety and recall liability",
+        "GST":   "GST audit and penalty exposure",
+        "MCA":   "MCA-21 director personal obligations",
+    }
+    named_regs = [reg_label[r] for r in regs if r in reg_label]
+
+    if export_eu >= 5 and "DPDP" not in regs:
+        named_regs.append("GDPR cross-border transfer rules")
+
+    if named_regs and optional:
+        reg_str = " and ".join(named_regs[:2])
+        n_opt = len(optional)
         bullet3 = (
-            f"{addon_word} optional add-ons are pre-staged based on regulatory flags "
-            f"— review and confirm before quoting."
+            f"{reg_str} are active obligations for {company}; "
+            f"{n_opt} optional add-on{'s' if n_opt != 1 else ''} in this quote "
+            f"close the remaining gaps -- confirm before submitting."
+        )
+    elif named_regs:
+        reg_str = " + ".join(named_regs[:2])
+        bullet3 = (
+            f"Every mandatory cover in this bundle maps to a live {reg_str} obligation "
+            f"-- this is the minimum defensible floor for a regulated {sector} business."
+        )
+    elif optional:
+        n_opt = len(optional)
+        opt_labels = [_outreach_cover_label(k) for k in optional[:2]]
+        opt_str = " and ".join(opt_labels) if opt_labels else "the add-ons"
+        bullet3 = (
+            f"{opt_str} {'are' if n_opt > 1 else 'is'} pre-staged as optional "
+            f"based on {company}'s {sector} exposure profile -- review with the founder "
+            f"before finalising the quote."
+        )
+    elif ai_prod:
+        bullet3 = (
+            f"AI product liability is an emerging unwritten risk in Indian courts; "
+            f"the PI / Tech E&O cover in this bundle is the current best-practice "
+            f"transfer mechanism for {company}'s model-output exposure."
+        )
+    elif export_eu >= 5:
+        bullet3 = (
+            f"{company} exports to EU customers -- GDPR cross-border transfer liability "
+            f"is not covered by Indian domestic policies; the Cyber cover here "
+            f"includes international incident response."
         )
     else:
         bullet3 = (
-            f"The cover structure is designed to survive regulatory scrutiny — "
-            f"every mandatory line maps to a specific {sector} compliance obligation."
+            f"No filler covers included -- every mandatory line closes a specific "
+            f"{sector} liability gap that {company} carries today uninsured."
         )
 
     return [bullet1, bullet2, bullet3]
@@ -1969,7 +2400,6 @@ def _legacy_score(raw):
     safe_bundle = json_safe(bundle)
     pricing_quote = price_output_stage(profile, rounded_scores, preferred_recommendations, safe_bundle)
     save_recommendation(profile, rounded_scores, recommendations, safe_bundle, global_ranked, appetite_flags, premium, size_bucket)
-    outreach, outreach_source, outreach_error = outreach_prompts(profile, rounded_scores, preferred_recommendations, safe_bundle, size_bucket)
     return {
         "profile": profile,
         "scores": rounded_scores,
@@ -1995,12 +2425,12 @@ def _legacy_score(raw):
         "assumptions": assumptions(profile),
         "downstream_opportunities": downstream,
         "custom_triggers": custom_triggers,
-        "outreach_prompts": outreach,
-        "outreach_source": outreach_source,
-        "outreach_error": outreach_error,
+        "outreach_prompts": None,
+        "outreach_source": "pending",
+        "outreach_error": None,
         "pitch_bullets": build_pitch_bullets(profile, safe_bundle, rounded_scores, json_safe(pricing_quote)),
         "pitch_meta": build_pitch_meta(safe_bundle),
-        "objection_handlers": json_safe(generate_objection_handlers(profile, safe_bundle, rounded_scores, regulatory_triggers(profile))),
+        "objection_handlers": [],
         "rm": {k: v for k, v in load_contacts().items()},
         "gemini_enabled": gemini_enabled(),
         # ── New fields (appended; never replaces existing keys) ──────────
@@ -2331,6 +2761,86 @@ def meta():
     }
 
 
+_pipeline_cache: list[dict] | None = None
+
+
+def get_pipeline(sector_filter: str = "", stage_filter: str = "", limit: int = 200) -> dict:
+    global _pipeline_cache
+    if _pipeline_cache is None:
+        from company_profiles import COMPANY_PROFILES as _CP
+        rows = []
+        _saved_key = os.environ.get("GEMINI_API_KEY", "")
+        os.environ["GEMINI_API_KEY"] = ""  # force deterministic — no Gemini during pipeline scoring
+        try:
+            for name, prof in _CP.items():
+                try:
+                    result = score(prof)
+                    bm = result.get("bundle_match") or {}
+                    ps = result.get("premium_summary") or {}
+                    sc = result.get("scores") or {}
+                    top_risks = result.get("top_risks") or []
+                    scores_vals = [v for v in sc.values() if isinstance(v, (int, float))]
+                    avg_score = round(sum(scores_vals) / len(scores_vals), 1) if scores_vals else 0
+                    raw_src = prof.get("profile_source", "")
+                    src = "verified" if raw_src == "verified" else "seeded"
+                    stage = prof.get("funding_stage", "")
+                    if stage in ("Pre-seed", "Seed"):
+                        tap = "untapped"
+                    elif stage == "Series A":
+                        tap = "strike_now"
+                    else:
+                        tap = "covered"
+                    rows.append({
+                        "startup_name": name,
+                        "sector": prof.get("sector", ""),
+                        "funding_stage": stage,
+                        "bundle_name": bm.get("name", ""),
+                        "min_lakh": ps.get("min_lakh", 0),
+                        "max_lakh": ps.get("max_lakh", 0),
+                        "overall_score": avg_score,
+                        "top_risk": top_risks[0].get("name", "") if top_risks else "",
+                        "profile_source": src,
+                        "tap_status": tap,
+                    })
+                except Exception:
+                    pass
+        finally:
+            if _saved_key:
+                os.environ["GEMINI_API_KEY"] = _saved_key
+            else:
+                os.environ.pop("GEMINI_API_KEY", None)
+        rows.sort(key=lambda r: r["max_lakh"], reverse=True)
+        _pipeline_cache = rows
+
+    filtered = _pipeline_cache
+    if sector_filter:
+        sf = sector_filter.lower()
+        filtered = [r for r in filtered if sf in r["sector"].lower()]
+    if stage_filter:
+        stf = stage_filter.lower()
+        filtered = [r for r in filtered if stf in r["funding_stage"].lower()]
+
+    total_pool_cr = round(sum(r["max_lakh"] for r in filtered) / 100, 1)
+    untapped = [r for r in filtered if r["tap_status"] in ("untapped", "strike_now")]
+    untapped_pool_cr = round(sum(r["max_lakh"] for r in untapped) / 100, 1)
+    sectors = [r["sector"] for r in filtered if r["sector"]]
+    top_sector = max(set(sectors), key=sectors.count) if sectors else ""
+    avg_score = round(sum(r["overall_score"] for r in filtered) / len(filtered), 1) if filtered else 0
+
+    return {
+        "companies": filtered[:limit],
+        "total": len(filtered),
+        "kpis": {
+            "total_companies": len(filtered),
+            "total_pool_cr": total_pool_cr,
+            "untapped_pool_cr": untapped_pool_cr,
+            "untapped_count": len(untapped),
+            "top_sector": top_sector,
+            "avg_risk_score": avg_score,
+        },
+    }
+
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -2380,10 +2890,16 @@ class Handler(SimpleHTTPRequestHandler):
                 return
             self.send_json(200, {"count": company_profile_count(), "matches": search_company_profiles(query, limit=limit)})
             return
+        if path == "/api/pipeline":
+            sector_filter = (params.get("sector") or [""])[0].strip()
+            stage_filter = (params.get("stage") or [""])[0].strip()
+            limit = clean_int((params.get("limit") or ["200"])[0], 200)
+            self.send_json(200, get_pipeline(sector_filter, stage_filter, limit))
+            return
         return super().do_GET()
 
     def do_POST(self):
-        if self.path not in ("/api/analyze", "/api/policy/compare"):
+        if self.path not in ("/api/analyze", "/api/policy/compare", "/api/autofill"):
             self.send_json(404, {"error": "Not found"})
             return
         try:
@@ -2392,6 +2908,13 @@ class Handler(SimpleHTTPRequestHandler):
             if self.path == "/api/policy/compare":
                 result = analyze_policy_wording(payload)
                 self.send_json(200 if result.get("ok") else 400, result)
+            elif self.path == "/api/autofill":
+                company_name = (payload.get("company_name") or "").strip()
+                if not company_name:
+                    self.send_json(400, {"error": "company_name is required."})
+                    return
+                result = autofill_and_analyze(company_name)
+                self.send_json(200 if not result.get("error") else 500, result)
             else:
                 self.send_json(200, analyze(payload))
         except Exception as exc:

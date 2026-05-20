@@ -540,6 +540,18 @@ def exposure_fit(bm: BundleMeta, profile: Dict[str, Any]) -> float:
             min(1.0, project_value / 75.0),
             0.65 if "Government / PSU" in _items(profile, "customer_type") else 0.0,
         )
+    if "contractor" in name or ("engineering" in name and "risk" in name):
+        # CAR is for active construction/erection projects only.
+        # Delivery fleet operators (Swiggy, Zepto, Rapido etc.) should never receive CAR.
+        has_project = project_value > 0 or _bool(profile, "contract_bid_or_performance_bond_need")
+        has_fleet = "Vehicles / delivery fleet" in assets
+        if has_fleet and not has_project:
+            return 0.0
+        return _fit(
+            1.0 if has_project else 0.0,
+            0.80 if "Manufacturing plant / factory" in assets and has_project else 0.0,
+            0.70 if "Solar / clean energy infrastructure" in assets and has_project else 0.0,
+        )
     if "media" in name or "entertainment" in name:
         return _fit(
             1.0 if _bool(profile, "event_or_production_operations") else 0.0,

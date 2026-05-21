@@ -2787,10 +2787,6 @@ def _balanced_pipeline_rows(rows: list[dict], limit: int) -> list[dict]:
     buckets = {stage: [r for r in rows if r.get("funding_stage") == stage] for stage in stage_order}
     other_rows = [r for r in rows if r.get("funding_stage") not in buckets]
 
-    early_cap = max((len(buckets[stage]) for stage in ("Pre-seed", "Seed", "Series A")), default=0)
-    if early_cap:
-        buckets["Series B+"] = buckets["Series B+"][:early_cap]
-
     balanced = []
     for stage in stage_order:
         balanced.extend(buckets[stage])
@@ -2798,7 +2794,7 @@ def _balanced_pipeline_rows(rows: list[dict], limit: int) -> list[dict]:
     return balanced[:limit]
 
 
-def get_pipeline(sector_filter: str = "", stage_filter: str = "", limit: int = 200) -> dict:
+def get_pipeline(sector_filter: str = "", stage_filter: str = "", limit: int = 500) -> dict:
     global _pipeline_cache
     if _pipeline_cache is None:
         from company_profiles import COMPANY_PROFILES as _CP
@@ -2840,8 +2836,8 @@ def get_pipeline(sector_filter: str = "", stage_filter: str = "", limit: int = 2
                         "profile_source": src,
                         "tap_status": tap,
                     })
-                except Exception:
-                    pass
+                except Exception as _exc:
+                    print(f"[pipeline] skip '{name}': {_exc}", flush=True)
         finally:
             if _saved_key:
                 os.environ["GEMINI_API_KEY"] = _saved_key
@@ -2934,7 +2930,7 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/pipeline":
             sector_filter = (params.get("sector") or [""])[0].strip()
             stage_filter = (params.get("stage") or [""])[0].strip()
-            limit = clean_int((params.get("limit") or ["200"])[0], 200)
+            limit = clean_int((params.get("limit") or ["500"])[0], 500)
             self.send_json(200, get_pipeline(sector_filter, stage_filter, limit))
             return
         return super().do_GET()

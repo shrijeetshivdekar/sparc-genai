@@ -1113,6 +1113,19 @@ function renderRoleSelection() {
 
 let _pipelineData = null; // cache so we don't re-fetch on filter change
 let _pipelineView = "table"; // "table" | "heat"
+let _pipelineSort = { key: "premium", dir: "desc" }; // active sort state
+
+const PIPELINE_SORT_KEYS = {
+  rank:    (a, b) => (b.max_lakh || 0) - (a.max_lakh || 0),
+  company: (a, b) => a.startup_name.localeCompare(b.startup_name),
+  sector:  (a, b) => (a.sector || "").localeCompare(b.sector || ""),
+  stage:   (a, b) => {
+    const o = { "Pre-seed": 0, "Seed": 1, "Series A": 2, "Series B+": 3 };
+    return (o[a.funding_stage] ?? 9) - (o[b.funding_stage] ?? 9);
+  },
+  premium: (a, b) => (b.max_lakh || 0) - (a.max_lakh || 0),
+  score:   (a, b) => (b.overall_score || 0) - (a.overall_score || 0),
+};
 
 async function renderPipelineDashboard(sectorFilter = "", stageFilter = "", tapFilter = "untapped") {
   state.view = "pipeline";
@@ -1138,7 +1151,7 @@ async function renderPipelineDashboard(sectorFilter = "", stageFilter = "", tapF
   // Fetch (use cache after first load)
   if (!_pipelineData) {
     try {
-      const res = await fetch("/api/pipeline?limit=200");
+      const res = await fetch("/api/pipeline?limit=500");
       _pipelineData = await res.json();
     } catch (e) {
       mc.querySelector(".pipeline-loading").textContent = "Failed to load pipeline. Is the server running?";
@@ -1147,17 +1160,15 @@ async function renderPipelineDashboard(sectorFilter = "", stageFilter = "", tapF
   }
 
   // Apply filters client-side from cache
-  const TAP_ORDER = { preseed: 0, untapped: 1, strike_now: 2, covered: 3 };
   const allCompanies = _pipelineData.companies || [];
   let companies = allCompanies;
   if (sectorFilter) companies = companies.filter(c => c.sector.toLowerCase().includes(sectorFilter.toLowerCase()));
   if (stageFilter)  companies = companies.filter(c => c.funding_stage.toLowerCase() === stageFilter.toLowerCase());
   if (tapFilter)    companies = companies.filter(c => c.tap_status === tapFilter);
-  // "All" view: Seed first, then Series A, then Series B+ (opportunities first)
-  if (!tapFilter) companies = [...companies].sort((a, b) =>
-    (TAP_ORDER[a.tap_status] ?? 2) - (TAP_ORDER[b.tap_status] ?? 2) ||
-    (b.max_lakh || 0) - (a.max_lakh || 0)
-  );
+
+  // Apply column sort (persisted in _pipelineSort)
+  const sortFn = PIPELINE_SORT_KEYS[_pipelineSort.key] || PIPELINE_SORT_KEYS.premium;
+  companies = [...companies].sort((a, b) => _pipelineSort.dir === "asc" ? sortFn(b, a) : sortFn(a, b));
 
   const kpis = _pipelineData.kpis || {};
   const totalPoolCr = Math.round(companies.reduce((s, c) => s + (c.max_lakh || 0), 0) / 100);
@@ -1255,14 +1266,21 @@ async function renderPipelineDashboard(sectorFilter = "", stageFilter = "", tapF
           <caption>Ranked opportunity list. Click a row to open the company risk profile.</caption>
           <thead>
             <tr>
-              <th>#</th>
-              <th>Company</th>
-              <th>Sector</th>
-              <th>Stage</th>
-              <th>Market Status</th>
-              <th>Recommended Bundle</th>
-              <th>Est. Premium</th>
-              <th>Risk Score</th>
+              ${[
+                ["#",                   "rank"],
+                ["Company",             "company"],
+                ["Sector",              "sector"],
+                ["Stage",               "stage"],
+                ["Market Status",       null],
+                ["Recommended Bundle",  null],
+                ["Est. Premium",        "premium"],
+                ["Risk Score",          "score"],
+              ].map(([label, key]) => {
+                if (!key) return `<th>${label}</th>`;
+                const active = _pipelineSort.key === key;
+                const arrow = active ? (_pipelineSort.dir === "desc" ? " ↓" : " ↑") : " ⇅";
+                return `<th class="pipeline-th-sort${active ? " sort-active" : ""}" data-sort-key="${key}">${label}<span class="sort-arrow">${arrow}</span></th>`;
+              }).join("")}
             </tr>
           </thead>
           <tbody>
@@ -1297,6 +1315,20 @@ async function renderPipelineDashboard(sectorFilter = "", stageFilter = "", tapF
       $("pipeline-stage-filter").value,
       btn.dataset.tap
     );
+  });
+
+  // Column sort headers
+  mc.querySelectorAll(".pipeline-th-sort").forEach(th => {
+    th.onclick = () => {
+      const key = th.dataset.sortKey;
+      if (_pipelineSort.key === key) {
+        _pipelineSort.dir = _pipelineSort.dir === "desc" ? "asc" : "desc";
+      } else {
+        _pipelineSort.key = key;
+        _pipelineSort.dir = "desc";
+      }
+      renderPipelineDashboard(sectorFilter, stageFilter, tapFilter);
+    };
   });
 
   if (_pipelineView === "table") {

@@ -6206,6 +6206,20 @@ pre {
   color: var(--ink-muted);
   border-bottom: 1px solid var(--border);
 }
+.pipeline-th-sort {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.pipeline-th-sort:hover { color: var(--ink); }
+.pipeline-th-sort.sort-active { color: var(--red); }
+.sort-arrow {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 10px;
+  opacity: .55;
+}
+.sort-active .sort-arrow { opacity: 1; }
 .pipeline-table tbody tr {
   border-bottom: 1px solid var(--border);
   transition: background .12s var(--ease-out);
@@ -7537,6 +7551,8 @@ pre {
   border-bottom-color: rgba(255,255,255,.07);
   color: rgba(255,255,255,.28);
 }
+.hev-shell .pipeline-th-sort:hover { color: rgba(255,255,255,.7); }
+.hev-shell .pipeline-th-sort.sort-active { color: var(--red); }
 .hev-shell .pipeline-table tbody tr { border-bottom-color: rgba(255,255,255,.05); }
 .hev-shell .pipeline-row:hover { background: rgba(255,255,255,.04); }
 

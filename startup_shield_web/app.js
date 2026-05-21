@@ -5148,83 +5148,79 @@ function renderBundleHero(bundle, recs, why = {}) {
 
   const mandatory = bundle.mandatory_covers || [];
   const optional  = bundle.optional_covers  || [];
-  const companion = bundle.companion_bundle || null;
-  const recKeys   = new Set((recs||[]).map(r => r.key));
+  const companion = bundle.companion_bundle  || null;
   const eyebrow   = bundle.nearest_fallback ? "Closest package fit" : "Recommended package";
   const isOfficial = bundle.is_real_il_bundle === true || OFFICIAL_IL_BUNDLE_NAMES.has(bundle.name);
-  const officialBadgeStyle = isOfficial
-    ? "background:#059669;color:white;border-radius:999px;padding:3px 12px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;"
-    : "background:#D97706;color:white;border-radius:999px;padding:3px 12px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;";
 
-  const coverItems = [
+  const allCovers = [
     ...mandatory.map(c => ({ key: c, type: "mandatory" })),
     ...optional.map(c  => ({ key: c, type: "optional"  })),
   ];
-  const companionCoverItems = companion ? [
-    ...((companion.mandatory_covers || []).map(c => ({ key: c, type: "mandatory" }))),
-    ...((companion.optional_covers || []).map(c => ({ key: c, type: "optional" }))),
+  const companionCovers = companion ? [
+    ...(companion.mandatory_covers || []).map(c => ({ key: c, type: "mandatory" })),
+    ...(companion.optional_covers  || []).map(c => ({ key: c, type: "optional"  })),
   ] : [];
 
+  const GLYPHS = {
+    PI_TECH_EO: "PI", D_AND_O: "DO", CYBER: "CY", CRIME_FIDELITY: "CF",
+    EMPLOYMENT_PRACTICES: "EP", CGL: "GL", PROPERTY: "PR", MARINE_CARGO: "MC",
+    WORKMEN_COMP: "WC", PRODUCT_LIABILITY: "PL", STATUTORY_LIABILITY: "SL",
+    BUSINESS_INTERRUPTION: "BI", FIDELITY: "FI", KEY_MAN: "KM",
+  };
+  const glyph = key => (GLYPHS[key] || key.slice(0, 2)).toUpperCase();
+
+  const n = allCovers.length;
+  const maxRot = Math.min(3.5 * n, 22);
+
+  const cards = allCovers.map(({ key, type }, i) => {
+    const label = labelize(key);
+    const blurb = getCoverWhy(key, why, "bundle_covers") || "";
+    const rot = n > 1 ? (-maxRot + (i / (n - 1)) * maxRot * 2).toFixed(1) : 0;
+    const yOff = (Math.abs(Number(rot)) * 1.8).toFixed(1);
+    return `
+      <div class="cstack-card ${type}" style="--rot:${rot}deg;--yoff:${yOff}px;--i:${i}" tabindex="0" aria-label="${esc(label)}">
+        <div class="cstack-inner">
+          <span class="cstack-badge ${type}">${type === "mandatory" ? "Mandatory" : "Optional"}</span>
+          <div class="cstack-glyph">${glyph(key)}</div>
+          <div class="cstack-name">${esc(label)}</div>
+          <div class="cstack-blurb">${esc(blurb)}</div>
+        </div>
+      </div>`;
+  }).join("");
+
+  const companionSection = companion?.name ? `
+    <div class="cstack-companion">
+      <span class="cstack-companion-kicker">+ Companion: ${esc(companion.name)}</span>
+      <div class="cstack-companion-pills">
+        ${companionCovers.map(({ key, type }) => `<span class="cstack-cpill ${type}">${esc(labelize(key))}</span>`).join("")}
+      </div>
+    </div>` : "";
+
   return `
-    <div class="bundle-hero">
-      <div class="bundle-hero-top">
-        <div>
-          <div class="bundle-hero-eyebrow">${eyebrow}</div>
-          <div class="bundle-hero-name">${esc(bundle.name)}</div>
-          <div class="bundle-hero-il">${esc(bundle.il_product_name || "")}</div>
+    <div class="bundle-stack-wrap">
+      <div class="bundle-stack-header">
+        <div class="bundle-stack-left">
+          <div class="bundle-stack-eyebrow">${eyebrow}</div>
+          <div class="bundle-stack-name">${esc(bundle.name)}</div>
+          ${bundle.il_product_name ? `<div class="bundle-stack-il">${esc(bundle.il_product_name)}</div>` : ""}
+          ${bundle.description ? `<div class="bundle-stack-desc">${esc(bundle.description)}</div>` : ""}
+          ${why?.bundle ? `<div class="bundle-why-note">${esc(why.bundle)}</div>` : ""}
         </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;">
-          <div class="bundle-fit-badge">
-            <div class="bundle-fit-dot"></div>
-            ${bundle.fit_pct || 0}% profile fit
-          </div>
-          <span style="background:rgba(173,30,35,.7);color:white;border-radius:999px;padding:4px 14px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;">${esc(bundle.criticality || "High")}</span>
-          <span class="bundle-badge ${isOfficial ? "real" : "curated"}" style="${officialBadgeStyle}">${isOfficial ? "Official IL Product" : "Curated Cover Set"}</span>
+        <div class="bundle-stack-right">
+          <div class="bundle-fit-badge"><div class="bundle-fit-dot"></div>${bundle.fit_pct || 0}% fit</div>
+          <span class="bstack-official ${isOfficial ? "real" : "curated"}">${isOfficial ? "Official IL Product" : "Curated Cover Set"}</span>
         </div>
       </div>
 
-      <div class="bundle-hero-desc">${esc(bundle.description || "")}</div>
-      ${why?.bundle ? `<div class="bundle-why-note">${esc(why.bundle)}</div>` : ""}
+      <div class="cstack-deck-label">${mandatory.length} mandatory · ${optional.length} optional · hover any card</div>
 
-      ${companion?.name ? `
-        <div class="bundle-companion">
-          <div class="bundle-companion-label">Also recommend alongside Group Safeguard</div>
-          <div class="bundle-companion-main">
-            <div>
-              <div class="bundle-companion-name">${esc(companion.name)}</div>
-              <div class="bundle-companion-desc">${esc(why?.companion_bundle || bundle.companion_note || "Group Safeguard handles workforce benefits; this second package addresses the startup's sector and operating risks.")}</div>
-            </div>
-            <div class="bundle-companion-fit">${companion.fit_pct || 0}% fit</div>
-          </div>
-          <div class="bundle-companion-covers">
-            ${companionCoverItems.slice(0, 8).map(({ key, type }) => `
-              <div class="bundle-cover-item compact">
-                <div class="bundle-cover-dot ${type}"></div>
-                <div>
-                  <div class="bundle-cover-name">${esc(labelize(key))}</div>
-                  <div class="bundle-cover-blurb">${esc(getCoverWhy(key, why, "companion_covers"))}</div>
-                </div>
-              </div>`).join("")}
-          </div>
-        </div>` : ""}
-
-      <div class="bundle-covers-label">Covers included — ${mandatory.length} mandatory · ${optional.length} optional</div>
-      <div class="bundle-cover-grid">
-        ${coverItems.slice(0, 12).map(({ key, type }) => {
-          const blurb = getCoverWhy(key, why, "bundle_covers");
-          return `
-            <div class="bundle-cover-item">
-              <div class="bundle-cover-dot ${type}"></div>
-              <div>
-                <div class="bundle-cover-name">${esc(labelize(key))}</div>
-                ${blurb ? `<div class="bundle-cover-blurb">${esc(blurb)}</div>` : ""}
-              </div>
-            </div>`;
-        }).join("")}
+      <div class="cstack-deck" style="--n:${n}">
+        ${cards}
       </div>
 
-      ${(bundle.prerequisite_notes || []).map(n => `
-        <div style="margin-top:14px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:var(--r-sm);padding:10px 14px;font-size:12px;color:rgba(255,255,255,.6);">${esc(n)}</div>`).join("")}
+      ${companionSection}
+
+      ${(bundle.prerequisite_notes || []).map(note => `<div class="bundle-prereq-note">${esc(note)}</div>`).join("")}
     </div>`;
 }
 

@@ -6902,14 +6902,14 @@ pre {
 .hev-pipeline-shell:active { transform: scale(.99); }
 
 .hev-pipeline-core {
-  background: rgba(255,255,255,.025);
-  border: 1px solid rgba(255,255,255,.055);
+  background: transparent;
+  border: 0;
   border-radius: 15px;
   padding: 36px 32px 32px;
   height: 100%;
   display: flex;
   flex-direction: column;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+  box-shadow: none;
   position: relative;
   overflow: hidden;
 }
@@ -7274,26 +7274,21 @@ pre {
 .hev-pipeline-card:active { transform: scale(.99); }
 
 .hev-pipeline-inner {
-  background: rgba(255,255,255,.025);
-  border: 1px solid rgba(255,255,255,.055);
+  background: transparent;
+  border: 0;
   border-radius: 15px;
   padding: 30px 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+  box-shadow: none;
   position: relative;
   overflow: hidden;
 }
 
 .hev-pipeline-inner::after {
-  content: '';
-  position: absolute;
-  right: -50px; bottom: -50px;
-  width: 220px; height: 220px;
-  background: radial-gradient(circle, rgba(173,30,35,.13) 0%, transparent 65%);
-  pointer-events: none;
+  content: none;
 }
 
 .hev-pipeline-tag {
@@ -7405,6 +7400,502 @@ pre {
   color: rgba(255,255,255,.55);
 }
 
+.hev-signal-radar {
+  width: min(820px, 100%);
+  z-index: 1;
+  margin-top: 14px;
+  padding: 28px 30px 30px;
+  border: 1px solid rgba(255,255,255,.075);
+  border-radius: 18px;
+  background: rgba(255,255,255,.026);
+  box-shadow: 0 24px 58px rgba(0,0,0,.34);
+}
+
+.hev-signal-head {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(255,255,255,.07);
+}
+
+.hev-signal-kicker {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  border: 1px solid rgba(173,30,35,.22);
+  border-radius: 999px;
+  background: rgba(173,30,35,.1);
+  padding: 5px 12px;
+  color: rgba(220,100,100,.9);
+  font-family: var(--font-head);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: normal;
+}
+
+.hev-signal-head h2 {
+  max-width: 650px;
+  margin: 0 0 8px;
+  color: rgba(255,255,255,.92);
+  font-family: var(--font-head);
+  font-size: clamp(22px, 2.8vw, 32px);
+  font-weight: 800;
+  letter-spacing: -.03em;
+  line-height: 1.1;
+}
+
+.hev-signal-head p {
+  max-width: 72ch;
+  margin: 0;
+  color: rgba(255,255,255,.42);
+  font-size: 14px;
+  line-height: 1.62;
+}
+
+.hev-signal-flow {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  margin: 18px 0;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.065);
+  border-radius: 12px;
+  background: rgba(255,255,255,.06);
+}
+
+.hev-signal-flow span {
+  position: relative;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,.035);
+  color: rgba(255,255,255,.62);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.hev-signal-flow span:not(:last-child)::after {
+  content: '→';
+  position: absolute;
+  right: -7px;
+  z-index: 2;
+  color: rgba(220,100,100,.9);
+  font-size: 12px;
+}
+
+.hev-signal-grid {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid rgba(255,255,255,.07);
+}
+
+.hev-signal-row {
+  display: grid;
+  grid-template-columns: minmax(150px, .85fr) minmax(220px, 1.25fr) minmax(170px, 1fr);
+  gap: 18px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  color: rgba(255,255,255,.54);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.hev-signal-row span:first-child {
+  color: rgba(255,255,255,.84);
+  font-weight: 800;
+}
+
+.hev-signal-row span:last-child {
+  color: rgba(255,255,255,.7);
+}
+
+.hev-signal-row-head {
+  padding-top: 13px;
+  color: rgba(255,255,255,.28);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.hev-signal-row-head span,
+.hev-signal-row-head span:first-child,
+.hev-signal-row-head span:last-child {
+  color: rgba(255,255,255,.28);
+}
+
+.hev-signal-guardrails {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.hev-signal-guardrails span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(255,255,255,.075);
+  border-radius: 999px;
+  background: rgba(255,255,255,.045);
+  color: rgba(255,255,255,.42);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.hev-signal-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--red);
+  color: #fff;
+  padding: 0 10px 0 16px;
+  min-height: 40px;
+  font-family: var(--font-head);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .18s var(--hev-ease), transform .15s var(--hev-ease);
+}
+
+.hev-signal-open:hover { background: var(--red-dark); }
+.hev-signal-open:active { transform: scale(.97); }
+
+.hev-signal-open span {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: rgba(0,0,0,.18);
+}
+
+.signal-shell {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  padding: 38px 24px 72px;
+}
+
+.signal-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.signal-refresh {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 10px;
+  background: rgba(255,255,255,.055);
+  color: rgba(255,255,255,.62);
+  font-family: var(--font-head);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .16s var(--hev-ease), border-color .16s var(--hev-ease), color .16s var(--hev-ease);
+}
+
+.signal-refresh:hover {
+  background: rgba(255,255,255,.09);
+  border-color: rgba(255,255,255,.16);
+  color: rgba(255,255,255,.86);
+}
+
+.signal-hero {
+  margin-bottom: 18px;
+}
+
+.signal-eyebrow {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  border: 1px solid rgba(173,30,35,.22);
+  border-radius: 999px;
+  background: rgba(173,30,35,.1);
+  padding: 5px 12px;
+  color: rgba(220,100,100,.9);
+  font-family: var(--font-head);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.signal-hero h1 {
+  max-width: 760px;
+  margin: 16px 0 10px;
+  color: rgba(255,255,255,.92);
+  font-family: var(--font-head);
+  font-size: clamp(34px, 5vw, 60px);
+  font-weight: 800;
+  letter-spacing: -.045em;
+  line-height: .98;
+}
+
+.signal-hero p {
+  max-width: 74ch;
+  margin: 0;
+  color: rgba(255,255,255,.44);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.signal-source-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.signal-source-note span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(255,255,255,.075);
+  border-radius: 999px;
+  background: rgba(255,255,255,.045);
+  color: rgba(255,255,255,.42);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.signal-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 24px 0 14px;
+}
+
+.signal-kpis div {
+  min-height: 96px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(255,255,255,.075);
+  border-radius: 14px;
+  background: rgba(255,255,255,.032);
+}
+
+.signal-kpis span,
+.signal-reco span,
+.signal-side-grid span {
+  color: rgba(255,255,255,.3);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.signal-kpis strong {
+  color: rgba(255,255,255,.88);
+  font-family: var(--font-head);
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -.03em;
+}
+
+.signal-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255,255,255,.07);
+}
+
+.signal-filter {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(255,255,255,.085);
+  border-radius: 999px;
+  background: rgba(255,255,255,.045);
+  color: rgba(255,255,255,.42);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background .16s var(--hev-ease), color .16s var(--hev-ease), border-color .16s var(--hev-ease);
+}
+
+.signal-filter:hover,
+.signal-filter.active {
+  background: rgba(173,30,35,.16);
+  border-color: rgba(173,30,35,.32);
+  color: rgba(255,255,255,.86);
+}
+
+.signal-task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.signal-task {
+  display: grid;
+  grid-template-columns: minmax(0, .9fr) minmax(420px, 1.1fr);
+  gap: 24px;
+  padding: 18px 0 20px;
+  border-bottom: 1px solid rgba(255,255,255,.065);
+}
+
+.signal-task-head,
+.signal-meta,
+.signal-actions,
+.signal-deltas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.signal-type,
+.signal-confidence,
+.signal-meta span,
+.signal-deltas span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 25px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.045);
+  color: rgba(255,255,255,.44);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.signal-type {
+  background: rgba(173,30,35,.14);
+  color: rgba(248,113,113,.9);
+}
+
+.signal-confidence {
+  color: rgba(255,255,255,.66);
+}
+
+.signal-task h2 {
+  margin: 16px 0 8px;
+  color: rgba(255,255,255,.92);
+  font-family: var(--font-head);
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: -.035em;
+  line-height: 1.08;
+}
+
+.signal-task-main p {
+  max-width: 54ch;
+  margin: 0 0 14px;
+  color: rgba(255,255,255,.52);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.signal-task-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.signal-reco {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.signal-reco strong {
+  color: rgba(255,255,255,.88);
+  font-family: var(--font-head);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+}
+
+.signal-side-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.065);
+  border-radius: 12px;
+  background: rgba(255,255,255,.06);
+}
+
+.signal-side-grid div {
+  min-height: 70px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(255,255,255,.032);
+}
+
+.signal-side-grid strong {
+  color: rgba(255,255,255,.76);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.signal-action {
+  margin: 0;
+  color: rgba(255,255,255,.44);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.signal-actions a,
+.signal-actions button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 13px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.signal-actions a {
+  border: 1px solid rgba(255,255,255,.09);
+  background: rgba(255,255,255,.045);
+  color: rgba(255,255,255,.58);
+}
+
+.signal-actions button {
+  border: 0;
+  background: var(--red);
+  color: #fff;
+}
+
+.signal-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 34px 0;
+  color: rgba(255,255,255,.45);
+}
+
+.signal-empty strong { color: rgba(255,255,255,.8); }
+
 /* ── New-layout mobile collapse ────────────────────────────── */
 @media (max-width: 680px) {
   .hev-secondary { grid-template-columns: 1fr; }
@@ -7412,6 +7903,25 @@ pre {
   .hev-try-pills { gap: 6px; }
   .hev-pipeline-inner { padding: 22px 20px; }
   .hev-orb { width: 100vw; }
+  .hev-signal-radar { padding: 22px 20px; }
+  .hev-signal-head { gap: 12px; }
+  .hev-signal-flow { grid-template-columns: 1fr; }
+  .hev-signal-flow span:not(:last-child)::after {
+    right: auto;
+    bottom: -9px;
+    transform: rotate(90deg);
+  }
+  .hev-signal-row {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+  .hev-signal-row-head { display: none; }
+  .signal-shell { padding: 24px 16px 56px; }
+  .signal-topbar { align-items: stretch; flex-direction: column; }
+  .signal-hero h1 { font-size: 36px; }
+  .signal-kpis { grid-template-columns: 1fr; }
+  .signal-task { grid-template-columns: 1fr; }
+  .signal-side-grid { grid-template-columns: 1fr; }
 }
 
 

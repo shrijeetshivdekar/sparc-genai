@@ -957,17 +957,48 @@ function classifyAutofillError(rawMessage) {
   return { title: "Profile could not be generated", hint: "An unexpected error occurred. Try again or enter details manually below." };
 }
 
-async function triggerAutoProfiling(companyName) {
+function buildSignalContext(signal) {
+  if (!signal) return null;
+  const priority = [];
+  if (signal.recommended_bundle) priority.push(signal.recommended_bundle);
+  if (signal.insurance_angle) {
+    String(signal.insurance_angle).split(",").map(s => s.trim()).filter(Boolean).forEach(item => {
+      if (!priority.includes(item)) priority.push(item);
+    });
+  }
+  const premium = Number(signal.premium_max_lakh || 0) > 0
+    ? `INR ${formatLakh(signal.premium_min_lakh)}-${formatLakh(signal.premium_max_lakh)}L`
+    : "";
+  return {
+    company: signal.company || "",
+    signal: signal.signal || "",
+    signal_id: signal.signal_id || "",
+    headline: signal.headline || "",
+    source: signal.source || "",
+    source_url: signal.source_url || "",
+    insurance_angle: signal.insurance_angle || "",
+    recommended_bundle: signal.recommended_bundle || "",
+    premium_range: premium,
+    review_status: signal.review_status || "",
+    contact_status: signal.contact_status || "",
+    priority_products: priority.slice(0, 5),
+  };
+}
+
+async function triggerAutoProfiling(companyName, signalContext = null) {
   const cancelLoader = renderAutoProfilingLoader(companyName);
   try {
+    const payload = { company_name: companyName };
+    if (signalContext) payload.signal_context = buildSignalContext(signalContext) || signalContext;
     const res = await fetch("/api/autofill", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ company_name: companyName }),
+      body: JSON.stringify(payload),
     });
     const result = await res.json();
     cancelLoader();
     if (!res.ok || result.error) throw new Error(result.error || "Auto-profile failed");
+    if (signalContext && !result.signal_context) result.signal_context = buildSignalContext(signalContext) || signalContext;
     renderResults(result);
   } catch (err) {
     cancelLoader();
@@ -988,7 +1019,7 @@ async function triggerAutoProfiling(companyName) {
           </div>
         </div>
       </main>`;
-    $("autofill-error-retry").onclick = () => triggerAutoProfiling(companyName);
+    $("autofill-error-retry").onclick = () => triggerAutoProfiling(companyName, signalContext);
     $("autofill-error-back").onclick  = () => renderRoleSelection();
   }
 }
@@ -1072,6 +1103,76 @@ function renderRoleSelection() {
 
       </div>
 
+      <section class="hev-signal-radar hev-reveal" aria-label="Startup trigger intelligence">
+        <div class="hev-signal-head">
+          <span class="hev-signal-kicker">Signal Radar &middot; proposed lead engine</span>
+          <div>
+            <h2>Approach the startup when the risk trigger appears.</h2>
+            <p>Monitor credible public signals, update the SPARC profile, score bundle fit, and create an RM-ready approach task after human review.</p>
+          </div>
+        </div>
+
+        <div class="hev-signal-flow" aria-label="Signal Radar workflow">
+          <span>Public signal</span>
+          <span>Profile update</span>
+          <span>Bundle fit</span>
+          <span>RM review</span>
+          <span>Approach task</span>
+        </div>
+
+        <div class="hev-signal-grid" role="table" aria-label="Startup signal to insurance angle map">
+          <div class="hev-signal-row hev-signal-row-head" role="row">
+            <span role="columnheader">Signal</span>
+            <span role="columnheader">Why it matters</span>
+            <span role="columnheader">Likely insurance angle</span>
+          </div>
+          <div class="hev-signal-row" role="row">
+            <span role="cell">Funding round</span>
+            <span role="cell">Board, investor, governance risk rises</span>
+            <span role="cell">D&amp;O, Key Person, Cyber</span>
+          </div>
+          <div class="hev-signal-row" role="row">
+            <span role="cell">Warehouse / factory</span>
+            <span role="cell">Physical asset exposure rises</span>
+            <span role="cell">Property, IAR, Fire, CGL</span>
+          </div>
+          <div class="hev-signal-row" role="row">
+            <span role="cell">Drone / robotics expansion</span>
+            <span role="cell">Regulatory and third-party liability</span>
+            <span role="cell">Drone RPAS, IAR</span>
+          </div>
+          <div class="hev-signal-row" role="row">
+            <span role="cell">Fintech licence / RBI mention</span>
+            <span role="cell">Regulated data and operational risk</span>
+            <span role="cell">Cyber, PI, D&amp;O, Crime</span>
+          </div>
+          <div class="hev-signal-row" role="row">
+            <span role="cell">Healthcare expansion</span>
+            <span role="cell">Patient data and professional liability</span>
+            <span role="cell">Cyber, PI, CGL</span>
+          </div>
+          <div class="hev-signal-row" role="row">
+            <span role="cell">Export / import news</span>
+            <span role="cell">Transit and credit exposure appears</span>
+            <span role="cell">Marine Cargo, Trade Credit</span>
+          </div>
+          <div class="hev-signal-row" role="row">
+            <span role="cell">IPO / pre-IPO news</span>
+            <span role="cell">Director liability and scrutiny rise</span>
+            <span role="cell">D&amp;O, Crime, Cyber</span>
+          </div>
+        </div>
+
+        <div class="hev-signal-guardrails">
+          <span>Human review before outreach</span>
+          <span>Official company email preferred</span>
+          <span>Source URL and confidence stored</span>
+        </div>
+        <button class="hev-signal-open" type="button" id="signal-radar-open">
+          Open Signal Radar
+        </button>
+      </section>
+
     </main>`;
 
   const input = $("autofill-company-input");
@@ -1094,6 +1195,7 @@ function renderRoleSelection() {
   });
 
   $("pipeline-entry-btn").onclick = () => renderPipelineDashboard();
+  $("signal-radar-open").onclick = () => renderSignalRadarDashboard();
   $("customer-role-btn").onclick = () => {
     if (!state.customerProfile?.industry) resetCustomerProfile();
     renderCustomerInput();
@@ -1110,6 +1212,158 @@ function renderRoleSelection() {
 }
 
 // ─── Pipeline Intelligence dashboard ─────────────────────────────────────────
+
+// Signal Radar dashboard
+let _signalRadarData = null;
+let _signalRadarFilter = "";
+
+async function renderSignalRadarDashboard(filter = _signalRadarFilter, forceRefresh = false) {
+  state.view = "signals";
+  _signalRadarFilter = filter || "";
+  const mc = $("main-content");
+
+  mc.innerHTML = `
+    <main class="hev-shell">
+      <div class="signal-shell">
+        <button class="btn btn-ghost pipeline-back-btn" type="button" id="signal-back">&larr; Back</button>
+        <section class="signal-hero">
+          <span class="signal-eyebrow">Signal Radar</span>
+          <h1>Startup triggers converted into RM approach tasks.</h1>
+          <p>Public news signals are classified into SPARC profile deltas, bundle fit, premium range, contact-source status, and a human-reviewed next action.</p>
+        </section>
+        <div class="pipeline-loading">Loading public trigger signals&hellip;</div>
+      </div>
+    </main>`;
+  $("signal-back").onclick = () => renderRoleSelection();
+
+  const cachedLive = String(_signalRadarData?.source_status || "").startsWith("live_");
+  if (!_signalRadarData || forceRefresh || !cachedLive) {
+    try {
+      const res = await fetch(`/api/signals?limit=30&t=${Date.now()}`, { cache: "no-store" });
+      _signalRadarData = await res.json();
+      if (!res.ok || _signalRadarData.error) throw new Error(_signalRadarData.error || "Signal scan failed");
+    } catch (e) {
+      mc.querySelector(".pipeline-loading").textContent = "Failed to load Signal Radar. Check the server and try again.";
+      return;
+    }
+  }
+
+  const allSignals = _signalRadarData.signals || [];
+  const signals = _signalRadarFilter
+    ? allSignals.filter(s => s.signal_id === _signalRadarFilter)
+    : allSignals;
+  const kpis = _signalRadarData.kpis || {};
+  const signalTypes = [...new Map(allSignals.map(s => [s.signal_id, s.signal])).entries()];
+  const liveMode = String(_signalRadarData.source_status || "").startsWith("live_");
+  const sourceLabel = _signalRadarData.source_status === "live_rss"
+    ? "Live public news via startup RSS feeds"
+    : _signalRadarData.source_status === "live_google_news"
+      ? "Live public news via Google News RSS"
+      : _signalRadarData.source_status === "live_gdelt"
+        ? "Live public news via GDELT"
+        : _signalRadarData.source_status === "live_multi"
+          ? "Live public news via multiple feeds"
+          : "Sample trigger task list";
+  const sourceDetail = liveMode
+    ? "Showing public articles classified into SPARC-ready triggers."
+    : "Live news source did not respond in time; showing a review-ready sample list until refresh succeeds.";
+
+  mc.innerHTML = `
+    <main class="hev-shell">
+      <div class="signal-shell">
+        <div class="signal-topbar">
+          <button class="btn btn-ghost pipeline-back-btn" type="button" id="signal-back">&larr; Back</button>
+          <button class="signal-refresh" type="button" id="signal-refresh">Refresh scan</button>
+        </div>
+
+        <section class="signal-hero">
+          <span class="signal-eyebrow">Signal Radar</span>
+          <h1>Startup triggers converted into RM approach tasks.</h1>
+          <p>Public news signals are classified into SPARC profile deltas, bundle fit, premium range, contact-source status, and a human-reviewed next action.</p>
+          <div class="signal-source-note">
+            <span>Source mode: ${escHtml(sourceLabel)}</span>
+            <span>${escHtml(sourceDetail)}</span>
+            <span>${escHtml(_signalRadarData.source_policy || "Human review required before outreach.")}</span>
+          </div>
+        </section>
+
+        <section class="signal-kpis" aria-label="Signal Radar metrics">
+          <div><span>Total signals</span><strong>${kpis.total || allSignals.length}</strong></div>
+          <div><span>High confidence</span><strong>${kpis.high_confidence || 0}</strong></div>
+          <div><span>Open premium pool</span><strong>INR ${formatCr(kpis.premium_pool_cr || 0)} Cr</strong></div>
+          <div><span>Top trigger</span><strong>${escHtml(kpis.top_signal || "—")}</strong></div>
+        </section>
+
+        <div class="signal-filter-row">
+          <button class="signal-filter ${!_signalRadarFilter ? "active" : ""}" data-signal="">All</button>
+          ${signalTypes.map(([id, label]) => `
+            <button class="signal-filter ${_signalRadarFilter === id ? "active" : ""}" data-signal="${escHtml(id)}">${escHtml(label)}</button>
+          `).join("")}
+        </div>
+
+        <section class="signal-task-list">
+          ${signals.length ? signals.map((signal, index) => renderSignalTask(signal, index)).join("") : `
+            <div class="signal-empty">
+              <strong>No signals in this filter.</strong>
+              <span>Try another trigger type or refresh the scan.</span>
+            </div>
+          `}
+        </section>
+      </div>
+    </main>`;
+
+  $("signal-back").onclick = () => renderRoleSelection();
+  $("signal-refresh").onclick = () => renderSignalRadarDashboard(_signalRadarFilter, true);
+  document.querySelectorAll(".signal-filter").forEach(btn => {
+    btn.onclick = () => renderSignalRadarDashboard(btn.dataset.signal || "", false);
+  });
+  document.querySelectorAll(".signal-analyze-btn").forEach(btn => {
+    btn.onclick = () => triggerAutoProfiling(btn.dataset.company, signals[Number(btn.dataset.signalIndex)]);
+  });
+}
+
+function renderSignalTask(signal, index = 0) {
+  const premium = Number(signal.premium_max_lakh || 0) > 0
+    ? `INR ${formatLakh(signal.premium_min_lakh)}-${formatLakh(signal.premium_max_lakh)}L`
+    : "Needs quote inputs";
+  const deltas = (signal.profile_delta || []).slice(0, 5);
+  return `
+    <article class="signal-task">
+      <div class="signal-task-main">
+        <div class="signal-task-head">
+          <span class="signal-type">${escHtml(signal.signal)}</span>
+          <span class="signal-confidence">${escHtml(signal.confidence || "—")}% confidence</span>
+        </div>
+        <h2>${escHtml(signal.company)}</h2>
+        <p>${escHtml(signal.headline)}</p>
+        <div class="signal-meta">
+          <span>${escHtml(signal.sector || "Sector inferred")}</span>
+          <span>${escHtml(signal.funding_stage || "Stage inferred")}</span>
+          <span>${escHtml(signal.source || "Public source")}</span>
+        </div>
+      </div>
+      <div class="signal-task-side">
+        <div class="signal-reco">
+          <span>Recommended bundle</span>
+          <strong>${escHtml(signal.recommended_bundle)}</strong>
+        </div>
+        <div class="signal-side-grid">
+          <div><span>Premium range</span><strong>${premium}</strong></div>
+          <div><span>Insurance angle</span><strong>${escHtml(signal.insurance_angle)}</strong></div>
+          <div><span>Email source</span><strong>${escHtml(signal.contact_status)}</strong></div>
+          <div><span>Review status</span><strong>${escHtml(signal.review_status)}</strong></div>
+        </div>
+        <div class="signal-deltas">
+          ${deltas.map(d => `<span>${escHtml(String(d).replace(/_/g, " "))}</span>`).join("")}
+        </div>
+        <p class="signal-action">${escHtml(signal.rm_action)}</p>
+        <div class="signal-actions">
+          ${signal.source_url ? `<a href="${escHtml(signal.source_url)}" target="_blank" rel="noopener">Open source</a>` : ""}
+          <button class="signal-analyze-btn" type="button" data-company="${escHtml(signal.company)}" data-signal-index="${index}">Run SPARC</button>
+        </div>
+      </div>
+    </article>`;
+}
 
 let _pipelineData = null; // cache so we don't re-fetch on filter change
 let _pipelineView = "table"; // "table" | "heat"
@@ -1425,6 +1679,12 @@ function scoreClass(s) {
 }
 
 function formatLakh(value) {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n)) return "0";
+  return Number.isInteger(n) ? String(n) : n.toFixed(1).replace(/\.0$/, "");
+}
+
+function formatCr(value) {
   const n = Number(value || 0);
   if (!Number.isFinite(n)) return "0";
   return Number.isInteger(n) ? String(n) : n.toFixed(1).replace(/\.0$/, "");
@@ -2992,6 +3252,7 @@ async function loadOutreachTab(result) {
         scores: result.scores,
         recommendations: result.recommendations,
         bundle_match: result.bundle_match,
+        signal_context: result.signal_context,
         display_regulatory_triggers: result.display_regulatory_triggers,
         regulatory_triggers_fired: result.regulatory_triggers_fired,
       }),
@@ -5381,6 +5642,8 @@ function buildILEmailHtml(subject, body, d) {
   const product   = d.product_name || "this policy";
   const riskNames = d.risk_names   || [];
   const bodyPara  = d.body_para    || "";
+  const triggerLine = d.trigger_line || "";
+  const priorityProducts = d.priority_products || "";
   const rmName    = d.rm_name      || "{{RM_NAME}}";
   const rmPhone   = d.rm_phone     || "{{RM_PHONE}}";
   const rmEmail   = d.rm_email     || "{{RM_EMAIL}}";
@@ -5430,6 +5693,7 @@ body{margin:0;padding:0;width:100%!important;background:#D1CFBB;}
     <div style="font-family:Georgia,'Times New Roman',serif;color:#053C6D;font-size:26px;line-height:1.25;font-weight:normal;margin-bottom:20px;">A tailored approach to protecting ${esc(company)}&rsquo;s journey</div>
     <p style="margin:0 0 6px 0;font-family:Arial,Helvetica,sans-serif;color:#22262E;font-size:15px;line-height:1.65;">Dear ${esc(company)} team,</p>
     <p style="margin:0 0 20px 0;font-family:Arial,Helvetica,sans-serif;color:#22262E;font-size:15px;line-height:1.65;">Greetings from ICICI Lombard!</p>
+    ${triggerLine ? `<p style="margin:0 0 18px 0;font-family:Arial,Helvetica,sans-serif;color:#374151;font-size:14px;line-height:1.7;"><strong style="color:#053C6D;">Reason for reaching out now:</strong> ${esc(triggerLine)}${priorityProducts ? ` We would prioritise ${esc(priorityProducts)} in the first conversation.` : ""}</p>` : ""}
     <p style="margin:0 0 28px 0;font-family:Arial,Helvetica,sans-serif;color:#374151;font-size:14px;line-height:1.7;">Our expert underwriters have been closely studying risk profiles across the ${esc(industry)} landscape, and ${esc(company)} stood out. Based on their assessment, your most significant risk dimensions deserve proactive, well-structured coverage — especially at your current stage of growth.</p>
   </td></tr>
 
@@ -5551,6 +5815,7 @@ function renderFounderPitch(result) {
   const bullets  = result.pitch_bullets || [];
   const handlers = result.objection_handlers || [];
   const meta     = result.pitch_meta || {};
+  const signal   = result.signal_context || null;
   if (!bullets.length && !handlers.length) return "";
 
   const bulletText = bullets.map((b, i) =>
@@ -5575,12 +5840,25 @@ function renderFounderPitch(result) {
       ${meta.best_timing     ? `<div class="fp-meta-row"><span class="fp-meta-l">Best timing</span><span class="fp-meta-v">${esc(meta.best_timing)}</span></div>` : ""}
     </div>` : "";
 
+  const signalHtml = signal ? `
+    <div class="r-card" style="margin-bottom:16px;background:#fff7f3;border-color:rgba(173,30,35,.18);">
+      <div style="font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--red);margin-bottom:8px;">Signal context for this pitch</div>
+      <div style="font-family:var(--font-head);font-size:16px;font-weight:700;color:var(--ink);line-height:1.3;margin-bottom:6px;">${esc(signal.signal || "Public trigger")} at ${esc(signal.company || result.profile?.startup_name || "this startup")}</div>
+      <div style="font-size:13px;color:var(--ink-muted);line-height:1.55;">${esc(signal.headline || "")}${signal.source ? ` (${esc(signal.source)})` : ""}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+        ${signal.recommended_bundle ? `<span class="chip active">${esc(signal.recommended_bundle)}</span>` : ""}
+        ${signal.insurance_angle ? `<span class="chip">${esc(signal.insurance_angle)}</span>` : ""}
+        ${signal.premium_range ? `<span class="chip">${esc(signal.premium_range)}</span>` : ""}
+      </div>
+    </div>` : "";
+
   return `
     <div class="result-section" id="founder-pitch">
       <div class="result-section-head">
         <div class="result-section-bar"></div>
         <div class="result-section-title">The pitch</div>
       </div>
+      ${signalHtml}
       <div class="r-card" style="margin-bottom:16px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
           <span style="font-size:13px;color:var(--ink-muted);">Use these three lines on your founder call.</span>
@@ -5620,7 +5898,7 @@ function renderOutreach(prompts, source, error) {
           const plainEmail = `${item.email_subject}\n\n${item.email_body}`;
           return `
             <details class="outreach-item" ${i===0?"open":""}>
-              <summary>${esc(labelize(key))}</summary>
+              <summary>${esc(item.email_html_data?.product_name || labelize(key))}</summary>
               <div class="outreach-body">
                 <div>
                   <div class="outreach-col-label">Email</div>

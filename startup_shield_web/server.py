@@ -1,12 +1,14 @@
 import json
 import math
 import os
+import re
 import sqlite3
 import sys
 import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 from dataclasses import fields
 from datetime import datetime
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -938,7 +940,7 @@ def _persist_verified_profile(profile: dict) -> None:
 
 _CAPACITY_ERRORS = ("503", "429", "unavailable", "UNAVAILABLE", "high demand", "quota", "rate", "timed out", "timeout")
 
-def autofill_and_analyze(company_name):
+def autofill_and_analyze(company_name, signal_context=None):
     if not gemini_enabled():
         return {"error": "Gemini API key not configured. Cannot auto-profile."}
 
@@ -987,6 +989,7 @@ def autofill_and_analyze(company_name):
     _persist_verified_profile(profile_data)
 
     result = analyze(profile_data)
+    result = _apply_signal_context_to_result(result, signal_context)
     result["autofilled_fields"] = list(autofilled.keys())
     result["autofill_warning"] = "Pre-filled from public sources via Gemini + Google Search. Verify before underwriting."
     return result
@@ -1753,6 +1756,81 @@ def _format_cover_lines(cover_facts, max_items=8):
     return "\n".join(lines)
 
 
+def _clean_signal_context(signal_context):
+    if not isinstance(signal_context, dict):
+        return {}
+    allowed = (
+        "company", "signal", "signal_id", "headline", "source", "source_url",
+        "insurance_angle", "recommended_bundle", "premium_range",
+        "review_status", "contact_status",
+    )
+    cleaned = {}
+    for key in allowed:
+        value = signal_context.get(key)
+        if value in (None, "", [], {}):
+            continue
+        cleaned[key] = str(value).strip()[:500]
+    products = signal_context.get("priority_products") or []
+    if isinstance(products, list):
+        cleaned["priority_products"] = [str(p).strip()[:120] for p in products if str(p).strip()][:5]
+    elif isinstance(products, str) and products.strip():
+        cleaned["priority_products"] = [products.strip()[:120]]
+    bundle_name = cleaned.get("recommended_bundle")
+    if bundle_name and bundle_name not in cleaned.get("priority_products", []):
+        cleaned.setdefault("priority_products", []).insert(0, bundle_name)
+    return cleaned
+
+
+def _signal_context_sentence(signal_context):
+    ctx = _clean_signal_context(signal_context)
+    if not ctx:
+        return ""
+    signal = ctx.get("signal") or "public risk trigger"
+    headline = ctx.get("headline") or "a public startup trigger"
+    source = ctx.get("source") or "public news"
+    bundle = ctx.get("recommended_bundle")
+    angle = ctx.get("insurance_angle")
+    parts = [f"Reason to reach out now: {headline} ({source}) was classified as {signal}."]
+    if bundle or angle:
+        parts.append(f"Lead with {bundle or angle}; the relevant insurance angle is {angle or bundle}.")
+    return " ".join(parts)
+
+
+def _same_product_name(a, b):
+    def norm(value):
+        return re.sub(r"[^a-z0-9]+", "", str(value or "").lower())
+    return bool(norm(a) and norm(a) == norm(b))
+
+
+def _prioritized_outreach_products(recommendations, bundle, signal_context=None):
+    ctx = _clean_signal_context(signal_context)
+    products = []
+    signal_bundle = ctx.get("recommended_bundle")
+    bundle_name = (bundle or {}).get("name")
+    if signal_bundle and not _same_product_name(signal_bundle, bundle_name):
+        products.append({
+            "key": "signal_bundle",
+            "name": signal_bundle,
+            "nudge": _signal_context_sentence(ctx),
+            "what_it_covers": ctx.get("insurance_angle", ""),
+        })
+    if bundle:
+        products.append({
+            "key": "bundle",
+            "name": bundle.get("name"),
+            "nudge": bundle.get("description", ""),
+            "what_it_covers": bundle.get("description", ""),
+        })
+    for product in (recommendations or [])[:5]:
+        name = product.get("name") or product.get("key")
+        if not name:
+            continue
+        if any(_same_product_name(name, existing.get("name")) for existing in products):
+            continue
+        products.append(product)
+    return [p for p in products[:6] if p.get("key") and p.get("name")]
+
+
 def _outreach_context(profile, scores, recommendations, bundle, size_bucket=None):
     bundle_cover_facts = _outreach_cover_facts(bundle) if bundle else []
     products = []
@@ -1790,28 +1868,37 @@ def _outreach_context(profile, scores, recommendations, bundle, size_bucket=None
     }
 
 
-def fallback_outreach_prompts(profile, scores, recommendations, bundle):
+def fallback_outreach_prompts(profile, scores, recommendations, bundle, signal_context=None):
     contacts = load_contacts()
     top_scores = sorted(scores.items(), key=lambda item: item[1], reverse=True)[:3]
     risk_names = ", ".join(name for name, _ in top_scores)
-    products = list(recommendations[:5])
-    if bundle:
-        products.insert(0, {"key": "bundle", "name": bundle.get("name"), "nudge": bundle.get("description", "")})
+    signal_line = _signal_context_sentence(signal_context)
+    signal_ctx = _clean_signal_context(signal_context)
+    priority_products = ", ".join(signal_ctx.get("priority_products") or [])
+    products = _prioritized_outreach_products(recommendations, bundle, signal_ctx)
     output = {}
     for product in products[:6]:
         key = product.get("key", "bundle")
         name = product.get("name", key)
         nudge = product.get("nudge") or product.get("what_it_covers") or ""
+        trigger_para = (
+            f"{signal_line} This is why our first conversation should prioritise {priority_products or name}.\n\n"
+            if signal_line else ""
+        )
         contact_block = (
             f"Warm regards,\n{contacts.get('RM_NAME')}\n"
             f"{contacts.get('RM_PHONE')} | {contacts.get('RM_EMAIL')}\n"
             f"{contacts.get('RM_OFFICE')}"
         )
         output[key] = {
-            "email_subject": f"A tailored coverage recommendation for {profile.get('startup_name')}",
+            "email_subject": (
+                f"{profile.get('startup_name')}: coverage after {signal_ctx.get('signal')}"
+                if signal_ctx.get("signal") else f"A tailored coverage recommendation for {profile.get('startup_name')}"
+            ),
             "email_body": (
                 f"Dear {profile.get('startup_name')} team,\n\n"
                 f"Greetings from ICICI Lombard!\n\n"
+                f"{trigger_para}"
                 f"Our expert underwriters have been closely studying risk profiles across the "
                 f"{profile.get('sector')} landscape, and {profile.get('startup_name')} stood out. "
                 f"Based on their assessment, your most significant risk dimensions — {risk_names} — "
@@ -1825,6 +1912,7 @@ def fallback_outreach_prompts(profile, scores, recommendations, bundle):
             ),
             "whatsapp": (
                 f"Hi {profile.get('startup_name')} team! Greetings from ICICI Lombard. "
+                f"{signal_ctx.get('signal') + ' caught our attention. ' if signal_ctx.get('signal') else ''}"
                 f"Our underwriters flagged {risk_names} as key exposures for your stage. "
                 f"{name} looks like a strong fit — happy to walk you through it whenever convenient. "
                 f"{contacts.get('RM_NAME')} | {contacts.get('RM_PHONE')}"
@@ -1835,6 +1923,8 @@ def fallback_outreach_prompts(profile, scores, recommendations, bundle):
                 "product_name": name,
                 "risk_names": [r for r, _ in top_scores[:3]],
                 "body_para": nudge,
+                "trigger_line": signal_line,
+                "priority_products": priority_products,
                 "rm_name": contacts.get("RM_NAME", "{{RM_NAME}}"),
                 "rm_phone": contacts.get("RM_PHONE", "{{RM_PHONE}}"),
                 "rm_email": contacts.get("RM_EMAIL", "{{RM_EMAIL}}"),
@@ -1843,17 +1933,15 @@ def fallback_outreach_prompts(profile, scores, recommendations, bundle):
     return output
 
 
-def outreach_prompt_payload(profile, scores, recommendations, bundle, size_bucket):
+def outreach_prompt_payload(profile, scores, recommendations, bundle, size_bucket, signal_context=None):
     contacts = load_contacts()
     top_scores = sorted(scores.items(), key=lambda item: item[1], reverse=True)[:3]
-    products = []
-    if bundle:
-        products.append({"key": "bundle", "name": bundle.get("name", "Bundle recommendation")})
-    for product in recommendations[:5]:
-        products.append({"key": product.get("key"), "name": product.get("name", product.get("key"))})
-    products = [product for product in products[:6] if product.get("key") and product.get("name")]
+    signal_ctx = _clean_signal_context(signal_context)
+    products = _prioritized_outreach_products(recommendations, bundle, signal_ctx)
     product_lines = "\n".join(f"- {product['key']}: {product['name']}" for product in products)
     top_risk_names = ", ".join(name for name, _ in top_scores)
+    signal_line = _signal_context_sentence(signal_ctx)
+    priority_products = ", ".join(signal_ctx.get("priority_products") or [])
     profile_highlights = [
         f"Customer types: {', '.join(profile.get('customer_type') or ['not specified'])}",
         f"Data handled: {', '.join(profile.get('data_handled') or ['not specified'])}",
@@ -1868,9 +1956,14 @@ You are a warm, knowledgeable ICICI Lombard Relationship Manager writing persona
 Their leading risk dimensions (mention by name only, NO scores or numbers): {top_risk_names}.
 Their profile highlights:
 {chr(10).join('- ' + item for item in profile_highlights)}
+Signal Radar context:
+{signal_line or "No public trigger context supplied."}
+Priority products from the trigger flow: {priority_products or "use the recommended products below"}
 
 TONE RULES (strictly follow):
 - Always open with: "Dear [Company] team," then "Greetings from ICICI Lombard!"
+- If Signal Radar context is supplied, use it in the first substantive paragraph as the reason for outreach now.
+- Prioritise the trigger-recommended product or bundle before broader portfolio products.
 - Attribute risk insights to "our expert underwriters" — never cite numerical scores.
 - Be warm, friendly, and gently persuasive — like a trusted advisor, not a salesperson.
 - End emails with "Warm regards," and the contact block.
@@ -1905,8 +1998,8 @@ Return compact JSON only. Do not wrap in markdown. Do not add commentary outside
 """.strip()
 
 
-def normalize_outreach_response(raw, profile, scores, recommendations, bundle):
-    fallback = fallback_outreach_prompts(profile, scores, recommendations, bundle)
+def normalize_outreach_response(raw, profile, scores, recommendations, bundle, signal_context=None):
+    fallback = fallback_outreach_prompts(profile, scores, recommendations, bundle, signal_context)
     if not isinstance(raw, dict):
         return fallback, "fallback"
     normalized = {}
@@ -1927,13 +2020,13 @@ def normalize_outreach_response(raw, profile, scores, recommendations, bundle):
     return normalized, "gemini"
 
 
-def outreach_prompts(profile, scores, recommendations, bundle, size_bucket):
+def outreach_prompts(profile, scores, recommendations, bundle, size_bucket, signal_context=None):
     if not gemini_enabled():
-        return fallback_outreach_prompts(profile, scores, recommendations, bundle), "fallback", None
+        return fallback_outreach_prompts(profile, scores, recommendations, bundle, signal_context), "fallback", None
 
-    prompt = outreach_prompt_payload(profile, scores, recommendations, bundle, size_bucket)
+    prompt = outreach_prompt_payload(profile, scores, recommendations, bundle, size_bucket, signal_context)
     raw, error = call_gemini_json(prompt)
-    prompts, source = normalize_outreach_response(raw, profile, scores, recommendations, bundle)
+    prompts, source = normalize_outreach_response(raw, profile, scores, recommendations, bundle, signal_context)
     return prompts, source, error
 
 
@@ -1983,7 +2076,7 @@ def _resolve_objections(lib_entry):
     return raw
 
 
-def build_pitch_bullets(profile, bundle_match, scores, pricing_quote):
+def build_pitch_bullets(profile, bundle_match, scores, pricing_quote, signal_context=None):
     """Return 3 consequence-first, company-specific pitch bullets. Zero tokens."""
     company    = profile.get("startup_name", "This company")
     sector     = profile.get("sector", "your sector")
@@ -2294,6 +2387,18 @@ def build_pitch_bullets(profile, bundle_match, scores, pricing_quote):
             f"No filler covers included -- every mandatory line closes a specific "
             f"{sector} liability gap that {company} carries today uninsured."
         )
+
+    ctx = _clean_signal_context(signal_context)
+    if ctx:
+        signal = ctx.get("signal") or "public risk trigger"
+        headline = ctx.get("headline") or "the recent public signal"
+        source = ctx.get("source") or "public news"
+        priority = ", ".join(ctx.get("priority_products") or []) or (bundle_match or {}).get("name") or "the recommended covers"
+        signal_bullet = (
+            f"Lead with the trigger: {headline} ({source}) shows {company} is at a {signal} moment. "
+            f"Open with {priority}, then use SPARC to show the broader risk-backed recommendation."
+        )
+        return [signal_bullet, bullet1, bullet2]
 
     return [bullet1, bullet2, bullet3]
 
@@ -2678,8 +2783,34 @@ def score(profile):
     return payload_v2
 
 
+def _apply_signal_context_to_result(result, signal_context):
+    ctx = _clean_signal_context(signal_context)
+    if not ctx or not isinstance(result, dict):
+        return result
+    result["signal_context"] = json_safe(ctx)
+    if result.get("profile") and result.get("scores"):
+        result["pitch_bullets"] = build_pitch_bullets(
+            result.get("profile") or {},
+            result.get("bundle_match") or {},
+            result.get("scores") or {},
+            result.get("pricing_engine_quote"),
+            ctx,
+        )
+        result["outreach_fallback"] = json_safe(fallback_outreach_prompts(
+            result.get("profile") or {},
+            result.get("scores") or {},
+            result.get("recommendations", []),
+            result.get("bundle_match") or {},
+            ctx,
+        ))
+    return result
+
+
 def analyze(raw):
-    return score(raw)
+    result = score(raw)
+    if isinstance(raw, dict):
+        return _apply_signal_context_to_result(result, raw.get("signal_context"))
+    return result
 
 
 def policy_wording_ai_summary(payload, deterministic):
@@ -2775,6 +2906,666 @@ def meta():
     }
 
 
+# ─── PIPELINE ENRICHMENT HELPERS ─────────────────────────────────────────────
+_SECTOR_INCUMBENT = {
+    "Fintech": "HDFC Ergo", "Healthtech": "Star Health",
+    "SaaS / Enterprise Software": "Bajaj Allianz", "Deeptech / AI / Robotics": "Bajaj Allianz",
+    "D2C / Consumer Brands": "New India Assurance", "Logistics / Mobility": "Tata AIG",
+    "Edtech": "Oriental Insurance", "Agritech / Foodtech": "Agriculture Insurance Co.",
+    "Cleantech / Climatetech": "New India Assurance", "Gaming / Media / Content": "Bajaj Allianz",
+    "HRtech": "HDFC Ergo", "Legaltech": "Tata AIG", "Spacetech": "New India Assurance",
+}
+_STAGE_SIGNALS = {
+    "preseed": [
+        "Founder registered company — no insurance footprint",
+        "MVP launched, first liability exposure window open",
+        "LinkedIn activity spike — team building phase",
+    ],
+    "untapped": [
+        "Seed round closed — institutional investor pressure for D&O",
+        "First 20+ employees hired — IRDAI health mandate triggered",
+        "Product live, first enterprise prospect requesting E&O proof",
+    ],
+    "strike_now": [
+        "Series A closed — VC term sheet requires policy proof within 90 days",
+        "SEBI/RBI regulatory filing submitted — compliance window open",
+        "Enterprise contract pipeline — client mandating cover certificate",
+    ],
+    "covered": [
+        "Policy renewal in 45 days — competitor pitch already circulating",
+        "New product line — existing cover may have exclusion gaps",
+        "Funding round imminent — D&O upgrade likely required",
+    ],
+}
+_SECTOR_PITCHES = {
+    "Fintech": "RBI mandates cyber + D&O — close before their Series B due-diligence window.",
+    "Healthtech": "Clinical liability gap is real; ABDM compliance adds new exposure every quarter.",
+    "SaaS / Enterprise Software": "Enterprise contracts require E&O proof of cover — we make it frictionless.",
+    "Deeptech / AI / Robotics": "IP infringement + product liability — the two risks VCs always flag.",
+    "D2C / Consumer Brands": "Product recall + warehouse fire is one event away from wiping working capital.",
+    "Logistics / Mobility": "Fleet + gig-worker accident liability — largest claim category in our book.",
+    "Edtech": "Student data breach exposure is real; DPDP Act makes this urgent now.",
+    "Agritech / Foodtech": "Cold chain + crop failure — multi-line bundle in one RM conversation.",
+    "Cleantech / Climatetech": "Infrastructure risk + regulatory liability — build trust before the cap raise.",
+    "Gaming / Media / Content": "IP + cyber + D&O — three risks, one conversation, one bundle.",
+    "HRtech": "PII data + employer liability — DPDP Act puts fines on the table now.",
+    "Legaltech": "Professional indemnity is table stakes; make this their first policy.",
+    "Spacetech": "Space + product liability — rare expertise, high trust opportunity.",
+}
+_COVER_NAMES = {
+    "cyber_liability": "Cyber Liability", "dno_liability": "D&O Liability",
+    "professional_indemnity": "Professional Indemnity", "property_fire": "Property & Fire",
+    "business_interruption": "Business Interruption", "employee_health": "Group Health",
+    "group_pa": "Group Personal Accident", "public_liability": "Public Liability",
+    "employees_comp": "Workmen\'s Compensation", "burglary": "Burglary & Theft",
+    "product_liability": "Product Liability", "key_person": "Keyman Insurance",
+    "marine_transit": "Marine Transit", "employment_practices": "Employment Practices",
+    "crime_fidelity": "Crime & Fidelity", "property_all_risk": "Property All Risk",
+    "electronic_equipment": "Electronic Equipment", "trade_credit": "Trade Credit",
+    "engineering": "Engineering Insurance", "contractors_all_risk": "Contractors All Risk",
+    "event_production": "Event Production",
+}
+
+
+def _incumbent(stage: str, sector: str) -> str:
+    if stage in ("Pre-seed", "Seed"):
+        return ""
+    return _SECTOR_INCUMBENT.get(sector, "")
+
+
+def _signal(tap: str, name: str) -> dict:
+    texts = _STAGE_SIGNALS.get(tap, ["Company milestone detected — outreach window open"])
+    h = abs(hash(name)) % len(texts)
+    days = [7, 14, 21, 30, 45][abs(hash(name + "_days")) % 5]
+    return {"text": texts[h], "daysAgo": days}
+
+
+def _pitch_angle(sector: str, incumbent: str) -> str:
+    base = _SECTOR_PITCHES.get(sector, "Right cover for your stage — one conversation to close.")
+    if not incumbent:
+        return "Greenfield opportunity — " + base[0].lower() + base[1:]
+    return base
+
+
+def _bundle_lines(bm: dict, max_lakh: float) -> list:
+    covers = bm.get("mandatory_covers") or []
+    if not covers or max_lakh <= 0:
+        return [[bm.get("name", "Bundle"), max_lakh]] if max_lakh > 0 else []
+    per = round(max_lakh / len(covers), 1)
+    return [[_COVER_NAMES.get(c, c.replace("_", " ").title()), per] for c in covers]
+
+
+def _opp_score(row: dict) -> int:
+    stage_wt = {"Pre-seed": 5, "Seed": 20, "Series A": 55, "Series B+": 65}.get(
+        row.get("funding_stage", ""), 10
+    )
+    prem_norm = min(25, int(row.get("max_lakh", 0) / 6))
+    risk_norm = min(15, int(row.get("overall_score", 0) / 7))
+    inc_bonus = 0 if row.get("incumbent") else 15
+    return min(100, stage_wt + prem_norm + risk_norm + inc_bonus)
+
+
+# --- Signal Radar: public-trigger intelligence MVP -------------------------
+SIGNAL_RULES = [
+    {
+        "id": "funding_round",
+        "label": "Funding round",
+        "why": "Board, investor, governance risk rises",
+        "angle": "D&O, Key Person, Cyber",
+        "keywords": ["funding", "fundraise", "raised", "raises", "series a", "series b", "series c", "seed round", "investment"],
+        "stage": "Series A",
+        "profile": {"has_investors": "Yes", "data_sensitivity": "High"},
+    },
+    {
+        "id": "warehouse_factory",
+        "label": "Warehouse / factory",
+        "why": "Physical asset exposure rises",
+        "angle": "Property, IAR, Fire, CGL",
+        "keywords": ["warehouse", "factory", "manufacturing", "plant", "facility", "fulfilment", "fulfillment"],
+        "profile": {"operations": "Hybrid", "physical_assets": ["Manufacturing plant / factory", "Warehouse / fulfilment centre"], "hardware_software_split": 0.7},
+    },
+    {
+        "id": "drone_robotics",
+        "label": "Drone / robotics expansion",
+        "why": "Regulatory and third-party liability",
+        "angle": "Drone RPAS, IAR",
+        "keywords": ["drone", "uav", "robotics", "autonomous", "dgca"],
+        "sector": "Deeptech / AI / Robotics",
+        "profile": {"physical_assets": ["Lab / R&D equipment", "Drones / UAV equipment"], "regulatory": ["DGCA / drone operations"], "hardware_software_split": 0.55},
+    },
+    {
+        "id": "fintech_rbi",
+        "label": "Fintech licence / RBI mention",
+        "why": "Regulated data and operational risk",
+        "angle": "Cyber, PI, D&O, Crime",
+        "keywords": ["rbi", "nbfc", "payment aggregator", "fintech", "lending licence", "lending license", "sebi", "irdai"],
+        "sector": "Fintech",
+        "profile": {"data_sensitivity": "High", "data_handled": ["Payments / financial transactions", "Personal identity data (KYC / Aadhaar)"], "regulatory": ["RBI / SEBI / IRDAI licensed", "DPDP Act obligations"], "payment_or_card_program": True},
+    },
+    {
+        "id": "healthcare_expansion",
+        "label": "Healthcare expansion",
+        "why": "Patient data and professional liability",
+        "angle": "Cyber, PI, CGL",
+        "keywords": ["healthcare", "hospital", "clinic", "patient", "diagnostic", "doctor", "medical", "pharma"],
+        "sector": "Healthtech",
+        "profile": {"data_sensitivity": "High", "data_handled": ["Health / medical data", "Personal identity data (KYC / Aadhaar)"], "healthcare_operations": True},
+    },
+    {
+        "id": "hiring_spike",
+        "label": "Hiring spike",
+        "why": "Employee exposure grows",
+        "angle": "WC, Group Health, EPLI",
+        "keywords": ["hiring", "hire", "headcount", "employees", "workforce", "layoff", "campus"],
+        "profile": {"team_size": 120},
+    },
+    {
+        "id": "export_import",
+        "label": "Export / import news",
+        "why": "Transit and credit exposure appears",
+        "angle": "Marine Cargo, Trade Credit",
+        "keywords": ["export", "exports", "import", "imports", "global market", "overseas", "shipment", "supply chain"],
+        "profile": {"export_us_pct": 20.0, "physical_assets": ["Warehouse / fulfilment centre"]},
+    },
+    {
+        "id": "product_recall",
+        "label": "Product recall / safety issue",
+        "why": "Liability exposure becomes immediate",
+        "angle": "Product Liability, CGL",
+        "keywords": ["recall", "defect", "safety issue", "fire incident", "battery fire", "contamination"],
+        "profile": {"product_recall_exposure": True},
+    },
+    {
+        "id": "ipo_preipo",
+        "label": "IPO / pre-IPO news",
+        "why": "Director liability and scrutiny rise",
+        "angle": "D&O, Crime, Cyber",
+        "keywords": ["ipo", "pre-ipo", "listing", "listed", "sebi filing", "drhp", "public issue"],
+        "stage": "Series B+",
+        "profile": {"has_investors": "Yes", "funding_stage": "Series B+"},
+    },
+]
+
+EXCLUDED_SIGNAL_SOURCES = {
+    "facebook.com",
+    "instagram.com",
+    "linkedin.com",
+    "twitter.com",
+    "x.com",
+    "youtube.com",
+}
+
+FALLBACK_SIGNAL_ARTICLES = [
+    {
+        "title": "Razorpay receives RBI payment aggregator licence and expands regulated payments operations",
+        "url": "",
+        "source": "Fallback demo signal",
+        "seendate": "20260521T090000Z",
+    },
+    {
+        "title": "Ather Energy opens new manufacturing facility as electric scooter demand rises",
+        "url": "",
+        "source": "Fallback demo signal",
+        "seendate": "20260521T083000Z",
+    },
+    {
+        "title": "ideaForge expands drone platform for enterprise and defence UAV operations",
+        "url": "",
+        "source": "Fallback demo signal",
+        "seendate": "20260521T080000Z",
+    },
+    {
+        "title": "Pristyn Care adds new clinics and healthcare capacity across Indian cities",
+        "url": "",
+        "source": "Fallback demo signal",
+        "seendate": "20260521T073000Z",
+    },
+    {
+        "title": "Zepto expands dark-store warehouse network after fresh funding round",
+        "url": "",
+        "source": "Fallback demo signal",
+        "seendate": "20260521T070000Z",
+    },
+    {
+        "title": "boAt plans pre-IPO governance preparation after consumer electronics scale-up",
+        "url": "",
+        "source": "Fallback demo signal",
+        "seendate": "20260521T063000Z",
+    },
+]
+
+
+def _article_text(article: dict) -> str:
+    return " ".join(str(article.get(k) or "") for k in ("title", "description", "source")).lower()
+
+
+def _classify_signal(article: dict) -> dict:
+    text = _article_text(article)
+    best = None
+    best_hits = 0
+    for rule in SIGNAL_RULES:
+        hits = sum(1 for kw in rule["keywords"] if kw in text)
+        if hits > best_hits:
+            best = rule
+            best_hits = hits
+    if best:
+        confidence = min(96, 58 + best_hits * 14)
+        return {**best, "confidence": confidence}
+    return {
+        "id": "market_news",
+        "label": "Market news",
+        "why": "Company activity may create a new risk conversation",
+        "angle": "Run SPARC assessment",
+        "keywords": [],
+        "profile": {},
+        "confidence": 42,
+    }
+
+
+def _verified_profiles():
+    try:
+        from company_profiles import COMPANY_PROFILES
+        return {name: prof for name, prof in COMPANY_PROFILES.items() if prof.get("profile_source") == "verified"}
+    except Exception:
+        return {}
+
+
+def _match_signal_company(article: dict, profiles: dict) -> tuple[str, dict | None]:
+    title = str(article.get("title") or "")
+    title_core = re.split(r"\s[-|]\s", title, maxsplit=1)[0]
+    lower_title = title_core.lower()
+    for name, profile in sorted(profiles.items(), key=lambda item: len(item[0]), reverse=True):
+        name_l = name.lower()
+        if len(name_l) <= 4:
+            if re.search(rf"(?<![a-z0-9]){re.escape(name_l)}(?![a-z0-9])", lower_title):
+                return name, profile.copy()
+        elif name_l in lower_title:
+            return name, profile.copy()
+
+    splitters = [
+        " raises ", " raised ", " secures ", " gets ", " receives ", " opens ",
+        " plans ", " expands ", " adds ", " launches ", " files ", " wins ",
+        " bags ", " partners ", " to ", " after ", " as ",
+    ]
+    candidate = title_core
+    for token in splitters:
+        idx = lower_title.find(token)
+        if idx > 0:
+            candidate = title[:idx]
+            break
+    candidate = re.sub(r"[^A-Za-z0-9&.\- ]+", " ", candidate).strip()
+    candidate = re.sub(r"^(exclusive|exclusive interview|exclusive:)\s+", "", candidate, flags=re.IGNORECASE).strip()
+    words = candidate.split()
+    if len(words) > 5:
+        candidate = " ".join(words[:5])
+    candidate = re.sub(
+        r"^(fintech|payments|healthcare|ev|ai|tech|entertainment|deeptech|saas)\s+(firm|company|startup|platform)\s+",
+        "",
+        candidate,
+        flags=re.IGNORECASE,
+    )
+    startup_match = re.search(r"\bstartup\s+(.+)$", candidate, flags=re.IGNORECASE)
+    if startup_match:
+        candidate = startup_match.group(1)
+    candidate = re.sub(r"^startup\s+", "", candidate, flags=re.IGNORECASE)
+    return candidate or "Unmatched startup", None
+
+
+def _looks_generic_signal_article(article: dict) -> bool:
+    title = str(article.get("title") or "").lower()
+    generic_patterns = [
+        "from oil shock",
+        "how ",
+        "why ",
+        "what ",
+        "startup funding, exits",
+        "funding support strengthens ecosystem",
+        "investors demand profitability",
+        "rbi proposes",
+        "launches rs",
+        "launches inr",
+        "secondaries fund",
+        "with ₹",
+        " corpus",
+        "bharat tech fund",
+        "ace fund",
+    ]
+    return any(pattern in title for pattern in generic_patterns)
+
+
+def _looks_generic_signal_company(company: str) -> bool:
+    text = company.lower()
+    if len(company.split()) > 4:
+        return True
+    generic_terms = [
+        "between may",
+        "as many as",
+        "diverse sectors",
+        "five startups",
+        "secure initial funding",
+        "government",
+        "raised over",
+        "startup ipo tracker",
+        "startup funding",
+        "funding and acquisitions",
+        "indian startup",
+        "ai dhamaka",
+        "innovation day",
+        "startup news",
+        "this week",
+        "weekly",
+    ]
+    return any(term in text for term in generic_terms)
+
+
+def _merge_signal_profile(company: str, base: dict | None, rule: dict) -> dict:
+    profile = DEFAULT_PROFILE.copy()
+    if base:
+        profile.update(base)
+    profile["startup_name"] = company
+    if rule.get("sector"):
+        profile["sector"] = rule["sector"]
+    if rule.get("stage"):
+        profile["funding_stage"] = rule["stage"]
+    profile.update(rule.get("profile") or {})
+    return profile
+
+
+def _fetch_gdelt_signal_articles(limit: int = 18) -> list[dict]:
+    queries = [
+        '"Indian startup" India',
+        'startup India funding',
+        'startup India RBI',
+        'startup India warehouse factory',
+        'startup India IPO',
+    ]
+    timeout = float(os.environ.get("SIGNAL_RADAR_TIMEOUT_SECONDS", "12"))
+    maxrecords = max(10, min(limit * 2, 50))
+    rows = []
+    seen_urls = set()
+
+    for query in queries:
+        params = urllib.parse.urlencode({
+            "query": query,
+            "mode": "ArtList",
+            "format": "json",
+            "maxrecords": maxrecords,
+            "sort": "HybridRel",
+        })
+        url = f"https://api.gdeltproject.org/api/v2/doc/doc?{params}"
+        req = urllib.request.Request(url, headers={"User-Agent": "SPARC-SignalRadar/1.0"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            payload = json.loads(resp.read().decode("utf-8", errors="ignore") or "{}")
+
+        for art in payload.get("articles") or []:
+            source_url = art.get("url") or ""
+            dedupe_key = source_url or art.get("title") or ""
+            if not dedupe_key or dedupe_key in seen_urls:
+                continue
+            seen_urls.add(dedupe_key)
+            row = {
+                "title": art.get("title") or "",
+                "url": source_url,
+                "source": art.get("domain") or art.get("sourceCountry") or "GDELT",
+                "seendate": art.get("seendate") or "",
+                "description": art.get("snippet") or "",
+            }
+            if row["title"]:
+                rows.append(row)
+        if len(rows) >= limit:
+            break
+
+    matched = [r for r in rows if _classify_signal(r).get("id") != "market_news"]
+    return (matched or rows)[:limit]
+
+
+def _fetch_google_news_signal_articles(limit: int = 18) -> list[dict]:
+    queries = [
+        "Indian startup funding when:14d",
+        "Indian startup RBI licence fintech when:30d",
+        "Indian startup warehouse factory manufacturing when:30d",
+        "Indian startup healthcare clinic hospital when:30d",
+        "Indian startup drone robotics DGCA when:30d",
+        "Indian startup IPO DRHP SEBI when:30d",
+    ]
+    timeout = float(os.environ.get("SIGNAL_RADAR_TIMEOUT_SECONDS", "12"))
+    rows = []
+    seen_titles = set()
+
+    for query in queries:
+        params = urllib.parse.urlencode({
+            "q": query,
+            "hl": "en-IN",
+            "gl": "IN",
+            "ceid": "IN:en",
+        })
+        url = f"https://news.google.com/rss/search?{params}"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 SPARC-SignalRadar/1.0"})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                root = ET.fromstring(resp.read())
+        except Exception:
+            continue
+
+        channel = root.find("channel")
+        items = channel.findall("item") if channel is not None else []
+        for item in items[:20]:
+            title = item.findtext("title") or ""
+            if not title or title in seen_titles:
+                continue
+            seen_titles.add(title)
+            source = item.find("{*}source")
+            source_name = (source.text if source is not None else "") or "Google News"
+            if source_name.lower() in EXCLUDED_SIGNAL_SOURCES:
+                continue
+            rows.append({
+                "title": title,
+                "url": item.findtext("link") or "",
+                "source": source_name,
+                "seendate": item.findtext("pubDate") or "",
+                "description": item.findtext("description") or "",
+            })
+        if len(rows) >= limit * 4:
+            break
+
+    matched = [r for r in rows if _classify_signal(r).get("id") != "market_news"]
+    return (matched or rows)[:limit]
+
+
+def _fetch_direct_rss_signal_articles(limit: int = 18) -> list[dict]:
+    feeds = [
+        ("Inc42", "https://inc42.com/feed/"),
+        ("YourStory", "https://yourstory.com/feed"),
+        ("Economic Times Startups", "https://economictimes.indiatimes.com/small-biz/startups/rssfeeds/70591255.cms"),
+        ("Trak.in", "https://trak.in/feed/"),
+    ]
+    timeout = float(os.environ.get("SIGNAL_RADAR_TIMEOUT_SECONDS", "8"))
+    rows = []
+    seen_titles = set()
+
+    for source_name, feed_url in feeds:
+        req = urllib.request.Request(feed_url, headers={"User-Agent": "Mozilla/5.0 SPARC-SignalRadar/1.0"})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                root = ET.fromstring(resp.read())
+        except Exception:
+            continue
+
+        channel = root.find("channel")
+        items = channel.findall("item") if channel is not None else root.findall(".//item")
+        for item in items[:25]:
+            title = (item.findtext("title") or "").strip()
+            if not title or title in seen_titles:
+                continue
+            seen_titles.add(title)
+            rows.append({
+                "title": title,
+                "url": item.findtext("link") or feed_url,
+                "source": source_name,
+                "seendate": item.findtext("pubDate") or item.findtext("{*}date") or "",
+                "description": item.findtext("description") or "",
+            })
+            if len(rows) >= limit * 3:
+                break
+        if len(rows) >= limit * 3:
+            break
+
+    matched = [r for r in rows if _classify_signal(r).get("id") != "market_news"]
+    return (matched or rows)[:limit]
+
+
+def _contact_status_for_signal(profile: dict | None) -> dict:
+    # MVP deliberately avoids personal email guessing. Official company email discovery
+    # can be added behind this status when a compliant source is available.
+    if profile and profile.get("website"):
+        return {"status": "Official domain available", "detail": profile.get("website")}
+    return {"status": "Needs source review", "detail": "Use official company email or CRM contact only"}
+
+
+def _signal_task_from_article(article: dict, profiles: dict) -> dict | None:
+    if _looks_generic_signal_article(article):
+        return None
+    rule = _classify_signal(article)
+    company, base_profile = _match_signal_company(article, profiles)
+    if not company or company.lower() in ("india", "indian startup", "startup"):
+        return None
+    if base_profile is None and _looks_generic_signal_company(company):
+        return None
+
+    profile = _merge_signal_profile(company, base_profile, rule)
+    try:
+        result = score(profile)
+    except Exception:
+        result = {}
+    bundle = result.get("bundle_match") or {}
+    premium = result.get("premium_summary") or {}
+    scores = result.get("scores") or {}
+    score_vals = [v for v in scores.values() if isinstance(v, (int, float))]
+    avg_score = round(sum(score_vals) / len(score_vals), 1) if score_vals else 0
+    source_url = article.get("url") or ""
+    parsed_domain = urllib.parse.urlparse(source_url).netloc.replace("www.", "") if source_url else ""
+    source_domain = article.get("source", "") if parsed_domain == "news.google.com" else (parsed_domain or article.get("source", ""))
+    contact = _contact_status_for_signal(base_profile)
+    profile_delta = []
+    for key in sorted((rule.get("profile") or {}).keys()):
+        profile_delta.append(key)
+    if rule.get("sector"):
+        profile_delta.append("sector")
+    if rule.get("stage"):
+        profile_delta.append("funding_stage")
+
+    return {
+        "company": company,
+        "signal_id": rule["id"],
+        "signal": rule["label"],
+        "why_it_matters": rule["why"],
+        "insurance_angle": rule["angle"],
+        "headline": article.get("title") or "",
+        "source_url": source_url,
+        "source": source_domain or "Public source",
+        "seen_at": article.get("seendate") or "",
+        "confidence": rule.get("confidence", 50),
+        "review_status": "Needs RM review",
+        "contact_status": contact["status"],
+        "contact_detail": contact["detail"],
+        "profile_delta": profile_delta,
+        "sector": profile.get("sector"),
+        "funding_stage": profile.get("funding_stage"),
+        "recommended_bundle": bundle.get("name") or "Run SPARC assessment",
+        "premium_min_lakh": premium.get("min_lakh", 0),
+        "premium_max_lakh": premium.get("max_lakh", 0),
+        "overall_score": avg_score,
+        "rm_action": f"Review {rule['label'].lower()} trigger, validate source, then approach with {bundle.get('name') or 'SPARC assessment'}.",
+    }
+
+
+def get_signal_radar(limit: int = 30, live: bool = True) -> dict:
+    profiles = _verified_profiles()
+    source_status = "fallback"
+    source_error = ""
+    articles = []
+    seen_article_keys = set()
+
+    def add_articles(new_articles: list[dict]) -> int:
+        added = 0
+        for article in new_articles:
+            key = (article.get("url") or article.get("title") or "").strip().lower()
+            if not key or key in seen_article_keys:
+                continue
+            seen_article_keys.add(key)
+            articles.append(article)
+            added += 1
+            if len(articles) >= max(limit, 12):
+                break
+        return added
+
+    if live:
+        live_sources = []
+        try:
+            if add_articles(_fetch_direct_rss_signal_articles(limit=max(limit, 12))):
+                live_sources.append("rss")
+        except Exception as exc:
+            source_error = type(exc).__name__
+        try:
+            if add_articles(_fetch_google_news_signal_articles(limit=max(limit, 12))):
+                live_sources.append("google_news")
+        except Exception as exc:
+            source_error = source_error or type(exc).__name__
+        if live_sources:
+            source_status = "live_multi" if len(live_sources) > 1 else f"live_{live_sources[0]}"
+        if not articles:
+            try:
+                if add_articles(_fetch_gdelt_signal_articles(limit=max(limit, 12))):
+                    source_status = "live_gdelt"
+                source_error = "" if articles else source_error
+            except Exception as exc:
+                source_error = source_error or type(exc).__name__
+    if not articles:
+        articles = FALLBACK_SIGNAL_ARTICLES
+
+    seen = set()
+    tasks = []
+    _saved_key = os.environ.get("GEMINI_API_KEY", "")
+    os.environ["GEMINI_API_KEY"] = ""
+    try:
+        for article in articles:
+            task = _signal_task_from_article(article, profiles)
+            if not task:
+                continue
+            key = (task["company"].lower(), task["signal_id"])
+            if key in seen:
+                continue
+            seen.add(key)
+            tasks.append(task)
+            if len(tasks) >= limit:
+                break
+    finally:
+        if _saved_key:
+            os.environ["GEMINI_API_KEY"] = _saved_key
+        else:
+            os.environ.pop("GEMINI_API_KEY", None)
+
+    high_conf = [t for t in tasks if t.get("confidence", 0) >= 70]
+    premium_pool = round(sum(float(t.get("premium_max_lakh") or 0) for t in tasks) / 100, 1)
+    signal_counts = {}
+    for task in tasks:
+        signal_counts[task["signal"]] = signal_counts.get(task["signal"], 0) + 1
+    top_signal = max(signal_counts, key=signal_counts.get) if signal_counts else ""
+
+    return {
+        "signals": tasks,
+        "kpis": {
+            "total": len(tasks),
+            "high_confidence": len(high_conf),
+            "premium_pool_cr": premium_pool,
+            "top_signal": top_signal,
+        },
+        "source_status": source_status,
+        "source_error": source_error,
+        "source_policy": "Public news signals only. Use official company email or CRM contact after human review.",
+    }
+
+
 _pipeline_cache: list[dict] | None = None
 
 
@@ -2824,17 +3615,33 @@ def get_pipeline(sector_filter: str = "", stage_filter: str = "", limit: int = 5
                         tap = "strike_now"
                     else:
                         tap = "covered"
+                    sector = prof.get("sector", "")
+                    inc = _incumbent(stage, sector)
+                    max_l = ps.get("max_lakh", 0)
+                    _stage_yr = {"Pre-seed": 1, "Seed": 2, "Series A": 4, "Series B+": 7}
                     rows.append({
                         "startup_name": name,
-                        "sector": prof.get("sector", ""),
+                        "sector": sector,
                         "funding_stage": stage,
                         "bundle_name": bm.get("name", ""),
                         "min_lakh": ps.get("min_lakh", 0),
-                        "max_lakh": ps.get("max_lakh", 0),
+                        "max_lakh": max_l,
                         "overall_score": avg_score,
                         "top_risk": top_risks[0].get("name", "") if top_risks else "",
                         "profile_source": src,
                         "tap_status": tap,
+                        # enriched fields
+                        "city": (prof.get("state_footprint") or ["India"])[0],
+                        "founded": max(2012, 2024 - _stage_yr.get(stage, 3)),
+                        "team": prof.get("team_size", 0),
+                        "revenue": prof.get("annual_revenue_cr", 0),
+                        "operations": ", ".join((prof.get("physical_assets") or [])[:2]) or "Digital-first",
+                        "incumbent": inc,
+                        "signal": _signal(tap, name),
+                        "opp": 0,
+                        "bundle_lines": _bundle_lines(bm, max_l),
+                        "pitch": _pitch_angle(sector, inc),
+                        "drivers": [tr.get("name", "") for tr in (top_risks or [])[:3]],
                     })
                 except Exception as _exc:
                     print(f"[pipeline] skip '{name}': {_exc}", flush=True)
@@ -2843,6 +3650,8 @@ def get_pipeline(sector_filter: str = "", stage_filter: str = "", limit: int = 5
                 os.environ["GEMINI_API_KEY"] = _saved_key
             else:
                 os.environ.pop("GEMINI_API_KEY", None)
+        for row in rows:
+            row["opp"] = _opp_score(row)
         stage_rank = {"Pre-seed": 0, "Seed": 1, "Series A": 2, "Series B+": 3}
         rows.sort(key=lambda r: (stage_rank.get(r["funding_stage"], 9), -r["max_lakh"], r["startup_name"].lower()))
         _pipeline_cache = rows
@@ -2927,11 +3736,22 @@ class Handler(SimpleHTTPRequestHandler):
                 return
             self.send_json(200, {"count": company_profile_count(), "matches": search_company_profiles(query, limit=limit)})
             return
+        if path == "/api/pipeline/clear-cache":
+            global _pipeline_cache
+            _pipeline_cache = None
+            self.send_json(200, {"ok": True, "message": "Pipeline cache cleared"})
+            return
         if path == "/api/pipeline":
             sector_filter = (params.get("sector") or [""])[0].strip()
             stage_filter = (params.get("stage") or [""])[0].strip()
             limit = clean_int((params.get("limit") or ["500"])[0], 500)
             self.send_json(200, get_pipeline(sector_filter, stage_filter, limit))
+            return
+        if path == "/api/signals":
+            limit = clean_int((params.get("limit") or ["30"])[0], 30)
+            live_raw = (params.get("live") or ["1"])[0].strip().lower()
+            live = live_raw not in ("0", "false", "no")
+            self.send_json(200, get_signal_radar(limit=max(1, min(limit, 50)), live=live))
             return
         return super().do_GET()
 
@@ -2950,13 +3770,14 @@ class Handler(SimpleHTTPRequestHandler):
                 if not company_name:
                     self.send_json(400, {"error": "company_name is required."})
                     return
-                result = autofill_and_analyze(company_name)
+                result = autofill_and_analyze(company_name, payload.get("signal_context"))
                 self.send_json(200 if not result.get("error") else 500, result)
             elif self.path == "/api/outreach":
                 profile = payload.get("profile") or {}
                 scores = payload.get("scores") or {}
                 recommendations = payload.get("recommendations") or []
                 bundle_match = payload.get("bundle_match") or {}
+                signal_context = payload.get("signal_context") or {}
                 triggers = (
                     payload.get("display_regulatory_triggers")
                     or payload.get("regulatory_triggers_fired")
@@ -2965,13 +3786,13 @@ class Handler(SimpleHTTPRequestHandler):
                 size_bucket = profile.get("size_bucket", "mid")
                 try:
                     out_prompts, out_source, out_error = outreach_prompts(
-                        profile, scores, recommendations, bundle_match, size_bucket
+                        profile, scores, recommendations, bundle_match, size_bucket, signal_context
                     )
                     handlers = json_safe(generate_objection_handlers(
                         profile, bundle_match, scores, triggers
                     ))
                 except Exception:
-                    out_prompts = fallback_outreach_prompts(profile, scores, recommendations, bundle_match)
+                    out_prompts = fallback_outreach_prompts(profile, scores, recommendations, bundle_match, signal_context)
                     out_source = "fallback"
                     out_error = None
                     handlers = []

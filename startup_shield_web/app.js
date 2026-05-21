@@ -1077,11 +1077,12 @@ async function triggerAutoProfiling(companyName, signalContext = null, _retryCou
     }
     cancelLoader();
     if (!res.ok || result.error) {
-      // Also auto-retry on busy/overloaded errors once
-      if (_retryCount < 1 && /busy|overload|503|incomplete/i.test(result.error || "")) {
+      const errMsg = result.error || "";
+      const isTransient = !res.ok || /busy|overload|503|504|timeout|incomplete|truncat|json|parse/i.test(errMsg);
+      if (_retryCount < 1 && isTransient) {
         return triggerAutoProfiling(companyName, signalContext, _retryCount + 1);
       }
-      throw new Error(result.error || "Auto-profile failed");
+      throw new Error(errMsg || "Auto-profile failed");
     }
     if (signalContext && !result.signal_context) result.signal_context = buildSignalContext(signalContext) || signalContext;
     renderResults(result);

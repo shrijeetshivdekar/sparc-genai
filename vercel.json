@@ -1,71 +1,62 @@
 {
   "version": 2,
+  "functions": {
+    "api/health.py":            { "maxDuration": 60 },
+    "api/meta.py":              { "maxDuration": 60 },
+    "api/analyze.py":           { "maxDuration": 60 },
+    "api/autofill.py":          { "maxDuration": 60 },
+    "api/company-profiles.py":  { "maxDuration": 60 },
+    "api/signals.py":           { "maxDuration": 60 },
+    "api/pipeline.py":          { "maxDuration": 60 }
+  },
   "builds": [
     {
       "src": "api/health.py",
       "use": "@vercel/python",
       "config": {
-        "includeFiles": [
-          "**/*.py",
-          "research_config.json"
-        ],
-        "maxDuration": 60
+        "includeFiles": ["**/*.py", "research_config.json"]
       }
     },
     {
       "src": "api/meta.py",
       "use": "@vercel/python",
       "config": {
-        "includeFiles": [
-          "**/*.py",
-          "research_config.json"
-        ],
-        "maxDuration": 60
+        "includeFiles": ["**/*.py", "research_config.json"]
       }
     },
     {
       "src": "api/analyze.py",
       "use": "@vercel/python",
       "config": {
-        "includeFiles": [
-          "**/*.py",
-          "research_config.json"
-        ],
-        "maxDuration": 60
+        "includeFiles": ["**/*.py", "research_config.json"]
+      }
+    },
+    {
+      "src": "api/autofill.py",
+      "use": "@vercel/python",
+      "config": {
+        "includeFiles": ["**/*.py", "**/*.json", "research_config.json"]
       }
     },
     {
       "src": "api/company-profiles.py",
       "use": "@vercel/python",
       "config": {
-        "includeFiles": [
-          "**/*.py",
-          "research_config.json"
-        ],
-        "maxDuration": 60
+        "includeFiles": ["**/*.py", "research_config.json"]
       }
     },
     {
       "src": "api/signals.py",
       "use": "@vercel/python",
       "config": {
-        "includeFiles": [
-          "**/*.py",
-          "research_config.json"
-        ],
-        "maxDuration": 60
+        "includeFiles": ["**/*.py", "research_config.json"]
       }
     },
     {
       "src": "api/pipeline.py",
       "use": "@vercel/python",
       "config": {
-        "includeFiles": [
-          "**/*.py",
-          "**/*.json",
-          "research_config.json"
-        ],
-        "maxDuration": 60
+        "includeFiles": ["**/*.py", "**/*.json", "research_config.json"]
       }
     },
     {
@@ -93,6 +84,10 @@
     {
       "src": "/api/analyze",
       "dest": "/api/analyze.py"
+    },
+    {
+      "src": "/api/autofill",
+      "dest": "/api/autofill.py"
     },
     {
       "src": "/api/company-profiles",

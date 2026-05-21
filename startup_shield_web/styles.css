@@ -8261,6 +8261,7 @@ pre {
   transform: rotate(0deg) translateY(-28px) scale(1.05) !important;
   z-index: 100 !important;
   outline: none;
+  width: 230px;
 }
 
 .cstack-inner {
@@ -8277,6 +8278,13 @@ pre {
   box-shadow: 0 2px 8px rgba(15,23,42,.07), 0 8px 24px rgba(15,23,42,.08);
   position: relative;
   overflow: hidden;
+  transition: box-shadow 0.25s ease;
+}
+
+.cstack-card:hover .cstack-inner,
+.cstack-card:focus-visible .cstack-inner {
+  box-shadow: 0 12px 40px rgba(15,23,42,.16), 0 2px 8px rgba(15,23,42,.08);
+  overflow: visible;
 }
 
 /* Mandatory: red top accent strip */
@@ -8338,21 +8346,20 @@ pre {
 .cstack-blurb {
   font-size: 11px;
   color: var(--ink-muted);
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
+  line-height: 1.55;
   overflow: hidden;
   opacity: 0;
+  max-height: 0;
   transform: translateY(4px);
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition: opacity 0.25s ease, transform 0.25s ease, max-height 0.3s ease;
 }
 
-/* Show blurb on hover */
+/* Show full blurb on hover — unclamped */
 .cstack-card:hover .cstack-blurb,
 .cstack-card:focus-visible .cstack-blurb {
   opacity: 1;
   transform: translateY(0);
+  max-height: 300px;
 }
 
 /* Companion section */

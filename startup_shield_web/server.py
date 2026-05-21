@@ -948,27 +948,32 @@ def autofill_and_analyze(company_name, signal_context=None):
 
     prompt = _build_autofill_prompt(company_name)
 
+    # On Vercel, serverless functions have a 10s hard limit on the hobby plan.
+    # Google Search grounding adds 8-15s of latency, blowing the budget.
+    # Skip grounding on Vercel and go straight to the fast ungrounded call.
+    on_vercel = bool(os.environ.get("VERCEL"))
+
     autofilled, err = None, None
-    models_to_try = [GEMINI_MODEL] + GEMINI_FALLBACK_MODELS
-    for i, model in enumerate(models_to_try):
-        autofilled, err = call_gemini_grounded(prompt, model=model)
-        if autofilled is not None:
-            if i > 0:
-                print(f"[autofill] Succeeded with fallback model '{model}' after primary was busy.", flush=True)
-            break
-        is_capacity_error = err and any(kw in err for kw in _CAPACITY_ERRORS)
-        if not is_capacity_error:
-            break  # hard error (auth, parse, network) — fallbacks won't help
-        if i < len(models_to_try) - 1:
-            print(f"[autofill] '{model}' busy ({err[:80]}…); trying '{models_to_try[i+1]}'.", flush=True)
+    if not on_vercel:
+        models_to_try = [GEMINI_MODEL] + GEMINI_FALLBACK_MODELS
+        for i, model in enumerate(models_to_try):
+            autofilled, err = call_gemini_grounded(prompt, model=model)
+            if autofilled is not None:
+                if i > 0:
+                    print(f"[autofill] Succeeded with fallback model '{model}' after primary was busy.", flush=True)
+                break
+            is_capacity_error = err and any(kw in err for kw in _CAPACITY_ERRORS)
+            if not is_capacity_error:
+                break  # hard error (auth, parse, network) — fallbacks won't help
+            if i < len(models_to_try) - 1:
+                print(f"[autofill] '{model}' busy ({err[:80]}…); trying '{models_to_try[i+1]}'.", flush=True)
 
     if not isinstance(autofilled, dict):
-        # All grounded models failed — try ungrounded as absolute last resort.
-        # Works well for well-known companies from training data.
-        print(f"[autofill] All grounded models failed ({err}). Trying ungrounded inference.", flush=True)
+        source = "ungrounded (Vercel fast-path)" if on_vercel else f"ungrounded fallback (grounded err: {err})"
+        print(f"[autofill] Using {source}.", flush=True)
         autofilled, err = call_gemini_json(prompt)
         if isinstance(autofilled, dict):
-            print("[autofill] Ungrounded inference succeeded (training data only).", flush=True)
+            print("[autofill] Ungrounded inference succeeded.", flush=True)
         else:
             return {"error": err or "Auto-profile failed — all models unavailable."}
 

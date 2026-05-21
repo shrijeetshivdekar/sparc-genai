@@ -38,15 +38,15 @@ def test_company_profile_database_has_seed_and_pre_seed_demos():
     stages = {row["funding_stage"] for row in all_rows}
 
     assert {"Seed", "Pre-seed"} <= stages
-    assert get_company_profile("AstraPay Labs")["funding_stage"] == "Seed"
-    assert get_company_profile("LedgerLeaf")["funding_stage"] == "Pre-seed"
+    assert get_company_profile("Hyperface")["funding_stage"] == "Seed"
+    assert get_company_profile("Arva Health")["funding_stage"] == "Pre-seed"
 
 
 def test_company_profile_database_includes_real_startup_style_profiles():
     assert get_company_profile("Niro")["funding_stage"] == "Series A"
-    assert get_company_profile("BlueLearn")["funding_stage"] == "Pre-seed"
-    assert get_company_profile("GalaxEye")["sector"] == "Deeptech / AI / Robotics"
-    assert get_company_profile("Climes")["funding_stage"] == "Pre-seed"
+    assert get_company_profile("Zyla Health")["funding_stage"] == "Series A"
+    assert get_company_profile("GalaxEye")["sector"] == "Spacetech"
+    assert get_company_profile("Pulse Energy")["funding_stage"] == "Seed"
 
 
 def test_unknown_company_returns_none():

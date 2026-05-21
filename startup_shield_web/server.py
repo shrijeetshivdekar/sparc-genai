@@ -60,6 +60,11 @@ DB_PATH = Path(os.environ.get(
     str(Path(tempfile.gettempdir()) / "sparc_data.db") if os.environ.get("VERCEL") else str(PROJECT_ROOT / "sparc_data.db"),
 ))
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_FALLBACK_MODELS = [
+    m.strip()
+    for m in os.environ.get("GEMINI_FALLBACK_MODELS", "gemini-2.0-flash,gemini-1.5-pro").split(",")
+    if m.strip()
+]
 GEMINI_MAX_TOKENS = int(os.environ.get("GEMINI_MAX_TOKENS", "4096"))
 GEMINI_TIMEOUT_SECONDS = int(os.environ.get("GEMINI_TIMEOUT_SECONDS", "30"))
 SPARC_ENGINE = os.environ.get("SPARC_ENGINE", "v2")
@@ -807,15 +812,16 @@ def call_gemini_json(prompt):
     return parsed, None
 
 
-def call_gemini_grounded(prompt):
+def call_gemini_grounded(prompt, model=None):
     """Call Gemini with Google Search grounding. Returns (parsed_dict_or_None, error_str_or_None)."""
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return None, "GEMINI_API_KEY is not configured."
 
+    _model = model or GEMINI_MODEL
     url = (
         f"https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{GEMINI_MODEL}:generateContent?key={api_key}"
+        f"{_model}:generateContent?key={api_key}"
     )
     payload = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
@@ -826,31 +832,22 @@ def call_gemini_grounded(prompt):
         },
     }
     data = json.dumps(payload).encode("utf-8")
-    body = None
-    for attempt in range(2):
+    try:
+        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=GEMINI_TIMEOUT_SECONDS) as response:
+            body = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
         try:
-            req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
-            with urllib.request.urlopen(req, timeout=GEMINI_TIMEOUT_SECONDS) as response:
-                body = json.loads(response.read().decode("utf-8"))
-            break
-        except urllib.error.HTTPError as exc:
-            try:
-                detail = exc.read().decode("utf-8")[:500]
-            except Exception:
-                detail = str(exc)
-            if exc.code == 503 and attempt == 0:
-                import time as _time
-                _time.sleep(2)
-                continue
-            return None, f"Gemini HTTP {exc.code}: {detail}"
-        except urllib.error.URLError as exc:
-            return None, f"Gemini network error: {exc.reason}"
-        except TimeoutError:
-            return None, "Gemini request timed out."
-        except json.JSONDecodeError:
-            return None, "Gemini returned a non-JSON API envelope."
-    if body is None:
-        return None, "Gemini unavailable after retry."
+            detail = exc.read().decode("utf-8")[:500]
+        except Exception:
+            detail = str(exc)
+        return None, f"HTTP {exc.code}: {detail}"
+    except urllib.error.URLError as exc:
+        return None, f"Network error: {exc.reason}"
+    except TimeoutError:
+        return None, "Request timed out."
+    except json.JSONDecodeError:
+        return None, "Non-JSON response from API."
 
     candidate = body.get("candidates", [{}])[0]
     finish_reason = candidate.get("finishReason", "")
@@ -939,14 +936,37 @@ def _persist_verified_profile(profile: dict) -> None:
         print(f"[autofill] Failed to persist profile: {exc}", flush=True)
 
 
+_CAPACITY_ERRORS = ("503", "429", "unavailable", "UNAVAILABLE", "high demand", "quota", "rate", "timed out", "timeout")
+
 def autofill_and_analyze(company_name):
     if not gemini_enabled():
         return {"error": "Gemini API key not configured. Cannot auto-profile."}
 
     prompt = _build_autofill_prompt(company_name)
-    autofilled, err = call_gemini_grounded(prompt)
-    if err or not isinstance(autofilled, dict):
-        return {"error": err or "Auto-profile failed — could not parse Gemini response."}
+
+    autofilled, err = None, None
+    models_to_try = [GEMINI_MODEL] + GEMINI_FALLBACK_MODELS
+    for i, model in enumerate(models_to_try):
+        autofilled, err = call_gemini_grounded(prompt, model=model)
+        if autofilled is not None:
+            if i > 0:
+                print(f"[autofill] Succeeded with fallback model '{model}' after primary was busy.", flush=True)
+            break
+        is_capacity_error = err and any(kw in err for kw in _CAPACITY_ERRORS)
+        if not is_capacity_error:
+            break  # hard error (auth, parse, network) — fallbacks won't help
+        if i < len(models_to_try) - 1:
+            print(f"[autofill] '{model}' busy ({err[:80]}…); trying '{models_to_try[i+1]}'.", flush=True)
+
+    if not isinstance(autofilled, dict):
+        # All grounded models failed — try ungrounded as absolute last resort.
+        # Works well for well-known companies from training data.
+        print(f"[autofill] All grounded models failed ({err}). Trying ungrounded inference.", flush=True)
+        autofilled, err = call_gemini_json(prompt)
+        if isinstance(autofilled, dict):
+            print("[autofill] Ungrounded inference succeeded (training data only).", flush=True)
+        else:
+            return {"error": err or "Auto-profile failed — all models unavailable."}
 
     profile_data = {**DEFAULT_PROFILE, **{k: v for k, v in autofilled.items() if v is not None}}
 
@@ -2582,19 +2602,6 @@ def _v2_score(raw):
         payload.get("coverage_roadmap", []),
     ))
 
-    # Re-compute outreach with the v2 bundle so the email matches the recommended bundle.
-    # _legacy_score() already ran outreach_prompts() with the legacy bundle name, which can
-    # differ from the v2 winner — this overwrites that stale result.
-    outreach, outreach_source, outreach_error = outreach_prompts(
-        payload["profile"],
-        payload["scores"],
-        payload.get("recommendations", []),
-        payload["bundle_match"],
-        payload["profile"].get("size_bucket", "mid"),
-    )
-    payload["outreach_prompts"] = json_safe(outreach)
-    payload["outreach_source"] = outreach_source
-    payload["outreach_error"] = outreach_error
     payload["pitch_bullets"] = build_pitch_bullets(
         payload["profile"],
         payload.get("bundle_match"),
@@ -2602,12 +2609,19 @@ def _v2_score(raw):
         payload.get("pricing_engine_quote"),
     )
     payload["pitch_meta"] = build_pitch_meta(payload.get("bundle_match"))
-    payload["objection_handlers"] = json_safe(generate_objection_handlers(
+    # Deterministic fallback included upfront so the client can render it
+    # immediately if the lazy /api/outreach call ever fails (no Gemini cost).
+    payload["outreach_fallback"] = json_safe(fallback_outreach_prompts(
         payload["profile"],
-        payload.get("bundle_match"),
         payload["scores"],
-        payload.get("display_regulatory_triggers") or payload.get("regulatory_triggers_fired") or [],
+        payload.get("recommendations", []),
+        payload.get("bundle_match") or {},
     ))
+    # Gemini-powered versions are deferred — fetched lazily via /api/outreach
+    payload["outreach_prompts"] = None
+    payload["outreach_source"] = "pending"
+    payload["outreach_error"] = None
+    payload["objection_handlers"] = []
 
     return payload
 
@@ -2764,6 +2778,26 @@ def meta():
 _pipeline_cache: list[dict] | None = None
 
 
+def _balanced_pipeline_rows(rows: list[dict], limit: int) -> list[dict]:
+    """Keep the default opportunity list stage-balanced instead of Series B+ dominated."""
+    if limit <= 0:
+        return []
+
+    stage_order = ["Pre-seed", "Seed", "Series A", "Series B+"]
+    buckets = {stage: [r for r in rows if r.get("funding_stage") == stage] for stage in stage_order}
+    other_rows = [r for r in rows if r.get("funding_stage") not in buckets]
+
+    early_cap = max((len(buckets[stage]) for stage in ("Pre-seed", "Seed", "Series A")), default=0)
+    if early_cap:
+        buckets["Series B+"] = buckets["Series B+"][:early_cap]
+
+    balanced = []
+    for stage in stage_order:
+        balanced.extend(buckets[stage])
+    balanced.extend(other_rows)
+    return balanced[:limit]
+
+
 def get_pipeline(sector_filter: str = "", stage_filter: str = "", limit: int = 200) -> dict:
     global _pipeline_cache
     if _pipeline_cache is None:
@@ -2774,6 +2808,9 @@ def get_pipeline(sector_filter: str = "", stage_filter: str = "", limit: int = 2
         try:
             for name, prof in _CP.items():
                 try:
+                    raw_src = prof.get("profile_source", "")
+                    if raw_src != "verified":
+                        continue
                     result = score(prof)
                     bm = result.get("bundle_match") or {}
                     ps = result.get("premium_summary") or {}
@@ -2781,8 +2818,7 @@ def get_pipeline(sector_filter: str = "", stage_filter: str = "", limit: int = 2
                     top_risks = result.get("top_risks") or []
                     scores_vals = [v for v in sc.values() if isinstance(v, (int, float))]
                     avg_score = round(sum(scores_vals) / len(scores_vals), 1) if scores_vals else 0
-                    raw_src = prof.get("profile_source", "")
-                    src = "verified" if raw_src == "verified" else "seeded"
+                    src = "verified"
                     stage = prof.get("funding_stage", "")
                     if stage == "Pre-seed":
                         tap = "preseed"
@@ -2811,7 +2847,8 @@ def get_pipeline(sector_filter: str = "", stage_filter: str = "", limit: int = 2
                 os.environ["GEMINI_API_KEY"] = _saved_key
             else:
                 os.environ.pop("GEMINI_API_KEY", None)
-        rows.sort(key=lambda r: r["max_lakh"], reverse=True)
+        stage_rank = {"Pre-seed": 0, "Seed": 1, "Series A": 2, "Series B+": 3}
+        rows.sort(key=lambda r: (stage_rank.get(r["funding_stage"], 9), -r["max_lakh"], r["startup_name"].lower()))
         _pipeline_cache = rows
 
     filtered = _pipeline_cache
@@ -2820,20 +2857,22 @@ def get_pipeline(sector_filter: str = "", stage_filter: str = "", limit: int = 2
         filtered = [r for r in filtered if sf in r["sector"].lower()]
     if stage_filter:
         stf = stage_filter.lower()
-        filtered = [r for r in filtered if stf in r["funding_stage"].lower()]
+        filtered = [r for r in filtered if r["funding_stage"].lower() == stf]
 
-    total_pool_cr = round(sum(r["max_lakh"] for r in filtered) / 100, 1)
-    untapped = [r for r in filtered if r["tap_status"] in ("untapped", "strike_now")]
+    displayed = filtered[:limit] if stage_filter else _balanced_pipeline_rows(filtered, limit)
+
+    total_pool_cr = round(sum(r["max_lakh"] for r in displayed) / 100, 1)
+    untapped = [r for r in displayed if r["tap_status"] in ("untapped", "strike_now")]
     untapped_pool_cr = round(sum(r["max_lakh"] for r in untapped) / 100, 1)
-    sectors = [r["sector"] for r in filtered if r["sector"]]
+    sectors = [r["sector"] for r in displayed if r["sector"]]
     top_sector = max(set(sectors), key=sectors.count) if sectors else ""
-    avg_score = round(sum(r["overall_score"] for r in filtered) / len(filtered), 1) if filtered else 0
+    avg_score = round(sum(r["overall_score"] for r in displayed) / len(displayed), 1) if displayed else 0
 
     return {
-        "companies": filtered[:limit],
-        "total": len(filtered),
+        "companies": displayed,
+        "total": len(displayed),
         "kpis": {
-            "total_companies": len(filtered),
+            "total_companies": len(displayed),
             "total_pool_cr": total_pool_cr,
             "untapped_pool_cr": untapped_pool_cr,
             "untapped_count": len(untapped),
@@ -2901,7 +2940,7 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self):
-        if self.path not in ("/api/analyze", "/api/policy/compare", "/api/autofill"):
+        if self.path not in ("/api/analyze", "/api/policy/compare", "/api/autofill", "/api/outreach"):
             self.send_json(404, {"error": "Not found"})
             return
         try:
@@ -2917,6 +2956,35 @@ class Handler(SimpleHTTPRequestHandler):
                     return
                 result = autofill_and_analyze(company_name)
                 self.send_json(200 if not result.get("error") else 500, result)
+            elif self.path == "/api/outreach":
+                profile = payload.get("profile") or {}
+                scores = payload.get("scores") or {}
+                recommendations = payload.get("recommendations") or []
+                bundle_match = payload.get("bundle_match") or {}
+                triggers = (
+                    payload.get("display_regulatory_triggers")
+                    or payload.get("regulatory_triggers_fired")
+                    or []
+                )
+                size_bucket = profile.get("size_bucket", "mid")
+                try:
+                    out_prompts, out_source, out_error = outreach_prompts(
+                        profile, scores, recommendations, bundle_match, size_bucket
+                    )
+                    handlers = json_safe(generate_objection_handlers(
+                        profile, bundle_match, scores, triggers
+                    ))
+                except Exception:
+                    out_prompts = fallback_outreach_prompts(profile, scores, recommendations, bundle_match)
+                    out_source = "fallback"
+                    out_error = None
+                    handlers = []
+                self.send_json(200, {
+                    "outreach_prompts": json_safe(out_prompts),
+                    "outreach_source": out_source,
+                    "outreach_error": out_error,
+                    "objection_handlers": handlers,
+                })
             else:
                 self.send_json(200, analyze(payload))
         except Exception as exc:

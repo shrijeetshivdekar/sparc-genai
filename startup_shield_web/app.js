@@ -940,6 +940,23 @@ function renderAutoProfilingLoader(companyName) {
   return () => clearInterval(stepTimer);
 }
 
+function classifyAutofillError(rawMessage) {
+  const m = String(rawMessage || "");
+  if (/503|high demand|unavailable|overloaded|capacity/i.test(m))
+    return { title: "AI engine is temporarily busy", hint: "Demand spikes usually resolve in under a minute. Try again shortly." };
+  if (/504|timeout|timed out|DEADLINE_EXCEEDED/i.test(m))
+    return { title: "Request timed out", hint: "The profiling request took too long. Try again — it usually succeeds on the second attempt." };
+  if (/429|rate.?limit|quota/i.test(m))
+    return { title: "Rate limit reached", hint: "Too many requests in a short window. Wait a moment and try again." };
+  if (/401|403|auth|api.?key/i.test(m))
+    return { title: "Authentication error", hint: "There is a configuration issue on the server. Contact the admin." };
+  if (/network|fetch|Failed to fetch/i.test(m))
+    return { title: "Connection failed", hint: "Could not reach the server. Check your network and try again." };
+  if (/JSON|parse|json object/i.test(m))
+    return { title: "AI engine is temporarily busy", hint: "The model returned an incomplete response. Try again — it usually works on the second attempt." };
+  return { title: "Profile could not be generated", hint: "An unexpected error occurred. Try again or enter details manually below." };
+}
+
 async function triggerAutoProfiling(companyName) {
   const cancelLoader = renderAutoProfilingLoader(companyName);
   try {
@@ -954,78 +971,111 @@ async function triggerAutoProfiling(companyName) {
     renderResults(result);
   } catch (err) {
     cancelLoader();
+    const { title, hint } = classifyAutofillError(err.message);
     $("main-content").innerHTML = `
-      <main class="role-shell">
-        <section class="role-panel">
-          <div class="role-autofill-error">
-            <div class="intake-eyebrow">Auto-profile failed</div>
-            <h2>${esc(companyName)}</h2>
-            <p>${esc(err.message)}</p>
-            <button class="btn btn-primary" type="button" id="autofill-error-back">Back to home</button>
+      <main class="hev-shell hev-error-shell">
+        <div class="hev-error-card">
+          <div class="hev-error-icon">⚠</div>
+          <div class="hev-error-company">${esc(companyName)}</div>
+          <h2 class="hev-error-title">${esc(title)}</h2>
+          <p class="hev-error-hint">${esc(hint)}</p>
+          <div class="hev-error-actions">
+            <button class="hev-search-btn" type="button" id="autofill-error-retry">
+              Try again
+              <span class="hev-btn-icon">↺</span>
+            </button>
+            <button class="hev-error-ghost" type="button" id="autofill-error-back">Back to home</button>
           </div>
-        </section>
+        </div>
       </main>`;
-    $("autofill-error-back").onclick = () => renderRoleSelection();
+    $("autofill-error-retry").onclick = () => triggerAutoProfiling(companyName);
+    $("autofill-error-back").onclick  = () => renderRoleSelection();
   }
 }
 
 function renderRoleSelection() {
   state.view = "role";
   $("main-content").innerHTML = `
-    <main class="role-shell">
-      <section class="role-panel">
+    <main class="hev-shell">
 
-        <div class="role-autofill-hero">
-          <div class="intake-eyebrow">Pre-meeting intelligence</div>
-          <h2 class="role-autofill-title">Profile any Indian startup in seconds</h2>
-          <p class="role-autofill-sub">Type a company name. We pull live public data and run the full SPARC risk model — no form required.</p>
-          <div class="role-autofill-row">
-            <input id="autofill-company-input" class="autofill-input" type="text"
-              placeholder="e.g. Zepto, Razorpay, Meesho" autocomplete="off" spellcheck="false" />
-            <button id="autofill-company-btn" class="btn btn-primary autofill-btn" type="button">
-              Profile this company →
-            </button>
+      <div class="hev-orb" aria-hidden="true"></div>
+
+      <section class="hev-hero">
+        <div class="hev-eyebrow hev-reveal">
+          <span class="hev-eyebrow-dot"></span>
+          SPARC &middot; Pre-meeting intelligence
+        </div>
+
+        <h1 class="hev-headline hev-reveal">
+          Know every risk<br>
+          <span class="hev-hl-mid">before the</span><br>
+          <em>meeting starts.</em>
+        </h1>
+
+        <p class="hev-sub hev-reveal">Type a company name. SPARC pulls live public data and runs the full 13-dimension risk model in seconds &mdash; no form required.</p>
+
+        <div class="hev-search-wrap hev-reveal">
+          <div class="hev-search-shell">
+            <div class="hev-search-inner">
+              <svg class="hev-search-icon" width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                <circle cx="7.5" cy="7.5" r="5" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M11.5 11.5L15 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+              <input id="autofill-company-input" class="hev-search-input" type="text"
+                placeholder="Search any Indian startup&hellip;" autocomplete="off" spellcheck="false" />
+              <button id="autofill-company-btn" class="hev-search-btn" type="button">
+                Analyse
+                <span class="hev-btn-icon">→</span>
+              </button>
+            </div>
+          </div>
+          <div class="hev-try-pills">
+            <span class="hev-try-label">Try:</span>
+            <button class="hev-try-pill" data-name="Zepto">Zepto</button>
+            <button class="hev-try-pill" data-name="Razorpay">Razorpay</button>
+            <button class="hev-try-pill" data-name="CRED">CRED</button>
+            <button class="hev-try-pill" data-name="Ather Energy">Ather Energy</button>
+            <button class="hev-try-pill" data-name="Pristyn Care">Pristyn Care</button>
           </div>
         </div>
-
-        <div class="role-divider"><span>Or explore the pipeline</span></div>
-
-        <div class="pipeline-entry-row">
-          <button class="btn pipeline-entry-btn" type="button" id="pipeline-entry-btn">
-            <span class="pipeline-entry-icon">⚡</span>
-            <span>
-              <strong>Pipeline Intelligence</strong>
-              <span class="pipeline-entry-sub">All 144 real Indian startups ranked by premium opportunity</span>
-            </span>
-            <span class="pipeline-entry-arrow">→</span>
-          </button>
-        </div>
-
-        <div class="role-divider"><span>Or run manually</span></div>
-
-        <div class="role-copy">
-          <div class="intake-eyebrow">Choose experience</div>
-          <h1>How are you running this session?</h1>
-          <p>Fast-track classification for an RM in a prospect meeting, or full underwriting intake with scoring, pricing, and a detailed risk report.</p>
-        </div>
-        <div class="role-options">
-          <button class="role-card role-card-primary" type="button" id="customer-role-btn">
-            <span class="role-card-kicker">RM Quick Classify</span>
-            <strong>Fast prospect classification</strong>
-            <span>Fewer fields, plain-English output. Run it in a meeting and walk out with a bundle recommendation and pitch.</span>
-          </button>
-          <button class="role-card" type="button" id="underwriter-role-btn">
-            <span class="role-card-kicker">Full SPARC Assessment</span>
-            <strong>Startup profiling + risk identification</strong>
-            <span>Full intake across all risk dimensions, GenAI-powered scoring, and tailored insurance recommendations with pricing.</span>
-          </button>
-        </div>
-
       </section>
+
+      <div class="hev-secondary hev-reveal">
+
+        <button class="hev-pipeline-card" type="button" id="pipeline-entry-btn">
+          <div class="hev-pipeline-inner">
+            <div class="hev-pipeline-left">
+              <span class="hev-pipeline-tag">⚡ Pipeline Intelligence</span>
+              <h2 class="hev-pipeline-h">Verified startups &mdash;<br>ranked by premium opportunity.</h2>
+              <p class="hev-pipeline-d">Know who to call before the meeting starts.</p>
+            </div>
+            <span class="hev-pipeline-arrow">→</span>
+          </div>
+        </button>
+
+        <div class="hev-mode-stack">
+          <button class="hev-mode-card" type="button" id="customer-role-btn">
+            <div class="hev-mode-card-inner">
+              <span class="hev-mode-kicker">RM Quick Classify</span>
+              <strong class="hev-mode-name">Fast prospect scoring</strong>
+              <span class="hev-mode-arrow-r">→</span>
+            </div>
+          </button>
+          <button class="hev-mode-card" type="button" id="underwriter-role-btn">
+            <div class="hev-mode-card-inner">
+              <span class="hev-mode-kicker">Full SPARC Assessment</span>
+              <strong class="hev-mode-name">Deep risk profiling</strong>
+              <span class="hev-mode-arrow-r">→</span>
+            </div>
+          </button>
+        </div>
+
+      </div>
+
     </main>`;
 
   const input = $("autofill-company-input");
-  const btn = $("autofill-company-btn");
+  const btn   = $("autofill-company-btn");
 
   const go = () => {
     const name = input.value.trim();
@@ -1036,13 +1086,27 @@ function renderRoleSelection() {
   btn.onclick = go;
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
 
-  $("pipeline-entry-btn").onclick = () => renderPipelineDashboard();
+  document.querySelectorAll(".hev-try-pill").forEach(pill => {
+    pill.onclick = () => {
+      input.value = pill.dataset.name;
+      triggerAutoProfiling(pill.dataset.name);
+    };
+  });
 
+  $("pipeline-entry-btn").onclick = () => renderPipelineDashboard();
   $("customer-role-btn").onclick = () => {
     if (!state.customerProfile?.industry) resetCustomerProfile();
     renderCustomerInput();
   };
   $("underwriter-role-btn").onclick = () => renderForm();
+
+  const revealObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add("hev-visible"); });
+  }, { threshold: 0.05 });
+  document.querySelectorAll(".hev-reveal").forEach((el, i) => {
+    el.style.transitionDelay = `${i * 80}ms`;
+    revealObserver.observe(el);
+  });
 }
 
 // ─── Pipeline Intelligence dashboard ─────────────────────────────────────────
@@ -1056,13 +1120,18 @@ async function renderPipelineDashboard(sectorFilter = "", stageFilter = "", tapF
 
   // Loading skeleton
   mc.innerHTML = `
-    <main class="pipeline-shell">
-      <div class="pipeline-header">
-        <button class="btn btn-ghost pipeline-back-btn" type="button" id="pipeline-back">← Back</button>
-        <h1 class="pipeline-title">Pipeline Intelligence</h1>
-        <span class="pipeline-subtitle">Real Indian startups · ranked by estimated premium</span>
+    <main class="hev-shell">
+      <div class="pipeline-shell">
+        <div class="pipeline-brief">
+          <button class="btn btn-ghost pipeline-back-btn" type="button" id="pipeline-back">&larr; Back</button>
+          <div class="pipeline-brief-copy">
+            <span class="pipeline-eyebrow">RM call sheet</span>
+            <h1 class="pipeline-title">Pipeline Intelligence</h1>
+            <p class="pipeline-subtitle">Loading verified startup profiles and premium opportunity scores.</p>
+          </div>
+        </div>
+        <div class="pipeline-loading">Loading pipeline data&hellip;</div>
       </div>
-      <div class="pipeline-loading">Loading pipeline data…</div>
     </main>`;
   $("pipeline-back").onclick = () => renderRoleSelection();
 
@@ -1079,9 +1148,10 @@ async function renderPipelineDashboard(sectorFilter = "", stageFilter = "", tapF
 
   // Apply filters client-side from cache
   const TAP_ORDER = { preseed: 0, untapped: 1, strike_now: 2, covered: 3 };
-  let companies = _pipelineData.companies || [];
+  const allCompanies = _pipelineData.companies || [];
+  let companies = allCompanies;
   if (sectorFilter) companies = companies.filter(c => c.sector.toLowerCase().includes(sectorFilter.toLowerCase()));
-  if (stageFilter)  companies = companies.filter(c => c.funding_stage.toLowerCase().includes(stageFilter.toLowerCase()));
+  if (stageFilter)  companies = companies.filter(c => c.funding_stage.toLowerCase() === stageFilter.toLowerCase());
   if (tapFilter)    companies = companies.filter(c => c.tap_status === tapFilter);
   // "All" view: Seed first, then Series A, then Series B+ (opportunities first)
   if (!tapFilter) companies = [...companies].sort((a, b) =>
@@ -1097,44 +1167,75 @@ async function renderPipelineDashboard(sectorFilter = "", stageFilter = "", tapF
   const sectors = companies.map(c => c.sector).filter(Boolean);
   const topSector = sectors.length ? [...sectors].sort((a, b) => sectors.filter(x=>x===b).length - sectors.filter(x=>x===a).length)[0] : "";
   const avgScore = companies.length ? (companies.reduce((s,c) => s + (c.overall_score||0), 0) / companies.length).toFixed(1) : "—";
+  const stageCounts = allCompanies.reduce((acc, c) => {
+    const stage = c.funding_stage || "Unknown";
+    acc[stage] = (acc[stage] || 0) + 1;
+    return acc;
+  }, {});
+  const activeCut = tapFilter
+    ? ({ preseed: "Pre-seed targets", untapped: "Seed targets", strike_now: "Series A strike list", covered: "Covered accounts" }[tapFilter] || "Filtered")
+    : "All market stages";
 
   // Sector options
   const allSectors = [...new Set((_pipelineData.companies||[]).map(c => c.sector).filter(Boolean))].sort();
   const allStages = [...new Set((_pipelineData.companies||[]).map(c => c.funding_stage).filter(Boolean))].sort();
 
   mc.innerHTML = `
-    <main class="pipeline-shell">
-      <div class="pipeline-header">
-        <button class="btn btn-ghost pipeline-back-btn" type="button" id="pipeline-back">← Back</button>
-        <div>
+    <main class="hev-shell">
+    <div class="pipeline-shell">
+      <section class="pipeline-brief">
+        <button class="btn btn-ghost pipeline-back-btn" type="button" id="pipeline-back">&larr; Back</button>
+        <div class="pipeline-brief-copy">
+          <span class="pipeline-eyebrow">RM call sheet</span>
           <h1 class="pipeline-title">Pipeline Intelligence</h1>
-          <span class="pipeline-subtitle">Real Indian startups · ranked by estimated premium</span>
+          <p class="pipeline-subtitle">Verified Indian startup profiles ranked by estimated premium, stage urgency, and sector concentration. Use it to pick the next founder call, not to browse a raw database.</p>
+          <div class="pipeline-stage-strip" aria-label="Stage mix">
+            <span>Pre-seed <strong>${stageCounts["Pre-seed"] || 0}</strong></span>
+            <span>Seed <strong>${stageCounts.Seed || 0}</strong></span>
+            <span>Series A <strong>${stageCounts["Series A"] || 0}</strong></span>
+            <span>Series B+ <strong>${stageCounts["Series B+"] || 0}</strong></span>
+          </div>
         </div>
-      </div>
+        <div class="pipeline-brief-aside">
+          <span>Current cut</span>
+          <strong>${escHtml(activeCut)}</strong>
+          <small>${companies.length} accounts visible from ${allCompanies.length} verified rows</small>
+        </div>
+      </section>
 
       <div class="pipeline-kpis">
         <div class="pipeline-kpi pipeline-kpi-accent">
-          <span class="kpi-val">₹${kpis.untapped_pool_cr || untappedPoolCr} Cr</span>
-          <span class="kpi-label">🔴 Untapped Premium</span>
+          <span class="kpi-label">Open premium</span>
+          <span class="kpi-val">INR ${kpis.untapped_pool_cr || untappedPoolCr} Cr</span>
+          <span class="kpi-note">Pre-seed, Seed, and Series A opportunity in this cut.</span>
         </div>
         <div class="pipeline-kpi">
+          <span class="kpi-label">Early-stage accounts</span>
           <span class="kpi-val">${kpis.untapped_count || untappedCount}</span>
-          <span class="kpi-label">Seed + Series A companies</span>
+          <span class="kpi-note">Not yet treated as mature covered-market accounts.</span>
         </div>
-        <div class="pipeline-kpi"><span class="kpi-val">₹${totalPoolCr} Cr</span><span class="kpi-label">Total Premium Pool</span></div>
-        <div class="pipeline-kpi"><span class="kpi-val">${topSector || "—"}</span><span class="kpi-label">Top Sector</span></div>
+        <div class="pipeline-kpi">
+          <span class="kpi-label">Premium pool</span>
+          <span class="kpi-val">INR ${totalPoolCr} Cr</span>
+          <span class="kpi-note">Sum of upper-bound indicative premium ranges.</span>
+        </div>
+        <div class="pipeline-kpi">
+          <span class="kpi-label">Dominant sector</span>
+          <span class="kpi-val">${topSector || "—"}</span>
+          <span class="kpi-note">Average risk score: ${avgScore}</span>
+        </div>
       </div>
 
       <div class="pipeline-filters pipeline-filters-sticky">
         <div class="pipeline-view-toggle">
-          <button class="pvt-btn ${_pipelineView === "table" ? "pvt-active" : ""}" id="pvt-table">☰ Table</button>
-          <button class="pvt-btn ${_pipelineView === "heat" ? "pvt-active" : ""}" id="pvt-heat">🔥 Heat</button>
+          <button class="pvt-btn ${_pipelineView === "table" ? "pvt-active" : ""}" id="pvt-table">Table</button>
+          <button class="pvt-btn ${_pipelineView === "heat" ? "pvt-active" : ""}" id="pvt-heat">Heat map</button>
         </div>
         <div class="pipeline-filter-divider"></div>
         <button class="btn pipeline-tap-btn tap-all ${!tapFilter ? "active" : ""}" data-tap="">All</button>
-        <button class="btn pipeline-tap-btn tap-preseed ${tapFilter === "preseed" ? "active" : ""}" data-tap="preseed">🟣 Pre-seed</button>
-        <button class="btn pipeline-tap-btn tap-untapped ${tapFilter === "untapped" ? "active" : ""}" data-tap="untapped">🔴 Seed</button>
-        <button class="btn pipeline-tap-btn tap-strike ${tapFilter === "strike_now" ? "active" : ""}" data-tap="strike_now">⚡ Strike Now</button>
+        <button class="btn pipeline-tap-btn tap-preseed ${tapFilter === "preseed" ? "active" : ""}" data-tap="preseed">Pre-seed</button>
+        <button class="btn pipeline-tap-btn tap-untapped ${tapFilter === "untapped" ? "active" : ""}" data-tap="untapped">Seed</button>
+        <button class="btn pipeline-tap-btn tap-strike ${tapFilter === "strike_now" ? "active" : ""}" data-tap="strike_now">Strike now</button>
         <div class="pipeline-filters-right">
           <select id="pipeline-sector-filter" class="pipeline-select">
             <option value="">All sectors</option>
@@ -1144,13 +1245,14 @@ async function renderPipelineDashboard(sectorFilter = "", stageFilter = "", tapF
             <option value="">All stages</option>
             ${allStages.map(s => `<option value="${s}" ${s === stageFilter ? "selected" : ""}>${s}</option>`).join("")}
           </select>
-          <span class="pipeline-count">${companies.length} co.</span>
+          <span class="pipeline-count">${companies.length} accounts</span>
         </div>
       </div>
 
-      ${_pipelineView === "heat" ? renderSectorHeat(_pipelineData.companies || []) : `
+      ${_pipelineView === "heat" ? renderSectorHeat(companies) : `
       <div class="pipeline-table-wrap">
         <table class="pipeline-table">
+          <caption>Ranked opportunity list. Click a row to open the company risk profile.</caption>
           <thead>
             <tr>
               <th>#</th>
@@ -1167,33 +1269,37 @@ async function renderPipelineDashboard(sectorFilter = "", stageFilter = "", tapF
             ${companies.map((c, i) => `
               <tr class="pipeline-row tap-row-${c.tap_status || "covered"}" data-name="${escHtml(c.startup_name)}">
                 <td class="pipeline-rank">${i + 1}</td>
-                <td class="pipeline-company"><strong>${escHtml(c.startup_name)}</strong></td>
+                <td class="pipeline-company">
+                  <strong>${escHtml(c.startup_name)}</strong>
+                  <span>${escHtml(c.top_risk || "Risk profile ready")}</span>
+                </td>
                 <td class="pipeline-sector">${escHtml(c.sector)}</td>
-                <td>${escHtml(c.funding_stage)}</td>
+                <td><span class="pipeline-stage">${escHtml(c.funding_stage)}</span></td>
                 <td>${tapBadge(c.tap_status)}</td>
                 <td class="pipeline-bundle">${escHtml(c.bundle_name || "—")}</td>
-                <td class="pipeline-premium">${c.max_lakh ? `₹${c.min_lakh}–${c.max_lakh}L` : "—"}</td>
+                <td class="pipeline-premium">${c.max_lakh ? `INR ${formatLakh(c.min_lakh)}-${formatLakh(c.max_lakh)}L` : "—"}</td>
                 <td><span class="pipeline-score score-${scoreClass(c.overall_score)}">${c.overall_score || "—"}</span></td>
               </tr>`).join("")}
           </tbody>
         </table>
       </div>`}
+    </div>
     </main>`;
 
   $("pipeline-back").onclick = () => renderRoleSelection();
   $("pvt-table").onclick = () => { _pipelineView = "table"; renderPipelineDashboard(sectorFilter, stageFilter, tapFilter); };
   $("pvt-heat").onclick  = () => { _pipelineView = "heat";  renderPipelineDashboard(sectorFilter, stageFilter, tapFilter); };
+  $("pipeline-sector-filter").onchange = e => renderPipelineDashboard(e.target.value, $("pipeline-stage-filter").value, tapFilter);
+  $("pipeline-stage-filter").onchange  = e => renderPipelineDashboard($("pipeline-sector-filter").value, e.target.value, tapFilter);
+  mc.querySelectorAll(".pipeline-tap-btn").forEach(btn => {
+    btn.onclick = () => renderPipelineDashboard(
+      $("pipeline-sector-filter").value,
+      $("pipeline-stage-filter").value,
+      btn.dataset.tap
+    );
+  });
 
   if (_pipelineView === "table") {
-    $("pipeline-sector-filter").onchange = e => renderPipelineDashboard(e.target.value, $("pipeline-stage-filter").value, tapFilter);
-    $("pipeline-stage-filter").onchange  = e => renderPipelineDashboard($("pipeline-sector-filter").value, e.target.value, tapFilter);
-    mc.querySelectorAll(".pipeline-tap-btn").forEach(btn => {
-      btn.onclick = () => renderPipelineDashboard(
-        $("pipeline-sector-filter").value,
-        $("pipeline-stage-filter").value,
-        btn.dataset.tap
-      );
-    });
     mc.querySelectorAll(".pipeline-row").forEach(row => {
       row.onclick = () => triggerAutoProfiling(row.dataset.name);
     });
@@ -1273,10 +1379,10 @@ function renderSectorHeat(allCompanies) {
 }
 
 function tapBadge(tap) {
-  if (tap === "preseed")    return `<span class="badge badge-preseed">🟣 Pre-seed</span>`;
-  if (tap === "untapped")   return `<span class="badge badge-untapped">🔴 Seed</span>`;
-  if (tap === "strike_now") return `<span class="badge badge-strike">⚡ Strike Now</span>`;
-  return `<span class="badge badge-covered">✓ Covered</span>`;
+  if (tap === "preseed")    return `<span class="badge badge-preseed">Pre-seed</span>`;
+  if (tap === "untapped")   return `<span class="badge badge-untapped">Seed</span>`;
+  if (tap === "strike_now") return `<span class="badge badge-strike">Strike now</span>`;
+  return `<span class="badge badge-covered">Covered</span>`;
 }
 
 function scoreClass(s) {
@@ -1284,6 +1390,12 @@ function scoreClass(s) {
   if (s >= 75) return "high";
   if (s >= 45) return "med";
   return "low";
+}
+
+function formatLakh(value) {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n)) return "0";
+  return Number.isInteger(n) ? String(n) : n.toFixed(1).replace(/\.0$/, "");
 }
 
 function escHtml(str) {
@@ -2560,6 +2672,7 @@ function normalizeGroupSafeguardCompanion(result) {
 
 function renderResults(result) {
   result = normalizeGroupSafeguardCompanion(result);
+  window.__outreachLoaded = false;
   state.profile = structuredClone(result.profile || state.profile);
   const p = result.profile;
 
@@ -2582,6 +2695,7 @@ function renderResults(result) {
           </div>
         </div>
         <div class="hero-actions">
+          <button class="btn-hero-ghost" onclick="renderRoleSelection()" style="margin-right:auto;">← Home</button>
           <button class="btn-hero-primary" onclick="downloadReport(window.__result)">Download report</button>
           <button class="btn-hero-ghost" onclick="renderForm()">Edit inputs</button>
         </div>
@@ -2645,8 +2759,8 @@ function renderResults(result) {
 
       <!-- ── TAB: Outreach ── -->
       <div class="tab-panel" id="tab-outreach" style="display:none">
-        ${renderFounderPitch(result)}
-        ${renderOutreach(result.outreach_prompts, result.outreach_source, result.outreach_error)}
+        <div id="outreach-static">${renderFounderPitch(result)}</div>
+        <div id="outreach-dynamic">${renderOutreach(result.outreach_fallback || {}, "fallback", null)}</div>
       </div>
 
       <!-- ── TAB: Estimated Quote ── -->
@@ -2786,23 +2900,9 @@ function renderResults(result) {
   bindRefine();
   bindPolicyWordingUpload();
 
-  // Bind outreach copy buttons
-  document.querySelectorAll("[data-copy]").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      await navigator.clipboard?.writeText(btn.dataset.copy || "");
-      const orig = btn.textContent;
-      btn.textContent = "Copied ✓";
-      setTimeout(() => btn.textContent = orig, 1800);
-    });
-  });
-
-  // Bind Send Email buttons
-  document.querySelectorAll(".il-send-email-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const item = _outreachItems[btn.dataset.key] || {};
-      openEmailModal(item.email_subject || "", item.email_body || "", item.email_html_data);
-    });
-  });
+  // Bind outreach buttons (fallback already rendered)
+  const outreachDynEl = document.getElementById("outreach-dynamic");
+  if (outreachDynEl) _bindOutreachButtons(outreachDynEl);
 
   // Draw radar — deferred so the canvas exists in DOM
   setTimeout(() => drawRadar("risk-radar", result.scores, { maxLabelLength: 16 }), 100);
@@ -2812,6 +2912,8 @@ function renderResults(result) {
 }
 
 /* ─── TAB NAVIGATION ─────────────────────────────────────────── */
+window.__outreachLoaded = false;
+
 window.showTab = (id) => {
   document.querySelectorAll(".tab-panel").forEach(p => { p.style.display = "none"; });
   document.querySelectorAll(".snav-pill").forEach(p => p.classList.remove("snav-active"));
@@ -2819,11 +2921,63 @@ window.showTab = (id) => {
   if (panel) panel.style.display = "";
   const btn = document.getElementById("snav-" + id);
   if (btn) btn.classList.add("snav-active");
-  // Redraw radar if switching to risk tab
   if (id === "risk" && window.__result) {
     setTimeout(() => drawRadar("risk-radar", window.__result.scores, { maxLabelLength: 16 }), 50);
   }
+  if (id === "outreach" && !window.__outreachLoaded && window.__result) {
+    window.__outreachLoaded = true;
+    loadOutreachTab(window.__result);
+  }
 };
+
+function _bindOutreachButtons(container) {
+  container.querySelectorAll("[data-copy]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      await navigator.clipboard?.writeText(btn.dataset.copy || "");
+      const orig = btn.textContent;
+      btn.textContent = "Copied ✓";
+      setTimeout(() => btn.textContent = orig, 1800);
+    });
+  });
+  container.querySelectorAll(".il-send-email-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const item = _outreachItems[btn.dataset.key] || {};
+      openEmailModal(item.email_subject || "", item.email_body || "", item.email_html_data);
+    });
+  });
+}
+
+async function loadOutreachTab(result) {
+  const dynamicEl = document.getElementById("outreach-dynamic");
+  const staticEl  = document.getElementById("outreach-static");
+  if (!dynamicEl) return;
+  try {
+    const res = await fetch("/api/outreach", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        profile: result.profile,
+        scores: result.scores,
+        recommendations: result.recommendations,
+        bundle_match: result.bundle_match,
+        display_regulatory_triggers: result.display_regulatory_triggers,
+        regulatory_triggers_fired: result.regulatory_triggers_fired,
+      }),
+    });
+    if (!res.ok) throw new Error("skip");
+    const data = await res.json();
+    if (data.error) throw new Error("skip");
+    window.__result.outreach_prompts   = data.outreach_prompts;
+    window.__result.outreach_source    = data.outreach_source;
+    window.__result.outreach_error     = data.outreach_error;
+    window.__result.objection_handlers = data.objection_handlers;
+    if (staticEl) staticEl.innerHTML = renderFounderPitch(window.__result);
+    dynamicEl.innerHTML = renderOutreach(data.outreach_prompts, data.outreach_source, data.outreach_error);
+    _bindOutreachButtons(dynamicEl);
+  } catch (_err) {
+    // Silent — fallback content is already rendered; nothing changes
+  }
+}
 
 /* ─── METHODOLOGY PANEL ──────────────────────────────────────────── */
 window.toggleMethodology = () => {

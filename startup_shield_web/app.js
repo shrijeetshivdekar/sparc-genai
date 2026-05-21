@@ -57,6 +57,74 @@ const state = {
   companyLookupCache: [],
 };
 
+/* ─── NAVIGATION HISTORY ────────────────────────────────────── */
+let _navHistory = [];   // [{label, fn, args}]
+let _navPos     = -1;   // current position in history
+
+function _navLabel(view) {
+  return { role: 'Home', signals: 'Signal Radar', pipeline: 'Pipeline', customer: 'Customer Quote', underwriter: 'Risk Form', results: 'Results', loading: null }[view] || view;
+}
+
+function navPush(fn, ...args) {
+  // Truncate forward history when branching
+  _navHistory = _navHistory.slice(0, _navPos + 1);
+  _navHistory.push({ fn, args, view: state.view });
+  _navPos = _navHistory.length - 1;
+  fn(...args);
+  _updateNavButtons();
+}
+
+let _navCalledByHistory = false;
+
+function navBack() {
+  if (_navPos <= 0) return;
+  _navPos--;
+  _navCalledByHistory = true;
+  const entry = _navHistory[_navPos];
+  entry.fn(...entry.args);
+  _navCalledByHistory = false;
+  _updateNavButtons();
+}
+
+function navForward() {
+  if (_navPos >= _navHistory.length - 1) return;
+  _navPos++;
+  _navCalledByHistory = true;
+  const entry = _navHistory[_navPos];
+  entry.fn(...entry.args);
+  _navCalledByHistory = false;
+  _updateNavButtons();
+}
+
+function _updateNavButtons() {
+  const bar = document.getElementById('nav-history-bar');
+  if (!bar) return;
+  const backBtn = document.getElementById('nav-back-btn');
+  const fwdBtn  = document.getElementById('nav-fwd-btn');
+  const label   = document.getElementById('nav-crumb');
+  if (backBtn) backBtn.disabled = _navPos <= 0;
+  if (fwdBtn)  fwdBtn.disabled  = _navPos >= _navHistory.length - 1;
+  if (label) {
+    const prev = _navPos > 0 ? _navHistory[_navPos - 1] : null;
+    const next = _navPos < _navHistory.length - 1 ? _navHistory[_navPos + 1] : null;
+    backBtn && (backBtn.title = prev ? 'Back to ' + _navLabel(prev.view) : 'No history');
+    fwdBtn  && (fwdBtn.title  = next ? 'Forward to ' + _navLabel(next.view) : 'Nothing ahead');
+  }
+  bar.style.display = _navHistory.length > 1 ? 'flex' : 'none';
+}
+
+function _injectNavBar() {
+  if (document.getElementById('nav-history-bar')) return;
+  const bar = document.createElement('div');
+  bar.id = 'nav-history-bar';
+  bar.innerHTML = `
+    <button id="nav-back-btn" class="nav-hist-btn" onclick="navBack()" disabled title="Back">&#8592;</button>
+    <button id="nav-fwd-btn"  class="nav-hist-btn" onclick="navForward()" disabled title="Forward">&#8594;</button>
+  `;
+  document.body.appendChild(bar);
+  _updateNavButtons();
+}
+
 /* ─── UTILS ──────────────────────────────────────────────────── */
 const $ = (id) => document.getElementById(id);
 const esc = (v) => String(v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
@@ -767,6 +835,7 @@ function buildProfile(sourceProfile = state.profile) {
 /* ─── INIT ───────────────────────────────────────────────────── */
 async function init() {
   renderApp();
+  _injectNavBar();
   const stub = buildStubMeta();
   try {
     const res = await fetch("/api/meta");
@@ -1026,6 +1095,7 @@ async function triggerAutoProfiling(companyName, signalContext = null) {
 
 function renderRoleSelection() {
   state.view = "role";
+  if (!_navCalledByHistory) { _navHistory = _navHistory.slice(0, _navPos + 1); _navHistory.push({ fn: renderRoleSelection, args: [], view: "role" }); _navPos = _navHistory.length - 1; setTimeout(_updateNavButtons, 0); }
   $("main-content").innerHTML = `
     <main class="hev-shell">
 
@@ -1219,6 +1289,7 @@ let _signalRadarFilter = "";
 
 async function renderSignalRadarDashboard(filter = _signalRadarFilter, forceRefresh = false) {
   state.view = "signals";
+  if (!_navCalledByHistory) { _navHistory = _navHistory.slice(0, _navPos + 1); _navHistory.push({ fn: renderSignalRadarDashboard, args: [filter, false], view: "signals" }); _navPos = _navHistory.length - 1; setTimeout(_updateNavButtons, 0); }
   _signalRadarFilter = filter || "";
   const mc = $("main-content");
 
@@ -1383,6 +1454,7 @@ const PIPELINE_SORT_KEYS = {
 
 async function renderPipelineDashboard(sectorFilter = "", stageFilter = "", tapFilter = "untapped") {
   state.view = "pipeline";
+  if (!_navCalledByHistory) { _navHistory = _navHistory.slice(0, _navPos + 1); _navHistory.push({ fn: renderPipelineDashboard, args: [sectorFilter, stageFilter, tapFilter], view: "pipeline" }); _navPos = _navHistory.length - 1; setTimeout(_updateNavButtons, 0); }
   const mc = $("main-content");
 
   // Loading skeleton
@@ -1698,6 +1770,7 @@ function escHtml(str) {
 
 function renderCustomerInput() {
   state.view = "customer";
+  if (!_navCalledByHistory) { _navHistory = _navHistory.slice(0, _navPos + 1); _navHistory.push({ fn: renderCustomerInput, args: [], view: "customer" }); _navPos = _navHistory.length - 1; setTimeout(_updateNavButtons, 0); }
   const meta = state.meta;
   const p = state.customerProfile;
   const sectors = (meta.sectors || []).map(s => s.name);
@@ -2148,6 +2221,7 @@ function showEmailDraftModal(result) {
 
 function renderForm() {
   state.view = "underwriter";
+  if (!_navCalledByHistory) { _navHistory = _navHistory.slice(0, _navPos + 1); _navHistory.push({ fn: renderForm, args: [], view: "underwriter" }); _navPos = _navHistory.length - 1; setTimeout(_updateNavButtons, 0); }
   state.section = Math.min(SECTIONS.length - 1, Math.max(0, state.section || 0));
   state.maxVisitedSection = Math.max(state.maxVisitedSection || 0, state.section);
   const mc = $("main-content");
@@ -2240,6 +2314,11 @@ function renderSectionIdentity() {
       <div class="field-group">
         <label>Startup name</label>
         <input class="f-input" id="f-name" type="text" placeholder="e.g. Acme Labs" value="${esc(p.startup_name||"")}" oninput="setVal('startup_name',this.value)" />
+      </div>
+
+      <div class="field-group">
+        <label>Founder / contact email</label>
+        <input class="f-input" id="f-email" type="email" placeholder="e.g. founder@acmelabs.com" value="${esc(p.contact_email||"")}" oninput="setVal('contact_email',this.value)" />
       </div>
 
       <div class="field-group">
@@ -2964,6 +3043,7 @@ function normalizeGroupSafeguardCompanion(result) {
 
 function renderResults(result) {
   result = normalizeGroupSafeguardCompanion(result);
+  if (!_navCalledByHistory) { const _r = result; _navHistory = _navHistory.slice(0, _navPos + 1); _navHistory.push({ fn: renderResults, args: [_r], view: "results" }); _navPos = _navHistory.length - 1; setTimeout(_updateNavButtons, 0); }
   window.__outreachLoaded = false;
   state.profile = structuredClone(result.profile || state.profile);
   const p = result.profile;

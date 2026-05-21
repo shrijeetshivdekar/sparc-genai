@@ -890,7 +890,8 @@ Return this JSON object filled in for {company_name}:
   "has_investors": <"Yes" or "No">,
   "annual_revenue_cr": <number — annual revenue in INR crores, best estimate from public sources, 0 if unknown>,
   "healthcare_operations": <true or false>,
-  "payment_or_card_program": <true or false>
+  "payment_or_card_program": <true or false>,
+  "contact_email": <founder or primary contact email address if publicly available, else null>
 }}
 
 Return ONLY the JSON object. No explanation, no markdown fences."""
@@ -920,6 +921,7 @@ def _persist_verified_profile(profile: dict) -> None:
             "has_investors": profile.get("has_investors", "Unknown"),
             "healthcare_operations": bool(profile.get("healthcare_operations", False)),
             "payment_or_card_program": bool(profile.get("payment_or_card_program", False)),
+            "contact_email": profile.get("contact_email", ""),
             "profile_source": "verified",
         }
         # Load existing, replace if name exists, else append

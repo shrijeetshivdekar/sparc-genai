@@ -6166,10 +6166,14 @@ pre {
   font-weight: 800;
 }
 
-.badge-preseed  { background: #F6F0F7; color: #6D287C; border-color: #E6D2EA; }
-.badge-untapped { background: #FFF0EF; color: var(--red); border-color: rgba(173,30,35,.18); }
+/* 🔍 Uninsured — slate grey: dormant, no commercial cover (IRDAI <5% micro-enterprise penetration) */
+.badge-preseed  { background: #F1F5F9; color: #475569; border-color: #CBD5E1; }
+/* 🌱 First buyer — teal: crossing IRDAI 20-employee health mandate threshold */
+.badge-untapped { background: #ECFEFF; color: #0E7490; border-color: #A5F3FC; }
+/* ⚡ Strike now — amber-orange: D&O investor-mandated post-institutional round (NVCA/SEBI) */
 .badge-strike   { background: #FFF5EB; color: #9A3412; border-color: #FED7AA; }
-.badge-covered  { background: #ECFDF5; color: #047857; border-color: #A7F3D0; }
+/* 🔄 Renewal target — blue: established account, renewal/upgrade/competitive win play */
+.badge-covered  { background: #EFF6FF; color: #1D4ED8; border-color: #BFDBFE; }
 
 .pipeline-table-wrap {
   overflow-x: auto;
@@ -7549,11 +7553,15 @@ pre {
   color: rgba(255,255,255,.52);
 }
 
-/* Status badges */
-.hev-shell .badge-preseed  { background: rgba(109,40,217,.2);  color: #C4B5FD; border-color: rgba(109,40,217,.3); }
-.hev-shell .badge-untapped { background: rgba(173,30,35,.2);   color: #F87171; border-color: rgba(173,30,35,.32); }
-.hev-shell .badge-strike   { background: rgba(154,52,18,.22);  color: #FB923C; border-color: rgba(154,52,18,.35); }
-.hev-shell .badge-covered  { background: rgba(5,150,105,.14);  color: #34D399; border-color: rgba(5,150,105,.25); }
+/* Status badges — dark mode (HEV shell) */
+/* 🔍 Uninsured — muted slate: low urgency, dormant account */
+.hev-shell .badge-preseed  { background: rgba(100,116,139,.18); color: #94A3B8; border-color: rgba(100,116,139,.32); }
+/* 🌱 First buyer — cyan: threshold-crossing opportunity */
+.hev-shell .badge-untapped { background: rgba(6,182,212,.18);   color: #67E8F9; border-color: rgba(6,182,212,.32); }
+/* ⚡ Strike now — amber-orange: act immediately */
+.hev-shell .badge-strike   { background: rgba(154,52,18,.22);   color: #FB923C; border-color: rgba(154,52,18,.35); }
+/* 🔄 Renewal target — indigo-blue: account management, not cold acquisition */
+.hev-shell .badge-covered  { background: rgba(99,102,241,.18);  color: #A5B4FC; border-color: rgba(99,102,241,.32); }
 
 /* Risk score chips */
 .hev-shell .pipeline-score.score-high { background: rgba(173,30,35,.2);   color: #F87171; }

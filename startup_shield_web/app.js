@@ -1173,7 +1173,7 @@ async function renderPipelineDashboard(sectorFilter = "", stageFilter = "", tapF
     return acc;
   }, {});
   const activeCut = tapFilter
-    ? ({ preseed: "Pre-seed targets", untapped: "Seed targets", strike_now: "Series A strike list", covered: "Covered accounts" }[tapFilter] || "Filtered")
+    ? ({ preseed: "Uninsured — Pre-seed accounts", untapped: "First buyer — Seed accounts", strike_now: "Strike now — Series A", covered: "Renewal target — Series B+" }[tapFilter] || "Filtered")
     : "All market stages";
 
   // Sector options
@@ -1233,9 +1233,9 @@ async function renderPipelineDashboard(sectorFilter = "", stageFilter = "", tapF
         </div>
         <div class="pipeline-filter-divider"></div>
         <button class="btn pipeline-tap-btn tap-all ${!tapFilter ? "active" : ""}" data-tap="">All</button>
-        <button class="btn pipeline-tap-btn tap-preseed ${tapFilter === "preseed" ? "active" : ""}" data-tap="preseed">Pre-seed</button>
-        <button class="btn pipeline-tap-btn tap-untapped ${tapFilter === "untapped" ? "active" : ""}" data-tap="untapped">Seed</button>
-        <button class="btn pipeline-tap-btn tap-strike ${tapFilter === "strike_now" ? "active" : ""}" data-tap="strike_now">Strike now</button>
+        <button class="btn pipeline-tap-btn tap-preseed ${tapFilter === "preseed" ? "active" : ""}" data-tap="preseed">🔍 Uninsured</button>
+        <button class="btn pipeline-tap-btn tap-untapped ${tapFilter === "untapped" ? "active" : ""}" data-tap="untapped">🌱 First buyer</button>
+        <button class="btn pipeline-tap-btn tap-strike ${tapFilter === "strike_now" ? "active" : ""}" data-tap="strike_now">⚡ Strike now</button>
         <div class="pipeline-filters-right">
           <select id="pipeline-sector-filter" class="pipeline-select">
             <option value="">All sectors</option>
@@ -1379,10 +1379,10 @@ function renderSectorHeat(allCompanies) {
 }
 
 function tapBadge(tap) {
-  if (tap === "preseed")    return `<span class="badge badge-preseed">Pre-seed</span>`;
-  if (tap === "untapped")   return `<span class="badge badge-untapped">Seed</span>`;
-  if (tap === "strike_now") return `<span class="badge badge-strike">Strike now</span>`;
-  return `<span class="badge badge-covered">Covered</span>`;
+  if (tap === "preseed")    return `<span class="badge badge-preseed">🔍 Uninsured</span>`;
+  if (tap === "untapped")   return `<span class="badge badge-untapped">🌱 First buyer</span>`;
+  if (tap === "strike_now") return `<span class="badge badge-strike">⚡ Strike now</span>`;
+  return `<span class="badge badge-covered">🔄 Renewal target</span>`;
 }
 
 function scoreClass(s) {

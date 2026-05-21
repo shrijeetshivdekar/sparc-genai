@@ -1,14 +1,5 @@
 {
   "version": 2,
-  "functions": {
-    "api/health.py":            { "maxDuration": 60 },
-    "api/meta.py":              { "maxDuration": 60 },
-    "api/analyze.py":           { "maxDuration": 60 },
-    "api/autofill.py":          { "maxDuration": 60 },
-    "api/company-profiles.py":  { "maxDuration": 60 },
-    "api/signals.py":           { "maxDuration": 60 },
-    "api/pipeline.py":          { "maxDuration": 60 }
-  },
   "builds": [
     {
       "src": "api/health.py",

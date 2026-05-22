@@ -30,6 +30,13 @@
       }
     },
     {
+      "src": "api/outreach.py",
+      "use": "@vercel/python",
+      "config": {
+        "includeFiles": ["**/*.py", "**/*.json", "research_config.json"]
+      }
+    },
+    {
       "src": "api/company-profiles.py",
       "use": "@vercel/python",
       "config": {
@@ -79,6 +86,10 @@
     {
       "src": "/api/autofill",
       "dest": "/api/autofill.py"
+    },
+    {
+      "src": "/api/outreach",
+      "dest": "/api/outreach.py"
     },
     {
       "src": "/api/company-profiles",

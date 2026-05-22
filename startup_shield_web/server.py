@@ -10,7 +10,8 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from dataclasses import fields
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -173,7 +174,7 @@ CUSTOMER_TYPE_OPTIONS = [
 
 
 DEFAULT_PROFILE = {
-    "startup_name": "Acme Labs",
+    "startup_name": "",
     "sector": next(iter(SECTOR_PROFILES.keys())),
     "sub_sector": None,
     "funding_stage": "Seed",
@@ -3019,7 +3020,8 @@ SIGNAL_RULES = [
         "label": "Funding round",
         "why": "Board, investor, governance risk rises",
         "angle": "D&O, Key Person, Cyber",
-        "keywords": ["funding", "fundraise", "raised", "raises", "series a", "series b", "series c", "seed round", "investment"],
+        "keywords": ["funding", "fundraise", "raised", "raises", "series a", "series b", "series c", "seed round", "investment", "valuation"],
+        "priority": 1,
         "stage": "Series A",
         "profile": {"has_investors": "Yes", "data_sensitivity": "High"},
     },
@@ -3028,7 +3030,8 @@ SIGNAL_RULES = [
         "label": "Warehouse / factory",
         "why": "Physical asset exposure rises",
         "angle": "Property, IAR, Fire, CGL",
-        "keywords": ["warehouse", "factory", "manufacturing", "plant", "facility", "fulfilment", "fulfillment"],
+        "keywords": ["warehouse", "factory", "manufacturing", "plant", "facility", "fulfilment", "fulfillment", "dark-store", "dark store", "deployment", "deployments"],
+        "priority": 4,
         "profile": {"operations": "Hybrid", "physical_assets": ["Manufacturing plant / factory", "Warehouse / fulfilment centre"], "hardware_software_split": 0.7},
     },
     {
@@ -3036,7 +3039,8 @@ SIGNAL_RULES = [
         "label": "Drone / robotics expansion",
         "why": "Regulatory and third-party liability",
         "angle": "Drone RPAS, IAR",
-        "keywords": ["drone", "uav", "robotics", "autonomous", "dgca"],
+        "keywords": ["drone", "uav", "robotics", "autonomous", "dgca", "defence", "defense", "counter-uas", "counter unmanned", "drone park"],
+        "priority": 6,
         "sector": "Deeptech / AI / Robotics",
         "profile": {"physical_assets": ["Lab / R&D equipment", "Drones / UAV equipment"], "regulatory": ["DGCA / drone operations"], "hardware_software_split": 0.55},
     },
@@ -3045,7 +3049,8 @@ SIGNAL_RULES = [
         "label": "Fintech licence / RBI mention",
         "why": "Regulated data and operational risk",
         "angle": "Cyber, PI, D&O, Crime",
-        "keywords": ["rbi", "nbfc", "payment aggregator", "fintech", "lending licence", "lending license", "sebi", "irdai"],
+        "keywords": ["rbi", "nbfc", "payment aggregator", "fintech", "lending licence", "lending license", "lending business", "licence", "license", "sebi", "irdai"],
+        "priority": 5,
         "sector": "Fintech",
         "profile": {"data_sensitivity": "High", "data_handled": ["Payments / financial transactions", "Personal identity data (KYC / Aadhaar)"], "regulatory": ["RBI / SEBI / IRDAI licensed", "DPDP Act obligations"], "payment_or_card_program": True},
     },
@@ -3054,7 +3059,8 @@ SIGNAL_RULES = [
         "label": "Healthcare expansion",
         "why": "Patient data and professional liability",
         "angle": "Cyber, PI, CGL",
-        "keywords": ["healthcare", "hospital", "clinic", "patient", "diagnostic", "doctor", "medical", "pharma"],
+        "keywords": ["healthcare", "hospital", "clinic", "patient", "diagnostic", "doctor", "medical", "pharma", "gmv", "ai-driven healthcare"],
+        "priority": 4,
         "sector": "Healthtech",
         "profile": {"data_sensitivity": "High", "data_handled": ["Health / medical data", "Personal identity data (KYC / Aadhaar)"], "healthcare_operations": True},
     },
@@ -3063,7 +3069,8 @@ SIGNAL_RULES = [
         "label": "Hiring spike",
         "why": "Employee exposure grows",
         "angle": "WC, Group Health, EPLI",
-        "keywords": ["hiring", "hire", "headcount", "employees", "workforce", "layoff", "campus"],
+        "keywords": ["hiring", "hire", "headcount", "employees", "workforce", "layoff", "layoffs", "restructuring", "campus"],
+        "priority": 4,
         "profile": {"team_size": 120},
     },
     {
@@ -3071,7 +3078,8 @@ SIGNAL_RULES = [
         "label": "Export / import news",
         "why": "Transit and credit exposure appears",
         "angle": "Marine Cargo, Trade Credit",
-        "keywords": ["export", "exports", "import", "imports", "global market", "overseas", "shipment", "supply chain"],
+        "keywords": ["export", "exports", "import", "imports", "global market", "international markets", "overseas", "shipment", "supply chain"],
+        "priority": 4,
         "profile": {"export_us_pct": 20.0, "physical_assets": ["Warehouse / fulfilment centre"]},
     },
     {
@@ -3079,7 +3087,8 @@ SIGNAL_RULES = [
         "label": "Product recall / safety issue",
         "why": "Liability exposure becomes immediate",
         "angle": "Product Liability, CGL",
-        "keywords": ["recall", "defect", "safety issue", "fire incident", "battery fire", "contamination"],
+        "keywords": ["recall", "defect", "safety issue", "fire incident", "battery fire", "contamination", "failure", "product-performance"],
+        "priority": 6,
         "profile": {"product_recall_exposure": True},
     },
     {
@@ -3087,7 +3096,8 @@ SIGNAL_RULES = [
         "label": "IPO / pre-IPO news",
         "why": "Director liability and scrutiny rise",
         "angle": "D&O, Crime, Cyber",
-        "keywords": ["ipo", "pre-ipo", "listing", "listed", "sebi filing", "drhp", "public issue"],
+        "keywords": ["ipo", "pre-ipo", "pre ipo", "listing", "listed", "sebi filing", "drhp", "public issue", "confidential ipo", "pre-filing"],
+        "priority": 7,
         "stage": "Series B+",
         "profile": {"has_investors": "Yes", "funding_stage": "Series B+"},
     },
@@ -3101,6 +3111,25 @@ EXCLUDED_SIGNAL_SOURCES = {
     "x.com",
     "youtube.com",
 }
+
+SIGNAL_WATCHLIST_QUERIES = [
+    "Rapido 240M funding Prosus WestBridge Accel",
+    "Scapia 63M General Catalyst funding",
+    "Anscer Robotics warehouse factory deployments Series A",
+    "Apollyon Dynamics UAV drone manufacturing funding",
+    "Garuda Aerospace IPO drone park",
+    "MobiKwik NBFC RBI licence lending business",
+    "Paytm Payments Bank RBI licence cancelled",
+    "Paramotor Digital confidential IPO SEBI fintech",
+    "Practo healthcare AI GMV US",
+    "Legend of Toys manufacturing international markets funding",
+    "HrdWyr semiconductor funding AI processors",
+    "Adda247 layoffs IPO listing",
+    "Zetwerk Razorpay Kissht DRHP IPO",
+    "Armory counter UAS MoD order defence startup",
+    "GalaxEye satellite OptoSAR orbit",
+    "quick commerce dark store expansion India",
+]
 
 FALLBACK_SIGNAL_ARTICLES = [
     {
@@ -3150,11 +3179,14 @@ def _classify_signal(article: dict) -> dict:
     text = _article_text(article)
     best = None
     best_hits = 0
+    best_score = 0
     for rule in SIGNAL_RULES:
         hits = sum(1 for kw in rule["keywords"] if kw in text)
-        if hits > best_hits:
+        score_value = hits * 10 + int(rule.get("priority", 0))
+        if hits and score_value > best_score:
             best = rule
             best_hits = hits
+            best_score = score_value
     if best:
         confidence = min(96, 58 + best_hits * 14)
         return {**best, "confidence": confidence}
@@ -3236,6 +3268,11 @@ def _looks_generic_signal_article(article: dict) -> bool:
         " corpus",
         "bharat tech fund",
         "ace fund",
+        "startup ipo tracker",
+        "ipo tracker 2026",
+        "indian startup ipo tracker",
+        "startups have filed drhps",
+        "startup news and updates",
     ]
     return any(pattern in title for pattern in generic_patterns)
 
@@ -3263,6 +3300,27 @@ def _looks_generic_signal_company(company: str) -> bool:
         "weekly",
     ]
     return any(term in text for term in generic_terms)
+
+
+def _rss_item_datetime(value: str):
+    if not value:
+        return None
+    try:
+        dt = parsedate_to_datetime(value)
+    except Exception:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def _within_signal_window(value: str, window_days: int) -> bool:
+    if window_days <= 0:
+        return True
+    dt = _rss_item_datetime(value)
+    if dt is None:
+        return True
+    return dt >= (datetime.now(timezone.utc) - timedelta(days=window_days))
 
 
 def _merge_signal_profile(company: str, base: dict | None, rule: dict) -> dict:
@@ -3326,15 +3384,22 @@ def _fetch_gdelt_signal_articles(limit: int = 18) -> list[dict]:
     return (matched or rows)[:limit]
 
 
-def _fetch_google_news_signal_articles(limit: int = 18) -> list[dict]:
+def _fetch_google_news_signal_articles(limit: int = 18, window_days: int = 30) -> list[dict]:
+    window_days = max(1, min(int(window_days or 30), 30))
     queries = [
-        "Indian startup funding when:14d",
-        "Indian startup RBI licence fintech when:30d",
-        "Indian startup warehouse factory manufacturing when:30d",
-        "Indian startup healthcare clinic hospital when:30d",
-        "Indian startup drone robotics DGCA when:30d",
-        "Indian startup IPO DRHP SEBI when:30d",
+        f"Indian startup funding when:{window_days}d",
+        f"Indian startup RBI licence fintech NBFC when:{window_days}d",
+        f"Indian startup warehouse factory manufacturing deployment when:{window_days}d",
+        f"Indian startup healthcare clinic hospital AI GMV when:{window_days}d",
+        f"Indian startup drone robotics UAV defence DGCA when:{window_days}d",
+        f"Indian startup IPO DRHP SEBI confidential filing when:{window_days}d",
+        f"Indian startup layoffs restructuring IPO when:{window_days}d",
+        f"Indian startup dark store quick commerce expansion when:{window_days}d",
+        f"site:reuters.com India startup RBI NBFC fintech when:{window_days}d",
+        f"site:timesofindia.indiatimes.com startup funding IPO drone fintech when:{window_days}d",
+        f"site:business-standard.com startup robotics healthcare defence funding when:{window_days}d",
     ]
+    queries.extend(f"{q} when:{window_days}d" for q in SIGNAL_WATCHLIST_QUERIES)
     timeout = float(os.environ.get("SIGNAL_RADAR_TIMEOUT_SECONDS", "12"))
     rows = []
     seen_titles = set()
@@ -3361,6 +3426,9 @@ def _fetch_google_news_signal_articles(limit: int = 18) -> list[dict]:
             if not title or title in seen_titles:
                 continue
             seen_titles.add(title)
+            pub_date = item.findtext("pubDate") or ""
+            if not _within_signal_window(pub_date, window_days):
+                continue
             source = item.find("{*}source")
             source_name = (source.text if source is not None else "") or "Google News"
             if source_name.lower() in EXCLUDED_SIGNAL_SOURCES:
@@ -3369,7 +3437,7 @@ def _fetch_google_news_signal_articles(limit: int = 18) -> list[dict]:
                 "title": title,
                 "url": item.findtext("link") or "",
                 "source": source_name,
-                "seendate": item.findtext("pubDate") or "",
+                "seendate": pub_date,
                 "description": item.findtext("description") or "",
             })
         if len(rows) >= limit * 4:
@@ -3379,7 +3447,8 @@ def _fetch_google_news_signal_articles(limit: int = 18) -> list[dict]:
     return (matched or rows)[:limit]
 
 
-def _fetch_direct_rss_signal_articles(limit: int = 18) -> list[dict]:
+def _fetch_direct_rss_signal_articles(limit: int = 18, window_days: int = 30) -> list[dict]:
+    window_days = max(1, min(int(window_days or 30), 30))
     feeds = [
         ("Inc42", "https://inc42.com/feed/"),
         ("YourStory", "https://yourstory.com/feed"),
@@ -3405,11 +3474,14 @@ def _fetch_direct_rss_signal_articles(limit: int = 18) -> list[dict]:
             if not title or title in seen_titles:
                 continue
             seen_titles.add(title)
+            pub_date = item.findtext("pubDate") or item.findtext("{*}date") or ""
+            if not _within_signal_window(pub_date, window_days):
+                continue
             rows.append({
                 "title": title,
                 "url": item.findtext("link") or feed_url,
                 "source": source_name,
-                "seendate": item.findtext("pubDate") or item.findtext("{*}date") or "",
+                "seendate": pub_date,
                 "description": item.findtext("description") or "",
             })
             if len(rows) >= limit * 3:
@@ -3486,7 +3558,8 @@ def _signal_task_from_article(article: dict, profiles: dict) -> dict | None:
     }
 
 
-def get_signal_radar(limit: int = 30, live: bool = True) -> dict:
+def get_signal_radar(limit: int = 30, live: bool = True, window_days: int = 30) -> dict:
+    window_days = max(1, min(int(window_days or 30), 30))
     profiles = _verified_profiles()
     source_status = "fallback"
     source_error = ""
@@ -3509,12 +3582,12 @@ def get_signal_radar(limit: int = 30, live: bool = True) -> dict:
     if live:
         live_sources = []
         try:
-            if add_articles(_fetch_direct_rss_signal_articles(limit=max(limit, 12))):
+            if add_articles(_fetch_direct_rss_signal_articles(limit=max(limit, 12), window_days=window_days)):
                 live_sources.append("rss")
         except Exception as exc:
             source_error = type(exc).__name__
         try:
-            if add_articles(_fetch_google_news_signal_articles(limit=max(limit, 12))):
+            if add_articles(_fetch_google_news_signal_articles(limit=max(limit, 12), window_days=window_days)):
                 live_sources.append("google_news")
         except Exception as exc:
             source_error = source_error or type(exc).__name__
@@ -3569,6 +3642,8 @@ def get_signal_radar(limit: int = 30, live: bool = True) -> dict:
         },
         "source_status": source_status,
         "source_error": source_error,
+        "window_days": window_days,
+        "window_label": f"Last {window_days} days",
         "source_policy": "Public news signals only. Use official company email or CRM contact after human review.",
     }
 
@@ -3756,9 +3831,14 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if path == "/api/signals":
             limit = clean_int((params.get("limit") or ["30"])[0], 30)
+            days = clean_int((params.get("days") or ["30"])[0], 30)
             live_raw = (params.get("live") or ["1"])[0].strip().lower()
             live = live_raw not in ("0", "false", "no")
-            self.send_json(200, get_signal_radar(limit=max(1, min(limit, 50)), live=live))
+            self.send_json(200, get_signal_radar(
+                limit=max(1, min(limit, 50)),
+                live=live,
+                window_days=max(1, min(days, 30)),
+            ))
             return
         return super().do_GET()
 

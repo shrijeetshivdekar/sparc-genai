@@ -1085,6 +1085,15 @@ async function triggerAutoProfiling(companyName, signalContext = null, _retryCou
       throw new Error(errMsg || "Auto-profile failed");
     }
 
+    // Local dev server returns a full result from /api/autofill already (profile+scores+bundles).
+    // Vercel's /api/autofill returns only the raw Gemini profile — needs a second /api/analyze call.
+    if (profile.scores && profile.bundle_match) {
+      if (signalContext && !profile.signal_context) profile.signal_context = buildSignalContext(signalContext) || signalContext;
+      cancelLoader();
+      renderResults(profile);
+      return;
+    }
+
     // Step 2: /api/analyze — pure Python computation, no Gemini, fast (<3s)
     if (signalContext && !profile.signal_context) profile.signal_context = buildSignalContext(signalContext) || signalContext;
     const analyzeRes = await fetch("/api/analyze", {
@@ -1344,7 +1353,7 @@ async function renderSignalRadarDashboard(filter = _signalRadarFilter, forceRefr
   const cachedLive = String(_signalRadarData?.source_status || "").startsWith("live_");
   if (!_signalRadarData || forceRefresh || !cachedLive) {
     try {
-      const res = await fetch(`/api/signals?limit=30&t=${Date.now()}`, { cache: "no-store" });
+      const res = await fetch(`/api/signals?limit=30&days=7&t=${Date.now()}`, { cache: "no-store" });
       _signalRadarData = await res.json();
       if (!res.ok || _signalRadarData.error) throw new Error(_signalRadarData.error || "Signal scan failed");
     } catch (e) {
@@ -1387,6 +1396,7 @@ async function renderSignalRadarDashboard(filter = _signalRadarFilter, forceRefr
           <p>Public news signals are classified into SPARC profile deltas, bundle fit, premium range, contact-source status, and a human-reviewed next action.</p>
           <div class="signal-source-note">
             <span>Source mode: ${escHtml(sourceLabel)}</span>
+            <span>Window: ${escHtml(_signalRadarData.window_label || "Last 7 days")}</span>
             <span>${escHtml(sourceDetail)}</span>
             <span>${escHtml(_signalRadarData.source_policy || "Human review required before outreach.")}</span>
           </div>

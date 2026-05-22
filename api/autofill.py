@@ -1,7 +1,8 @@
 """
 Vercel serverless autofill endpoint.
-Self-contained — does NOT import server.py (which is 4000+ lines and adds
-3-5s to cold start). Does its own lean Gemini call within the 10s budget.
+Self-contained — does NOT import server.py.
+Only calls Gemini and returns the raw profile.
+The frontend then calls /api/analyze for bundle matching.
 """
 import json
 import os
@@ -16,30 +17,28 @@ if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 
 
-# ── Slim prompt: only the fields that drive bundle matching ──────────────────
 def _prompt(company_name: str) -> str:
     return f"""You are a startup analyst. Return a JSON object for "{company_name}" using public knowledge.
-Use ONLY the exact enum values shown. Return ONLY the JSON, no markdown.
+Use ONLY the exact enum values shown. Return ONLY the JSON, no markdown fences.
 
 {{
   "startup_name": "{company_name}",
   "sector": <one of: "Fintech","Healthtech","SaaS / Enterprise Software","Deeptech / AI / Robotics","Edtech","D2C / Consumer Brands","Logistics / Mobility","Agritech / Foodtech","Cleantech / Climatetech","Gaming / Media / Content","HRtech","Legaltech","Proptech","Spacetech","Insurtech","Other">,
   "funding_stage": <one of: "Pre-seed","Seed","Series A","Series B+">,
-  "team_size": <integer, full-time employees>,
+  "team_size": <integer>,
   "operations": <one of: "Digital-only","Hybrid (online+offline)","Offline / Physical","Hardware / IoT","Marketplace">,
   "data_handled": <array from: ["Payments / financial transactions","Health / medical records","Personal identity data (KYC / Aadhaar)","Employee / HR data (payroll, biometrics)","Minors' / children's data","Location / GPS tracking data","Intellectual property / source code","Customer behavioural / usage data","Physical inventory / goods","Sensitive personal data (DPDP Act)","None of the above"]>,
   "regulatory": <array from: ["RBI / SEBI / IRDAI licensed","FSSAI / food safety","CDSCO / medical devices","DPDP Act obligations","DGCA / drone operations","IT Act / CERT-In obligations","Labour Codes / gig worker regulations","BIS / QCO product certification","NMC / telemedicine regulations","MV Act / transport regulations","SEBI BRSR / ESG reporting","Competition Act / CCI","EPR / environmental compliance","None / minimal"]>,
   "physical_assets": <array from: ["Office / coworking space","Warehouse / fulfilment centre","Manufacturing plant / factory","Lab / R&D equipment","Medical devices / diagnostic equipment","Vehicles / delivery fleet","Drones / UAV equipment","Kitchen / food processing","Cold chain / refrigeration","Solar / clean energy infrastructure","Retail stores / kiosks","Data centre / server room","None - fully cloud"]>,
   "ai_in_product": <true or false>,
   "has_investors": <"Yes" or "No">,
-  "annual_revenue_cr": <number, INR crores, 0 if unknown>,
+  "annual_revenue_cr": <number in INR crores, 0 if unknown>,
   "healthcare_operations": <true or false>,
   "payment_or_card_program": <true or false>,
   "contact_email": <string or null>
 }}"""
 
 
-# ── Extract first JSON object from text ─────────────────────────────────────
 def _extract_json(text: str):
     start = text.find("{")
     end   = text.rfind("}")
@@ -51,7 +50,6 @@ def _extract_json(text: str):
         return None
 
 
-# ── Gemini call — 8s timeout fits inside Vercel's 10s hard limit ─────────────
 def _call_gemini(prompt: str):
     api_key = os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
@@ -91,10 +89,10 @@ def _call_gemini(prompt: str):
     except json.JSONDecodeError:
         return None, "Gemini returned non-JSON envelope."
 
-    candidate    = body.get("candidates", [{}])[0]
+    candidate     = body.get("candidates", [{}])[0]
     finish_reason = candidate.get("finishReason", "")
-    parts        = candidate.get("content", {}).get("parts", [])
-    text         = "".join(p.get("text", "") for p in parts)
+    parts         = candidate.get("content", {}).get("parts", [])
+    text          = "".join(p.get("text", "") for p in parts)
 
     if finish_reason == "MAX_TOKENS":
         return None, "Gemini response truncated (MAX_TOKENS)."
@@ -107,22 +105,9 @@ def _call_gemini(prompt: str):
     return parsed, None
 
 
-# ── Lightweight analyze (bundle matching lives in server.py) ─────────────────
-def _analyze_profile(profile: dict) -> dict:
-    """Run bundle + pricing logic from server.py against the profile."""
-    try:
-        from startup_shield_web.server import analyze as _analyze
-        return _analyze(profile)
-    except Exception as exc:
-        # server.py import failed — return raw profile so frontend can show it
-        print(f"[autofill] analyze import error: {exc}", flush=True)
-        return profile
-
-
-# ── Handler ──────────────────────────────────────────────────────────────────
 class handler(BaseHTTPRequestHandler):
     def log_message(self, *args):
-        pass  # suppress default access logs
+        pass
 
     def _send(self, status: int, body: bytes):
         self.send_response(status)
@@ -133,9 +118,8 @@ class handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         self._send(200, json.dumps({
-            "ok": True,
-            "endpoint": "/api/autofill",
-            "message": "POST {company_name}",
+            "ok": True, "endpoint": "/api/autofill",
+            "message": "POST {company_name, signal_context?} — returns raw profile only. Call /api/analyze next.",
         }).encode())
 
     def do_POST(self):
@@ -156,11 +140,9 @@ class handler(BaseHTTPRequestHandler):
             self._send(500, json.dumps({"error": err or "Gemini call failed."}).encode())
             return
 
-        # Merge signal context if provided
+        # Attach signal context if provided — /api/analyze will use it
         signal_context = payload.get("signal_context")
         if signal_context:
             profile["signal_context"] = signal_context
 
-        result = _analyze_profile(profile)
-        body   = json.dumps(result, ensure_ascii=False).encode("utf-8")
-        self._send(200 if not result.get("error") else 500, body)
+        self._send(200, json.dumps(profile, ensure_ascii=False).encode("utf-8"))

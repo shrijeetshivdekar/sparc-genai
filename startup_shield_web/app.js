@@ -1057,34 +1057,51 @@ function buildSignalContext(signal) {
 async function triggerAutoProfiling(companyName, signalContext = null, _retryCount = 0) {
   const cancelLoader = renderAutoProfilingLoader(companyName);
   try {
+    // Step 1: /api/autofill — Gemini only, no server.py import, fast (<8s)
     const payload = { company_name: companyName };
     if (signalContext) payload.signal_context = buildSignalContext(signalContext) || signalContext;
-    const res = await fetch("/api/autofill", {
+    const autofillRes = await fetch("/api/autofill", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    let result;
+    let profile;
     try {
-      result = await res.json();
+      profile = await autofillRes.json();
     } catch (jsonErr) {
-      // Gemini returned truncated JSON — auto-retry once silently
       if (_retryCount < 1) {
         cancelLoader();
         return triggerAutoProfiling(companyName, signalContext, _retryCount + 1);
       }
       throw new Error("JSON parse error: " + jsonErr.message);
     }
-    cancelLoader();
-    if (!res.ok || result.error) {
-      const errMsg = result.error || "";
-      const isTransient = !res.ok || /busy|overload|503|504|timeout|incomplete|truncat|json|parse/i.test(errMsg);
+    if (!autofillRes.ok || profile.error) {
+      const errMsg = profile.error || "";
+      const isTransient = !autofillRes.ok || /busy|overload|503|504|timeout|incomplete|truncat|json|parse/i.test(errMsg);
       if (_retryCount < 1 && isTransient) {
+        cancelLoader();
         return triggerAutoProfiling(companyName, signalContext, _retryCount + 1);
       }
       throw new Error(errMsg || "Auto-profile failed");
     }
-    if (signalContext && !result.signal_context) result.signal_context = buildSignalContext(signalContext) || signalContext;
+
+    // Step 2: /api/analyze — pure Python computation, no Gemini, fast (<3s)
+    if (signalContext && !profile.signal_context) profile.signal_context = buildSignalContext(signalContext) || signalContext;
+    const analyzeRes = await fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(profile),
+    });
+    let result;
+    try {
+      result = await analyzeRes.json();
+    } catch (jsonErr) {
+      throw new Error("Analyze parse error: " + jsonErr.message);
+    }
+    cancelLoader();
+    if (!analyzeRes.ok || result.error) {
+      throw new Error(result.error || "Analysis failed");
+    }
     renderResults(result);
   } catch (err) {
     cancelLoader();

@@ -35,7 +35,9 @@ Use ONLY the exact enum values shown. Return ONLY the JSON, no markdown fences.
   "annual_revenue_cr": <number in INR crores, 0 if unknown>,
   "healthcare_operations": <true or false>,
   "payment_or_card_program": <true or false>,
-  "contact_email": <string or null>
+  "contact_email": <best available public email — try in order: (1) founder/CEO email if publicly listed, (2) official contact like contact@, info@, hello@ + company domain, (3) construct from known pattern e.g. firstname@domain.com — return null only if nothing can be reasonably inferred>,
+  "product_description": <one sentence max 160 chars — what the company does, where it operates, at what scale>,
+  "biggest_fear": <max 120 chars — 2-3 top risk concerns this company likely faces, comma-separated, e.g. "Cyber attacks, Data privacy breaches, Regulatory penalties">
 }}"""
 
 

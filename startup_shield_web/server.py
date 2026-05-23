@@ -892,7 +892,9 @@ Return this JSON object filled in for {company_name}:
   "annual_revenue_cr": <number — annual revenue in INR crores, best estimate from public sources, 0 if unknown>,
   "healthcare_operations": <true or false>,
   "payment_or_card_program": <true or false>,
-  "contact_email": <founder or primary contact email address if publicly available, else null>
+  "contact_email": <best available public email — try in order: (1) founder/CEO email if publicly listed, (2) official contact like contact@, info@, hello@ + company domain, (3) construct from known pattern e.g. firstname@domain.com — return null only if nothing can be reasonably inferred>,
+  "product_description": <one sentence max 160 chars — what the company does, where it operates, at what scale>,
+  "biggest_fear": <max 120 chars — 2-3 top risk concerns this company likely faces, comma-separated, e.g. "Cyber attacks, Data privacy breaches, Regulatory penalties">
 }}
 
 Return ONLY the JSON object. No explanation, no markdown fences."""
@@ -923,6 +925,8 @@ def _persist_verified_profile(profile: dict) -> None:
             "healthcare_operations": bool(profile.get("healthcare_operations", False)),
             "payment_or_card_program": bool(profile.get("payment_or_card_program", False)),
             "contact_email": profile.get("contact_email", ""),
+            "product_description": profile.get("product_description", ""),
+            "biggest_fear": profile.get("biggest_fear", ""),
             "profile_source": "verified",
         }
         # Load existing, replace if name exists, else append
@@ -943,7 +947,7 @@ def _persist_verified_profile(profile: dict) -> None:
 
 _CAPACITY_ERRORS = ("503", "429", "unavailable", "UNAVAILABLE", "high demand", "quota", "rate", "timed out", "timeout")
 
-def autofill_and_analyze(company_name, signal_context=None):
+def autofill_and_analyze(company_name):
     if not gemini_enabled():
         return {"error": "Gemini API key not configured. Cannot auto-profile."}
 
@@ -997,7 +1001,6 @@ def autofill_and_analyze(company_name, signal_context=None):
     _persist_verified_profile(profile_data)
 
     result = analyze(profile_data)
-    result = _apply_signal_context_to_result(result, signal_context)
     result["autofilled_fields"] = list(autofilled.keys())
     result["autofill_warning"] = "Pre-filled from public sources via Gemini + Google Search. Verify before underwriting."
     return result
@@ -1764,81 +1767,6 @@ def _format_cover_lines(cover_facts, max_items=8):
     return "\n".join(lines)
 
 
-def _clean_signal_context(signal_context):
-    if not isinstance(signal_context, dict):
-        return {}
-    allowed = (
-        "company", "signal", "signal_id", "headline", "source", "source_url",
-        "insurance_angle", "recommended_bundle", "premium_range",
-        "review_status", "contact_status",
-    )
-    cleaned = {}
-    for key in allowed:
-        value = signal_context.get(key)
-        if value in (None, "", [], {}):
-            continue
-        cleaned[key] = str(value).strip()[:500]
-    products = signal_context.get("priority_products") or []
-    if isinstance(products, list):
-        cleaned["priority_products"] = [str(p).strip()[:120] for p in products if str(p).strip()][:5]
-    elif isinstance(products, str) and products.strip():
-        cleaned["priority_products"] = [products.strip()[:120]]
-    bundle_name = cleaned.get("recommended_bundle")
-    if bundle_name and bundle_name not in cleaned.get("priority_products", []):
-        cleaned.setdefault("priority_products", []).insert(0, bundle_name)
-    return cleaned
-
-
-def _signal_context_sentence(signal_context):
-    ctx = _clean_signal_context(signal_context)
-    if not ctx:
-        return ""
-    signal = ctx.get("signal") or "public risk trigger"
-    headline = ctx.get("headline") or "a public startup trigger"
-    source = ctx.get("source") or "public news"
-    bundle = ctx.get("recommended_bundle")
-    angle = ctx.get("insurance_angle")
-    parts = [f"Reason to reach out now: {headline} ({source}) was classified as {signal}."]
-    if bundle or angle:
-        parts.append(f"Lead with {bundle or angle}; the relevant insurance angle is {angle or bundle}.")
-    return " ".join(parts)
-
-
-def _same_product_name(a, b):
-    def norm(value):
-        return re.sub(r"[^a-z0-9]+", "", str(value or "").lower())
-    return bool(norm(a) and norm(a) == norm(b))
-
-
-def _prioritized_outreach_products(recommendations, bundle, signal_context=None):
-    ctx = _clean_signal_context(signal_context)
-    products = []
-    signal_bundle = ctx.get("recommended_bundle")
-    bundle_name = (bundle or {}).get("name")
-    if signal_bundle and not _same_product_name(signal_bundle, bundle_name):
-        products.append({
-            "key": "signal_bundle",
-            "name": signal_bundle,
-            "nudge": _signal_context_sentence(ctx),
-            "what_it_covers": ctx.get("insurance_angle", ""),
-        })
-    if bundle:
-        products.append({
-            "key": "bundle",
-            "name": bundle.get("name"),
-            "nudge": bundle.get("description", ""),
-            "what_it_covers": bundle.get("description", ""),
-        })
-    for product in (recommendations or [])[:5]:
-        name = product.get("name") or product.get("key")
-        if not name:
-            continue
-        if any(_same_product_name(name, existing.get("name")) for existing in products):
-            continue
-        products.append(product)
-    return [p for p in products[:6] if p.get("key") and p.get("name")]
-
-
 def _outreach_context(profile, scores, recommendations, bundle, size_bucket=None):
     bundle_cover_facts = _outreach_cover_facts(bundle) if bundle else []
     products = []
@@ -1876,37 +1804,28 @@ def _outreach_context(profile, scores, recommendations, bundle, size_bucket=None
     }
 
 
-def fallback_outreach_prompts(profile, scores, recommendations, bundle, signal_context=None):
+def fallback_outreach_prompts(profile, scores, recommendations, bundle):
     contacts = load_contacts()
     top_scores = sorted(scores.items(), key=lambda item: item[1], reverse=True)[:3]
     risk_names = ", ".join(name for name, _ in top_scores)
-    signal_line = _signal_context_sentence(signal_context)
-    signal_ctx = _clean_signal_context(signal_context)
-    priority_products = ", ".join(signal_ctx.get("priority_products") or [])
-    products = _prioritized_outreach_products(recommendations, bundle, signal_ctx)
+    products = list(recommendations[:5])
+    if bundle:
+        products.insert(0, {"key": "bundle", "name": bundle.get("name"), "nudge": bundle.get("description", "")})
     output = {}
     for product in products[:6]:
         key = product.get("key", "bundle")
         name = product.get("name", key)
         nudge = product.get("nudge") or product.get("what_it_covers") or ""
-        trigger_para = (
-            f"{signal_line} This is why our first conversation should prioritise {priority_products or name}.\n\n"
-            if signal_line else ""
-        )
         contact_block = (
             f"Warm regards,\n{contacts.get('RM_NAME')}\n"
             f"{contacts.get('RM_PHONE')} | {contacts.get('RM_EMAIL')}\n"
             f"{contacts.get('RM_OFFICE')}"
         )
         output[key] = {
-            "email_subject": (
-                f"{profile.get('startup_name')}: coverage after {signal_ctx.get('signal')}"
-                if signal_ctx.get("signal") else f"A tailored coverage recommendation for {profile.get('startup_name')}"
-            ),
+            "email_subject": f"A tailored coverage recommendation for {profile.get('startup_name')}",
             "email_body": (
                 f"Dear {profile.get('startup_name')} team,\n\n"
                 f"Greetings from ICICI Lombard!\n\n"
-                f"{trigger_para}"
                 f"Our expert underwriters have been closely studying risk profiles across the "
                 f"{profile.get('sector')} landscape, and {profile.get('startup_name')} stood out. "
                 f"Based on their assessment, your most significant risk dimensions — {risk_names} — "
@@ -1920,7 +1839,6 @@ def fallback_outreach_prompts(profile, scores, recommendations, bundle, signal_c
             ),
             "whatsapp": (
                 f"Hi {profile.get('startup_name')} team! Greetings from ICICI Lombard. "
-                f"{signal_ctx.get('signal') + ' caught our attention. ' if signal_ctx.get('signal') else ''}"
                 f"Our underwriters flagged {risk_names} as key exposures for your stage. "
                 f"{name} looks like a strong fit — happy to walk you through it whenever convenient. "
                 f"{contacts.get('RM_NAME')} | {contacts.get('RM_PHONE')}"
@@ -1931,8 +1849,6 @@ def fallback_outreach_prompts(profile, scores, recommendations, bundle, signal_c
                 "product_name": name,
                 "risk_names": [r for r, _ in top_scores[:3]],
                 "body_para": nudge,
-                "trigger_line": signal_line,
-                "priority_products": priority_products,
                 "rm_name": contacts.get("RM_NAME", "{{RM_NAME}}"),
                 "rm_phone": contacts.get("RM_PHONE", "{{RM_PHONE}}"),
                 "rm_email": contacts.get("RM_EMAIL", "{{RM_EMAIL}}"),
@@ -1941,15 +1857,17 @@ def fallback_outreach_prompts(profile, scores, recommendations, bundle, signal_c
     return output
 
 
-def outreach_prompt_payload(profile, scores, recommendations, bundle, size_bucket, signal_context=None):
+def outreach_prompt_payload(profile, scores, recommendations, bundle, size_bucket):
     contacts = load_contacts()
     top_scores = sorted(scores.items(), key=lambda item: item[1], reverse=True)[:3]
-    signal_ctx = _clean_signal_context(signal_context)
-    products = _prioritized_outreach_products(recommendations, bundle, signal_ctx)
+    products = []
+    if bundle:
+        products.append({"key": "bundle", "name": bundle.get("name", "Bundle recommendation")})
+    for product in recommendations[:5]:
+        products.append({"key": product.get("key"), "name": product.get("name", product.get("key"))})
+    products = [product for product in products[:6] if product.get("key") and product.get("name")]
     product_lines = "\n".join(f"- {product['key']}: {product['name']}" for product in products)
     top_risk_names = ", ".join(name for name, _ in top_scores)
-    signal_line = _signal_context_sentence(signal_ctx)
-    priority_products = ", ".join(signal_ctx.get("priority_products") or [])
     profile_highlights = [
         f"Customer types: {', '.join(profile.get('customer_type') or ['not specified'])}",
         f"Data handled: {', '.join(profile.get('data_handled') or ['not specified'])}",
@@ -1964,14 +1882,8 @@ You are a warm, knowledgeable ICICI Lombard Relationship Manager writing persona
 Their leading risk dimensions (mention by name only, NO scores or numbers): {top_risk_names}.
 Their profile highlights:
 {chr(10).join('- ' + item for item in profile_highlights)}
-Signal Radar context:
-{signal_line or "No public trigger context supplied."}
-Priority products from the trigger flow: {priority_products or "use the recommended products below"}
-
 TONE RULES (strictly follow):
 - Always open with: "Dear [Company] team," then "Greetings from ICICI Lombard!"
-- If Signal Radar context is supplied, use it in the first substantive paragraph as the reason for outreach now.
-- Prioritise the trigger-recommended product or bundle before broader portfolio products.
 - Attribute risk insights to "our expert underwriters" — never cite numerical scores.
 - Be warm, friendly, and gently persuasive — like a trusted advisor, not a salesperson.
 - End emails with "Warm regards," and the contact block.
@@ -2006,8 +1918,8 @@ Return compact JSON only. Do not wrap in markdown. Do not add commentary outside
 """.strip()
 
 
-def normalize_outreach_response(raw, profile, scores, recommendations, bundle, signal_context=None):
-    fallback = fallback_outreach_prompts(profile, scores, recommendations, bundle, signal_context)
+def normalize_outreach_response(raw, profile, scores, recommendations, bundle):
+    fallback = fallback_outreach_prompts(profile, scores, recommendations, bundle)
     if not isinstance(raw, dict):
         return fallback, "fallback"
     normalized = {}
@@ -2028,13 +1940,13 @@ def normalize_outreach_response(raw, profile, scores, recommendations, bundle, s
     return normalized, "gemini"
 
 
-def outreach_prompts(profile, scores, recommendations, bundle, size_bucket, signal_context=None):
+def outreach_prompts(profile, scores, recommendations, bundle, size_bucket):
     if not gemini_enabled():
-        return fallback_outreach_prompts(profile, scores, recommendations, bundle, signal_context), "fallback", None
+        return fallback_outreach_prompts(profile, scores, recommendations, bundle), "fallback", None
 
-    prompt = outreach_prompt_payload(profile, scores, recommendations, bundle, size_bucket, signal_context)
+    prompt = outreach_prompt_payload(profile, scores, recommendations, bundle, size_bucket)
     raw, error = call_gemini_json(prompt)
-    prompts, source = normalize_outreach_response(raw, profile, scores, recommendations, bundle, signal_context)
+    prompts, source = normalize_outreach_response(raw, profile, scores, recommendations, bundle)
     return prompts, source, error
 
 
@@ -2084,7 +1996,7 @@ def _resolve_objections(lib_entry):
     return raw
 
 
-def build_pitch_bullets(profile, bundle_match, scores, pricing_quote, signal_context=None):
+def build_pitch_bullets(profile, bundle_match, scores, pricing_quote):
     """Return 3 consequence-first, company-specific pitch bullets. Zero tokens."""
     company    = profile.get("startup_name", "This company")
     sector     = profile.get("sector", "your sector")
@@ -2395,18 +2307,6 @@ def build_pitch_bullets(profile, bundle_match, scores, pricing_quote, signal_con
             f"No filler covers included -- every mandatory line closes a specific "
             f"{sector} liability gap that {company} carries today uninsured."
         )
-
-    ctx = _clean_signal_context(signal_context)
-    if ctx:
-        signal = ctx.get("signal") or "public risk trigger"
-        headline = ctx.get("headline") or "the recent public signal"
-        source = ctx.get("source") or "public news"
-        priority = ", ".join(ctx.get("priority_products") or []) or (bundle_match or {}).get("name") or "the recommended covers"
-        signal_bullet = (
-            f"Lead with the trigger: {headline} ({source}) shows {company} is at a {signal} moment. "
-            f"Open with {priority}, then use SPARC to show the broader risk-backed recommendation."
-        )
-        return [signal_bullet, bullet1, bullet2]
 
     return [bullet1, bullet2, bullet3]
 
@@ -2791,34 +2691,8 @@ def score(profile):
     return payload_v2
 
 
-def _apply_signal_context_to_result(result, signal_context):
-    ctx = _clean_signal_context(signal_context)
-    if not ctx or not isinstance(result, dict):
-        return result
-    result["signal_context"] = json_safe(ctx)
-    if result.get("profile") and result.get("scores"):
-        result["pitch_bullets"] = build_pitch_bullets(
-            result.get("profile") or {},
-            result.get("bundle_match") or {},
-            result.get("scores") or {},
-            result.get("pricing_engine_quote"),
-            ctx,
-        )
-        result["outreach_fallback"] = json_safe(fallback_outreach_prompts(
-            result.get("profile") or {},
-            result.get("scores") or {},
-            result.get("recommendations", []),
-            result.get("bundle_match") or {},
-            ctx,
-        ))
-    return result
-
-
 def analyze(raw):
-    result = score(raw)
-    if isinstance(raw, dict):
-        return _apply_signal_context_to_result(result, raw.get("signal_context"))
-    return result
+    return score(raw)
 
 
 def policy_wording_ai_summary(payload, deterministic):
@@ -3105,11 +2979,17 @@ SIGNAL_RULES = [
 
 EXCLUDED_SIGNAL_SOURCES = {
     "facebook.com",
+    "facebook",
     "instagram.com",
+    "instagram",
     "linkedin.com",
+    "linkedin",
     "twitter.com",
+    "twitter",
     "x.com",
+    "x",
     "youtube.com",
+    "youtube",
 }
 
 SIGNAL_WATCHLIST_QUERIES = [
@@ -3224,7 +3104,8 @@ def _match_signal_company(article: dict, profiles: dict) -> tuple[str, dict | No
     splitters = [
         " raises ", " raised ", " secures ", " gets ", " receives ", " opens ",
         " plans ", " expands ", " adds ", " launches ", " files ", " wins ",
-        " bags ", " partners ", " to ", " after ", " as ",
+        " bags ", " partners ", " declines ", " surges ", " jumps ", " drops ",
+        " to ", " after ", " as ",
     ]
     candidate = title_core
     for token in splitters:
@@ -3253,6 +3134,26 @@ def _match_signal_company(article: dict, profiles: dict) -> tuple[str, dict | No
 def _looks_generic_signal_article(article: dict) -> bool:
     title = str(article.get("title") or "").lower()
     generic_patterns = [
+        "india deal review",
+        "startup funding:",
+        "startup funding surges",
+        "startup funding declines",
+        "startup funding drops",
+        "startup funding jumps",
+        "startup funding report",
+        "startup funding round-up",
+        "startup funding roundup",
+        "funding report",
+        "funding roundup",
+        "bengaluru leads india",
+        "raised over $",
+        "raised more than $",
+        "startups raised",
+        "indian startups raised",
+        "this week",
+        "weekly funding",
+        "month in review",
+        "q1 2026",
         "from oil shock",
         "how ",
         "why ",
@@ -3279,9 +3180,27 @@ def _looks_generic_signal_article(article: dict) -> bool:
 
 def _looks_generic_signal_company(company: str) -> bool:
     text = company.lower()
+    text = re.sub(r"[^a-z0-9]+", " ", text).strip()
     if len(company.split()) > 4:
         return True
+    if not re.search(r"[a-z]", text):
+        return True
     generic_terms = [
+        "funding",
+        "funding declines",
+        "funding surges",
+        "funding bengaluru",
+        "bengaluru leads",
+        "india deal review",
+        "deal review",
+        "q1",
+        "q2",
+        "q3",
+        "q4",
+        "april",
+        "may",
+        "june",
+        "july",
         "between may",
         "as many as",
         "diverse sectors",
@@ -3300,6 +3219,27 @@ def _looks_generic_signal_company(company: str) -> bool:
         "weekly",
     ]
     return any(term in text for term in generic_terms)
+
+
+def _is_plausible_signal_company(company: str, base_profile: dict | None) -> bool:
+    if base_profile is not None:
+        return True
+    candidate = str(company or "").strip()
+    if not candidate or _looks_generic_signal_company(candidate):
+        return False
+    words = candidate.split()
+    if len(words) > 4:
+        return False
+    generic_words = {
+        "india", "indian", "startup", "startups", "funding", "round", "report",
+        "review", "sector", "sectors", "bengaluru", "delhi", "mumbai",
+        "weekly", "monthly", "q1", "q2", "q3", "q4",
+    }
+    if all(re.sub(r"[^a-z0-9]+", "", w.lower()) in generic_words for w in words):
+        return False
+    if not re.match(r"^[A-Z0-9][A-Za-z0-9&.\-]*(?:\s+[A-Z0-9][A-Za-z0-9&.\-]*){0,3}$", candidate):
+        return False
+    return True
 
 
 def _rss_item_datetime(value: str):
@@ -3508,7 +3448,7 @@ def _signal_task_from_article(article: dict, profiles: dict) -> dict | None:
     company, base_profile = _match_signal_company(article, profiles)
     if not company or company.lower() in ("india", "indian startup", "startup"):
         return None
-    if base_profile is None and _looks_generic_signal_company(company):
+    if not _is_plausible_signal_company(company, base_profile):
         return None
 
     profile = _merge_signal_profile(company, base_profile, rule)
@@ -3857,14 +3797,13 @@ class Handler(SimpleHTTPRequestHandler):
                 if not company_name:
                     self.send_json(400, {"error": "company_name is required."})
                     return
-                result = autofill_and_analyze(company_name, payload.get("signal_context"))
+                result = autofill_and_analyze(company_name)
                 self.send_json(200 if not result.get("error") else 500, result)
             elif self.path == "/api/outreach":
                 profile = payload.get("profile") or {}
                 scores = payload.get("scores") or {}
                 recommendations = payload.get("recommendations") or []
                 bundle_match = payload.get("bundle_match") or {}
-                signal_context = payload.get("signal_context") or {}
                 triggers = (
                     payload.get("display_regulatory_triggers")
                     or payload.get("regulatory_triggers_fired")
@@ -3873,13 +3812,13 @@ class Handler(SimpleHTTPRequestHandler):
                 size_bucket = profile.get("size_bucket", "mid")
                 try:
                     out_prompts, out_source, out_error = outreach_prompts(
-                        profile, scores, recommendations, bundle_match, size_bucket, signal_context
+                        profile, scores, recommendations, bundle_match, size_bucket
                     )
                     handlers = json_safe(generate_objection_handlers(
                         profile, bundle_match, scores, triggers
                     ))
                 except Exception:
-                    out_prompts = fallback_outreach_prompts(profile, scores, recommendations, bundle_match, signal_context)
+                    out_prompts = fallback_outreach_prompts(profile, scores, recommendations, bundle_match)
                     out_source = "fallback"
                     out_error = None
                     handlers = []

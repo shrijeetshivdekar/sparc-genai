@@ -3206,6 +3206,71 @@ function normalizeGroupSafeguardCompanion(result) {
   return result;
 }
 
+function setupScrollReveal() {
+  // Stagger siblings within each grid
+  document.querySelectorAll(".cs-grid, .products-grid, .products-list").forEach(grid => {
+    [...grid.children].forEach((card, i) => {
+      card.style.transitionDelay = `${i * 75}ms`;
+    });
+  });
+
+  const SCRAMBLE_AMOUNTS = ["₹1–4 Cr","₹8–24 Cr","₹5–18 Cr","₹2–9 Cr","₹11–30 Cr","₹4–15 Cr","₹6–22 Cr","₹3–10 Cr"];
+
+  function scrambleExposure(card) {
+    const el = card.querySelector(".cs-exposure-val");
+    if (!el || el.dataset.scrambled) return;
+    el.dataset.scrambled = "1";
+    const realText = el.textContent;
+    let n = 0;
+    const iv = setInterval(() => {
+      el.textContent = SCRAMBLE_AMOUNTS[n % SCRAMBLE_AMOUNTS.length];
+      el.classList.add("ev-scrambling");
+      n++;
+      if (n >= 9) {
+        clearInterval(iv);
+        el.textContent = realText;
+        el.classList.remove("ev-scrambling");
+        el.classList.add("ev-settled");
+        setTimeout(() => el.classList.remove("ev-settled"), 700);
+      }
+    }, 65);
+  }
+
+  function animateScore(card) {
+    const el = card.querySelector(".product-tag.score");
+    if (!el || el.dataset.animated) return;
+    el.dataset.animated = "1";
+    const m = el.textContent.match(/^([\d.]+)(\/[\d.]+.*)/);
+    if (!m) return;
+    const target = parseFloat(m[1]), rest = m[2];
+    const t0 = performance.now(), dur = 700;
+    const tick = now => {
+      const p = Math.min((now - t0) / dur, 1);
+      const eased = 1 - Math.pow(1 - p, 3);
+      el.textContent = `${Math.round(eased * target)}${rest}`;
+      if (p < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      const el = entry.target;
+      el.classList.add("scroll-revealed");
+      observer.unobserve(el);
+      // Trigger number effects after card settles
+      const delay = parseFloat(el.style.transitionDelay || "0") * 1000 + 350;
+      setTimeout(() => {
+        if (el.classList.contains("cs-card"))      scrambleExposure(el);
+        if (el.classList.contains("product-card")) animateScore(el);
+      }, delay);
+    });
+  }, { threshold: 0.08, rootMargin: "0px 0px -30px 0px" });
+
+  document.querySelectorAll(".cs-card, .product-card").forEach(el => observer.observe(el));
+}
+
 function renderResults(result) {
   result = normalizeGroupSafeguardCompanion(result);
   if (!_navCalledByHistory) { const _r = result; _navHistory = _navHistory.slice(0, _navPos + 1); _navHistory.push({ fn: renderResults, args: [_r], view: "results" }); _navPos = _navHistory.length - 1; setTimeout(_updateNavButtons, 0); }
@@ -3445,6 +3510,9 @@ function renderResults(result) {
 
   // Draw radar — deferred so the canvas exists in DOM
   setTimeout(() => drawRadar("risk-radar", result.scores, { maxLabelLength: 16 }), 100);
+
+  // Overdrive: scroll-reveal + number shock
+  setTimeout(setupScrollReveal, 80);
 
   // Activate default tab
   showTab("bundle");

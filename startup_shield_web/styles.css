@@ -457,84 +457,50 @@ button, input, select, textarea { font: inherit; }
 .profiling-loader-inner {
   text-align: center;
   max-width: 480px;
+  width: 100%;
 }
 
-.profiling-loader-title {
-  font-family: var(--font-head);
-  font-size: clamp(28px, 4vw, 46px);
-  color: var(--ink);
-  margin: 10px 0 40px;
-  line-height: 1.05;
-}
-
-.profiling-dots::after {
-  content: "";
-  animation: profiling-dot-anim 1.4s steps(4, end) infinite;
-}
-
-@keyframes profiling-dot-anim {
-  0%   { content: ""; }
-  25%  { content: "."; }
-  50%  { content: ".."; }
-  75%  { content: "..."; }
-}
-
-.profiling-steps {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  margin-bottom: 36px;
-}
-
-.profiling-step {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 15px;
-  color: var(--ink-muted);
-  padding: 14px 20px;
-  border-radius: 10px;
-  border: 1px solid var(--glass-border);
+/* Progress-bar card loader */
+.profiling-card {
   background: var(--surface);
-  transition: background .3s ease, border-color .3s ease, color .3s ease, transform .3s ease;
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 28px 32px 24px;
+  text-align: left;
+  margin-bottom: 20px;
 }
 
-.profiling-step::before {
-  content: "○";
-  font-size: 13px;
-  flex-shrink: 0;
-  color: var(--ink-muted);
-}
-
-.profiling-step.active {
+.profiling-card-title {
+  font-family: var(--font-head);
+  font-size: clamp(20px, 3vw, 28px);
   color: var(--ink);
-  border-color: rgba(173,30,35,.3);
-  background: rgba(173,30,35,.04);
+  font-weight: 700;
+  margin-bottom: 6px;
+  line-height: 1.2;
 }
 
-.profiling-step.active::before {
-  content: "◉";
-  color: var(--red);
-  animation: spin-loader .8s linear infinite;
+.profiling-card-sub {
+  font-size: 13px;
+  color: var(--ink-muted);
+  margin-bottom: 18px;
+  min-height: 18px;
+  transition: opacity .3s ease;
 }
 
-.profiling-step.done {
-  color: #16a34a;
-  border-color: rgba(22,163,74,.25);
-  background: rgba(22,163,74,.04);
+.profiling-bar-track {
+  width: 100%;
+  height: 6px;
+  background: rgba(0,0,0,.08);
+  border-radius: 999px;
+  overflow: hidden;
 }
 
-.profiling-step.done::before {
-  content: "✓";
-  color: #16a34a;
-  animation: none;
-}
-
-@keyframes spin-loader {
-  0%   { content: "◉"; }
-  33%  { content: "◎"; }
-  66%  { content: "⊙"; }
-  100% { content: "◉"; }
+.profiling-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #AD1E23, #e05560);
+  border-radius: 999px;
+  transition: width 1.4s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: width;
 }
 
 .profiling-disclaimer {
@@ -3639,33 +3605,46 @@ button, input, select, textarea { font: inherit; }
 }
 
 .bundle-cover-grid {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
 
+@media (max-width: 540px) {
+  .bundle-cover-grid { grid-template-columns: 1fr; }
+}
+
 .bundle-cover-item {
-  background: rgba(255,255,255,.07);
-  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.08);
+  border-left: 3px solid transparent;
   border-radius: var(--r-sm);
-  padding: 12px 14px;
+  padding: 11px 13px;
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: 9px;
+  transition: background .2s ease;
+}
+
+.bundle-cover-item:hover {
+  background: rgba(255,255,255,.1);
 }
 
 .bundle-cover-item.compact {
-  padding: 10px 12px;
+  padding: 9px 11px;
 }
 
-.bundle-cover-dot {
-  width: 7px; height: 7px;
-  border-radius: 50%;
+.bundle-cover-icon {
+  width: 22px; height: 22px;
+  border-radius: 6px;
   flex-shrink: 0;
-  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  margin-top: 1px;
 }
-.bundle-cover-dot.mandatory { background: #f87171; }
-.bundle-cover-dot.optional  { background: rgba(255,255,255,.3); }
 
 .bundle-cover-name {
   font-size: 12px;
@@ -3679,6 +3658,42 @@ button, input, select, textarea { font: inherit; }
   color: rgba(255,255,255,.45);
   line-height: 1.5;
   margin-top: 3px;
+}
+
+/* Fit gauge */
+.bundle-fit-gauge-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.bundle-fit-gauge-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255,255,255,.4);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+/* Badge row below name */
+.bundle-hero-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.bundle-badge-crit {
+  background: rgba(173,30,35,.7);
+  color: white;
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
 }
 
 /* ── Products list (secondary) ── */

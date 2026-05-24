@@ -985,28 +985,36 @@ function renderAutoProfilingLoader(companyName) {
   $("main-content").innerHTML = `
     <main class="profiling-loader-shell">
       <div class="profiling-loader-inner">
-        <div class="intake-eyebrow">SPARC Intelligence</div>
-        <h1 class="profiling-loader-title">Profiling ${esc(companyName)}<span class="profiling-dots"></span></h1>
-        <div class="profiling-steps">
-          <div class="profiling-step" id="pstep-0">Searching public sources</div>
-          <div class="profiling-step" id="pstep-1">Running SPARC risk model</div>
-          <div class="profiling-step" id="pstep-2">Generating recommendation</div>
+        <div class="profiling-card">
+          <div class="profiling-card-title">Analysing ${esc(companyName)}</div>
+          <div class="profiling-card-sub" id="profiling-step-label">Searching public data sources…</div>
+          <div class="profiling-bar-track"><div class="profiling-bar-fill" id="profiling-bar" style="width:5%"></div></div>
         </div>
-        <p class="profiling-disclaimer">Powered by Gemini + Google Search grounding</p>
+        <p class="profiling-disclaimer">Powered by Gemini · Google Search grounding</p>
       </div>
     </main>`;
 
-  let step = 0;
-  const stepEl = (i) => $(`pstep-${i}`);
-  stepEl(0).classList.add("active");
-  const stepTimer = setInterval(() => {
-    step = Math.min(step + 1, 2);
-    [0, 1, 2].forEach(i => {
-      stepEl(i).classList.toggle("active", i === step);
-      stepEl(i).classList.toggle("done", i < step);
-    });
-  }, 4000);
-  return () => clearInterval(stepTimer);
+  const steps = [
+    { pct: 30,  label: "Searching public data sources…" },
+    { pct: 60,  label: "Running 13-dimension risk model…" },
+    { pct: 85,  label: "Matching insurance bundles…" },
+  ];
+  let idx = 0;
+  const bar   = document.getElementById("profiling-bar");
+  const label = document.getElementById("profiling-step-label");
+  const advance = () => {
+    if (idx >= steps.length) return;
+    const s = steps[idx++];
+    if (bar)   bar.style.width   = s.pct + "%";
+    if (label) label.textContent = s.label;
+  };
+  advance();
+  const timer = setInterval(advance, 3500);
+  return () => {
+    clearInterval(timer);
+    if (bar)   bar.style.width = "100%";
+    if (label) label.textContent = "Building your recommendation…";
+  };
 }
 
 function classifyAutofillError(rawMessage) {
@@ -5176,6 +5184,38 @@ function renderClaimsScenarios(result) {
     </div>`;
 }
 
+function getCoverColor(key) {
+  const k = key.toLowerCase();
+  if (/cyber/.test(k))                              return "#3B82F6";
+  if (/pi|tech.*eo|professional.*indem|indemnity/.test(k)) return "#818CF8";
+  if (/^d.?o|director/.test(k))                    return "#A78BFA";
+  if (/crime|fidelit/.test(k))                      return "#FBBF24";
+  if (/employ|epli/.test(k))                        return "#34D399";
+  if (/property|fire|burglary/.test(k))             return "#F97316";
+  if (/marine|cargo/.test(k))                       return "#22D3EE";
+  if (/group|health|gtl|gpa|medical/.test(k))       return "#4ADE80";
+  if (/liabilit/.test(k))                           return "#FB7185";
+  if (/key.?person|keyman/.test(k))                 return "#F472B6";
+  if (/work.*comp|wc|workmen/.test(k))              return "#60A5FA";
+  return "#94A3B8";
+}
+
+function renderFitGauge(pct) {
+  const r = 28, circ = 2 * Math.PI * r;
+  const filled = (pct / 100) * circ;
+  const color  = pct >= 75 ? "#4ADE80" : pct >= 50 ? "#FBBF24" : "#FB7185";
+  return `<svg width="76" height="76" viewBox="0 0 72 72" aria-label="${pct}% profile fit">
+    <circle cx="36" cy="36" r="${r}" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="5"/>
+    <circle cx="36" cy="36" r="${r}" fill="none" stroke="${color}" stroke-width="5"
+      stroke-dasharray="${filled.toFixed(1)} ${(circ - filled).toFixed(1)}"
+      stroke-linecap="round" transform="rotate(-90 36 36)"/>
+    <text x="36" y="33" text-anchor="middle" dominant-baseline="middle"
+      font-size="13" font-weight="800" fill="${color}" font-family="inherit">${pct}%</text>
+    <text x="36" y="46" text-anchor="middle" dominant-baseline="middle"
+      font-size="8" font-weight="600" fill="rgba(255,255,255,.45)" letter-spacing=".08em">FIT</text>
+  </svg>`;
+}
+
 function renderBundleHero(bundle, recs, why = {}) {
   if (!bundle?.name) return `<div class="r-card">${emptyState("📦", "No bundle matched", "No packaged bundle was a strong enough fit for this profile. Recommended products are listed individually below.")}</div>`;
 
@@ -5198,21 +5238,22 @@ function renderBundleHero(bundle, recs, why = {}) {
     ...((companion.optional_covers || []).map(c => ({ key: c, type: "optional" }))),
   ] : [];
 
+  const fitPct = bundle.fit_pct || 0;
   return `
     <div class="bundle-hero">
       <div class="bundle-hero-top">
-        <div>
+        <div style="flex:1;min-width:0;">
           <div class="bundle-hero-eyebrow">${eyebrow}</div>
           <div class="bundle-hero-name">${esc(bundle.name)}</div>
           <div class="bundle-hero-il">${esc(bundle.il_product_name || "")}</div>
-        </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;">
-          <div class="bundle-fit-badge">
-            <div class="bundle-fit-dot"></div>
-            ${bundle.fit_pct || 0}% profile fit
+          <div class="bundle-hero-badges">
+            <span class="bundle-badge-crit">${esc(bundle.criticality || "High")} Priority</span>
+            <span class="bundle-badge ${isOfficial ? "real" : "curated"}" style="${officialBadgeStyle}">${isOfficial ? "Official IL Product" : "Curated Cover Set"}</span>
           </div>
-          <span style="background:rgba(173,30,35,.7);color:white;border-radius:999px;padding:4px 14px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;">${esc(bundle.criticality || "High")}</span>
-          <span class="bundle-badge ${isOfficial ? "real" : "curated"}" style="${officialBadgeStyle}">${isOfficial ? "Official IL Product" : "Curated Cover Set"}</span>
+        </div>
+        <div class="bundle-fit-gauge-wrap">
+          ${renderFitGauge(fitPct)}
+          <div class="bundle-fit-gauge-label">Profile fit</div>
         </div>
       </div>
 
@@ -5230,14 +5271,17 @@ function renderBundleHero(bundle, recs, why = {}) {
             <div class="bundle-companion-fit">${companion.fit_pct || 0}% fit</div>
           </div>
           <div class="bundle-companion-covers">
-            ${companionCoverItems.slice(0, 8).map(({ key, type }) => `
-              <div class="bundle-cover-item compact">
-                <div class="bundle-cover-dot ${type}"></div>
+            ${companionCoverItems.slice(0, 8).map(({ key, type }) => {
+              const color = getCoverColor(key);
+              return `
+              <div class="bundle-cover-item compact" style="border-left-color:${color};">
+                <div class="bundle-cover-icon" style="background:${color}22;color:${color};">${type === "optional" ? "○" : "●"}</div>
                 <div>
                   <div class="bundle-cover-name">${esc(labelize(key))}</div>
                   <div class="bundle-cover-blurb">${esc(getCoverWhy(key, why, "companion_covers"))}</div>
                 </div>
-              </div>`).join("")}
+              </div>`;
+            }).join("")}
           </div>
         </div>` : ""}
 
@@ -5245,9 +5289,10 @@ function renderBundleHero(bundle, recs, why = {}) {
       <div class="bundle-cover-grid">
         ${coverItems.slice(0, 12).map(({ key, type }) => {
           const blurb = getCoverWhy(key, why, "bundle_covers");
+          const color = getCoverColor(key);
           return `
-            <div class="bundle-cover-item">
-              <div class="bundle-cover-dot ${type}"></div>
+            <div class="bundle-cover-item" style="border-left-color:${color};">
+              <div class="bundle-cover-icon" style="background:${color}22;color:${color};">${type === "optional" ? "○" : "●"}</div>
               <div>
                 <div class="bundle-cover-name">${esc(labelize(key))}</div>
                 ${blurb ? `<div class="bundle-cover-blurb">${esc(blurb)}</div>` : ""}

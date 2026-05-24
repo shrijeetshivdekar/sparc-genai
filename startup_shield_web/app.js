@@ -982,69 +982,161 @@ function resetCustomerProfile() {
 }
 
 function renderAutoProfilingLoader(companyName) {
-  const DIMS = [
-    "Cyber Technical Risk", "Data Privacy Risk", "IP Infringement Risk",
-    "Liability Risk", "Governance & Fraud Risk", "Regulatory Compliance Risk",
-    "Key Person Risk", "Property Risk", "Gig & Labour Risk",
-    "Sector Volatility", "Financial Resilience", "Healthcare Exposure", "Payment Systems Risk",
+  const BLIPS = [
+    { angle: 32,  r: 62 }, { angle: 78,  r: 40 }, { angle: 118, r: 70 },
+    { angle: 155, r: 50 }, { angle: 198, r: 65 }, { angle: 242, r: 38 },
+    { angle: 285, r: 72 }, { angle: 318, r: 48 }, { angle: 348, r: 30 },
   ];
+
+  // Intel checklist: each item ticks at `tickAt` ms
+  const INTEL = [
+    { text: "Public company profile loaded",      tickAt: 800  },
+    { text: "Regulatory filings scanned",         tickAt: 1800 },
+    { text: "Sector risk benchmarks applied",     tickAt: 2800 },
+    { text: "Data exposure vectors mapped",       tickAt: 3800 },
+    { text: "13 risk dimensions scored",          tickAt: 5200 },
+    { text: "ICICI Lombard bundles matched",      tickAt: 6800 },
+  ];
+
+  // Stats: { label, target, suffix, duration ms }
+  const STATS = [
+    { id: "stat-sources", label: "Sources",    target: 847, suffix: "",  dur: 4000 },
+    { id: "stat-rules",   label: "Regulations",target: 23,  suffix: "",  dur: 3000 },
+    { id: "stat-signals", label: "Signals",    target: 9,   suffix: "",  dur: 5000 },
+  ];
+
+  const toXY = (deg, r) => {
+    const rad = (deg - 90) * Math.PI / 180;
+    return [+(100 + r * Math.cos(rad)).toFixed(1), +(100 + r * Math.sin(rad)).toFixed(1)];
+  };
+
+  const blipsSvg = BLIPS.map((b, i) => {
+    const [x, y] = toXY(b.angle, b.r);
+    return `<g class="rblip" id="rblip-${i}">
+      <circle cx="${x}" cy="${y}" r="3" fill="#AD1E23"/>
+      <circle cx="${x}" cy="${y}" r="3" fill="none" stroke="#AD1E23" stroke-width="1.5" opacity=".6">
+        <animate attributeName="r" from="4" to="14" dur="2s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" from="0.6" to="0" dur="2s" repeatCount="indefinite"/>
+      </circle>
+    </g>`;
+  }).join("");
 
   $("main-content").innerHTML = `
     <main class="profiling-loader-shell">
       <div class="profiling-loader-inner">
         <div class="profiling-command-card">
+
           <div class="pcc-eyebrow">
             <span class="pcc-dot"></span>
             SPARC Intelligence &middot; Risk Analysis
           </div>
           <div class="pcc-company">${esc(companyName)}</div>
-          <div class="pcc-step" id="profiling-step-label">Pulling public intelligence…</div>
-          <div class="pcc-bar-track">
+
+          <div class="pcc-body">
+            <!-- LEFT: radar -->
+            <div class="pcc-radar-col">
+              <div class="radar-wrap">
+                <div class="radar-sweep"></div>
+                <svg class="radar-svg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="100" cy="100" r="85" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="1"/>
+                  <circle cx="100" cy="100" r="57" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="1"/>
+                  <circle cx="100" cy="100" r="28" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="1"/>
+                  <line x1="100" y1="14" x2="100" y2="186" stroke="rgba(255,255,255,.04)" stroke-width="1"/>
+                  <line x1="14"  y1="100" x2="186" y2="100" stroke="rgba(255,255,255,.04)" stroke-width="1"/>
+                  <circle cx="100" cy="100" r="2.5" fill="rgba(255,255,255,.35)"/>
+                  ${blipsSvg}
+                </svg>
+              </div>
+              <!-- Stats row below radar -->
+              <div class="pcc-stats">
+                ${STATS.map(s => `
+                  <div class="pcc-stat">
+                    <span class="pcc-stat-num" id="${s.id}">0</span>
+                    <span class="pcc-stat-label">${s.label}</span>
+                  </div>`).join("")}
+              </div>
+            </div>
+
+            <!-- RIGHT: intel checklist -->
+            <div class="pcc-intel-col">
+              <div class="pcc-intel-label">Intelligence feed</div>
+              <ul class="pcc-checklist">
+                ${INTEL.map((item, i) => `
+                  <li class="pcc-check-item" id="ci-${i}">
+                    <span class="pcc-check-icon"></span>
+                    <span class="pcc-check-text">${item.text}</span>
+                  </li>`).join("")}
+              </ul>
+            </div>
+          </div>
+
+          <div class="pcc-bar-track" style="margin-top:20px;">
             <div class="pcc-bar-fill" id="profiling-bar" style="width:4%"></div>
           </div>
-          <div class="pcc-dims">
-            ${DIMS.map((d, i) => `<span class="pcc-dim" id="pdim-${i}">${d}</span>`).join("")}
-          </div>
+
         </div>
         <p class="profiling-disclaimer">Gemini &middot; Google Search grounding &middot; IRDAI actuarial data</p>
       </div>
     </main>`;
 
+  // Blip reveal timed to sweep position
+  const SWEEP_OFFSET_DEG = 62, REV_MS = 3000;
+  BLIPS.forEach((b, i) => {
+    let deg = b.angle - SWEEP_OFFSET_DEG;
+    if (deg < 0) deg += 360;
+    setTimeout(() => {
+      const el = document.getElementById(`rblip-${i}`);
+      if (el) el.classList.add("rblip-on");
+    }, (deg / 360) * REV_MS + 120);
+  });
+
+  // Intel checklist ticks
+  INTEL.forEach((item, i) => {
+    setTimeout(() => {
+      const li = document.getElementById(`ci-${i}`);
+      if (li) li.classList.add("ci-done");
+    }, item.tickAt);
+  });
+
+  // Stats counter animation
+  STATS.forEach(s => {
+    const el = document.getElementById(s.id);
+    if (!el) return;
+    const start = performance.now();
+    const tick = (now) => {
+      const pct = Math.min((now - start) / s.dur, 1);
+      // ease-out cubic
+      const eased = 1 - Math.pow(1 - pct, 3);
+      el.textContent = Math.round(eased * s.target) + s.suffix;
+      if (pct < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+
+  // Progress bar
   const steps = [
-    { pct: 28, label: "Pulling public intelligence…",     dimStart: 0, dimEnd: 3  },
-    { pct: 58, label: "Scoring 13 risk dimensions…",      dimStart: 3, dimEnd: 9  },
-    { pct: 84, label: "Matching ICICI Lombard bundles…",  dimStart: 9, dimEnd: 13 },
+    { pct: 28, ms: 0    },
+    { pct: 60, ms: 3200 },
+    { pct: 85, ms: 6400 },
   ];
-  let stepIdx = 0;
-  const bar   = document.getElementById("profiling-bar");
-  const label = document.getElementById("profiling-step-label");
-
-  const activateDims = (start, end) => {
-    for (let i = start; i < end; i++) {
-      setTimeout(() => {
-        const el = document.getElementById(`pdim-${i}`);
-        if (el) el.classList.add("pcc-dim-active");
-      }, (i - start) * 280);
-    }
-  };
-
-  const advance = () => {
-    if (stepIdx >= steps.length) return;
-    const s = steps[stepIdx++];
-    if (bar)   bar.style.width   = s.pct + "%";
-    if (label) label.textContent = s.label;
-    activateDims(s.dimStart, s.dimEnd);
-  };
-  advance();
-  const timer = setInterval(advance, 3200);
+  const bar = document.getElementById("profiling-bar");
+  steps.forEach(s => {
+    setTimeout(() => { if (bar) bar.style.width = s.pct + "%"; }, s.ms);
+  });
 
   return () => {
-    clearInterval(timer);
-    if (bar)   bar.style.width = "100%";
-    if (label) label.textContent = "Building your recommendation…";
-    DIMS.forEach((_, i) => {
-      const el = document.getElementById(`pdim-${i}`);
-      if (el) el.classList.add("pcc-dim-active");
+    if (bar) bar.style.width = "100%";
+    BLIPS.forEach((_, i) => {
+      const el = document.getElementById(`rblip-${i}`);
+      if (el) el.classList.add("rblip-on");
+    });
+    INTEL.forEach((_, i) => {
+      const li = document.getElementById(`ci-${i}`);
+      if (li) li.classList.add("ci-done");
+    });
+    STATS.forEach(s => {
+      const el = document.getElementById(s.id);
+      if (el) el.textContent = s.target + s.suffix;
     });
   };
 }

@@ -456,7 +456,7 @@ button, input, select, textarea { font: inherit; }
 }
 
 .profiling-loader-inner {
-  max-width: 520px;
+  max-width: 680px;
   width: 100%;
 }
 
@@ -520,13 +520,7 @@ button, input, select, textarea { font: inherit; }
   margin-bottom: 8px;
 }
 
-.pcc-step {
-  font-size: 13px;
-  color: rgba(255,255,255,.45);
-  margin-bottom: 20px;
-  min-height: 18px;
-  transition: color .4s ease;
-}
+.pcc-step { display: none; }
 
 .pcc-bar-track {
   width: 100%;
@@ -545,29 +539,191 @@ button, input, select, textarea { font: inherit; }
   will-change: width;
 }
 
-/* Dimension chips — appear one by one */
-.pcc-dims {
+/* ── Two-column body: radar left, intel right ── */
+.pcc-body {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 20px;
+  align-items: start;
+  margin-top: 4px;
+}
+
+@media (max-width: 560px) {
+  .pcc-body { grid-template-columns: 1fr; }
+  .profiling-loader-inner { max-width: 400px; }
+}
+
+/* ── Radar column ── */
+.pcc-radar-col {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-direction: column;
+  align-items: center;
 }
 
-.pcc-dim {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,.1);
-  color: rgba(255,255,255,.2);
-  background: rgba(255,255,255,.04);
-  transition: color .35s ease, background .35s ease, border-color .35s ease;
-  letter-spacing: .01em;
+/* ── Radar sweep ── */
+.radar-wrap {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: rgba(0,0,0,.18);
+  flex-shrink: 0;
 }
 
-.pcc-dim.pcc-dim-active {
-  color: rgba(255,255,255,.8);
-  background: rgba(255,255,255,.08);
-  border-color: rgba(255,255,255,.22);
+/* Rotating conic gradient — the sweep beam */
+.radar-sweep {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgba(173,30,35,.03) 25deg,
+    rgba(173,30,35,.12) 52deg,
+    rgba(173,30,35,.45) 60deg,
+    rgba(255,255,255,.18) 62deg,
+    transparent 65deg,
+    transparent 360deg
+  );
+  animation: radar-rotate 3s linear infinite;
+}
+
+@keyframes radar-rotate {
+  to { transform: rotate(360deg); }
+}
+
+/* SVG sits on top of sweep — transparent background shows gradient through */
+.radar-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Blips hidden until sweep reveals them */
+.rblip {
+  opacity: 0;
+  transition: opacity .45s ease;
+}
+.rblip.rblip-on {
+  opacity: 1;
+}
+
+/* ── Stats row below radar ── */
+.pcc-stats {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+  justify-content: center;
+}
+
+.pcc-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 10px;
+  padding: 8px 12px;
+  min-width: 52px;
+}
+
+.pcc-stat-num {
+  font-family: var(--font-head);
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.pcc-stat-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: rgba(255,255,255,.35);
+}
+
+/* ── Intel checklist column ── */
+.pcc-intel-col {
+  display: flex;
+  flex-direction: column;
+  padding-top: 4px;
+}
+
+.pcc-intel-label {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  color: rgba(255,255,255,.25);
+  margin-bottom: 10px;
+}
+
+.pcc-checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.pcc-check-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  opacity: .3;
+  transition: opacity .4s ease;
+}
+
+.pcc-check-item.ci-done {
+  opacity: 1;
+}
+
+.pcc-check-icon {
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,.2);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: border-color .3s ease, background .3s ease;
+}
+
+/* Checkmark drawn via pseudo-element */
+.pcc-check-icon::after {
+  content: "";
+  width: 5px; height: 3px;
+  border-left: 1.5px solid transparent;
+  border-bottom: 1.5px solid transparent;
+  transform: rotate(-45deg) translateY(-1px);
+  transition: border-color .25s ease .1s;
+}
+
+.ci-done .pcc-check-icon {
+  border-color: #4ADE80;
+  background: rgba(74,222,128,.12);
+}
+
+.ci-done .pcc-check-icon::after {
+  border-left-color: #4ADE80;
+  border-bottom-color: #4ADE80;
+}
+
+.pcc-check-text {
+  font-size: 12px;
+  color: rgba(255,255,255,.75);
+  line-height: 1.3;
+}
+
+.ci-done .pcc-check-text {
+  color: rgba(255,255,255,.9);
 }
 
 .profiling-disclaimer {
@@ -576,12 +732,15 @@ button, input, select, textarea { font: inherit; }
   opacity: .55;
   text-align: center;
   letter-spacing: .02em;
+  margin-top: 12px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pcc-dot { animation: none; }
+  .pcc-dot      { animation: none; }
   .pcc-bar-fill { transition: none; }
-  .pcc-dim { transition: none; }
+  .radar-sweep  { animation: none; }
+  .rblip        { opacity: 1; transition: none; }
+  .pcc-check-item { opacity: 1; transition: none; }
 }
 
 @media (max-width: 700px) {

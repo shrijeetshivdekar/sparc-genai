@@ -3299,7 +3299,7 @@ function renderResults(result) {
         </div>
         <div class="hero-actions">
           <button class="btn-hero-ghost" onclick="renderRoleSelection()" style="margin-right:auto;">← Home</button>
-          <button class="btn-hero-primary" onclick="downloadReport(window.__result)">Download report</button>
+          <button class="btn-hero-primary" onclick="openSummaryPDF()">Download report</button>
           <button class="btn-hero-ghost" onclick="renderForm()">Edit inputs</button>
         </div>
       </div>
@@ -3325,7 +3325,7 @@ function renderResults(result) {
           <div class="result-section-head">
             <div class="result-section-bar"></div>
             <div class="result-section-title">Bundle recommendation</div>
-            <button class="pdf-trigger-btn" type="button" onclick="openSummaryPDF()" title="Download founder summary">
+            <button class="pdf-trigger-btn" type="button" onclick="downloadReport(window.__result)" title="Download founder summary as text">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Download summary
             </button>

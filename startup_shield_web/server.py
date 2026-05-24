@@ -3275,12 +3275,25 @@ def _looks_generic_signal_article(article: dict) -> bool:
     return any(pattern in title for pattern in generic_patterns)
 
 
+_HEADLINE_VERBS = {
+    "becomes", "become", "moves", "move", "cuts", "cut", "lays", "lay", "hires",
+    "expands", "expand", "launches", "launch", "raises", "raise", "files", "file",
+    "bags", "bag", "wins", "win", "plans", "plan", "adds", "add", "opens", "open",
+    "drops", "drop", "surges", "surge", "jumps", "jump", "declines", "decline",
+    "trails", "trail", "catches", "leads", "lead", "beats", "beat", "slashes",
+}
+
+
 def _looks_generic_signal_company(company: str) -> bool:
     text = company.lower()
     text = re.sub(r"[^a-z0-9]+", " ", text).strip()
     if len(company.split()) > 4:
         return True
     if not re.search(r"[a-z]", text):
+        return True
+    # block any word that is a common headline verb — real company names don't contain them
+    words_set = set(text.split())
+    if words_set & _HEADLINE_VERBS:
         return True
     generic_terms = [
         "funding",
@@ -3314,6 +3327,9 @@ def _looks_generic_signal_company(company: str) -> bool:
         "startup news",
         "this week",
         "weekly",
+        " news",
+        "technology news",
+        "tech news",
     ]
     return any(term in text for term in generic_terms)
 
@@ -3330,9 +3346,12 @@ def _is_plausible_signal_company(company: str, base_profile: dict | None) -> boo
     generic_words = {
         "india", "indian", "startup", "startups", "funding", "round", "report",
         "review", "sector", "sectors", "bengaluru", "delhi", "mumbai",
-        "weekly", "monthly", "q1", "q2", "q3", "q4",
+        "weekly", "monthly", "q1", "q2", "q3", "q4", "news", "unicorn",
     }
-    if all(re.sub(r"[^a-z0-9]+", "", w.lower()) in generic_words for w in words):
+    words_lower = [re.sub(r"[^a-z0-9]+", "", w.lower()) for w in words]
+    if all(w in generic_words for w in words_lower):
+        return False
+    if any(w in _HEADLINE_VERBS for w in words_lower):
         return False
     if not re.match(r"^[A-Z0-9][A-Za-z0-9&.\-]*(?:\s+[A-Z0-9][A-Za-z0-9&.\-]*){0,3}$", candidate):
         return False

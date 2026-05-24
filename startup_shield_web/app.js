@@ -3268,7 +3268,7 @@ function setupScrollReveal() {
     });
   }, { threshold: 0.08, rootMargin: "0px 0px -30px 0px" });
 
-  document.querySelectorAll(".cs-card, .product-card").forEach(el => observer.observe(el));
+  document.querySelectorAll(".cs-card, .product-card, .product-row").forEach(el => observer.observe(el));
 }
 
 function renderResults(result) {
@@ -3984,10 +3984,19 @@ function renderMethodologyPanel(result) {
 
 /* ─── RESULT HELPERS ─────────────────────────────────────────── */
 function renderKPI(label, value) {
+  const statusByLabel = {
+    "Overall risk": "Composite exposure",
+    "Top risk": "Primary driver",
+    "Critical covers": "Action count",
+    "Bundle quote": "Indicative quote",
+    "Premium range": "Pricing mode",
+    "Risk clusters": "Model depth",
+  };
   return `
     <div class="kpi-card">
       <div class="kpi-label">${esc(label)}</div>
       <div class="kpi-value">${esc(String(value))}</div>
+      <div class="kpi-status">${esc(statusByLabel[label] || "Decision signal")}</div>
     </div>`;
 }
 
@@ -5431,18 +5440,31 @@ function renderFitGauge(pct) {
   </svg>`;
 }
 
+function coverExposureLabel(key) {
+  const k = String(key || "").toLowerCase();
+  if (/cyber|data/.test(k)) return "Data breach and outage loss";
+  if (/d.?and.?o|dno|director|officer/.test(k)) return "Board and governance liability";
+  if (/pi|professional|tech.*eo|indemnity/.test(k)) return "Client negligence claims";
+  if (/crime|fidelity|fraud/.test(k)) return "Internal fraud loss";
+  if (/employers|workmen|workers|comp/.test(k)) return "Workforce injury liability";
+  if (/employment|epl/.test(k)) return "Employment dispute defence";
+  if (/public|cgl|general.?liability/.test(k)) return "Third-party injury or damage";
+  if (/product|recall/.test(k)) return "Product failure or recall";
+  if (/marine|cargo|transit/.test(k)) return "Goods movement loss";
+  if (/property|fire|burglary|iar/.test(k)) return "Asset damage and downtime";
+  if (/group.?health|health/.test(k)) return "Employee healthcare continuity";
+  if (/group.?pa|accident/.test(k)) return "Employee accident benefit";
+  return "Profile-specific exposure";
+}
+
 function renderBundleHero(bundle, recs, why = {}) {
   if (!bundle?.name) return `<div class="r-card">${emptyState("📦", "No bundle matched", "No packaged bundle was a strong enough fit for this profile. Recommended products are listed individually below.")}</div>`;
 
   const mandatory = bundle.mandatory_covers || [];
   const optional  = bundle.optional_covers  || [];
   const companion = bundle.companion_bundle || null;
-  const recKeys   = new Set((recs||[]).map(r => r.key));
   const eyebrow   = bundle.nearest_fallback ? "Closest package fit" : "Recommended package";
   const isOfficial = bundle.is_real_il_bundle === true || OFFICIAL_IL_BUNDLE_NAMES.has(bundle.name);
-  const officialBadgeStyle = isOfficial
-    ? "background:#059669;color:white;border-radius:999px;padding:3px 12px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;"
-    : "background:#D97706;color:white;border-radius:999px;padding:3px 12px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;";
 
   const coverItems = [
     ...mandatory.map(c => ({ key: c, type: "mandatory" })),
@@ -5463,7 +5485,7 @@ function renderBundleHero(bundle, recs, why = {}) {
           <div class="bundle-hero-il">${esc(bundle.il_product_name || "")}</div>
           <div class="bundle-hero-badges">
             <span class="bundle-badge-crit">${esc(bundle.criticality || "High")} Priority</span>
-            <span class="bundle-badge ${isOfficial ? "real" : "curated"}" style="${officialBadgeStyle}">${isOfficial ? "Official IL Product" : "Curated Cover Set"}</span>
+            <span class="bundle-badge ${isOfficial ? "real" : "curated"}">${isOfficial ? "Official IL Product" : "Curated Cover Set"}</span>
           </div>
         </div>
         <div class="bundle-fit-gauge-wrap">
@@ -5474,6 +5496,12 @@ function renderBundleHero(bundle, recs, why = {}) {
 
       <div class="bundle-hero-desc">${esc(bundle.description || "")}</div>
       ${why?.bundle ? `<div class="bundle-why-note">${esc(why.bundle)}</div>` : ""}
+      <div class="bundle-decision-row">
+        <div><span>Mandatory covers</span><strong>${mandatory.length}</strong></div>
+        <div><span>Optional covers</span><strong>${optional.length}</strong></div>
+        <div><span>Fit score</span><strong>${fitPct}%</strong></div>
+        <div><span>RM action</span><strong>${esc(bundle.criticality || "Review")}</strong></div>
+      </div>
 
       ${companion?.name ? `
         <div class="bundle-companion">
@@ -5489,8 +5517,8 @@ function renderBundleHero(bundle, recs, why = {}) {
             ${companionCoverItems.slice(0, 8).map(({ key, type }) => {
               const color = getCoverColor(key);
               return `
-              <div class="bundle-cover-item compact" style="border-left-color:${color};">
-                <div class="bundle-cover-icon" style="background:${color}22;color:${color};">${type === "optional" ? "○" : "●"}</div>
+              <div class="bundle-cover-item compact">
+                <div class="bundle-cover-icon" style="background:${color}22;color:${color};">${type === "optional" ? "Opt" : "Core"}</div>
                 <div>
                   <div class="bundle-cover-name">${esc(labelize(key))}</div>
                   <div class="bundle-cover-blurb">${esc(getCoverWhy(key, why, "companion_covers"))}</div>
@@ -5500,18 +5528,27 @@ function renderBundleHero(bundle, recs, why = {}) {
           </div>
         </div>` : ""}
 
-      <div class="bundle-covers-label">Covers included — ${mandatory.length} mandatory · ${optional.length} optional</div>
-      <div class="bundle-cover-grid">
-        ${coverItems.slice(0, 12).map(({ key, type }) => {
+      <div class="bundle-covers-label">Covers included - ${mandatory.length} mandatory · ${optional.length} optional</div>
+      <div class="coverage-map">
+        <div class="coverage-map-head">
+          <span>Cover</span>
+          <span>Exposure transferred</span>
+          <span>Why it applies</span>
+        </div>
+        ${coverItems.map(({ key, type }) => {
           const blurb = getCoverWhy(key, why, "bundle_covers");
           const color = getCoverColor(key);
           return `
-            <div class="bundle-cover-item" style="border-left-color:${color};">
-              <div class="bundle-cover-icon" style="background:${color}22;color:${color};">${type === "optional" ? "○" : "●"}</div>
-              <div>
-                <div class="bundle-cover-name">${esc(labelize(key))}</div>
-                ${blurb ? `<div class="bundle-cover-blurb">${esc(blurb)}</div>` : ""}
+            <div class="coverage-map-row">
+              <div class="coverage-cover">
+                <span class="coverage-dot" style="background:${color};"></span>
+                <div>
+                  <div class="bundle-cover-name">${esc(labelize(key))}</div>
+                  <div class="coverage-type">${type === "optional" ? "Optional add-on" : "Mandatory cover"}</div>
+                </div>
               </div>
+              <div class="coverage-exposure">${esc(coverExposureLabel(key))}</div>
+              <div class="bundle-cover-blurb">${esc(blurb || "")}</div>
             </div>`;
         }).join("")}
       </div>

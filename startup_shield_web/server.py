@@ -1019,9 +1019,49 @@ def _non_empty_profile_value(value):
     return str(value)
 
 
+def _compact_personalization_text(value, limit=220):
+    text = _non_empty_profile_value(value)
+    if not text:
+        return ""
+    text = re.sub(r"\s+", " ", str(text)).strip()
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1].rstrip() + "..."
+
+
+def _profile_personalization_points(profile, product_name=None):
+    """Copy-only context points for outreach and email preview; never used for scoring."""
+    profile = profile or {}
+    company = profile.get("startup_name") or "this startup"
+    product_desc = _compact_personalization_text(profile.get("product_description"), 180)
+    founder_concern = _compact_personalization_text(profile.get("biggest_fear"), 180)
+    points = []
+    if product_desc:
+        points.append(f"What {company} does: {product_desc}")
+    if founder_concern:
+        points.append(f"Founder concern: {founder_concern}")
+    if product_name and (product_desc or founder_concern):
+        concern_ref = (founder_concern or "the operating risks described above").rstrip(". ")
+        points.append(f"Why {product_name} is relevant: it connects the recommendation to {concern_ref}.")
+    return points[:3]
+
+
+def _plain_personalization_block(profile, product_name=None):
+    points = _profile_personalization_points(profile, product_name)
+    if not points:
+        return ""
+    company = (profile or {}).get("startup_name") or "this startup"
+    return (
+        f"Why this is relevant to {company}:\n"
+        + "\n".join(f"- {point}" for point in points)
+        + "\n\n"
+    )
+
+
 def profile_context_for_why(profile):
     """Compact only useful entered fields so GenAI copy stays specific."""
     fields_to_include = [
+        ("What the company does", "product_description"),
         ("Sector", "sector"),
         ("Sub-sector", "sub_sector"),
         ("Stage", "funding_stage"),
@@ -1038,7 +1078,7 @@ def profile_context_for_why(profile):
         ("Fleet count", "fleet_count"),
         ("Gig or contractor workforce share", "gig_headcount_pct"),
         ("Project / contract value INR Cr", "project_value_cr"),
-        ("Biggest fear", "biggest_fear"),
+        ("Founder concern", "biggest_fear"),
         ("AI in product", "ai_in_product"),
         ("Healthcare operations", "healthcare_operations"),
         ("Payment or card programme", "payment_or_card_program"),
@@ -1173,6 +1213,8 @@ def _generate_why_it_matters_legacy(profile, bundle_match, recommendations):
     team   = profile.get("team_size", "")
     ops    = profile.get("business_model", "")
     revenue = profile.get("revenue_cr", "")
+    product_desc = _compact_personalization_text(profile.get("product_description"), 180)
+    founder_concern = _compact_personalization_text(profile.get("biggest_fear"), 180)
 
     team_str    = f"{team}-person team" if team else "team"
     revenue_str = f", ₹{revenue}Cr revenue" if revenue else ""
@@ -1199,6 +1241,8 @@ def _generate_why_it_matters_legacy(profile, bundle_match, recommendations):
         f"- Sector: {sector}\n"
         f"- Stage: {stage}\n"
         f"- Team: {team_str}{revenue_str}{ops_str}\n\n"
+        f"- What the company does: {product_desc or 'not provided'}\n"
+        f"- Founder concern: {founder_concern or 'not provided'}\n\n"
         f"Rules:\n"
         f"- Keep ALL key names EXACTLY as shown — do not rename, lowercase, or add keys.\n"
         f"- Each value: 1-2 sentences, mentions sector/stage/team context, no bullet points.\n\n"
@@ -1268,7 +1312,7 @@ def generate_why_it_matters(profile, bundle_match, recommendations):
         "Rules:\n"
         "- Keep the exact JSON shape and all keys exactly as provided; do not add or remove keys.\n"
         "- Each non-null value must be exactly ONE sentence: engaging, specific to this startup, and anchored to a real business risk or stat where possible.\n"
-        "- Weave in the startup's sector, stage, team size, data exposure, or regulatory context — make it feel personal, not generic.\n"
+        "- Weave in the startup's sector, stage, team size, data exposure, regulatory context, actual product description, or founder concern when supplied.\n"
         "- Explain business importance only; do not invent policy limits, prices, exclusions, guarantees, or legal advice.\n"
         f"- This is a {sector} startup at {stage} stage.\n\n"
         f"Template to fill:\n{template_str}"
@@ -1313,6 +1357,8 @@ def generate_bundle_insights(profile, bundle_match, revenue_breakdown, triggers,
     team    = profile.get("team_size", "")
     bundle_name = (bundle_match or {}).get("name", "this bundle")
     team_str = f"{team}-person team" if team else "team"
+    product_desc = _compact_personalization_text(profile.get("product_description"), 220)
+    founder_concern = _compact_personalization_text(profile.get("biggest_fear"), 220)
 
     # Summarise triggers in plain English
     trigger_lines = []
@@ -1335,6 +1381,8 @@ Startup context:
 - Sector: {sector}
 - Stage: {stage}
 - Team: {team_str}
+- What the company does: {product_desc or "not provided"}
+- Founder concern: {founder_concern or "not provided"}
 - Recommended bundle: {bundle_name}
 - Regulatory signals detected: {"; ".join(trigger_lines) if trigger_lines else "none"}
 - Coverage growth path: {" / ".join(grad_lines) if grad_lines else "not available"}
@@ -1348,7 +1396,7 @@ Return a JSON object with exactly these keys:
   "roadmap_narrative": "2 sentences describing the coverage journey as the startup grows, written like a story not a list"
 }}
 
-Rules: no bullet points inside string values, no markdown, no technical terms like TAM/margin/multiplier, write as if explaining to a smart non-finance person."""
+Rules: no bullet points inside string values, no markdown, no technical terms like TAM/margin/multiplier, use the product description and founder concern when supplied, write as if explaining to a smart non-finance person."""
 
     data, err = call_gemini_json(prompt)
     if err or not isinstance(data, dict):
@@ -1804,18 +1852,56 @@ def _outreach_context(profile, scores, recommendations, bundle, size_bucket=None
     }
 
 
+def _outreach_products_for_drafts(recommendations, bundle):
+    products = []
+    seen = set()
+
+    def norm(value):
+        return re.sub(r"[^a-z0-9]+", "", str(value or "").lower())
+
+    def add_product(product, fallback_key="product"):
+        if not isinstance(product, dict):
+            return
+        name = product.get("name") or product.get("key")
+        if not name:
+            return
+        key = str(product.get("key") or fallback_key or name).strip()
+        dedupe_key = norm(name) or norm(key)
+        if not dedupe_key or dedupe_key in seen:
+            return
+        seen.add(dedupe_key)
+        products.append({
+            **product,
+            "key": key,
+            "name": name,
+        })
+
+    if bundle:
+        add_product({
+            "key": "bundle",
+            "name": bundle.get("name") or "Bundle recommendation",
+            "nudge": bundle.get("description", ""),
+            "what_it_covers": bundle.get("description", ""),
+        }, "bundle")
+
+    for index, product in enumerate(recommendations or [], start=1):
+        add_product(product, f"recommended_{index}")
+
+    return products
+
+
 def fallback_outreach_prompts(profile, scores, recommendations, bundle):
     contacts = load_contacts()
     top_scores = sorted(scores.items(), key=lambda item: item[1], reverse=True)[:3]
     risk_names = ", ".join(name for name, _ in top_scores)
-    products = list(recommendations[:5])
-    if bundle:
-        products.insert(0, {"key": "bundle", "name": bundle.get("name"), "nudge": bundle.get("description", "")})
+    products = _outreach_products_for_drafts(recommendations, bundle)
     output = {}
-    for product in products[:6]:
+    for product in products:
         key = product.get("key", "bundle")
         name = product.get("name", key)
         nudge = product.get("nudge") or product.get("what_it_covers") or ""
+        personalized_points = _profile_personalization_points(profile, name)
+        personalized_block = _plain_personalization_block(profile, name)
         contact_block = (
             f"Warm regards,\n{contacts.get('RM_NAME')}\n"
             f"{contacts.get('RM_PHONE')} | {contacts.get('RM_EMAIL')}\n"
@@ -1835,6 +1921,7 @@ def fallback_outreach_prompts(profile, scores, recommendations, bundle):
                 f"your team real peace of mind as you scale.\n\n"
                 f"We'd be delighted to walk you through how {name} fits your journey — no pressure, "
                 f"just a friendly conversation at a time that works for you.\n\n"
+                f"{personalized_block}"
                 f"{contact_block}"
             ),
             "whatsapp": (
@@ -1843,12 +1930,14 @@ def fallback_outreach_prompts(profile, scores, recommendations, bundle):
                 f"{name} looks like a strong fit — happy to walk you through it whenever convenient. "
                 f"{contacts.get('RM_NAME')} | {contacts.get('RM_PHONE')}"
             ),
+            "personalized_points": personalized_points,
             "email_html_data": {
                 "company": profile.get("startup_name", ""),
                 "industry": profile.get("sector", ""),
                 "product_name": name,
                 "risk_names": [r for r, _ in top_scores[:3]],
                 "body_para": nudge,
+                "personalized_points": personalized_points,
                 "rm_name": contacts.get("RM_NAME", "{{RM_NAME}}"),
                 "rm_phone": contacts.get("RM_PHONE", "{{RM_PHONE}}"),
                 "rm_email": contacts.get("RM_EMAIL", "{{RM_EMAIL}}"),
@@ -1860,14 +1949,11 @@ def fallback_outreach_prompts(profile, scores, recommendations, bundle):
 def outreach_prompt_payload(profile, scores, recommendations, bundle, size_bucket):
     contacts = load_contacts()
     top_scores = sorted(scores.items(), key=lambda item: item[1], reverse=True)[:3]
-    products = []
-    if bundle:
-        products.append({"key": "bundle", "name": bundle.get("name", "Bundle recommendation")})
-    for product in recommendations[:5]:
-        products.append({"key": product.get("key"), "name": product.get("name", product.get("key"))})
-    products = [product for product in products[:6] if product.get("key") and product.get("name")]
+    products = _outreach_products_for_drafts(recommendations, bundle)
     product_lines = "\n".join(f"- {product['key']}: {product['name']}" for product in products)
     top_risk_names = ", ".join(name for name, _ in top_scores)
+    product_desc = _compact_personalization_text(profile.get("product_description"), 220)
+    founder_concern = _compact_personalization_text(profile.get("biggest_fear"), 220)
     profile_highlights = [
         f"Customer types: {', '.join(profile.get('customer_type') or ['not specified'])}",
         f"Data handled: {', '.join(profile.get('data_handled') or ['not specified'])}",
@@ -1875,6 +1961,10 @@ def outreach_prompt_payload(profile, scores, recommendations, bundle, size_bucke
         f"Operations: {profile.get('operations')}; data sensitivity: {profile.get('data_sensitivity')}",
         f"Size bucket: {size_bucket}",
     ]
+    if product_desc:
+        profile_highlights.insert(0, f"What the company does: {product_desc}")
+    if founder_concern:
+        profile_highlights.insert(1 if product_desc else 0, f"Founder concern: {founder_concern}")
     return f"""
 You are a warm, knowledgeable ICICI Lombard Relationship Manager writing personalised outreach for
 {profile.get('startup_name')} ({profile.get('sector')}, {profile.get('funding_stage')}, {profile.get('team_size')} people).
@@ -1887,10 +1977,14 @@ TONE RULES (strictly follow):
 - Attribute risk insights to "our expert underwriters" — never cite numerical scores.
 - Be warm, friendly, and gently persuasive — like a trusted advisor, not a salesperson.
 - End emails with "Warm regards," and the contact block.
+- Preserve the greeting, core body flow, soft CTA, and signature structure.
+- Add a short final section near the end of the email body, just before the signature, titled "Why this is relevant to {profile.get('startup_name')}" when product description or founder concern is provided.
+- That final section should contain 2-3 concise points: one from the product description when supplied, one from the founder concern when supplied, and one connecting the product to the stated concern.
+- Also return the same points in personalized_points. Never alter product names or JSON keys.
 - WhatsApp: casual, friendly, under 40 words.
 
 Generate outreach drafts for the following {len(products)} products. For EACH product:
-1. EMAIL VERSION: subject line + body in 80-100 words. Open with the greeting above. Mention risk dimensions by name. Close with the soft CTA and contact block.
+1. EMAIL VERSION: subject line + body in 100-130 words. Open with the greeting above. Mention risk dimensions by name. Close with the soft CTA, final personalization section when applicable, and contact block.
 2. WHATSAPP VERSION: 30-40 words, friendly tone, same CTA.
 
 Products to cover:
@@ -1901,7 +1995,8 @@ Output ONLY valid JSON in this exact shape:
   "product_key": {{
     "email_subject": "...",
     "email_body": "...",
-    "whatsapp": "..."
+    "whatsapp": "...",
+    "personalized_points": ["...", "..."]
   }}
 }}
 
@@ -1931,11 +2026,22 @@ def normalize_outreach_response(raw, profile, scores, recommendations, bundle):
         subject = str(item.get("email_subject") or fallback_item["email_subject"]).strip()
         body = str(item.get("email_body") or fallback_item["email_body"]).strip()
         whatsapp = str(item.get("whatsapp") or fallback_item["whatsapp"]).strip()
+        raw_points = item.get("personalized_points")
+        if isinstance(raw_points, list):
+            points = [_compact_personalization_text(point, 180) for point in raw_points]
+            points = [point for point in points if point and point != "..."]
+        else:
+            points = fallback_item.get("personalized_points") or []
+        if not points:
+            points = fallback_item.get("personalized_points") or []
+        html_data = dict(fallback_item.get("email_html_data") or {})
+        html_data["personalized_points"] = points[:3]
         normalized[key] = {
             "email_subject": subject,
             "email_body": body,
             "whatsapp": whatsapp,
-            "email_html_data": fallback_item.get("email_html_data"),
+            "personalized_points": points[:3],
+            "email_html_data": html_data,
         }
     return normalized, "gemini"
 
@@ -2024,6 +2130,8 @@ def build_pitch_bullets(profile, bundle_match, scores, pricing_quote):
     optional  = (bundle_match or {}).get("optional_covers",  []) or []
 
     cover_labels = [_outreach_cover_label(k) for k in mandatory[:3]]
+    founder_concern = _compact_personalization_text(profile.get("biggest_fear"), 180)
+    product_desc = _compact_personalization_text(profile.get("product_description"), 140)
 
     is_early      = stage in ("Pre-seed", "Seed")
     is_growth     = stage == "Series A"
@@ -2308,6 +2416,20 @@ def build_pitch_bullets(profile, bundle_match, scores, pricing_quote):
             f"{sector} liability gap that {company} carries today uninsured."
         )
 
+    if founder_concern:
+        bundle_name = (bundle_match or {}).get("name") or "this bundle"
+        cover_str = ", ".join(cover_labels[:3]) if cover_labels else "the recommended covers"
+        concern_text = founder_concern.rstrip(". ")
+        product_ref = (
+            f"while staying tied to {company}'s stated product and operating model"
+            if product_desc
+            else f"for the way {company} operates"
+        )
+        bullet3 = (
+            f"You flagged {concern_text} as the biggest concern; {bundle_name} turns that "
+            f"into a practical cover conversation around {cover_str}, {product_ref}."
+        )
+
     return [bullet1, bullet2, bullet3]
 
 
@@ -2333,6 +2455,8 @@ def generate_objection_handlers(profile, bundle_match, scores, triggers):
     stage = profile.get("funding_stage", "seed")
     team_size = profile.get("team_size", "")
     records_count = profile.get("records_count", 0)
+    product_desc = _compact_personalization_text(profile.get("product_description"), 220)
+    founder_concern = _compact_personalization_text(profile.get("biggest_fear"), 220)
 
     # Determine stage bucket for stage_sensitivity guidance
     stage_bucket = "series_b_plus" if any(s in (stage or "").lower() for s in ("series b", "series c", "growth", "ipo")) else "seed"
@@ -2364,11 +2488,13 @@ def generate_objection_handlers(profile, bundle_match, scores, triggers):
     prompt = f"""You are a senior ICICI Lombard RM coaching a colleague on handling pushback from {company} ({stage} {sector} startup, {team_size} employees{f', {int(records_count):,} data records' if records_count else ''}).
 
 Company risk context:
+- What the company does: {product_desc or 'not provided'}
+- Founder concern: {founder_concern or 'not provided'}
 - Top risk dimensions: {', '.join(top_risk_names)}
 - Regulatory flags: {', '.join(trigger_labels) if trigger_labels else 'none identified'}
 - Stage guidance: {stage_bucket.replace('_', ' ')}
 
-For each objection below, rewrite scripted_response to be specific to {company}. Use their risk dimensions, scale, and the stage_guidance hint provided. Tone should match the tone field. Keep each response under 60 words. Sound like a trusted advisor, not a salesperson.
+For each objection below, rewrite scripted_response to be specific to {company}. Use their risk dimensions, scale, product description, founder concern, and the stage_guidance hint provided. Tone should match the tone field. Keep each response under 60 words. Sound like a trusted advisor, not a salesperson.
 
 {json.dumps(enriched, indent=2, ensure_ascii=False)}
 

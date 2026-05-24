@@ -31,7 +31,7 @@ class handler(BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         params = urllib.parse.parse_qs(parsed.query)
         limit = clean_int((params.get("limit") or ["30"])[0], 30)
-        days = clean_int((params.get("days") or ["7"])[0], 7)
+        days = clean_int((params.get("days") or ["30"])[0], 30)
         live_raw = (params.get("live") or ["1"])[0].strip().lower()
         live = live_raw not in ("0", "false", "no")
 
@@ -39,6 +39,7 @@ class handler(BaseHTTPRequestHandler):
             get_signal_radar(
                 limit=max(1, min(limit, 50)),
                 live=live,
+                window_days=max(1, min(days, 30)),
             ),
             ensure_ascii=False,
         ).encode("utf-8")

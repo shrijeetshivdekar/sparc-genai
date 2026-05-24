@@ -1568,7 +1568,8 @@ function renderSignalTask(signal) {
       <div class="signal-task-main">
         <div class="signal-task-head">
           <span class="signal-type">${escHtml(signal.signal)}</span>
-          <span class="signal-confidence">${escHtml(signal.confidence || "—")}% confidence</span>
+          ${signal.regulation_tag ? `<span class="signal-reg-badge reg-${escHtml(String(signal.regulation_tag).toLowerCase())}">${escHtml(signal.regulation_tag)}</span>` : ""}
+          <span class="signal-confidence ${Number(signal.confidence) < 55 ? "low" : ""}">${escHtml(signal.confidence || "—")}% confidence</span>
         </div>
         <h2>${escHtml(signal.company)}</h2>
         <p>${escHtml(signal.headline)}</p>

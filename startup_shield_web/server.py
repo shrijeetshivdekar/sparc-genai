@@ -3014,94 +3014,10 @@ def _opp_score(row: dict) -> int:
 
 
 # --- Signal Radar: public-trigger intelligence MVP -------------------------
-SIGNAL_RULES = [
-    {
-        "id": "funding_round",
-        "label": "Funding round",
-        "why": "Board, investor, governance risk rises",
-        "angle": "D&O, Key Person, Cyber",
-        "keywords": ["funding", "fundraise", "raised", "raises", "series a", "series b", "series c", "seed round", "investment", "valuation"],
-        "priority": 1,
-        "stage": "Series A",
-        "profile": {"has_investors": "Yes", "data_sensitivity": "High"},
-    },
-    {
-        "id": "warehouse_factory",
-        "label": "Warehouse / factory",
-        "why": "Physical asset exposure rises",
-        "angle": "Property, IAR, Fire, CGL",
-        "keywords": ["warehouse", "factory", "manufacturing", "plant", "facility", "fulfilment", "fulfillment", "dark-store", "dark store", "deployment", "deployments"],
-        "priority": 4,
-        "profile": {"operations": "Hybrid", "physical_assets": ["Manufacturing plant / factory", "Warehouse / fulfilment centre"], "hardware_software_split": 0.7},
-    },
-    {
-        "id": "drone_robotics",
-        "label": "Drone / robotics expansion",
-        "why": "Regulatory and third-party liability",
-        "angle": "Drone RPAS, IAR",
-        "keywords": ["drone", "uav", "robotics", "autonomous", "dgca", "defence", "defense", "counter-uas", "counter unmanned", "drone park"],
-        "priority": 6,
-        "sector": "Deeptech / AI / Robotics",
-        "profile": {"physical_assets": ["Lab / R&D equipment", "Drones / UAV equipment"], "regulatory": ["DGCA / drone operations"], "hardware_software_split": 0.55},
-    },
-    {
-        "id": "fintech_rbi",
-        "label": "Fintech licence / RBI mention",
-        "why": "Regulated data and operational risk",
-        "angle": "Cyber, PI, D&O, Crime",
-        "keywords": ["rbi", "nbfc", "payment aggregator", "fintech", "lending licence", "lending license", "lending business", "licence", "license", "sebi", "irdai"],
-        "priority": 5,
-        "sector": "Fintech",
-        "profile": {"data_sensitivity": "High", "data_handled": ["Payments / financial transactions", "Personal identity data (KYC / Aadhaar)"], "regulatory": ["RBI / SEBI / IRDAI licensed", "DPDP Act obligations"], "payment_or_card_program": True},
-    },
-    {
-        "id": "healthcare_expansion",
-        "label": "Healthcare expansion",
-        "why": "Patient data and professional liability",
-        "angle": "Cyber, PI, CGL",
-        "keywords": ["healthcare", "hospital", "clinic", "patient", "diagnostic", "doctor", "medical", "pharma", "gmv", "ai-driven healthcare"],
-        "priority": 4,
-        "sector": "Healthtech",
-        "profile": {"data_sensitivity": "High", "data_handled": ["Health / medical data", "Personal identity data (KYC / Aadhaar)"], "healthcare_operations": True},
-    },
-    {
-        "id": "hiring_spike",
-        "label": "Hiring spike",
-        "why": "Employee exposure grows",
-        "angle": "WC, Group Health, EPLI",
-        "keywords": ["hiring", "hire", "headcount", "employees", "workforce", "layoff", "layoffs", "restructuring", "campus"],
-        "priority": 4,
-        "profile": {"team_size": 120},
-    },
-    {
-        "id": "export_import",
-        "label": "Export / import news",
-        "why": "Transit and credit exposure appears",
-        "angle": "Marine Cargo, Trade Credit",
-        "keywords": ["export", "exports", "import", "imports", "global market", "international markets", "overseas", "shipment", "supply chain"],
-        "priority": 4,
-        "profile": {"export_us_pct": 20.0, "physical_assets": ["Warehouse / fulfilment centre"]},
-    },
-    {
-        "id": "product_recall",
-        "label": "Product recall / safety issue",
-        "why": "Liability exposure becomes immediate",
-        "angle": "Product Liability, CGL",
-        "keywords": ["recall", "defect", "safety issue", "fire incident", "battery fire", "contamination", "failure", "product-performance"],
-        "priority": 6,
-        "profile": {"product_recall_exposure": True},
-    },
-    {
-        "id": "ipo_preipo",
-        "label": "IPO / pre-IPO news",
-        "why": "Director liability and scrutiny rise",
-        "angle": "D&O, Crime, Cyber",
-        "keywords": ["ipo", "pre-ipo", "pre ipo", "listing", "listed", "sebi filing", "drhp", "public issue", "confidential ipo", "pre-filing"],
-        "priority": 7,
-        "stage": "Series B+",
-        "profile": {"has_investors": "Yes", "funding_stage": "Series B+"},
-    },
-]
+try:
+    from signal_rules import SIGNAL_RULES  # standalone server.py run
+except ImportError:
+    from startup_shield_web.signal_rules import SIGNAL_RULES  # Vercel import path
 
 EXCLUDED_SIGNAL_SOURCES = {
     "facebook.com",
@@ -3135,6 +3051,27 @@ SIGNAL_WATCHLIST_QUERIES = [
     "Armory counter UAS MoD order defence startup",
     "GalaxEye satellite OptoSAR orbit",
     "quick commerce dark store expansion India",
+    # ── Regulatory news queries (feed the 122 regulation-driven rules) ────────
+    "DPDP Act compliance India startup data protection",
+    "Significant Data Fiduciary DPO appointment India",
+    "Data Protection Board India DPB inquiry notice",
+    "DPDP rules consent manager India fintech",
+    "RBI digital lending guidelines fintech NBFC compliance",
+    "RBI multi-lender impartiality matching loan India",
+    "RBI CIMS portal digital lending app compliance",
+    "RBI dynamic authentication non-card-present India",
+    "ONDC seller reputation ledger network participant",
+    "ONDC grievance redressal ODR dispute India",
+    "ONDC logistics dispute cargo India",
+    "DGCA drone type certification India NPNT",
+    "DGCA Digital Sky eGCA drone India",
+    "DGCA UIN drone certification India",
+    "Karnataka gig worker welfare cess GMV bill",
+    "Karnataka platform worker IDRC labour tribunal",
+    "Karnataka gig worker GSTN welfare board",
+    "GSTN dark store ONDC serviceability India",
+    "BVLOS drone India type certification",
+    "MeitY SDF designation data fiduciary India",
 ]
 
 FALLBACK_SIGNAL_ARTICLES = [
@@ -3174,6 +3111,36 @@ FALLBACK_SIGNAL_ARTICLES = [
         "source": "Fallback demo signal",
         "seendate": "20260521T063000Z",
     },
+    {
+        "title": "Razorpay flagged as Significant Data Fiduciary; appoints Data Protection Officer under DPDP Act obligations",
+        "url": "",
+        "source": "Fallback demo signal",
+        "seendate": "20260521T060000Z",
+    },
+    {
+        "title": "Swiggy hit by GSTN-Welfare Board mismatch under Karnataka gig welfare cess audit",
+        "url": "",
+        "source": "Fallback demo signal",
+        "seendate": "20260521T055000Z",
+    },
+    {
+        "title": "ideaForge faces DGCA Type Certification rejection on new VTOL drone after NPNT test failure",
+        "url": "",
+        "source": "Fallback demo signal",
+        "seendate": "20260521T053000Z",
+    },
+    {
+        "title": "MobiKwik triggers RBI CIMS portal mismatch notice on Digital Lending App compliance certification",
+        "url": "",
+        "source": "Fallback demo signal",
+        "seendate": "20260521T051000Z",
+    },
+    {
+        "title": "Zepto dark store GST registration surge as quick commerce fulfilment hubs scale across India",
+        "url": "",
+        "source": "Fallback demo signal",
+        "seendate": "20260521T050000Z",
+    },
 ]
 
 
@@ -3194,7 +3161,11 @@ def _classify_signal(article: dict) -> dict:
             best_hits = hits
             best_score = score_value
     if best:
-        confidence = min(96, 58 + best_hits * 14)
+        # Honour the rule's calibrated confidence (per-rule false-positive weight),
+        # then add a small uplift when more than one keyword matched.
+        base = int(best.get("confidence", 50))
+        uplift = min(10, max(0, (best_hits - 1) * 4))
+        confidence = min(96, base + uplift)
         return {**best, "confidence": confidence}
     return {
         "id": "market_news",
@@ -3610,6 +3581,7 @@ def _signal_task_from_article(article: dict, profiles: dict) -> dict | None:
         "source": source_domain or "Public source",
         "seen_at": article.get("seendate") or "",
         "confidence": rule.get("confidence", 50),
+        "regulation_tag": rule.get("regulation", ""),
         "review_status": "Needs RM review",
         "contact_status": contact["status"],
         "contact_detail": contact["detail"],
@@ -3641,19 +3613,19 @@ def get_signal_radar(limit: int = 30, live: bool = True, window_days: int = 30) 
             seen_article_keys.add(key)
             articles.append(article)
             added += 1
-            if len(articles) >= max(limit, 12):
+            if len(articles) >= max(limit * 4, 80):
                 break
         return added
 
     if live:
         live_sources = []
         try:
-            if add_articles(_fetch_direct_rss_signal_articles(limit=max(limit, 12), window_days=window_days)):
+            if add_articles(_fetch_direct_rss_signal_articles(limit=max(limit * 4, 80), window_days=window_days)):
                 live_sources.append("rss")
         except Exception as exc:
             source_error = type(exc).__name__
         try:
-            if add_articles(_fetch_google_news_signal_articles(limit=max(limit, 12), window_days=window_days)):
+            if add_articles(_fetch_google_news_signal_articles(limit=max(limit * 4, 80), window_days=window_days)):
                 live_sources.append("google_news")
         except Exception as exc:
             source_error = source_error or type(exc).__name__
@@ -3661,7 +3633,7 @@ def get_signal_radar(limit: int = 30, live: bool = True, window_days: int = 30) 
             source_status = "live_multi" if len(live_sources) > 1 else f"live_{live_sources[0]}"
         if not articles:
             try:
-                if add_articles(_fetch_gdelt_signal_articles(limit=max(limit, 12))):
+                if add_articles(_fetch_gdelt_signal_articles(limit=max(limit * 4, 80))):
                     source_status = "live_gdelt"
                 source_error = "" if articles else source_error
             except Exception as exc:
@@ -3669,8 +3641,16 @@ def get_signal_radar(limit: int = 30, live: bool = True, window_days: int = 30) 
     if not articles:
         articles = FALLBACK_SIGNAL_ARTICLES
 
-    seen = set()
-    tasks = []
+    def _norm_company(name):
+        s = re.sub(r"\s+", " ", str(name or "").lower().strip())
+        for suffix in (" pvt ltd", " private limited", " pvt. ltd.", " pvt. ltd", " ltd.", " ltd",
+                       " technologies", " technology", " solutions", " services", " digital",
+                       " robotics", " systems", " ventures", " labs", " ai", " fintech"):
+            if s.endswith(suffix):
+                s = s[: -len(suffix)].strip()
+        return s
+
+    best_by_company: dict = {}
     _saved_key = os.environ.get("GEMINI_API_KEY", "")
     os.environ["GEMINI_API_KEY"] = ""
     try:
@@ -3678,18 +3658,17 @@ def get_signal_radar(limit: int = 30, live: bool = True, window_days: int = 30) 
             task = _signal_task_from_article(article, profiles)
             if not task:
                 continue
-            key = (task["company"].lower(), task["signal_id"])
-            if key in seen:
-                continue
-            seen.add(key)
-            tasks.append(task)
-            if len(tasks) >= limit:
-                break
+            nc = _norm_company(task["company"])
+            prev = best_by_company.get(nc)
+            if prev is None or task.get("confidence", 0) > prev.get("confidence", 0):
+                best_by_company[nc] = task
     finally:
         if _saved_key:
             os.environ["GEMINI_API_KEY"] = _saved_key
         else:
             os.environ.pop("GEMINI_API_KEY", None)
+
+    tasks = sorted(best_by_company.values(), key=lambda t: t.get("confidence", 0), reverse=True)[:limit]
 
     high_conf = [t for t in tasks if t.get("confidence", 0) >= 70]
     premium_pool = round(sum(float(t.get("premium_max_lakh") or 0) for t in tasks) / 100, 1)

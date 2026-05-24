@@ -982,38 +982,70 @@ function resetCustomerProfile() {
 }
 
 function renderAutoProfilingLoader(companyName) {
+  const DIMS = [
+    "Cyber Technical Risk", "Data Privacy Risk", "IP Infringement Risk",
+    "Liability Risk", "Governance & Fraud Risk", "Regulatory Compliance Risk",
+    "Key Person Risk", "Property Risk", "Gig & Labour Risk",
+    "Sector Volatility", "Financial Resilience", "Healthcare Exposure", "Payment Systems Risk",
+  ];
+
   $("main-content").innerHTML = `
     <main class="profiling-loader-shell">
       <div class="profiling-loader-inner">
-        <div class="profiling-card">
-          <div class="profiling-card-title">Analysing ${esc(companyName)}</div>
-          <div class="profiling-card-sub" id="profiling-step-label">Searching public data sources…</div>
-          <div class="profiling-bar-track"><div class="profiling-bar-fill" id="profiling-bar" style="width:5%"></div></div>
+        <div class="profiling-command-card">
+          <div class="pcc-eyebrow">
+            <span class="pcc-dot"></span>
+            SPARC Intelligence &middot; Risk Analysis
+          </div>
+          <div class="pcc-company">${esc(companyName)}</div>
+          <div class="pcc-step" id="profiling-step-label">Pulling public intelligence…</div>
+          <div class="pcc-bar-track">
+            <div class="pcc-bar-fill" id="profiling-bar" style="width:4%"></div>
+          </div>
+          <div class="pcc-dims">
+            ${DIMS.map((d, i) => `<span class="pcc-dim" id="pdim-${i}">${d}</span>`).join("")}
+          </div>
         </div>
-        <p class="profiling-disclaimer">Powered by Gemini · Google Search grounding</p>
+        <p class="profiling-disclaimer">Gemini &middot; Google Search grounding &middot; IRDAI actuarial data</p>
       </div>
     </main>`;
 
   const steps = [
-    { pct: 30,  label: "Searching public data sources…" },
-    { pct: 60,  label: "Running 13-dimension risk model…" },
-    { pct: 85,  label: "Matching insurance bundles…" },
+    { pct: 28, label: "Pulling public intelligence…",     dimStart: 0, dimEnd: 3  },
+    { pct: 58, label: "Scoring 13 risk dimensions…",      dimStart: 3, dimEnd: 9  },
+    { pct: 84, label: "Matching ICICI Lombard bundles…",  dimStart: 9, dimEnd: 13 },
   ];
-  let idx = 0;
+  let stepIdx = 0;
   const bar   = document.getElementById("profiling-bar");
   const label = document.getElementById("profiling-step-label");
+
+  const activateDims = (start, end) => {
+    for (let i = start; i < end; i++) {
+      setTimeout(() => {
+        const el = document.getElementById(`pdim-${i}`);
+        if (el) el.classList.add("pcc-dim-active");
+      }, (i - start) * 280);
+    }
+  };
+
   const advance = () => {
-    if (idx >= steps.length) return;
-    const s = steps[idx++];
+    if (stepIdx >= steps.length) return;
+    const s = steps[stepIdx++];
     if (bar)   bar.style.width   = s.pct + "%";
     if (label) label.textContent = s.label;
+    activateDims(s.dimStart, s.dimEnd);
   };
   advance();
-  const timer = setInterval(advance, 3500);
+  const timer = setInterval(advance, 3200);
+
   return () => {
     clearInterval(timer);
     if (bar)   bar.style.width = "100%";
     if (label) label.textContent = "Building your recommendation…";
+    DIMS.forEach((_, i) => {
+      const el = document.getElementById(`pdim-${i}`);
+      if (el) el.classList.add("pcc-dim-active");
+    });
   };
 }
 
@@ -3142,6 +3174,7 @@ function renderResults(result) {
             </button>
           </div>
           ${renderGenAIStatus(result)}
+          ${renderFounderContextStrip(result.profile)}
           ${renderBundleHero(result.bundle_match, result.recommendations, result.why_it_matters)}
           ${renderBundleAlternatives(result.bundle_alternatives)}
         </div>
@@ -3918,6 +3951,28 @@ function renderGenAIStatus(result) {
     return `<div style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-muted);margin-bottom:12px;" title="${esc(err)}"><span style="width:6px;height:6px;border-radius:50%;background:var(--ink-faint);flex-shrink:0;"></span>Deterministic recommendation</div>`;
   }
   return "";
+}
+
+function renderFounderContextStrip(profile) {
+  const product = (profile?.product_description || "").trim();
+  const concern = (profile?.biggest_fear || "").trim();
+  if (!product && !concern) return "";
+  return `
+    <div class="founder-context-strip" aria-label="Founder context used">
+      <div class="founder-context-kicker">Founder context used</div>
+      <div class="founder-context-grid">
+        ${product ? `
+          <div class="founder-context-item">
+            <span>Product</span>
+            <strong>${esc(product)}</strong>
+          </div>` : ""}
+        ${concern ? `
+          <div class="founder-context-item">
+            <span>Concern</span>
+            <strong>${esc(concern)}</strong>
+          </div>` : ""}
+      </div>
+    </div>`;
 }
 
 function isQuoted(q) {
@@ -5800,10 +5855,22 @@ function buildILEmailHtml(subject, body, d) {
   const product   = d.product_name || "this policy";
   const riskNames = d.risk_names   || [];
   const bodyPara  = d.body_para    || "";
+  const personalizedPoints = Array.isArray(d.personalized_points)
+    ? d.personalized_points.map(point => String(point || "").trim()).filter(point => point && point !== "...").slice(0, 3)
+    : [];
   const rmName    = d.rm_name      || "{{RM_NAME}}";
   const rmPhone   = d.rm_phone     || "{{RM_PHONE}}";
   const rmEmail   = d.rm_email     || "{{RM_EMAIL}}";
   const cards     = _ilRiskCards(riskNames);
+  const personalizedHtml = personalizedPoints.length ? `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FFF3EC;border:1px solid #D1CFBB;border-radius:4px;margin:0 0 26px 0;">
+      <tr><td style="padding:18px 20px;">
+        <div style="font-family:Arial,Helvetica,sans-serif;color:#053C6D;font-size:12px;font-weight:bold;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:10px;">Why this is relevant to ${esc(company)}</div>
+        ${personalizedPoints.map(point => `
+          <div style="font-family:Arial,Helvetica,sans-serif;color:#374151;font-size:13px;line-height:1.55;margin:8px 0 0 0;">&bull; ${esc(point)}</div>
+        `).join("")}
+      </td></tr>
+    </table>` : "";
 
   return `<!doctype html>
 <html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
@@ -5862,6 +5929,7 @@ body{margin:0;padding:0;width:100%!important;background:#D1CFBB;}
   <tr><td style="background:#FFFFFF;padding:0 40px 36px 40px;" class="px-body">
     <p style="margin:0 0 28px 0;font-family:Arial,Helvetica,sans-serif;color:#374151;font-size:14px;line-height:1.7;">We&rsquo;d love to introduce you to <strong style="color:#053C6D;">${esc(product)}</strong>. ${esc(bodyPara)} It is thoughtfully designed for companies like yours and we believe it can give your team real peace of mind as you scale.</p>
     <p style="margin:0 0 28px 0;font-family:Arial,Helvetica,sans-serif;color:#374151;font-size:14px;line-height:1.7;">We&rsquo;d be delighted to walk you through how ${esc(product)} fits your journey &mdash; no pressure, just a friendly conversation at a time that works for you.</p>
+    ${personalizedHtml}
     <!--[if !mso]><!-- -->
     <a href="mailto:${rmEmail}" style="display:inline-block;background:#F15E2A;color:#FFFFFF;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;letter-spacing:0.04em;line-height:48px;padding:0 30px;border-radius:4px;text-decoration:none;">Book a 20-min call &rarr;</a>
     <!--<![endif]-->
@@ -6015,6 +6083,7 @@ function renderFounderPitch(result) {
         <div class="result-section-bar"></div>
         <div class="result-section-title">The pitch</div>
       </div>
+      ${renderFounderContextStrip(result.profile)}
       <div class="r-card" style="margin-bottom:16px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
           <span style="font-size:13px;color:var(--ink-muted);">Use these three lines on your founder call.</span>

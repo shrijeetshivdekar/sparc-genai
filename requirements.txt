@@ -1,8 +1,6 @@
-# SPARC uses Python standard library only — no pip installs needed.
-# All dependencies below are built into Python 3.8+:
-#   http.server, sqlite3, json, math, decimal, urllib.request,
-#   dataclasses, typing, pathlib, os, sys, tempfile, datetime
-#
+PyYAML>=6.0.1
+
+# SPARC is otherwise mostly standard-library based.
 # Runtime environment variable required for Gemini outreach generation:
 #   GEMINI_API_KEY=<your-google-ai-studio-key>
 #

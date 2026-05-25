@@ -34,65 +34,109 @@ def _contacts():
 
 # ── Per-product context: label + key scenario for the prompt ────────────────
 _PRODUCT_CONTEXT = {
+    # ── Liability ─────────────────────────────────────────────────────────────
     "PI_TECH_EO": {
         "label": "Tech E&O / Professional Indemnity",
-        "scenario": "A client claims your software caused a data migration failure that cost them ₹80L in downtime and lost revenue — PI pays your legal defence and settlement.",
+        "scenario": "A client claims your software caused a data migration failure costing them ₹80L in downtime — PI pays your legal defence and client settlement.",
+    },
+    "PI": {
+        "label": "Professional Indemnity",
+        "scenario": "A client claims your services caused a ₹60L financial loss — PI covers your legal defence costs and any damages awarded.",
     },
     "D_AND_O": {
         "label": "Directors & Officers (D&O) Liability",
-        "scenario": "An investor files a personal suit against the founders alleging misrepresentation in the Series A deck — D&O pays defence costs and any settlement, protecting personal assets.",
+        "scenario": "An investor files a personal suit against the founders alleging misrepresentation in the Series A deck — D&O pays defence costs and settlement, protecting personal assets.",
+    },
+    "DNO_LIABILITY": {
+        "label": "Directors & Officers (D&O) Liability",
+        "scenario": "A minority shareholder sues directors over a board decision — D&O covers legal defence and any award without touching company funds.",
     },
     "CYBER": {
         "label": "Cyber Insurance",
-        "scenario": "A ransomware attack encrypts customer data; CERT-In mandates a 6-hour breach report — Cyber pays the forensics team, regulator notification costs, and customer notification letters.",
+        "scenario": "A ransomware attack encrypts customer data; CERT-In mandates a 6-hour breach report — Cyber pays the forensics team, regulator notification, and customer letters.",
+    },
+    "CYBER_LIABILITY": {
+        "label": "Cyber Insurance",
+        "scenario": "A data breach exposes 50,000 customer records — Cyber covers CERT-In notification costs, legal defence, and regulatory penalties under the DPDP Act.",
     },
     "CRIME_FIDELITY": {
         "label": "Crime & Fidelity / Employee Dishonesty",
-        "scenario": "A finance team member approves fraudulent vendor invoices amounting to ₹35L — Crime cover reimburses the loss after the employee is dismissed and FIR is filed.",
+        "scenario": "A finance team member approves fraudulent vendor invoices worth ₹35L — Crime cover reimburses the loss after the FIR is filed.",
     },
     "EMPLOYMENT_PRACTICES": {
         "label": "Employment Practices Liability (EPLI)",
-        "scenario": "An ex-employee files a wrongful termination and sexual harassment complaint under POSH Act — EPLI pays legal defence, HR consulting, and any tribunal award.",
+        "scenario": "An ex-employee files wrongful termination and POSH Act complaints — EPLI pays legal defence, HR consulting, and any tribunal award.",
     },
     "COMMERCIAL_GENERAL_LIABILITY": {
         "label": "Commercial General Liability (CGL)",
         "scenario": "A contractor injured at your office during a product demo files a ₹25L bodily-injury claim — CGL covers medical expenses and legal defence.",
     },
-    "PRODUCT_LIABILITY": {
-        "label": "Product Liability",
-        "scenario": "A hardware defect in your IoT device causes a short-circuit fire at a client's premises — Product Liability pays the property damage claim and legal costs.",
-    },
-    "WORKMEN_COMPENSATION": {
-        "label": "Workmen's Compensation / Group Personal Accident",
-        "scenario": "A field engineer suffers a fracture on-site during installation — WC/GPA pays hospitalisation, temporary disability wages, and any permanent disability compensation.",
+    "CGL": {
+        "label": "Commercial General Liability (CGL)",
+        "scenario": "A client's employee is injured at your premises during an on-site visit and files a ₹30L claim — CGL covers compensation and legal costs.",
     },
     "PUBLIC_LIABILITY": {
         "label": "Public Liability",
-        "scenario": "A visitor slips and fractures their wrist at your office — Public Liability covers the ₹40L compensation and legal defence before it reaches court.",
+        "scenario": "A visitor slips and fractures their wrist at your office — Public Liability covers the ₹40L compensation and legal defence.",
     },
-    "MARINE_CARGO": {
-        "label": "Marine Cargo Insurance",
-        "scenario": "A shipment of hardware components is damaged in transit at sea — Marine Cargo pays replacement cost and prevents a supply-chain delay from becoming a balance-sheet hit.",
+    "PRODUCT_LIABILITY": {
+        "label": "Product Liability",
+        "scenario": "A hardware defect in your IoT device causes a fire at a client's premises — Product Liability pays the property damage claim and legal costs.",
     },
+    # ── Property & Engineering ────────────────────────────────────────────────
     "FIRE_AND_PROPERTY": {
         "label": "Fire & Property Insurance",
         "scenario": "A server room fire destroys ₹1.2Cr of equipment — Fire & Property pays replacement cost and covers business interruption while you rebuild.",
     },
+    "MARINE_CARGO": {
+        "label": "Marine Cargo Insurance",
+        "scenario": "A shipment of hardware components is damaged in transit — Marine Cargo pays replacement cost and prevents a supply-chain delay from becoming a balance-sheet hit.",
+    },
     "MOTOR_FLEET": {
         "label": "Motor Fleet Insurance",
-        "scenario": "One of your delivery vehicles is involved in a third-party accident causing injury — Motor Fleet covers third-party liability and vehicle repair costs under a single policy.",
+        "scenario": "One of your delivery vehicles causes a third-party accident — Motor Fleet covers third-party liability and vehicle repair under a single policy.",
     },
+    # ── Employee Benefits ─────────────────────────────────────────────────────
     "GROUP_HEALTH": {
         "label": "Group Health Insurance",
-        "scenario": "A senior engineer requires emergency hospitalisation; a ₹5L floater family cover means zero out-of-pocket expense and zero attrition risk from that hire.",
+        "scenario": "A senior engineer requires emergency hospitalisation — a ₹5L floater family cover means zero out-of-pocket expense and zero attrition risk.",
     },
-    "TRADE_CREDIT": {
-        "label": "Trade Credit Insurance",
-        "scenario": "Your largest enterprise client goes into insolvency with ₹1.8Cr in unpaid invoices — Trade Credit reimburses up to 85% of the outstanding receivable.",
+    "EMPLOYEE_HEALTH": {
+        "label": "Employee Health Insurance (Group Mediclaim)",
+        "scenario": "A key engineer is hospitalised for surgery costing ₹4.2L — Group Mediclaim covers the full bill, preventing the employee from dipping into personal savings and considering other offers.",
+    },
+    "GROUP_PA": {
+        "label": "Group Personal Accident (GPA)",
+        "scenario": "A field engineer fractures their arm on-site — GPA pays hospitalisation, temporary disability wages, and permanent disability compensation if applicable.",
+    },
+    "GPA": {
+        "label": "Group Personal Accident (GPA)",
+        "scenario": "An employee involved in a road accident while on company work suffers a disability — GPA covers medical costs and pays a disability benefit to the employee.",
+    },
+    "EMPLOYEES_COMP": {
+        "label": "Employees' Compensation Insurance",
+        "scenario": "A warehouse worker suffers a back injury lifting equipment — Employees' Compensation pays the statutory compensation under the EC Act 2023, protecting the company from a labour court claim.",
+    },
+    "WORKMEN_COMPENSATION": {
+        "label": "Workmen's Compensation / EC Insurance",
+        "scenario": "A field technician is injured during installation — WC pays statutory compensation under the EC Act, covering medical expenses and disability benefits.",
     },
     "KEY_PERSON": {
         "label": "Key Person Insurance",
-        "scenario": "A co-founder's sudden critical illness forces a 6-month leave; Key Person pays the company a lump sum to hire an interim CTO and cover revenue impact.",
+        "scenario": "A co-founder's sudden critical illness forces a 6-month leave — Key Person pays the company a lump sum to hire an interim leader and cover revenue impact.",
+    },
+    "GROUP_CRITI_SHIELD": {
+        "label": "Group Critical Illness Cover",
+        "scenario": "A senior employee is diagnosed with cancer — Critical Illness pays a ₹10L lump sum directly to the employee, covering treatment costs not reimbursed by the primary health policy.",
+    },
+    "GROUP_HOSPISHIELD": {
+        "label": "Group Hospital Cash / HospiShield",
+        "scenario": "An employee is hospitalised for 7 days — HospiShield pays ₹2,000/day in cash benefit regardless of actual bills, covering daily incidentals and income loss during recovery.",
+    },
+    # ── Financial Lines ───────────────────────────────────────────────────────
+    "TRADE_CREDIT": {
+        "label": "Trade Credit Insurance",
+        "scenario": "Your largest enterprise client goes into insolvency with ₹1.8Cr in unpaid invoices — Trade Credit reimburses up to 85% of the outstanding receivable.",
     },
 }
 
@@ -108,12 +152,23 @@ def _product_context(key):
 def _all_products(recommendations, bundle_match, limit=8):
     seen = set()
     products = []
+    bm = bundle_match or {}
+    # primary bundle covers first
     for tier in ("mandatory_covers", "optional_covers"):
-        for c in (bundle_match or {}).get(tier, []):
+        for c in bm.get(tier, []):
             key = c if isinstance(c, str) else c.get("key", "")
             if key and key not in seen:
                 seen.add(key)
                 products.append(key)
+    # companion bundle covers (Group Safeguard + Business Shield pairing)
+    companion = bm.get("companion_bundle") or {}
+    for tier in ("mandatory_covers", "optional_covers"):
+        for c in companion.get(tier, []):
+            key = c if isinstance(c, str) else c.get("key", "")
+            if key and key not in seen:
+                seen.add(key)
+                products.append(key)
+    # fill remaining slots from standalone recommendations
     for r in (recommendations or []):
         key = r if isinstance(r, str) else r.get("key", "")
         if key and key not in seen:
@@ -243,7 +298,7 @@ def _call_gemini(prompt):
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    timeout = int(os.environ.get("GEMINI_TIMEOUT_SECONDS", "25"))
+    timeout = int(os.environ.get("GEMINI_TIMEOUT_SECONDS", "30"))
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             body = json.loads(resp.read().decode("utf-8"))

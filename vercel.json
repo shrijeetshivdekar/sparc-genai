@@ -63,7 +63,8 @@
       "src": "api/outreach.py",
       "use": "@vercel/python",
       "config": {
-        "includeFiles": ["**/*.py", "**/*.json"]
+        "includeFiles": ["**/*.py", "**/*.json"],
+        "maxDuration": 45
       }
     },
     {

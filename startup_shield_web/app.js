@@ -3422,13 +3422,44 @@ function bindEstimateQuotePanel(profile) {
   });
 }
 
+function estimateSumInsured(profile, lob) {
+  const revCr  = Number(profile.annual_revenue_cr || 0);
+  const stage  = profile.funding_stage || "Seed";
+  const team   = Number(profile.team_size || 10);
+  const assets = profile.physical_assets || [];
+  const hasHeavyAssets = assets.some(a =>
+    ["Warehouse", "Manufacturing", "Data centre", "Cold chain", "Medical device"].some(k => a.includes(k))
+  );
+
+  // Per-stage: floor, ceiling, and revenue multiplier (all in INR crores × 1e7)
+  const stageBands = {
+    "Pre-seed": { floor: 1e7,  ceil: 5e7,   f: 0.20 },
+    "Seed":     { floor: 2e7,  ceil: 10e7,  f: 0.18 },
+    "Series A": { floor: 3e7,  ceil: 25e7,  f: 0.15 },
+    "Series B+":{ floor: 5e7,  ceil: 100e7, f: 0.12 },
+  };
+  const s = stageBands[stage] || stageBands["Seed"];
+  const revBasedSI = revCr > 0
+    ? Math.min(Math.max(revCr * 1e7 * s.f, s.floor), s.ceil)
+    : s.floor;
+
+  switch (lob) {
+    case "DO":       return revBasedSI;
+    case "Cyber":    return Math.min(revBasedSI * 0.8, 25e7);
+    case "PI":       return Math.min(revBasedSI * 0.6, 20e7);
+    case "CGL":      return Math.min(Math.max(revBasedSI * 0.4, 1e7), 5e7);
+    case "Property": return hasHeavyAssets ? Math.min(revBasedSI * 1.2, 50e7) : Math.min(revBasedSI * 0.3, 3e7);
+    case "GH":       return Math.max(team * 5e5, 5e6); // ₹5L floater per head
+    default:         return revBasedSI;
+  }
+}
+
 async function loadPricingPanel(profile, lob) {
   const panel = $("pricing-panel");
   if (!panel) return;
   panel.innerHTML = '<div class="pricing-loading">Calculating indicative range...</div>';
   panel.classList.remove("hidden");
-  const defaultSI = { DO: 5e7, Cyber: 5e7, PI: 2e7, CGL: 5e7, Property: 5e7, GH: 1e7 };
-  const inputs = profileToPricingInputs(profile, lob, defaultSI[lob] || 5e7);
+  const inputs = profileToPricingInputs(profile, lob, estimateSumInsured(profile, lob));
   try {
     const res = await fetch("/api/pricing", {
       method: "POST",

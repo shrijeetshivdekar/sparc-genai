@@ -9332,6 +9332,7 @@ pre {
 }
 .pc-row:last-child { border-bottom: 0; }
 .pc-row.sub { background: rgba(15,23,42,.025); }
+.pc-row.pc-si-row { background: var(--surface); border-bottom: 2px solid var(--border); margin-bottom: 2px; }
 .pc-op,
 .pc-src,
 .pc-conf {

@@ -3454,12 +3454,13 @@ function estimateSumInsured(profile, lob) {
   }
 }
 
-async function loadPricingPanel(profile, lob) {
+async function loadPricingPanel(profile, lob, siOverrideInr = null) {
   const panel = $("pricing-panel");
   if (!panel) return;
   panel.innerHTML = '<div class="pricing-loading">Calculating indicative range...</div>';
   panel.classList.remove("hidden");
-  const inputs = profileToPricingInputs(profile, lob, estimateSumInsured(profile, lob));
+  const si = siOverrideInr || estimateSumInsured(profile, lob);
+  const inputs = profileToPricingInputs(profile, lob, si);
   try {
     const res = await fetch("/api/pricing", {
       method: "POST",
@@ -3491,6 +3492,7 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
   const ratingOverrides = {};
   const catalogOverrides = {};
   const activeLoadings = new Set((Q.active_loadings || []).map(x => x.id));
+  let currentSI = Q.inputs_echo?.sum_insured_inr || estimateSumInsured(profile, LOB);
 
   const money = (n) => "Rs. " + Math.round(Number(n) || 0).toLocaleString("en-IN");
   const compactMoney = (n) => {
@@ -3535,6 +3537,19 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
     return `<button class="pc-val editable${overridden ? " overridden" : ""}" type="button" data-kind="${kind}" data-key="${esc(key)}" data-pct="${isPct ? "1" : "0"}" data-value="${esc(String(value))}">
       ${overridden ? '<span class="override-dot"></span>' : ""}<span class="val-text">${esc(display)}</span><span class="edit-pencil">edit</span>${overridden ? '<span class="reset-x" data-reset="1">x</span>' : ""}
     </button>`;
+  }
+
+  function renderSIRow() {
+    const siCr = (currentSI / 1e7).toFixed(2);
+    return `<div class="pc-row pc-si-row">
+      <div class="pc-op"></div>
+      <div class="pc-label">Sum Insured<span class="pc-sub">Heuristic estimate — edit to override</span></div>
+      <button class="pc-val editable" type="button" data-kind="si" data-key="si" data-pct="0" data-value="${currentSI}">
+        <span class="val-text">₹${siCr} Cr</span><span class="edit-pencil">edit</span>
+      </button>
+      <div class="pc-src">—</div>
+      <div class="pc-conf"></div>
+    </div>`;
   }
 
   function renderRows() {
@@ -3595,7 +3610,7 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
         <div class="pc-layout">
           <div class="pc-left">
             <div class="pc-section-eyebrow">Rating Factors</div>
-            <div class="pc-factor-table">${rows.ratingRows}<div class="pc-row sub"><div class="pc-op">=</div><div class="pc-label">Technical premium<span class="pc-sub">Before adjustments and expense loading</span></div><div class="pc-val bold"><span class="val-text">${money(c.tech)}</span></div><div class="pc-src">derived</div><div class="pc-conf"></div></div></div>
+            <div class="pc-factor-table">${renderSIRow()}${rows.ratingRows}<div class="pc-row sub"><div class="pc-op">=</div><div class="pc-label">Technical premium<span class="pc-sub">Before adjustments and expense loading</span></div><div class="pc-val bold"><span class="val-text">${money(c.tech)}</span></div><div class="pc-src">derived</div><div class="pc-conf"></div></div></div>
             <div class="pc-section-eyebrow">Active Adjustments</div>
             <div class="pc-loadings-card"><div class="pc-loadings-head"><span>Loadings and discounts</span><span class="pc-net-badge ${c.net < 0 ? "pc-net-neg" : c.net > 0 ? "pc-net-pos" : "pc-net-zero"}">${pctText(c.net)}</span></div><div class="pc-loadings-list">${rows.activeRows}</div><div class="pc-clamp ${c.clamped ? "on" : ""}">Net adjustment clamped to +/-25%</div></div>
             <details class="pc-loadings-card"><summary class="pc-catalog-summary">Add from catalog</summary><div class="pc-catalog-list">${rows.catalogRows}</div></details>
@@ -3633,16 +3648,30 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
       return;
     }
     const isPct = btn.dataset.pct === "1";
+    const isSI  = btn.dataset.kind === "si";
     const input = document.createElement("input");
     input.className = "pc-inline-input";
     input.type = "number";
-    input.step = isPct ? "0.5" : "0.01";
-    input.value = isPct ? (Number(btn.dataset.value) * 100).toFixed(2) : String(Number(btn.dataset.value));
+    input.step = isSI ? "0.5" : isPct ? "0.5" : "0.01";
+    input.placeholder = isSI ? "₹ Cr" : "";
+    // SI stored in raw INR, show/edit in Cr
+    input.value = isSI
+      ? (Number(btn.dataset.value) / 1e7).toFixed(2)
+      : isPct ? (Number(btn.dataset.value) * 100).toFixed(2) : String(Number(btn.dataset.value));
     btn.replaceWith(input);
     input.focus();
     input.select();
     const save = () => {
       const n = Number(input.value);
+      if (isSI) {
+        if (Number.isFinite(n) && n > 0) {
+          currentSI = n * 1e7;
+          loadPricingPanel(profile, LOB, currentSI);
+        } else {
+          render();
+        }
+        return;
+      }
       if (Number.isFinite(n)) {
         if (btn.dataset.kind === "factor") ratingOverrides[btn.dataset.key] = n;
         if (btn.dataset.kind === "loading") catalogOverrides[btn.dataset.key] = isPct ? n / 100 : n;

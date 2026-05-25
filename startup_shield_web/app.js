@@ -3937,6 +3937,18 @@ async function loadOutreachTab(result) {
   const dynamicEl = document.getElementById("outreach-dynamic");
   const staticEl  = document.getElementById("outreach-static");
   if (!dynamicEl) return;
+
+  // Inject loading banner
+  const banner = document.createElement("div");
+  banner.id = "outreach-ai-loader";
+  banner.className = "outreach-ai-loader";
+  banner.innerHTML =
+    `<span class="outreach-ai-loader-dot"></span>` +
+    `<span class="outreach-ai-loader-dot"></span>` +
+    `<span class="outreach-ai-loader-dot"></span>` +
+    `<span class="outreach-ai-loader-text">Generating AI drafts for all covers…</span>`;
+  dynamicEl.prepend(banner);
+
   try {
     const res = await fetch("/api/outreach", {
       method: "POST",
@@ -3961,7 +3973,9 @@ async function loadOutreachTab(result) {
     dynamicEl.innerHTML = renderOutreach(data.outreach_prompts, data.outreach_source, data.outreach_error);
     _bindOutreachButtons(dynamicEl);
   } catch (_err) {
-    // Silent — fallback content is already rendered; nothing changes
+    // Remove loader, leave fallback content visible
+    const loader = document.getElementById("outreach-ai-loader");
+    if (loader) loader.remove();
   }
 }
 

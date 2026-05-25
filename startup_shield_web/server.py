@@ -3659,26 +3659,24 @@ def get_signal_radar(limit: int = 30, live: bool = True, window_days: int = 30) 
         return added
 
     if live:
+        from concurrent.futures import ThreadPoolExecutor
+        fetch_limit = max(limit * 4, 80)
         live_sources = []
-        try:
-            if add_articles(_fetch_direct_rss_signal_articles(limit=max(limit * 4, 80), window_days=window_days)):
-                live_sources.append("rss")
-        except Exception as exc:
-            source_error = type(exc).__name__
-        try:
-            if add_articles(_fetch_google_news_signal_articles(limit=max(limit * 4, 80), window_days=window_days)):
-                live_sources.append("google_news")
-        except Exception as exc:
-            source_error = source_error or type(exc).__name__
+        with ThreadPoolExecutor(max_workers=3) as _ex:
+            futures = {
+                "rss":         _ex.submit(_fetch_direct_rss_signal_articles, limit=fetch_limit, window_days=window_days),
+                "google_news": _ex.submit(_fetch_google_news_signal_articles, limit=fetch_limit, window_days=window_days),
+                "gdelt":       _ex.submit(_fetch_gdelt_signal_articles, limit=fetch_limit),
+            }
+            for name in ("rss", "google_news", "gdelt"):
+                try:
+                    if add_articles(futures[name].result()):
+                        live_sources.append(name)
+                except Exception as exc:
+                    source_error = source_error or type(exc).__name__
         if live_sources:
             source_status = "live_multi" if len(live_sources) > 1 else f"live_{live_sources[0]}"
-        if not articles:
-            try:
-                if add_articles(_fetch_gdelt_signal_articles(limit=max(limit * 4, 80))):
-                    source_status = "live_gdelt"
-                source_error = "" if articles else source_error
-            except Exception as exc:
-                source_error = source_error or type(exc).__name__
+            source_error = "" if articles else source_error
     if not articles:
         articles = FALLBACK_SIGNAL_ARTICLES
 

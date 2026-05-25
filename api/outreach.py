@@ -193,27 +193,19 @@ def _build_prompt(profile, scores, recommendations, bundle_match, signal_context
     sector   = profile.get("sector", "technology")
     stage    = profile.get("funding_stage", "early-stage")
     team     = profile.get("team_size", "")
-    revenue  = profile.get("annual_revenue_inr") or profile.get("revenue_current_inr") or ""
-    data_types = profile.get("data_handled") or []
-    regs     = profile.get("regulatory") or []
+    regs     = (profile.get("regulatory") or [])[:2]
     products = _all_products(recommendations, bundle_match, limit=8)
 
-    top_risks = sorted((scores or {}).items(), key=lambda x: x[1], reverse=True)[:3]
-    risk_names = ", ".join(k for k, _ in top_risks) if top_risks else "liability, cyber, and operational risk"
+    top_risks = sorted((scores or {}).items(), key=lambda x: x[1], reverse=True)[:2]
+    risk_names = " and ".join(k for k, _ in top_risks) if top_risks else "liability and cyber risk"
 
-    team_line    = f"{team} employees" if team else "a growing team"
-    revenue_line = f"₹{int(float(revenue)):,} annual revenue" if revenue else ""
-    data_line    = f"handles {', '.join(data_types[:3])}" if data_types else ""
-    reg_line     = f"regulatory obligations include {', '.join(regs[:2])}" if regs else ""
+    team_line = f"{team}-person team" if team else "growing team"
+    reg_line  = f", {', '.join(regs)}" if regs else ""
 
-    company_context = ", ".join(filter(None, [team_line, revenue_line, data_line, reg_line]))
-
-    product_block = ""
-    for key in products:
-        ctx = _product_context(key)
-        product_block += f"\n- {key}: {ctx['label']}\n  Scenario: {ctx['scenario']}\n"
-
-    signal_line = _signal_line(signal_context)
+    product_lines = "\n".join(
+        f"- {key}: {_product_context(key)['label']} | claim: {_product_context(key)['scenario']}"
+        for key in products
+    )
 
     contact_block = (
         f"Warm regards,\n{contacts['RM_NAME']}\n"
@@ -221,44 +213,35 @@ def _build_prompt(profile, scores, recommendations, bundle_match, signal_context
         f"{contacts['RM_OFFICE']}"
     )
 
-    return f"""You are a senior ICICI Lombard Relationship Manager writing highly personalised outreach for {name} ({sector}, {stage}, {company_context}).
+    signal_line = _signal_line(signal_context)
 
-Our underwriters identified these as the top risk areas for this company: {risk_names}.
-{f"Signal context: {signal_line}" if signal_line else ""}
+    return f"""You are an ICICI Lombard RM. Write outreach for {name} ({sector}, {stage}, {team_line}{reg_line}).
+Top risks: {risk_names}.{f' Note: {signal_line}' if signal_line else ''}
 
-Write ONE email + ONE WhatsApp message for EACH of the {len(products)} products listed below.
+For EACH product below write one email and one WhatsApp.
 
-PRODUCT LIST WITH CONTEXT:
-{product_block}
+Products:
+{product_lines}
 
-WRITING RULES:
+EMAIL FORMAT (use for every product):
+Subject: [specific to {name} and the cover]
+Body:
+Dear {name} team,
+Greetings from ICICI Lombard!
 
-Email:
-- Subject line: specific and company-relevant, not generic (mention {name} and the specific cover)
-- Open EXACTLY with: "Dear {name} team,\\nGreetings from ICICI Lombard!"
-- Paragraph 1 (3-4 sentences): Why this specific cover is critical for a {stage} {sector} company like {name} right now. Reference their specific risk profile — data handled, regulatory exposure, or sector-specific liability. Do NOT use the word "score" or any numbers.
-- Paragraph 2 (3-4 sentences): One realistic claim scenario drawn from the Scenario above. Make it feel real — use INR amounts, describe the situation vividly.
-- Paragraph 3 (2 sentences): Soft CTA. End with: "We'd love to walk you through this — no pressure, just a friendly conversation."
-- Sign off with the contact block exactly as shown.
-- Total email body: 200-250 words.
+• Why it matters for you: [1 sentence — company-specific reason referencing their sector/stage/regulatory exposure]
+• If uninsured: [1 sentence realistic claim scenario using the claim hint above, include INR amount]
+• What it covers: [1 sentence on policy scope]
+• Next step: We'd love to walk you through this — no pressure, just a friendly conversation.
 
-WhatsApp:
-- 60-80 words. Conversational and direct.
-- Mention {name}, the specific risk, and the RM name + phone.
-- No formal salutations. Start with "Hi [name] team!"
-
-Contact block to use in email sign-off:
 {contact_block}
 
-Return ONLY valid JSON, no markdown fences, no extra keys:
-{{
-  "PRODUCT_KEY": {{
-    "email_subject": "...",
-    "email_body": "...",
-    "whatsapp": "..."
-  }}
-}}
-Use the EXACT product keys shown above (e.g. CYBER, D_AND_O, GROUP_HEALTH). Include all {len(products)} products."""
+WHATSAPP FORMAT (use for every product):
+Hi {name} team! [1-2 sentences on the specific risk and cover]. Let's connect — {contacts['RM_NAME']}, {contacts['RM_PHONE']}
+
+Return ONLY valid JSON, no markdown:
+{{"PRODUCT_KEY": {{"email_subject": "...", "email_body": "...", "whatsapp": "..."}}}}
+Keys must exactly match: {", ".join(products)}"""
 
 
 # ── Gemini call ──────────────────────────────────────────────────────────────
@@ -287,7 +270,7 @@ def _call_gemini(prompt):
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
         "generationConfig": {
             "temperature": 0.5,
-            "maxOutputTokens": 5000,
+            "maxOutputTokens": 2500,
             "responseMimeType": "application/json",
             "thinkingConfig": {"thinkingBudget": 0},
         },

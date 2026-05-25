@@ -66,7 +66,7 @@ def _call_gemini(prompt: str):
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
         "generationConfig": {
             "temperature": 0.2,
-            "maxOutputTokens": 1024,
+            "maxOutputTokens": 2048,
             "responseMimeType": "application/json",
             "thinkingConfig": {"thinkingBudget": 0},
         },
@@ -78,7 +78,7 @@ def _call_gemini(prompt: str):
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=8) as resp:
+        with urllib.request.urlopen(req, timeout=18) as resp:
             body = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         try:
@@ -97,7 +97,10 @@ def _call_gemini(prompt: str):
     text          = "".join(p.get("text", "") for p in parts)
 
     if finish_reason == "MAX_TOKENS":
-        return None, "Gemini response truncated (MAX_TOKENS)."
+        parsed = _extract_json(text)
+        if isinstance(parsed, dict):
+            return parsed, None
+        return None, "Gemini response truncated before JSON was complete."
 
     parsed = _extract_json(text)
     if not isinstance(parsed, dict):

@@ -26,7 +26,8 @@
       "src": "api/autofill.py",
       "use": "@vercel/python",
       "config": {
-        "includeFiles": ["**/*.py", "**/*.json", "research_config.json"]
+        "includeFiles": ["**/*.py", "**/*.json", "research_config.json"],
+        "maxDuration": 25
       }
     },
     {

@@ -3660,6 +3660,18 @@ def get_signal_radar(limit: int = 30, live: bool = True, window_days: int = 30) 
     if not articles:
         articles = FALLBACK_SIGNAL_ARTICLES
 
+    def _article_dt(article: dict):
+        seendate = article.get("seendate") or ""
+        dt = _rss_item_datetime(seendate)
+        if dt is None and len(seendate) >= 15:
+            try:
+                dt = datetime.strptime(seendate[:15], "%Y%m%dT%H%M%S").replace(tzinfo=timezone.utc)
+            except Exception:
+                pass
+        return dt or datetime.min.replace(tzinfo=timezone.utc)
+
+    articles.sort(key=_article_dt, reverse=True)
+
     def _norm_company(name):
         s = re.sub(r"\s+", " ", str(name or "").lower().strip())
         for suffix in (" pvt ltd", " private limited", " pvt. ltd.", " pvt. ltd", " ltd.", " ltd",
@@ -3687,7 +3699,18 @@ def get_signal_radar(limit: int = 30, live: bool = True, window_days: int = 30) 
         else:
             os.environ.pop("GEMINI_API_KEY", None)
 
-    tasks = sorted(best_by_company.values(), key=lambda t: t.get("confidence", 0), reverse=True)[:limit]
+    def _task_sort_key(t):
+        seendate = t.get("seen_at") or ""
+        dt = _rss_item_datetime(seendate)
+        if dt is None and len(seendate) >= 15:
+            try:
+                dt = datetime.strptime(seendate[:15], "%Y%m%dT%H%M%S").replace(tzinfo=timezone.utc)
+            except Exception:
+                pass
+        ts = dt.timestamp() if dt else 0
+        return (ts, t.get("confidence", 0))
+
+    tasks = sorted(best_by_company.values(), key=_task_sort_key, reverse=True)[:limit]
 
     high_conf = [t for t in tasks if t.get("confidence", 0) >= 70]
     premium_pool = round(sum(float(t.get("premium_max_lakh") or 0) for t in tasks) / 100, 1)

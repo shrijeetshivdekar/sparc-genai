@@ -55,7 +55,7 @@
       "src": "api/pricing.py",
       "use": "@vercel/python",
       "config": {
-        "includeFiles": ["**/*.py", "pricing/parameters.yaml", "api/requirements.txt"],
+        "includeFiles": ["**/*.py", "pricing/parameters.json"],
         "maxDuration": 30
       }
     },

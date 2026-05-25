@@ -17,9 +17,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal, Optional
 
-import yaml
+import json
 
-PARAMS_PATH = Path(__file__).parent / "parameters.yaml"
+PARAMS_PATH = Path(__file__).parent / "parameters.json"
 
 Stage = Literal["bootstrapped", "preseed", "seed", "seriesA", "seriesB", "seriesC+", "pre_ipo"]
 LOB = Literal["DO", "Cyber", "PI", "CGL", "EC", "GH", "GPA", "Crime", "Property"]
@@ -32,7 +32,7 @@ def load_params(path: Path | str = PARAMS_PATH) -> dict:
     """Load the single source of truth. Re-read on every call so a CLI edit
     is visible without restart."""
     with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+        return json.load(f)
 
 
 # ─── Data classes ────────────────────────────────────────────────────────────

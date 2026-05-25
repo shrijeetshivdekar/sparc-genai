@@ -32,34 +32,88 @@ def _contacts():
     }
 
 
-# ── Extract top products to write outreach for ──────────────────────────────
-_PRODUCT_LABELS = {
-    "PI_TECH_EO": "Tech E&O / PI",
-    "D_AND_O": "Directors & Officers (D&O)",
-    "CYBER": "Cyber Insurance",
-    "CRIME_FIDELITY": "Crime & Fidelity",
-    "EMPLOYMENT_PRACTICES": "Employment Practices Liability",
-    "PRODUCT_LIABILITY": "Product Liability",
-    "COMMERCIAL_GENERAL_LIABILITY": "Commercial General Liability",
-    "WORKMEN_COMPENSATION": "Workmen's Compensation / GPA",
-    "MARINE_CARGO": "Marine Cargo",
-    "FIRE_AND_PROPERTY": "Fire & Property",
-    "MOTOR_FLEET": "Motor Fleet",
-    "GROUP_HEALTH": "Group Health Insurance",
+# ── Per-product context: label + key scenario for the prompt ────────────────
+_PRODUCT_CONTEXT = {
+    "PI_TECH_EO": {
+        "label": "Tech E&O / Professional Indemnity",
+        "scenario": "A client claims your software caused a data migration failure that cost them ₹80L in downtime and lost revenue — PI pays your legal defence and settlement.",
+    },
+    "D_AND_O": {
+        "label": "Directors & Officers (D&O) Liability",
+        "scenario": "An investor files a personal suit against the founders alleging misrepresentation in the Series A deck — D&O pays defence costs and any settlement, protecting personal assets.",
+    },
+    "CYBER": {
+        "label": "Cyber Insurance",
+        "scenario": "A ransomware attack encrypts customer data; CERT-In mandates a 6-hour breach report — Cyber pays the forensics team, regulator notification costs, and customer notification letters.",
+    },
+    "CRIME_FIDELITY": {
+        "label": "Crime & Fidelity / Employee Dishonesty",
+        "scenario": "A finance team member approves fraudulent vendor invoices amounting to ₹35L — Crime cover reimburses the loss after the employee is dismissed and FIR is filed.",
+    },
+    "EMPLOYMENT_PRACTICES": {
+        "label": "Employment Practices Liability (EPLI)",
+        "scenario": "An ex-employee files a wrongful termination and sexual harassment complaint under POSH Act — EPLI pays legal defence, HR consulting, and any tribunal award.",
+    },
+    "COMMERCIAL_GENERAL_LIABILITY": {
+        "label": "Commercial General Liability (CGL)",
+        "scenario": "A contractor injured at your office during a product demo files a ₹25L bodily-injury claim — CGL covers medical expenses and legal defence.",
+    },
+    "PRODUCT_LIABILITY": {
+        "label": "Product Liability",
+        "scenario": "A hardware defect in your IoT device causes a short-circuit fire at a client's premises — Product Liability pays the property damage claim and legal costs.",
+    },
+    "WORKMEN_COMPENSATION": {
+        "label": "Workmen's Compensation / Group Personal Accident",
+        "scenario": "A field engineer suffers a fracture on-site during installation — WC/GPA pays hospitalisation, temporary disability wages, and any permanent disability compensation.",
+    },
+    "PUBLIC_LIABILITY": {
+        "label": "Public Liability",
+        "scenario": "A visitor slips and fractures their wrist at your office — Public Liability covers the ₹40L compensation and legal defence before it reaches court.",
+    },
+    "MARINE_CARGO": {
+        "label": "Marine Cargo Insurance",
+        "scenario": "A shipment of hardware components is damaged in transit at sea — Marine Cargo pays replacement cost and prevents a supply-chain delay from becoming a balance-sheet hit.",
+    },
+    "FIRE_AND_PROPERTY": {
+        "label": "Fire & Property Insurance",
+        "scenario": "A server room fire destroys ₹1.2Cr of equipment — Fire & Property pays replacement cost and covers business interruption while you rebuild.",
+    },
+    "MOTOR_FLEET": {
+        "label": "Motor Fleet Insurance",
+        "scenario": "One of your delivery vehicles is involved in a third-party accident causing injury — Motor Fleet covers third-party liability and vehicle repair costs under a single policy.",
+    },
+    "GROUP_HEALTH": {
+        "label": "Group Health Insurance",
+        "scenario": "A senior engineer requires emergency hospitalisation; a ₹5L floater family cover means zero out-of-pocket expense and zero attrition risk from that hire.",
+    },
+    "TRADE_CREDIT": {
+        "label": "Trade Credit Insurance",
+        "scenario": "Your largest enterprise client goes into insolvency with ₹1.8Cr in unpaid invoices — Trade Credit reimburses up to 85% of the outstanding receivable.",
+    },
+    "KEY_PERSON": {
+        "label": "Key Person Insurance",
+        "scenario": "A co-founder's sudden critical illness forces a 6-month leave; Key Person pays the company a lump sum to hire an interim CTO and cover revenue impact.",
+    },
 }
 
-def _top_products(recommendations, bundle_match, limit=3):
+def _product_context(key):
+    ctx = _PRODUCT_CONTEXT.get(key)
+    if ctx:
+        return ctx
+    clean = key.replace("_", " ").title()
+    return {"label": clean, "scenario": f"Cover for {clean.lower()} exposures."}
+
+
+# ── Collect all products to draft for ───────────────────────────────────────
+def _all_products(recommendations, bundle_match, limit=8):
     seen = set()
     products = []
-    # mandatory first, then optional
-    for tier in ("mandatory", "optional"):
-        covers = (bundle_match or {}).get(tier + "_covers", [])
-        for c in covers:
+    for tier in ("mandatory_covers", "optional_covers"):
+        for c in (bundle_match or {}).get(tier, []):
             key = c if isinstance(c, str) else c.get("key", "")
             if key and key not in seen:
                 seen.add(key)
                 products.append(key)
-    # fill from recommendations
     for r in (recommendations or []):
         key = r if isinstance(r, str) else r.get("key", "")
         if key and key not in seen:
@@ -80,46 +134,68 @@ def _signal_line(signal_context):
 
 
 def _build_prompt(profile, scores, recommendations, bundle_match, signal_context, contacts):
-    name = profile.get("startup_name", "the startup")
-    sector = profile.get("sector", "")
-    stage = profile.get("funding_stage", "")
-    team = profile.get("team_size", "")
-    products = _top_products(recommendations, bundle_match, limit=3)
+    name     = profile.get("startup_name", "the startup")
+    sector   = profile.get("sector", "technology")
+    stage    = profile.get("funding_stage", "early-stage")
+    team     = profile.get("team_size", "")
+    revenue  = profile.get("annual_revenue_inr") or profile.get("revenue_current_inr") or ""
+    data_types = profile.get("data_handled") or []
+    regs     = profile.get("regulatory") or []
+    products = _all_products(recommendations, bundle_match, limit=8)
 
     top_risks = sorted((scores or {}).items(), key=lambda x: x[1], reverse=True)[:3]
-    risk_names = ", ".join(k for k, _ in top_risks) if top_risks else "operational, cyber, and liability"
+    risk_names = ", ".join(k for k, _ in top_risks) if top_risks else "liability, cyber, and operational risk"
 
-    product_lines = "\n".join(
-        f"- {key}: {_PRODUCT_LABELS.get(key, key)}" for key in products
-    )
+    team_line    = f"{team} employees" if team else "a growing team"
+    revenue_line = f"₹{int(float(revenue)):,} annual revenue" if revenue else ""
+    data_line    = f"handles {', '.join(data_types[:3])}" if data_types else ""
+    reg_line     = f"regulatory obligations include {', '.join(regs[:2])}" if regs else ""
+
+    company_context = ", ".join(filter(None, [team_line, revenue_line, data_line, reg_line]))
+
+    product_block = ""
+    for key in products:
+        ctx = _product_context(key)
+        product_block += f"\n- {key}: {ctx['label']}\n  Scenario: {ctx['scenario']}\n"
+
     signal_line = _signal_line(signal_context)
+
     contact_block = (
         f"Warm regards,\n{contacts['RM_NAME']}\n"
         f"{contacts['RM_PHONE']} | {contacts['RM_EMAIL']}\n"
         f"{contacts['RM_OFFICE']}"
     )
 
-    return f"""You are a warm ICICI Lombard Relationship Manager writing personalised outreach for {name} ({sector}, {stage}, {team} people).
+    return f"""You are a senior ICICI Lombard Relationship Manager writing highly personalised outreach for {name} ({sector}, {stage}, {company_context}).
 
-Key risk areas identified by our underwriters: {risk_names}.
+Our underwriters identified these as the top risk areas for this company: {risk_names}.
 {f"Signal context: {signal_line}" if signal_line else ""}
 
-TONE RULES:
-- Open every email with: "Dear {name} team,\\nGreetings from ICICI Lombard!"
-- If signal context is given, use it in the first line as the reason for reaching out now.
-- Attribute risk insights to "our expert underwriters" — never use scores or numbers.
-- Be warm and friendly, like a trusted advisor not a salesperson.
-- Emails: 80-100 words. Include subject line. Close with the contact block below.
-- WhatsApp: 30-40 words, casual, include RM name and phone.
-- Soft CTA: "We'd love to walk you through this — no pressure, just a friendly conversation."
+Write ONE email + ONE WhatsApp message for EACH of the {len(products)} products listed below.
 
-Write outreach for these {len(products)} products:
-{product_lines}
+PRODUCT LIST WITH CONTEXT:
+{product_block}
 
-Contact block:
+WRITING RULES:
+
+Email:
+- Subject line: specific and company-relevant, not generic (mention {name} and the specific cover)
+- Open EXACTLY with: "Dear {name} team,\\nGreetings from ICICI Lombard!"
+- Paragraph 1 (3-4 sentences): Why this specific cover is critical for a {stage} {sector} company like {name} right now. Reference their specific risk profile — data handled, regulatory exposure, or sector-specific liability. Do NOT use the word "score" or any numbers.
+- Paragraph 2 (3-4 sentences): One realistic claim scenario drawn from the Scenario above. Make it feel real — use INR amounts, describe the situation vividly.
+- Paragraph 3 (2 sentences): Soft CTA. End with: "We'd love to walk you through this — no pressure, just a friendly conversation."
+- Sign off with the contact block exactly as shown.
+- Total email body: 200-250 words.
+
+WhatsApp:
+- 60-80 words. Conversational and direct.
+- Mention {name}, the specific risk, and the RM name + phone.
+- No formal salutations. Start with "Hi [name] team!"
+
+Contact block to use in email sign-off:
 {contact_block}
 
-Return ONLY valid JSON, no markdown fences:
+Return ONLY valid JSON, no markdown fences, no extra keys:
 {{
   "PRODUCT_KEY": {{
     "email_subject": "...",
@@ -127,7 +203,7 @@ Return ONLY valid JSON, no markdown fences:
     "whatsapp": "..."
   }}
 }}
-Use the exact product keys shown above (e.g. CYBER, D_AND_O). No extra keys."""
+Use the EXACT product keys shown above (e.g. CYBER, D_AND_O, GROUP_HEALTH). Include all {len(products)} products."""
 
 
 # ── Gemini call ──────────────────────────────────────────────────────────────
@@ -155,8 +231,8 @@ def _call_gemini(prompt):
     payload = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
         "generationConfig": {
-            "temperature": 0.4,
-            "maxOutputTokens": 1500,
+            "temperature": 0.5,
+            "maxOutputTokens": 5000,
             "responseMimeType": "application/json",
             "thinkingConfig": {"thinkingBudget": 0},
         },
@@ -167,8 +243,9 @@ def _call_gemini(prompt):
         headers={"Content-Type": "application/json"},
         method="POST",
     )
+    timeout = int(os.environ.get("GEMINI_TIMEOUT_SECONDS", "25"))
     try:
-        with urllib.request.urlopen(req, timeout=8) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             body = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         try:
@@ -206,9 +283,17 @@ class handler(BaseHTTPRequestHandler):
     def _send(self, status, body):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
 
     def do_GET(self):
         self._send(200, json.dumps({"ok": True, "endpoint": "/api/outreach"}).encode())
@@ -221,11 +306,11 @@ class handler(BaseHTTPRequestHandler):
             self._send(400, json.dumps({"error": "Invalid JSON."}).encode())
             return
 
-        profile        = payload.get("profile") or {}
-        scores         = payload.get("scores") or {}
+        profile         = payload.get("profile") or {}
+        scores          = payload.get("scores") or {}
         recommendations = payload.get("recommendations") or []
-        bundle_match   = payload.get("bundle_match") or {}
-        signal_context = payload.get("signal_context") or {}
+        bundle_match    = payload.get("bundle_match") or {}
+        signal_context  = payload.get("signal_context") or {}
 
         contacts = _contacts()
         prompt   = _build_prompt(profile, scores, recommendations, bundle_match, signal_context, contacts)
@@ -233,16 +318,15 @@ class handler(BaseHTTPRequestHandler):
         raw, err = _call_gemini(prompt)
 
         if not isinstance(raw, dict):
-            # Return error — frontend will silently keep showing the fallback
             self._send(500, json.dumps({"error": err or "Outreach generation failed."}).encode())
             return
 
         # Normalise: ensure every product key has all three fields
-        products = _top_products(recommendations, bundle_match, limit=3)
+        products = _all_products(recommendations, bundle_match, limit=8)
         normalized = {}
         for key in products:
-            item = raw.get(key) or {}
-            label = _PRODUCT_LABELS.get(key, key)
+            item  = raw.get(key) or {}
+            label = _product_context(key)["label"]
             company = profile.get("startup_name", "your company")
             normalized[key] = {
                 "email_subject": item.get("email_subject") or f"A tailored {label} recommendation for {company}",
@@ -251,8 +335,8 @@ class handler(BaseHTTPRequestHandler):
             }
 
         self._send(200, json.dumps({
-            "outreach_prompts":  normalized,
-            "outreach_source":   "gemini",
-            "outreach_error":    None,
+            "outreach_prompts":   normalized,
+            "outreach_source":    "gemini",
+            "outreach_error":     None,
             "objection_handlers": [],
         }, ensure_ascii=False).encode("utf-8"))

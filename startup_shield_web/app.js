@@ -3435,7 +3435,17 @@ async function loadPricingPanel(profile, lob) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(inputs),
     });
-    const data = await res.json();
+    const raw = await res.text();
+    let data = {};
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch (_parseErr) {
+      const compact = String(raw || "").replace(/\s+/g, " ").trim();
+      const detail = compact
+        ? compact.slice(0, 220)
+        : `Non-JSON response from pricing endpoint (${res.status})`;
+      throw new Error(detail);
+    }
     if (!res.ok || data.error) throw new Error(data.error || "Pricing failed");
     renderPricingCalculator(panel, data.quote, data.loadings_catalog, profile, lob);
   } catch (err) {

@@ -8,7 +8,13 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from pricing.model import load_params, quote  # noqa: E402
+_import_error = None
+try:
+    from pricing.model import load_params, quote  # noqa: E402
+except Exception as _exc:
+    _import_error = f"{type(_exc).__name__}: {_exc}"
+    load_params = None
+    quote = None
 
 
 def _to_json(obj):
@@ -22,6 +28,9 @@ def _to_json(obj):
 
 
 def make_pricing_response(body):
+    if quote is None or load_params is None:
+        raise RuntimeError(f"Pricing backend import failed: {_import_error}")
+
     q = quote(
         revenue_current_inr=float(body["revenue_current_inr"]),
         revenue_projected_inr=float(body.get("revenue_projected_inr", float(body["revenue_current_inr"]) * 1.5)),
@@ -73,6 +82,14 @@ class handler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
+
+    def do_GET(self):
+        self._send_json(200, {
+            "ok": quote is not None and load_params is not None,
+            "endpoint": "/api/pricing",
+            "import_error": _import_error,
+            "message": "Use POST with a pricing payload JSON body.",
+        })
 
     def do_POST(self):
         try:

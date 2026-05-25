@@ -55,8 +55,15 @@
       "src": "api/pricing.py",
       "use": "@vercel/python",
       "config": {
-        "includeFiles": ["**/*.py", "pricing/parameters.yaml"],
+        "includeFiles": ["**/*.py", "pricing/parameters.yaml", "api/requirements.txt"],
         "maxDuration": 30
+      }
+    },
+    {
+      "src": "api/outreach.py",
+      "use": "@vercel/python",
+      "config": {
+        "includeFiles": ["**/*.py", "**/*.json"]
       }
     },
     {
@@ -104,6 +111,10 @@
     {
       "src": "/api/pricing",
       "dest": "/api/pricing.py"
+    },
+    {
+      "src": "/api/outreach",
+      "dest": "/api/outreach.py"
     },
     {
       "src": "/app.js",

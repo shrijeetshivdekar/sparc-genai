@@ -52,6 +52,14 @@
       }
     },
     {
+      "src": "api/pricing.py",
+      "use": "@vercel/python",
+      "config": {
+        "includeFiles": ["**/*.py", "pricing/parameters.yaml"],
+        "maxDuration": 30
+      }
+    },
+    {
       "src": "startup_shield_web/index.html",
       "use": "@vercel/static"
     },
@@ -92,6 +100,10 @@
     {
       "src": "/api/pipeline(.*)",
       "dest": "/api/pipeline.py"
+    },
+    {
+      "src": "/api/pricing",
+      "dest": "/api/pricing.py"
     },
     {
       "src": "/app.js",

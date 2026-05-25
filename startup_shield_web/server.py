@@ -54,6 +54,7 @@ from competitor_catalog_expanded import get_top5_global  # noqa: E402
 from policy_wording import compare_policy_wording  # noqa: E402
 from premium_estimator import PREMIUM_FOOTNOTE, estimate_premium, get_size_bucket  # noqa: E402
 from pricing_engine import price_output_stage  # noqa: E402
+from api.pricing import make_pricing_response  # noqa: E402
 from risk_appetite import get_appetite, get_bad_reason  # noqa: E402
 from weightage_rationale import MULTIPLIER_RATIONALE, get_score_rationale  # noqa: E402
 
@@ -3950,7 +3951,7 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self):
-        if self.path not in ("/api/analyze", "/api/policy/compare", "/api/autofill", "/api/outreach"):
+        if self.path not in ("/api/analyze", "/api/policy/compare", "/api/autofill", "/api/outreach", "/api/pricing"):
             self.send_json(404, {"error": "Not found"})
             return
         try:
@@ -3959,6 +3960,8 @@ class Handler(SimpleHTTPRequestHandler):
             if self.path == "/api/policy/compare":
                 result = analyze_policy_wording(payload)
                 self.send_json(200 if result.get("ok") else 400, result)
+            elif self.path == "/api/pricing":
+                self.send_json(200, make_pricing_response(payload))
             elif self.path == "/api/autofill":
                 company_name = (payload.get("company_name") or "").strip()
                 if not company_name:

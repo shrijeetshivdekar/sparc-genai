@@ -1451,6 +1451,34 @@ function renderRoleSelection() {
 let _signalRadarData = null;
 let _signalRadarFilter = "";
 
+function renderSignalRadarLoader() {
+  return `
+    <div class="signal-loader pipeline-loading" role="status" aria-live="polite">
+      <div class="signal-loader-radar" aria-hidden="true">
+        <span class="sl-ring sl-ring-1"></span>
+        <span class="sl-ring sl-ring-2"></span>
+        <span class="sl-ring sl-ring-3"></span>
+        <span class="sl-sweep"></span>
+        <span class="sl-core"></span>
+        <span class="sl-ping sl-ping-1"></span>
+        <span class="sl-ping sl-ping-2"></span>
+        <span class="sl-ping sl-ping-3"></span>
+      </div>
+      <div class="signal-loader-copy">
+        <div class="sl-kicker">Live public-source scan</div>
+        <div class="sl-title">Loading public trigger signals</div>
+        <div class="sl-subtitle">Reading startup news, extracting company names, classifying insurable pivots, and mapping each signal to SPARC bundles.</div>
+        <div class="sl-pipeline" aria-hidden="true">
+          <span style="--i:0">RSS ingest</span>
+          <span style="--i:1">Company filter</span>
+          <span style="--i:2">Risk trigger</span>
+          <span style="--i:3">Bundle match</span>
+          <span style="--i:4">RM task</span>
+        </div>
+      </div>
+    </div>`;
+}
+
 async function renderSignalRadarDashboard(filter = _signalRadarFilter, forceRefresh = false) {
   state.view = "signals";
   if (!_navCalledByHistory) { _navHistory = _navHistory.slice(0, _navPos + 1); _navHistory.push({ fn: renderSignalRadarDashboard, args: [filter, false], view: "signals" }); _navPos = _navHistory.length - 1; setTimeout(_updateNavButtons, 0); }
@@ -1466,7 +1494,7 @@ async function renderSignalRadarDashboard(filter = _signalRadarFilter, forceRefr
           <h1>Startup triggers converted into RM approach tasks.</h1>
           <p>Public news signals are classified into SPARC profile deltas, bundle fit, premium range, contact-source status, and a human-reviewed next action.</p>
         </section>
-        <div class="pipeline-loading">Loading public trigger signals&hellip;</div>
+        ${renderSignalRadarLoader()}
       </div>
     </main>`;
   $("signal-back").onclick = () => renderRoleSelection();
@@ -3290,6 +3318,325 @@ function setupScrollReveal() {
   document.querySelectorAll(".cs-card, .product-card, .product-row").forEach(el => observer.observe(el));
 }
 
+function profileToPricingInputs(profile, lob, sumInsuredInr) {
+  const p = profile || {};
+  const stageMap = {
+    "Pre-seed": "preseed",
+    "Seed": "seed",
+    "Series A": "seriesA",
+    "Series B": "seriesB",
+    "Series B+": "seriesC+",
+    "Series C": "seriesC+",
+    "Series D+": "seriesC+",
+    "Growth": "seriesC+",
+    "Pre-IPO": "pre_ipo",
+    "Late Stage / Pre-IPO": "pre_ipo",
+  };
+  const nicMap = {
+    "SaaS / Enterprise Software": "6201",
+    "Fintech": "6499",
+    "Healthtech": "8610",
+    "Edtech": "8550",
+    "Logistics / Mobility": "4941",
+    "Logistics / Supply Chain": "4941",
+    "E-commerce / D2C": "4791",
+    "D2C / Consumer Brands": "4791",
+    "Agritech": "0111",
+    "Agritech / Foodtech": "0111",
+    "Climate / Energy": "3510",
+    "Cleantech / Climatetech": "3510",
+    "Cybersecurity": "6201",
+    "AI / ML": "6201",
+    "Deeptech / AI / Robotics": "6201",
+    "Media / Content": "5911",
+    "Gaming / Media / Content": "9200",
+    "Gaming": "9200",
+    "Real Estate / Proptech": "6810",
+    "Proptech": "6810",
+    "Travel / Hospitality": "5510",
+    "Manufacturing": "2599",
+  };
+  const cityStateMap = {
+    "Bengaluru": "Karnataka",
+    "Bangalore": "Karnataka",
+    "Mumbai": "Maharashtra",
+    "Pune": "Maharashtra",
+    "Delhi": "Delhi",
+    "Gurugram": "Haryana",
+    "Gurgaon": "Haryana",
+    "Noida": "Uttar Pradesh",
+    "Hyderabad": "Telangana",
+    "Chennai": "Tamil Nadu",
+    "Kolkata": "West Bengal",
+    "Ahmedabad": "Gujarat",
+  };
+  const revenue = Number(p.annual_revenue_cr || 0) * 1e7;
+  const loadings = {};
+  if (p.dpiit_recognised || p.dpiit_recognition) loadings.dpiit_recognised = 1;
+  if (p.cert_in_poc_designated) loadings.cert_in_poc_designated = 1;
+  if (p.dpdp_dpo_appointed || p.sdf_likely) loadings.dpdp_dpo_appointed = 1;
+  return {
+    revenue_current_inr: Math.max(revenue || 0, 4000000),
+    revenue_projected_inr: Math.max((revenue || 0) * 1.4, 6000000),
+    nic_code: nicMap[p.sector] || "6201",
+    stage: stageMap[p.funding_stage] || "seed",
+    state: cityStateMap[p.hq_city] || p.state || "Karnataka",
+    headcount: Number(p.team_size || 50),
+    years_since_incorporation: Number(p.years_since_incorporation || 3),
+    cin: p.cin || "U99999MH2020PTC000000",
+    dpiit_recognised: Boolean(p.dpiit_recognised || p.dpiit_recognition),
+    line_of_business: lob,
+    sum_insured_inr: sumInsuredInr,
+    deductible_inr: sumInsuredInr >= 1e8 ? 500000 : 100000,
+    prior_claims: 0,
+    loadings,
+  };
+}
+
+function renderEstimateQuoteButton(profile) {
+  const name = profile?.startup_name || "this profile";
+  return `
+    <div class="estimate-quote-strip">
+      <div>
+        <div class="eq-label">Premium Triage</div>
+        <div class="eq-title">Estimate quote for ${esc(name)}</div>
+        <div class="eq-hint">Formula-chain calculator with editable public-source factors.</div>
+      </div>
+      <div class="eq-lob-chips" id="eq-lob-chips">
+        ${["DO", "Cyber", "PI", "CGL", "Property", "GH"].map(lob =>
+          `<button class="eq-lob-chip" type="button" data-lob="${lob}">${lob}</button>`
+        ).join("")}
+      </div>
+    </div>
+    <div id="pricing-panel" class="pricing-panel hidden"></div>`;
+}
+
+function bindEstimateQuotePanel(profile) {
+  const chips = document.querySelectorAll("#eq-lob-chips .eq-lob-chip");
+  chips.forEach(btn => {
+    btn.addEventListener("click", () => {
+      chips.forEach(c => c.classList.remove("active"));
+      btn.classList.add("active");
+      loadPricingPanel(profile || window.__result?.profile || state.profile, btn.dataset.lob);
+    });
+  });
+}
+
+async function loadPricingPanel(profile, lob) {
+  const panel = $("pricing-panel");
+  if (!panel) return;
+  panel.innerHTML = '<div class="pricing-loading">Calculating indicative range...</div>';
+  panel.classList.remove("hidden");
+  const defaultSI = { DO: 5e7, Cyber: 5e7, PI: 2e7, CGL: 5e7, Property: 5e7, GH: 1e7 };
+  const inputs = profileToPricingInputs(profile, lob, defaultSI[lob] || 5e7);
+  try {
+    const res = await fetch("/api/pricing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(inputs),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || "Pricing failed");
+    renderPricingCalculator(panel, data.quote, data.loadings_catalog, profile, lob);
+  } catch (err) {
+    panel.innerHTML = `<div class="pricing-error">Pricing error: ${esc(err.message)}</div>`;
+  }
+}
+
+function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
+  const EXP_MULTI = 1 / (1 - 0.18 - 0.125 - 0.04 - 0.08);
+  const BAND = 0.30;
+  const CLAMP = 0.25;
+  const ratingOverrides = {};
+  const catalogOverrides = {};
+  const activeLoadings = new Set((Q.active_loadings || []).map(x => x.id));
+
+  const money = (n) => "Rs. " + Math.round(Number(n) || 0).toLocaleString("en-IN");
+  const compactMoney = (n) => {
+    const v = Number(n) || 0;
+    if (v >= 1e7) return "Rs. " + (v / 1e7).toFixed(2) + " Cr";
+    if (v >= 1e5) return "Rs. " + (v / 1e5).toFixed(2) + " L";
+    return money(v);
+  };
+  const pctText = (v) => (v >= 0 ? "+" : "") + (v * 100).toFixed(1) + "%";
+  const labelStep = (step) => String(step || "").replace(/^\d+[a-z]?\.\s*[×x+÷-]?\s*/i, "").trim();
+  const sourceLink = (entry) => entry?.source_url
+    ? `<a href="${esc(entry.source_url)}" target="_blank" rel="noopener">${esc(entry.source_citation || "-")}</a>`
+    : esc(entry?.source_citation || "-");
+  const catalogValue = (id) => Number(catalogOverrides[id] ?? CATALOG[id]?.value ?? 0);
+
+  function recalc() {
+    const trace = Q.factor_trace || [];
+    const baseStep = trace.find(s => String(s.step).startsWith("1."));
+    const pureStep = trace.find(s => String(s.step).startsWith("2."));
+    const baseRaw = Number(baseStep?.raw_value || 0);
+    const baseVal = Number(ratingOverrides[baseStep?.step] ?? baseRaw);
+    let tech = Number(pureStep?.raw_value || 0);
+    if (baseRaw > 0 && baseVal > 0) tech *= baseVal / baseRaw;
+    trace.filter(s => /^[34]/.test(String(s.step))).forEach(s => {
+      tech *= Number(ratingOverrides[s.step] ?? s.raw_value ?? 1);
+    });
+    let net = 0;
+    activeLoadings.forEach(id => {
+      if (CATALOG[id]) net += catalogValue(id);
+    });
+    const clamped = Math.abs(net) > CLAMP;
+    net = Math.max(-CLAMP, Math.min(CLAMP, net));
+    const loaded = tech * (1 + net);
+    const gross = loaded * EXP_MULTI;
+    const gstAmt = gross * 0.18;
+    const mid = gross + gstAmt + Number(Q.stamp_duty_inr || 0);
+    return { tech, net, loaded, gross, gstAmt, mid, low: mid * (1 - BAND), high: mid * (1 + BAND), clamped };
+  }
+
+  function valueCell(kind, key, value, display, isPct = false) {
+    const overridden = kind === "factor" ? Object.prototype.hasOwnProperty.call(ratingOverrides, key) : Object.prototype.hasOwnProperty.call(catalogOverrides, key);
+    return `<button class="pc-val editable${overridden ? " overridden" : ""}" type="button" data-kind="${kind}" data-key="${esc(key)}" data-pct="${isPct ? "1" : "0"}" data-value="${esc(String(value))}">
+      ${overridden ? '<span class="override-dot"></span>' : ""}<span class="val-text">${esc(display)}</span><span class="edit-pencil">edit</span>${overridden ? '<span class="reset-x" data-reset="1">x</span>' : ""}
+    </button>`;
+  }
+
+  function renderRows() {
+    const trace = Q.factor_trace || [];
+    const ratingRows = trace.filter(s => parseInt(s.step, 10) <= 4).map(s => {
+      const n = parseInt(s.step, 10);
+      const editable = n === 1 || n === 3 || n === 4;
+      const raw = Number(ratingOverrides[s.step] ?? s.raw_value);
+      const display = n === 1 ? money(raw) : n === 2 ? s.value : raw.toFixed(3);
+      return `<div class="pc-row${n === 2 ? " sub" : ""}">
+        <div class="pc-op">${n === 1 ? "" : n === 2 ? "=" : "x"}</div>
+        <div class="pc-label">${esc(labelStep(s.step))}${s.is_placeholder ? '<span class="ph-tag">PH</span>' : ""}<span class="pc-sub">${esc((s.notes || "").slice(0, 110))}</span></div>
+        ${editable ? valueCell("factor", s.step, raw, display, false) : `<div class="pc-val${n === 2 ? " bold" : ""}"><span class="val-text">${esc(display)}</span></div>`}
+        <div class="pc-src">${sourceLink(s)}</div>
+        <div class="pc-conf"><span class="pc-conf-dot pc-conf-${esc(s.is_placeholder ? "PLACEHOLDER" : (s.confidence || "medium"))}"></span></div>
+      </div>`;
+    }).join("");
+    const expenseRows = trace.filter(s => [6, 7].includes(parseInt(s.step, 10))).map(s => `
+      <div class="pc-row">
+        <div class="pc-op">${String(s.step).startsWith("6.") ? "÷" : "+"}</div>
+        <div class="pc-label">${esc(labelStep(s.step))}</div>
+        <div class="pc-val"><span class="val-text">${esc(s.value)}</span></div>
+        <div class="pc-src">${sourceLink(s)}</div>
+        <div class="pc-conf"><span class="pc-conf-dot pc-conf-${esc(s.confidence || "medium")}"></span></div>
+      </div>`).join("");
+    const activeRows = Array.from(activeLoadings).map(id => {
+      const item = CATALOG[id];
+      if (!item) return "";
+      const v = catalogValue(id);
+      return `<div class="pc-loading-row">
+        <div><strong>${esc(labelize(id))}</strong><span>${esc((item.source?.citation || "").slice(0, 95))}</span></div>
+        ${valueCell("loading", id, v, pctText(v), true)}
+        <button class="pc-mini-btn" type="button" data-remove-loading="${esc(id)}">x</button>
+      </div>`;
+    }).join("") || `<div class="pc-empty">No adjustments applied.</div>`;
+    const catalogRows = Object.entries(CATALOG || {}).map(([id, item]) => {
+      const ok = (item.applies_to || []).includes(LOB);
+      const on = activeLoadings.has(id);
+      const v = catalogValue(id);
+      return `<div class="pc-catalog-row${ok ? "" : " muted"}">
+        <div><strong>${esc(labelize(id))}</strong><span>${esc((item.applies_to || []).join(", "))}${ok ? "" : " | N/A for " + LOB}</span></div>
+        ${valueCell("loading", id, v, pctText(v), true)}
+        <button class="pc-mini-btn" type="button" data-toggle-loading="${esc(id)}" ${ok ? "" : "disabled"}>${on ? "-" : "+"}</button>
+      </div>`;
+    }).join("");
+    return { ratingRows, expenseRows, activeRows, catalogRows };
+  }
+
+  function render() {
+    const rows = renderRows();
+    const c = recalc();
+    container.innerHTML = `
+      <div class="pc-shell">
+        <div class="pc-topline">
+          <div><div class="eq-label">Premium Triage</div><h3>${esc(LOB)} formula-chain quote</h3><p>${esc(profile?.startup_name || "Startup")} | NIC ${esc(Q.inputs_echo?.nic_code || "")} | ${esc(Q.inputs_echo?.stage || "")} | ${esc(Q.inputs_echo?.state || "")}</p></div>
+          <button class="pc-reset-all" type="button" id="pc-reset-all">Reset all edits</button>
+        </div>
+        <div class="pc-layout">
+          <div class="pc-left">
+            <div class="pc-section-eyebrow">Rating Factors</div>
+            <div class="pc-factor-table">${rows.ratingRows}<div class="pc-row sub"><div class="pc-op">=</div><div class="pc-label">Technical premium<span class="pc-sub">Before adjustments and expense loading</span></div><div class="pc-val bold"><span class="val-text">${money(c.tech)}</span></div><div class="pc-src">derived</div><div class="pc-conf"></div></div></div>
+            <div class="pc-section-eyebrow">Active Adjustments</div>
+            <div class="pc-loadings-card"><div class="pc-loadings-head"><span>Loadings and discounts</span><span class="pc-net-badge ${c.net < 0 ? "pc-net-neg" : c.net > 0 ? "pc-net-pos" : "pc-net-zero"}">${pctText(c.net)}</span></div><div class="pc-loadings-list">${rows.activeRows}</div><div class="pc-clamp ${c.clamped ? "on" : ""}">Net adjustment clamped to +/-25%</div></div>
+            <details class="pc-loadings-card"><summary class="pc-catalog-summary">Add from catalog</summary><div class="pc-catalog-list">${rows.catalogRows}</div></details>
+            <div class="pc-section-eyebrow">Expense and Tax</div>
+            <div class="pc-factor-table">${rows.expenseRows}</div>
+          </div>
+          <aside class="pc-right">
+            <div class="pcard">
+              <div class="pc-range-head"><div class="pc-range-eyebrow">Indicative range (+/-30%)</div><div class="pc-range-row"><span class="pc-range-amt">${compactMoney(c.low)}</span><span class="pc-range-dash">to</span><span class="pc-range-amt">${compactMoney(c.high)}</span></div><div class="pc-range-mid">Mid: <span>${money(c.mid)}</span></div></div>
+              <div class="pc-breakdown">
+                <div><span>Technical premium</span><strong>${money(c.tech)}</strong></div>
+                <div><span>Net adjustment ${pctText(c.net)}</span><strong class="${c.net < 0 ? "grn" : c.net > 0 ? "red" : ""}">${money(c.loaded - c.tech)}</strong></div>
+                <div><span>Loaded premium</span><strong>${money(c.loaded)}</strong></div>
+                <div><span>Expense multiplier</span><strong>x ${EXP_MULTI.toFixed(3)}</strong></div>
+                <div><span>Gross premium</span><strong>${money(c.gross)}</strong></div>
+                <div><span>GST @ 18%</span><strong>${money(c.gstAmt)}</strong></div>
+                <div><span>Stamp duty</span><strong>${money(Q.stamp_duty_inr)}</strong></div>
+                <div class="total"><span>Mid-point incl. GST</span><strong>${money(c.mid)}</strong></div>
+              </div>
+              <div class="pc-kpi-strip"><span>${((c.mid / Number(Q.inputs_echo?.revenue_current_inr || 1)) * 10000).toFixed(1)} bps revenue</span><span>DQ ${Number(Q.data_quality_score || 0).toFixed(2)}</span><span>${esc(Q.decision || "indicative_quote")}</span></div>
+            </div>
+            <div class="pc-disclaimer">Indicative only under IRDAI File-and-Use detariffed regime. Not a bindable quote.</div>
+            <details class="pc-sources"><summary>Sources cited</summary>${(Q.sources_cited || []).map(s => `<div class="pc-source-row"><span>${esc(s.code)}</span><a href="${esc(s.url || "#")}" target="_blank" rel="noopener">${esc(s.citation || "")}</a></div>`).join("")}</details>
+          </aside>
+        </div>
+      </div>`;
+    bind();
+  }
+
+  function startEdit(btn, clickEvent) {
+    if (clickEvent?.target?.dataset?.reset) {
+      if (btn.dataset.kind === "factor") delete ratingOverrides[btn.dataset.key];
+      if (btn.dataset.kind === "loading") delete catalogOverrides[btn.dataset.key];
+      render();
+      return;
+    }
+    const isPct = btn.dataset.pct === "1";
+    const input = document.createElement("input");
+    input.className = "pc-inline-input";
+    input.type = "number";
+    input.step = isPct ? "0.5" : "0.01";
+    input.value = isPct ? (Number(btn.dataset.value) * 100).toFixed(2) : String(Number(btn.dataset.value));
+    btn.replaceWith(input);
+    input.focus();
+    input.select();
+    const save = () => {
+      const n = Number(input.value);
+      if (Number.isFinite(n)) {
+        if (btn.dataset.kind === "factor") ratingOverrides[btn.dataset.key] = n;
+        if (btn.dataset.kind === "loading") catalogOverrides[btn.dataset.key] = isPct ? n / 100 : n;
+      }
+      render();
+    };
+    input.addEventListener("blur", save, { once: true });
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter") input.blur();
+      if (e.key === "Escape") render();
+    });
+  }
+
+  function bind() {
+    container.querySelectorAll(".pc-val.editable").forEach(btn => btn.addEventListener("click", e => startEdit(btn, e)));
+    container.querySelectorAll("[data-toggle-loading]").forEach(btn => btn.addEventListener("click", () => {
+      const id = btn.dataset.toggleLoading;
+      activeLoadings.has(id) ? activeLoadings.delete(id) : activeLoadings.add(id);
+      render();
+    }));
+    container.querySelectorAll("[data-remove-loading]").forEach(btn => btn.addEventListener("click", () => {
+      activeLoadings.delete(btn.dataset.removeLoading);
+      render();
+    }));
+    const reset = $("pc-reset-all");
+    if (reset) reset.addEventListener("click", () => {
+      Object.keys(ratingOverrides).forEach(k => delete ratingOverrides[k]);
+      Object.keys(catalogOverrides).forEach(k => delete catalogOverrides[k]);
+      render();
+    });
+  }
+
+  render();
+}
+
 function renderResults(result) {
   result = normalizeGroupSafeguardCompanion(result);
   if (!_navCalledByHistory) { const _r = result; _navHistory = _navHistory.slice(0, _navPos + 1); _navHistory.push({ fn: renderResults, args: [_r], view: "results" }); _navPos = _navHistory.length - 1; setTimeout(_updateNavButtons, 0); }
@@ -3507,6 +3854,8 @@ function renderResults(result) {
         ${renderPolicyWordingComparison(result)}
       </div>
 
+      ${renderEstimateQuoteButton(result.profile)}
+
     </div>`;
 
   // Store result globally for download
@@ -3522,6 +3871,7 @@ function renderResults(result) {
   // Bind refine
   bindRefine();
   bindPolicyWordingUpload();
+  bindEstimateQuotePanel(result.profile);
 
   // Bind outreach buttons (fallback already rendered)
   const outreachDynEl = document.getElementById("outreach-dynamic");

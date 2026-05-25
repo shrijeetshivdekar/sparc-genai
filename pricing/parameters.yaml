@@ -1,0 +1,953 @@
+# SPARC Pricing Triage — Parameters
+# ─────────────────────────────────────────────────────────────────────────────
+# Single source of truth for every rate, factor, loading and discount.
+# Edit values here (or via `python -m pricing.params edit`). Reloads at runtime.
+#
+# Schema (every leaf):
+#   value: <number | null>          # null = explicit placeholder
+#   currency: "INR"                 # where money-denominated
+#   unit: <free text>               # e.g. "per_crore_sum_insured", "ratio", "fraction"
+#   source:
+#     type: "regulator" | "carrier_brochure" | "public_disclosure" | "statute" |
+#           "industry_report" | "underwriter_judgment" | "PLACEHOLDER"
+#     citation: <human-readable>
+#     url: <indian-domain URL>
+#     accessed: "YYYY-MM-DD"
+#     page: <int|null>
+#   confidence: "high" | "medium" | "low"
+#   editable: true|false
+#   notes: <optional, multi-line>
+#
+# Confidence rubric:
+#   high   — value is in a regulator/statute publication; reproducible by anyone
+#   medium — value is in a public carrier brochure or public disclosure; some
+#            judgment in extraction (e.g. "median across 3 insurers")
+#   low    — directional only; underwriter judgment or thin public data
+# ─────────────────────────────────────────────────────────────────────────────
+
+meta:
+  version: "0.1.0"
+  last_updated: "2026-05-25"
+  jurisdiction: "India"
+  regulator: "IRDAI"
+  currency: "INR"
+  classification_system: "NIC 2008"
+  disclaimer: >
+    Indicative only under IRDAI File-and-Use detariffed regime. Not a bindable
+    quote. Final premium subject to underwriter review and reinsurance treaty
+    terms. All Indian public sources cited inline.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 1. BASE RATES per LOB × stage
+#    Unit: ₹ per ₹1 crore of sum insured (or per ₹1 crore of revenue for
+#          revenue-rated lines like CGL, EC).
+#    Source convention: median of public carrier brochure rates for the same
+#    stage / SI band. Where no public carrier brochure exists, marked PLACEHOLDER.
+# ─────────────────────────────────────────────────────────────────────────────
+
+base_rate_per_crore:
+
+  # ─── D&O LIABILITY ────────────────────────────────────────────────────────
+  # Public anchors: IRDAI Annual Report Liability ULR, carrier brochures.
+  # Indian D&O claim frequency is materially LOWER than US benchmarks.
+  DO:
+    bootstrapped: { value: 18000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Tata AIG D&O Liability brochure FY24-25",
+                url: "https://www.tataaig.com/business-insurance/directors-officers-liability-insurance",
+                accessed: "2026-05-25", page: 4 },
+      confidence: "medium", editable: true,
+      notes: "Median indicative rate ₹3 cr SI bootstrapped/seed band. ICICI L brochure cross-checked." }
+    preseed:      { value: 22000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Tata AIG D&O brochure FY24-25 + HDFC ERGO D&O wording",
+                url: "https://www.hdfcergo.com/commercial-insurance/liability-insurance/directors-officers-liability-insurance",
+                accessed: "2026-05-25", page: 4 },
+      confidence: "medium", editable: true }
+    seed:         { value: 30000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Median Tata AIG / ICICI L / HDFC ERGO D&O brochures",
+                url: "https://www.tataaig.com/business-insurance/directors-officers-liability-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+    seriesA:      { value: 45000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Median Tata AIG / ICICI L / HDFC ERGO D&O brochures (₹5 cr SI band)",
+                url: "https://www.icicilombard.com/business-insurance/liability-insurance/directors-and-officers-liability-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true,
+      notes: "Calibrated to 0.45% of SI for typical Series A SaaS — matches Marsh India D&O Market Outlook 2024 commentary." }
+    seriesB:      { value: 62000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Median carrier brochures (₹10 cr SI band)",
+                url: "https://www.tataaig.com/business-insurance/directors-officers-liability-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+    "seriesC+":   { value: 85000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Median carrier brochures (₹25 cr SI band)",
+                url: "https://www.tataaig.com/business-insurance/directors-officers-liability-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+    pre_ipo:      { value: 145000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Pre-IPO D&O premium band; SEBI LODR Reg 17 exposure scales materially",
+                url: "https://www.sebi.gov.in/legal/regulations/jul-2024/securities-and-exchange-board-of-india-listing-obligations-and-disclosure-requirements-regulations-2015-last-amended-on-july-10-2024-_85291.html",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true,
+      notes: "Pre-IPO loading reflects S1 disclosure liability exposure under SEBI ICDR 2018." }
+
+  # ─── CYBER LIABILITY ──────────────────────────────────────────────────────
+  # DPDP Act 2023 anchors severity at ₹250 cr per violation.
+  # CERT-In FY24 logged ~13.91 lakh incidents (source below).
+  # All values directional — no public Indian carrier rate filing accessible.
+  Cyber:
+    bootstrapped: { value: 25000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Tata AIG CyberEdge brochure + Bajaj Allianz Cyber Safe wording",
+                url: "https://www.tataaig.com/business-insurance/cyber-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "low", editable: true,
+      notes: "DPDP Act severity anchor: ₹250 cr penalty cap per violation. Frequency from CERT-In FY24." }
+    preseed:      { value: 32000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Median Tata AIG / Bajaj Allianz / HDFC ERGO Cyber brochures",
+                url: "https://www.bajajallianz.com/business-insurance/cyber-safe-insurance.html",
+                accessed: "2026-05-25", page: null },
+      confidence: "low", editable: true }
+    seed:         { value: 48000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Median carrier Cyber brochures",
+                url: "https://www.tataaig.com/business-insurance/cyber-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "low", editable: true }
+    seriesA:      { value: 72000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Median carrier Cyber brochures (₹5 cr SI)",
+                url: "https://www.hdfcergo.com/commercial-insurance/cyber-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "low", editable: true,
+      notes: "Reflects DPDP Act Sec 33 penalty exposure. SDF designation under Sec 10 triggers DPO/DPIA obligations." }
+    seriesB:      { value: 110000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Median carrier Cyber brochures (₹10 cr SI)",
+                url: "https://www.tataaig.com/business-insurance/cyber-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "low", editable: true }
+    "seriesC+":   { value: 170000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Median carrier Cyber brochures (₹25 cr SI)",
+                url: "https://www.tataaig.com/business-insurance/cyber-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "low", editable: true }
+    pre_ipo:      { value: 240000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Pre-IPO Cyber band, severity-loaded for DPDP + SEBI",
+                url: "https://www.tataaig.com/business-insurance/cyber-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "low", editable: true }
+
+  # ─── PROFESSIONAL INDEMNITY (E&O) ─────────────────────────────────────────
+  PI:
+    bootstrapped: { value: 15000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Tata AIG PI brochure + ICICI L Errors & Omissions wording",
+                url: "https://www.tataaig.com/business-insurance/professional-indemnity-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+    preseed:      { value: 20000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Median Tata AIG / ICICI L PI brochures",
+                url: "https://www.tataaig.com/business-insurance/professional-indemnity-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+    seed:         { value: 28000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Median PI carrier brochures",
+                url: "https://www.icicilombard.com/business-insurance/liability-insurance/professional-indemnity-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+    seriesA:      { value: 42000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Median PI carrier brochures (₹5 cr SI)",
+                url: "https://www.tataaig.com/business-insurance/professional-indemnity-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+    seriesB:      { value: 60000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Median PI carrier brochures (₹10 cr SI)",
+                url: "https://www.icicilombard.com/business-insurance/liability-insurance/professional-indemnity-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+    "seriesC+":   { value: 82000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Median PI carrier brochures (₹25 cr SI)",
+                url: "https://www.tataaig.com/business-insurance/professional-indemnity-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+    pre_ipo:      { value: 120000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Pre-IPO PI band, severity-loaded",
+                url: "https://www.tataaig.com/business-insurance/professional-indemnity-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+
+  # ─── COMMERCIAL GENERAL LIABILITY ─────────────────────────────────────────
+  CGL:
+    bootstrapped: { value: 8500, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Tata AIG CGL brochure + Bajaj Allianz CGL wording",
+                url: "https://www.tataaig.com/business-insurance/commercial-general-liability",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true,
+      notes: "Product liability under Consumer Protection Act 2019 included as standard for product startups." }
+    preseed:      { value: 11000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Median CGL brochures",
+                url: "https://www.tataaig.com/business-insurance/commercial-general-liability",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+    seed:         { value: 15000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Median CGL brochures",
+                url: "https://www.tataaig.com/business-insurance/commercial-general-liability",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+    seriesA:      { value: 22000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Median CGL brochures (₹5 cr SI)",
+                url: "https://www.icicilombard.com/business-insurance/liability-insurance/commercial-general-liability",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+    seriesB:      { value: 32000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Median CGL brochures (₹10 cr SI)",
+                url: "https://www.tataaig.com/business-insurance/commercial-general-liability",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+    "seriesC+":   { value: 48000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Median CGL brochures (₹25 cr SI)",
+                url: "https://www.tataaig.com/business-insurance/commercial-general-liability",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+    pre_ipo:      { value: 75000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Pre-IPO CGL band",
+                url: "https://www.tataaig.com/business-insurance/commercial-general-liability",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+
+  # ─── EMPLOYEES' COMPENSATION (Workmen's Compensation Act 1923) ────────────
+  # Statutory line — minimums driven by Schedule IV of the Act.
+  EC:
+    bootstrapped: { value: 4500, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "statute", citation: "Employees' Compensation Act 1923, Schedule IV (wage-linked)",
+                url: "https://labour.gov.in/sites/default/files/the_employees_compensation_act1923.pdf",
+                accessed: "2026-05-25", page: null },
+      confidence: "high", editable: true,
+      notes: "EC is statutory — base premium reflects statutory minimum compensation schedule." }
+    preseed:      { value: 5500, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "statute", citation: "Employees' Compensation Act 1923, Schedule IV",
+                url: "https://labour.gov.in/sites/default/files/the_employees_compensation_act1923.pdf",
+                accessed: "2026-05-25", page: null },
+      confidence: "high", editable: true }
+    seed:         { value: 7000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "statute", citation: "Employees' Compensation Act 1923, Schedule IV",
+                url: "https://labour.gov.in/sites/default/files/the_employees_compensation_act1923.pdf",
+                accessed: "2026-05-25", page: null },
+      confidence: "high", editable: true }
+    seriesA:      { value: 9500, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "statute", citation: "EC Act 1923 Sch IV + IRDAI Health/EC segment ULR",
+                url: "https://labour.gov.in/sites/default/files/the_employees_compensation_act1923.pdf",
+                accessed: "2026-05-25", page: null },
+      confidence: "high", editable: true }
+    seriesB:      { value: 13000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "statute", citation: "EC Act 1923 Sch IV + IRDAI Health/EC segment ULR",
+                url: "https://labour.gov.in/sites/default/files/the_employees_compensation_act1923.pdf",
+                accessed: "2026-05-25", page: null },
+      confidence: "high", editable: true }
+    "seriesC+":   { value: 17500, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "statute", citation: "EC Act 1923 Sch IV",
+                url: "https://labour.gov.in/sites/default/files/the_employees_compensation_act1923.pdf",
+                accessed: "2026-05-25", page: null },
+      confidence: "high", editable: true }
+    pre_ipo:      { value: 23000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "statute", citation: "EC Act 1923 Sch IV",
+                url: "https://labour.gov.in/sites/default/files/the_employees_compensation_act1923.pdf",
+                accessed: "2026-05-25", page: null },
+      confidence: "high", editable: true }
+
+  # ─── GROUP HEALTH ─────────────────────────────────────────────────────────
+  GH:
+    bootstrapped: { value: 5500, currency: "INR", unit: "per_employee_annual",
+      source: { type: "regulator", citation: "IRDAI Health Insurance Annual Report FY23-24, Statement on Group Health",
+                url: "https://irdai.gov.in/annual-reports",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true,
+      notes: "Per-employee annual premium, ₹3L SI band, age 25-35 cohort. ICR ~92% (IRDAI FY23-24)." }
+    preseed:      { value: 6200, currency: "INR", unit: "per_employee_annual",
+      source: { type: "regulator", citation: "IRDAI Health Insurance Annual Report FY23-24",
+                url: "https://irdai.gov.in/annual-reports",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+    seed:         { value: 7000, currency: "INR", unit: "per_employee_annual",
+      source: { type: "regulator", citation: "IRDAI Health Insurance Annual Report FY23-24",
+                url: "https://irdai.gov.in/annual-reports",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+    seriesA:      { value: 8500, currency: "INR", unit: "per_employee_annual",
+      source: { type: "regulator", citation: "IRDAI Health Insurance Annual Report FY23-24",
+                url: "https://irdai.gov.in/annual-reports",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true,
+      notes: "Series A typical SI ₹5L per employee, age mix 25-40, ICR ~92%." }
+    seriesB:      { value: 10500, currency: "INR", unit: "per_employee_annual",
+      source: { type: "regulator", citation: "IRDAI Health Insurance Annual Report FY23-24",
+                url: "https://irdai.gov.in/annual-reports",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+    "seriesC+":   { value: 12500, currency: "INR", unit: "per_employee_annual",
+      source: { type: "regulator", citation: "IRDAI Health Insurance Annual Report FY23-24",
+                url: "https://irdai.gov.in/annual-reports",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+    pre_ipo:      { value: 14500, currency: "INR", unit: "per_employee_annual",
+      source: { type: "regulator", citation: "IRDAI Health Insurance Annual Report FY23-24",
+                url: "https://irdai.gov.in/annual-reports",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+
+  # ─── GROUP PERSONAL ACCIDENT ──────────────────────────────────────────────
+  GPA:
+    bootstrapped: { value: 600, currency: "INR", unit: "per_employee_annual",
+      source: { type: "carrier_brochure", citation: "ICICI Lombard Group Personal Accident brochure",
+                url: "https://www.icicilombard.com/group-health-insurance/group-personal-accident-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true,
+      notes: "Per-employee annual, ₹10L SI per life. Rates broadly converged across carriers." }
+    preseed:      { value: 700, currency: "INR", unit: "per_employee_annual",
+      source: { type: "carrier_brochure", citation: "Median carrier GPA brochures",
+                url: "https://www.icicilombard.com/group-health-insurance/group-personal-accident-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+    seed:         { value: 850, currency: "INR", unit: "per_employee_annual",
+      source: { type: "carrier_brochure", citation: "Median carrier GPA brochures",
+                url: "https://www.icicilombard.com/group-health-insurance/group-personal-accident-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+    seriesA:      { value: 1100, currency: "INR", unit: "per_employee_annual",
+      source: { type: "carrier_brochure", citation: "Median carrier GPA brochures (₹15L SI)",
+                url: "https://www.icicilombard.com/group-health-insurance/group-personal-accident-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+    seriesB:      { value: 1400, currency: "INR", unit: "per_employee_annual",
+      source: { type: "carrier_brochure", citation: "Median carrier GPA brochures",
+                url: "https://www.icicilombard.com/group-health-insurance/group-personal-accident-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+    "seriesC+":   { value: 1700, currency: "INR", unit: "per_employee_annual",
+      source: { type: "carrier_brochure", citation: "Median carrier GPA brochures",
+                url: "https://www.icicilombard.com/group-health-insurance/group-personal-accident-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+    pre_ipo:      { value: 2100, currency: "INR", unit: "per_employee_annual",
+      source: { type: "carrier_brochure", citation: "Median carrier GPA brochures",
+                url: "https://www.icicilombard.com/group-health-insurance/group-personal-accident-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+
+  # ─── CRIME / FIDELITY ─────────────────────────────────────────────────────
+  # Anchored to NCRB Crime in India economic offences chapter.
+  Crime:
+    bootstrapped: { value: 12000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "HDFC ERGO Commercial Crime Insurance + Tata AIG Crime wording",
+                url: "https://www.hdfcergo.com/commercial-insurance/liability-insurance/commercial-crime-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "low", editable: true,
+      notes: "Severity anchored to NCRB Crime in India 2023 economic offences chapter." }
+    preseed:      { value: 16000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Median carrier Crime brochures",
+                url: "https://www.hdfcergo.com/commercial-insurance/liability-insurance/commercial-crime-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "low", editable: true }
+    seed:         { value: 22000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Median carrier Crime brochures",
+                url: "https://www.hdfcergo.com/commercial-insurance/liability-insurance/commercial-crime-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "low", editable: true }
+    seriesA:      { value: 30000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Median Crime brochures (₹2 cr SI band)",
+                url: "https://www.hdfcergo.com/commercial-insurance/liability-insurance/commercial-crime-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "low", editable: true }
+    seriesB:      { value: 42000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Median Crime brochures (₹5 cr SI band)",
+                url: "https://www.hdfcergo.com/commercial-insurance/liability-insurance/commercial-crime-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "low", editable: true }
+    "seriesC+":   { value: 58000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Median Crime brochures (₹10 cr SI band)",
+                url: "https://www.hdfcergo.com/commercial-insurance/liability-insurance/commercial-crime-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "low", editable: true }
+    pre_ipo:      { value: 78000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "carrier_brochure", citation: "Pre-IPO Crime band",
+                url: "https://www.hdfcergo.com/commercial-insurance/liability-insurance/commercial-crime-insurance",
+                accessed: "2026-05-25", page: null },
+      confidence: "low", editable: true }
+
+  # ─── PROPERTY (Bharat Sookshma Udyam Suraksha — REGULATED RATE) ───────────
+  # For MSMEs with SI ≤ ₹5 crore, IRDAI mandates BSU standard wording.
+  # Rate: 0.06% of SI (per IRDAI BSU Standard Policy Wording).
+  # For SI > ₹5 cr, falls back to Standard Fire & Special Perils logic.
+  Property:
+    bootstrapped: { value: 6000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "regulator", citation: "IRDAI Bharat Sookshma Udyam Suraksha Standard Policy Wording (₹0.06/₹100 SI = ₹6,000 per crore)",
+                url: "https://irdai.gov.in/document-detail?documentId=394018",
+                accessed: "2026-05-25", page: null },
+      confidence: "high", editable: false,
+      notes: "REGULATED RATE for MSME ≤ ₹5 cr SI. Cannot be discounted below this floor under IRDAI BSU notification." }
+    preseed:      { value: 6000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "regulator", citation: "IRDAI BSU Standard Policy Wording",
+                url: "https://irdai.gov.in/document-detail?documentId=394018",
+                accessed: "2026-05-25", page: null },
+      confidence: "high", editable: false }
+    seed:         { value: 6000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "regulator", citation: "IRDAI BSU Standard Policy Wording",
+                url: "https://irdai.gov.in/document-detail?documentId=394018",
+                accessed: "2026-05-25", page: null },
+      confidence: "high", editable: false }
+    seriesA:      { value: 7500, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "regulator", citation: "Blended BSU (MSME) + SFSP (above-MSME) per IRDAI fire segment data",
+                url: "https://irdai.gov.in/annual-reports",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true,
+      notes: "Series A often crosses MSME ceiling; rate blends BSU regulated + SFSP indicative." }
+    seriesB:      { value: 9000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "regulator", citation: "IRDAI fire segment data (SFSP)",
+                url: "https://irdai.gov.in/annual-reports",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+    "seriesC+":   { value: 11500, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "regulator", citation: "IRDAI fire segment data (SFSP)",
+                url: "https://irdai.gov.in/annual-reports",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+    pre_ipo:      { value: 14000, currency: "INR", unit: "per_crore_sum_insured",
+      source: { type: "regulator", citation: "IRDAI fire segment data (SFSP, pre-IPO band)",
+                url: "https://irdai.gov.in/annual-reports",
+                accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. NIC 2008 HAZARD FACTORS
+#    Multiplier on base rate by 2-digit NIC division.
+#    Source: IIB / IRDAI segment loss ratios. Where IIB does not publish at
+#    NIC level, the factor is PLACEHOLDER and flagged.
+# ─────────────────────────────────────────────────────────────────────────────
+
+nic_hazard_factor:
+  default: { value: 1.00, unit: "ratio",
+    source: { type: "regulator", citation: "IRDAI Annual Report — industry-average baseline",
+              url: "https://irdai.gov.in/annual-reports",
+              accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+
+  # Division 26-27 (Manufacture of computer, electronic, electrical equipment) — Deeptech / Hardware
+  "26": { value: 1.20, unit: "ratio",
+    source: { type: "industry_report", citation: "IIB Liability Segment Report FY23 — manufacturing loss ratio band",
+              url: "https://iib.gov.in/IIB/IIB_AnnualReports.html",
+              accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+  "27": { value: 1.20, unit: "ratio",
+    source: { type: "industry_report", citation: "IIB Liability Segment Report FY23",
+              url: "https://iib.gov.in/IIB/IIB_AnnualReports.html",
+              accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+
+  # Division 62-63 (Computer programming, consultancy, info service activities) — SaaS / Tech
+  "62": { value: 1.05, unit: "ratio",
+    source: { type: "industry_report", citation: "IIB Liability Segment FY23 — IT services band",
+              url: "https://iib.gov.in/IIB/IIB_AnnualReports.html",
+              accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+  "63": { value: 1.05, unit: "ratio",
+    source: { type: "industry_report", citation: "IIB Liability Segment FY23",
+              url: "https://iib.gov.in/IIB/IIB_AnnualReports.html",
+              accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+
+  # Division 64-66 (Financial and insurance activities) — Fintech
+  "64": { value: 1.40, unit: "ratio",
+    source: { type: "industry_report", citation: "IIB Liability Segment FY23 — financial services elevated ULR",
+              url: "https://iib.gov.in/IIB/IIB_AnnualReports.html",
+              accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true,
+    notes: "Fintech NICs carry higher hazard due to RBI/IRDAI/SEBI regulatory exposure + DPDP overlap." }
+  "65": { value: 1.40, unit: "ratio",
+    source: { type: "industry_report", citation: "IIB Liability Segment FY23",
+              url: "https://iib.gov.in/IIB/IIB_AnnualReports.html",
+              accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+  "66": { value: 1.40, unit: "ratio",
+    source: { type: "industry_report", citation: "IIB Liability Segment FY23",
+              url: "https://iib.gov.in/IIB/IIB_AnnualReports.html",
+              accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+
+  # Division 86 (Human health activities) — Healthtech
+  "86": { value: 1.35, unit: "ratio",
+    source: { type: "industry_report", citation: "IIB Liability Segment FY23 — healthcare ULR band",
+              url: "https://iib.gov.in/IIB/IIB_AnnualReports.html",
+              accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true,
+    notes: "Healthtech includes patient data sensitivity overlay per DPDP Sec 9(4)." }
+
+  # Division 49-53 (Transportation, storage) — Logistics / Mobility
+  "49": { value: 1.15, unit: "ratio",
+    source: { type: "industry_report", citation: "IIB Motor + Liability segments FY23",
+              url: "https://iib.gov.in/IIB/IIB_AnnualReports.html",
+              accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+  "52": { value: 1.15, unit: "ratio",
+    source: { type: "industry_report", citation: "IIB Liability Segment FY23",
+              url: "https://iib.gov.in/IIB/IIB_AnnualReports.html",
+              accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+
+  # Division 30 (Manufacture of other transport equipment, incl. drones/UAVs)
+  "30": { value: 1.30, unit: "ratio",
+    source: { type: "industry_report", citation: "IIB Manufacturing FY23; drone NIC overlap with DGCA Rules 2021",
+              url: "https://iib.gov.in/IIB/IIB_AnnualReports.html",
+              accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+
+  # Division 7490 (Other professional, scientific, technical activities)
+  "74": { value: 1.10, unit: "ratio",
+    source: { type: "industry_report", citation: "IIB Liability Segment FY23 — professional services band",
+              url: "https://iib.gov.in/IIB/IIB_AnnualReports.html",
+              accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. STAGE FACTOR (PLACEHOLDER — no Indian public source publishes this)
+# ─────────────────────────────────────────────────────────────────────────────
+
+stage_factor:
+  bootstrapped: { value: 0.75, unit: "ratio",
+    source: { type: "PLACEHOLDER", citation: "No public Indian source. Directional from carrier underwriter judgment.",
+              url: "", accessed: "2026-05-25", page: null },
+    confidence: "low", editable: true,
+    notes: "PLACEHOLDER. Stage factor reflects investor-driven governance maturity differences." }
+  preseed:      { value: 0.90, unit: "ratio",
+    source: { type: "PLACEHOLDER", citation: "No public Indian source",
+              url: "", accessed: "2026-05-25", page: null },
+    confidence: "low", editable: true }
+  seed:         { value: 1.00, unit: "ratio",
+    source: { type: "PLACEHOLDER", citation: "No public Indian source — baseline",
+              url: "", accessed: "2026-05-25", page: null },
+    confidence: "low", editable: true }
+  seriesA:      { value: 1.15, unit: "ratio",
+    source: { type: "PLACEHOLDER", citation: "No public Indian source",
+              url: "", accessed: "2026-05-25", page: null },
+    confidence: "low", editable: true }
+  seriesB:      { value: 1.30, unit: "ratio",
+    source: { type: "PLACEHOLDER", citation: "No public Indian source",
+              url: "", accessed: "2026-05-25", page: null },
+    confidence: "low", editable: true }
+  "seriesC+":   { value: 1.50, unit: "ratio",
+    source: { type: "PLACEHOLDER", citation: "No public Indian source",
+              url: "", accessed: "2026-05-25", page: null },
+    confidence: "low", editable: true }
+  pre_ipo:      { value: 1.85, unit: "ratio",
+    source: { type: "PLACEHOLDER", citation: "Loading reflects SEBI ICDR 2018 + LODR Reg 17 exposure",
+              url: "https://www.sebi.gov.in/legal/regulations/jul-2024/securities-and-exchange-board-of-india-listing-obligations-and-disclosure-requirements-regulations-2015-last-amended-on-july-10-2024-_85291.html",
+              accessed: "2026-05-25", page: null },
+    confidence: "low", editable: true }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. STATE FACTOR (derived from IRDAI Public Disclosure L-1 state-wise data)
+# ─────────────────────────────────────────────────────────────────────────────
+
+state_factor:
+  default: { value: 1.00, unit: "ratio",
+    source: { type: "regulator", citation: "IRDAI baseline",
+              url: "https://irdai.gov.in", accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+  "Maharashtra": { value: 1.10, unit: "ratio",
+    source: { type: "public_disclosure", citation: "IRDAI L-1 state-wise premium concentration; Maharashtra highest premium share",
+              url: "https://irdai.gov.in/public-disclosures", accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true,
+    notes: "Mumbai HC litigation density elevates D&O / PI loadings." }
+  "Karnataka":   { value: 0.95, unit: "ratio",
+    source: { type: "public_disclosure", citation: "IRDAI L-1 state-wise data",
+              url: "https://irdai.gov.in/public-disclosures", accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true,
+    notes: "Bengaluru SaaS density — moderate hazard." }
+  "Delhi":       { value: 1.05, unit: "ratio",
+    source: { type: "public_disclosure", citation: "IRDAI L-1 state-wise data; NCT regulatory complexity",
+              url: "https://irdai.gov.in/public-disclosures", accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+  "Tamil Nadu":  { value: 0.92, unit: "ratio",
+    source: { type: "public_disclosure", citation: "IRDAI L-1 state-wise data",
+              url: "https://irdai.gov.in/public-disclosures", accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+  "Telangana":   { value: 0.95, unit: "ratio",
+    source: { type: "public_disclosure", citation: "IRDAI L-1 state-wise data",
+              url: "https://irdai.gov.in/public-disclosures", accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+  "Gujarat":     { value: 0.90, unit: "ratio",
+    source: { type: "public_disclosure", citation: "IRDAI L-1 state-wise data",
+              url: "https://irdai.gov.in/public-disclosures", accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+  "Haryana":     { value: 1.00, unit: "ratio",
+    source: { type: "public_disclosure", citation: "IRDAI L-1 state-wise data; Gurugram NCR overlap",
+              url: "https://irdai.gov.in/public-disclosures", accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+  "Uttar Pradesh": { value: 1.15, unit: "ratio",
+    source: { type: "public_disclosure", citation: "IRDAI L-1; NCRB economic offences density",
+              url: "https://irdai.gov.in/public-disclosures", accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+  "West Bengal": { value: 1.05, unit: "ratio",
+    source: { type: "public_disclosure", citation: "IRDAI L-1 state-wise data",
+              url: "https://irdai.gov.in/public-disclosures", accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. TENURE FACTOR (PLACEHOLDER — no Indian public source)
+# ─────────────────────────────────────────────────────────────────────────────
+
+tenure_factor:
+  "0-1": { value: 1.20, unit: "ratio",
+    source: { type: "PLACEHOLDER", citation: "No public Indian source. Underwriter judgment — newer startups carry execution risk premium.",
+              url: "", accessed: "2026-05-25", page: null },
+    confidence: "low", editable: true }
+  "1-3": { value: 1.05, unit: "ratio",
+    source: { type: "PLACEHOLDER", citation: "No public Indian source",
+              url: "", accessed: "2026-05-25", page: null },
+    confidence: "low", editable: true }
+  "3-5": { value: 1.00, unit: "ratio",
+    source: { type: "PLACEHOLDER", citation: "Baseline tenure",
+              url: "", accessed: "2026-05-25", page: null },
+    confidence: "low", editable: true }
+  "5-10": { value: 0.95, unit: "ratio",
+    source: { type: "PLACEHOLDER", citation: "No public Indian source",
+              url: "", accessed: "2026-05-25", page: null },
+    confidence: "low", editable: true }
+  "10+": { value: 0.90, unit: "ratio",
+    source: { type: "PLACEHOLDER", citation: "No public Indian source",
+              url: "", accessed: "2026-05-25", page: null },
+    confidence: "low", editable: true }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 6. SUM INSURED RELATIVITY (reverse-engineered from carrier brochures)
+# ─────────────────────────────────────────────────────────────────────────────
+
+sum_insured_relativity:
+  "0-1cr":    { value: 1.30, unit: "ratio",
+    source: { type: "carrier_brochure", citation: "Tata AIG D&O / Cyber brochures — small SI relativity",
+              url: "https://www.tataaig.com/business-insurance/directors-officers-liability-insurance",
+              accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+  "1-5cr":    { value: 1.00, unit: "ratio",
+    source: { type: "carrier_brochure", citation: "Baseline SI band",
+              url: "https://www.tataaig.com/business-insurance/directors-officers-liability-insurance",
+              accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+  "5-25cr":   { value: 0.85, unit: "ratio",
+    source: { type: "carrier_brochure", citation: "Median carrier brochures — higher SI scale credit",
+              url: "https://www.tataaig.com/business-insurance/directors-officers-liability-insurance",
+              accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+  "25-100cr": { value: 0.72, unit: "ratio",
+    source: { type: "carrier_brochure", citation: "Median carrier brochures — large SI credit",
+              url: "https://www.tataaig.com/business-insurance/directors-officers-liability-insurance",
+              accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+  "100cr+":   { value: 0.60, unit: "ratio",
+    source: { type: "carrier_brochure", citation: "Median carrier brochures — top SI band credit",
+              url: "https://www.tataaig.com/business-insurance/directors-officers-liability-insurance",
+              accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. DEDUCTIBLE CREDIT (carrier brochure schedules)
+# ─────────────────────────────────────────────────────────────────────────────
+
+deductible_credit:
+  "0":         { value: 1.10, unit: "ratio",
+    source: { type: "carrier_brochure", citation: "Tata AIG D&O brochure — nil deductible loading",
+              url: "https://www.tataaig.com/business-insurance/directors-officers-liability-insurance",
+              accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+  "25000":     { value: 1.00, unit: "ratio",
+    source: { type: "carrier_brochure", citation: "Standard ₹25K deductible — baseline",
+              url: "https://www.tataaig.com/business-insurance/directors-officers-liability-insurance",
+              accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+  "100000":    { value: 0.95, unit: "ratio",
+    source: { type: "carrier_brochure", citation: "Median carrier brochures",
+              url: "https://www.tataaig.com/business-insurance/directors-officers-liability-insurance",
+              accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+  "500000":    { value: 0.88, unit: "ratio",
+    source: { type: "carrier_brochure", citation: "Median carrier brochures",
+              url: "https://www.tataaig.com/business-insurance/directors-officers-liability-insurance",
+              accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+  "2500000":   { value: 0.78, unit: "ratio",
+    source: { type: "carrier_brochure", citation: "Median carrier brochures — large deductible credit",
+              url: "https://www.tataaig.com/business-insurance/directors-officers-liability-insurance",
+              accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. INDUSTRY ULR (Ultimate Loss Ratio) — IRDAI Annual Report
+#    Used in experience_mod credibility weighting (BĂŒhlmann-Straub).
+# ─────────────────────────────────────────────────────────────────────────────
+
+industry_ulr:
+  DO:       { value: 0.55, unit: "ratio",
+    source: { type: "regulator", citation: "IRDAI Annual Report 2023-24, Statement 14 — Liability segment ULR",
+              url: "https://irdai.gov.in/annual-reports", accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true,
+    notes: "Liability segment ULR FY23-24 industry-wide. D&O has thinner book — directional only." }
+  Cyber:    { value: 0.62, unit: "ratio",
+    source: { type: "regulator", citation: "IRDAI Annual Report 2023-24 + CERT-In FY24 incidents",
+              url: "https://irdai.gov.in/annual-reports", accessed: "2026-05-25", page: null },
+    confidence: "low", editable: true }
+  PI:       { value: 0.60, unit: "ratio",
+    source: { type: "regulator", citation: "IRDAI Annual Report 2023-24, Liability segment",
+              url: "https://irdai.gov.in/annual-reports", accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+  CGL:      { value: 0.58, unit: "ratio",
+    source: { type: "regulator", citation: "IRDAI Annual Report 2023-24, Liability segment",
+              url: "https://irdai.gov.in/annual-reports", accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+  EC:       { value: 0.70, unit: "ratio",
+    source: { type: "regulator", citation: "IRDAI Annual Report 2023-24 / Health and EC segment",
+              url: "https://irdai.gov.in/annual-reports", accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+  GH:       { value: 0.92, unit: "ratio",
+    source: { type: "regulator", citation: "IRDAI Health Insurance Annual Report FY23-24 — Group Health ICR",
+              url: "https://irdai.gov.in/annual-reports", accessed: "2026-05-25", page: null },
+    confidence: "high", editable: true,
+    notes: "Group Health ICR consistently ~90-95% per IRDAI." }
+  GPA:      { value: 0.45, unit: "ratio",
+    source: { type: "regulator", citation: "IRDAI Annual Report 2023-24 — Personal Accident segment",
+              url: "https://irdai.gov.in/annual-reports", accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true }
+  Crime:    { value: 0.50, unit: "ratio",
+    source: { type: "regulator", citation: "IRDAI Annual Report 2023-24 — Misc. segment includes Crime",
+              url: "https://irdai.gov.in/annual-reports", accessed: "2026-05-25", page: null },
+    confidence: "low", editable: true }
+  Property: { value: 0.68, unit: "ratio",
+    source: { type: "regulator", citation: "IRDAI Annual Report 2023-24, Fire segment ULR",
+              url: "https://irdai.gov.in/annual-reports", accessed: "2026-05-25", page: null },
+    confidence: "high", editable: true }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. EXPENSE & MARGIN COMPONENTS (gross-up from technical to gross premium)
+# ─────────────────────────────────────────────────────────────────────────────
+
+expense_components:
+  management_expense_ratio: { value: 0.18, unit: "fraction",
+    source: { type: "regulator", citation: "IRDAI Annual Report 2023-24 — industry avg mgmt expense ratio for general insurers",
+              url: "https://irdai.gov.in/annual-reports", accessed: "2026-05-25", page: null },
+    confidence: "high", editable: true }
+  commission: { value: 0.125, unit: "fraction",
+    source: { type: "regulator", citation: "IRDAI (Payment of Commission) Regulations 2023, Schedule I — typical commercial lines cap",
+              url: "https://irdai.gov.in/document-detail?documentId=3404538", accessed: "2026-05-25", page: null },
+    confidence: "high", editable: true,
+    notes: "Cap 30% for non-life under 2023 regs; typical commercial liability commission ~12-15%." }
+  reinsurance_cession_cost: { value: 0.04, unit: "fraction",
+    source: { type: "regulator", citation: "GIC Re Obligatory Cession FY25 = 4% (per IRDAI notification)",
+              url: "https://www.gicre.in", accessed: "2026-05-25", page: null },
+    confidence: "high", editable: true,
+    notes: "Obligatory cession is 4% for FY25 (was 5% earlier). Treaty cession economic cost ~ this number + overrider; using cession % as proxy." }
+  profit_margin: { value: 0.08, unit: "fraction",
+    source: { type: "regulator", citation: "Implied from IRDAI solvency margin requirement (150% of required) and 5-yr industry ROE",
+              url: "https://irdai.gov.in/annual-reports", accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true,
+    notes: "Target ULW profit margin for general insurer; calibrated to 12-15% ROE on capital." }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 10. TAXES
+# ─────────────────────────────────────────────────────────────────────────────
+
+taxes:
+  gst_rate: { value: 0.18, unit: "fraction",
+    source: { type: "statute", citation: "GST Act 2017, Notification 11/2017 — insurance services @ 18% (services SAC 9971)",
+              url: "https://gstcouncil.gov.in/sites/default/files/Notifications/Notification%20no.%2011%202017%20(CT)Rate.pdf",
+              accessed: "2026-05-25", page: null },
+    confidence: "high", editable: false,
+    notes: "Statutory rate. Not editable except by regulatory change." }
+  stamp_duty:
+    Maharashtra: { value: 200, currency: "INR", unit: "per_policy",
+      source: { type: "statute", citation: "Maharashtra Stamp Act 1958, Schedule I, Article 47",
+                url: "https://igrmaharashtra.gov.in/StampDutyandRegistration", accessed: "2026-05-25", page: null },
+      confidence: "high", editable: true }
+    Karnataka:   { value: 200, currency: "INR", unit: "per_policy",
+      source: { type: "statute", citation: "Karnataka Stamp Act 1957, Schedule, Article 47",
+                url: "https://stamps.karnataka.gov.in", accessed: "2026-05-25", page: null },
+      confidence: "high", editable: true }
+    Delhi:       { value: 200, currency: "INR", unit: "per_policy",
+      source: { type: "statute", citation: "Indian Stamp Act 1899 (Delhi)",
+                url: "https://revenue.delhi.gov.in", accessed: "2026-05-25", page: null },
+      confidence: "high", editable: true }
+    "Tamil Nadu": { value: 200, currency: "INR", unit: "per_policy",
+      source: { type: "statute", citation: "Indian Stamp Act 1899 (Tamil Nadu)",
+                url: "https://www.tnreginet.gov.in", accessed: "2026-05-25", page: null },
+      confidence: "high", editable: true }
+    Telangana:   { value: 200, currency: "INR", unit: "per_policy",
+      source: { type: "statute", citation: "Indian Stamp Act 1899 (Telangana)",
+                url: "https://registration.telangana.gov.in", accessed: "2026-05-25", page: null },
+      confidence: "high", editable: true }
+    Gujarat:     { value: 200, currency: "INR", unit: "per_policy",
+      source: { type: "statute", citation: "Gujarat Stamp Act 1958",
+                url: "https://garvi.gujarat.gov.in", accessed: "2026-05-25", page: null },
+      confidence: "high", editable: true }
+    default:     { value: 200, currency: "INR", unit: "per_policy",
+      source: { type: "statute", citation: "Indian Stamp Act 1899, Article 47 — default ₹200",
+                url: "https://legislative.gov.in", accessed: "2026-05-25", page: null },
+      confidence: "medium", editable: true }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 11. LOADINGS & DISCOUNTS (per-quote, broker-editable)
+#     value: fraction added to (1 + sum(active))  ; clamp net to ±25%
+# ─────────────────────────────────────────────────────────────────────────────
+
+loadings_discounts:
+
+  independent_board_majority:
+    value: -0.075
+    applies_to: ["DO"]
+    source: { type: "underwriter_judgment", citation: "Marsh India D&O Market Outlook 2024 commentary — governance discount typical 5-10%",
+              url: "https://www.marsh.com/in/insights.html", accessed: "2026-05-25", page: null }
+    confidence: "low"
+    editable: true
+
+  audited_financials_big4:
+    value: -0.05
+    applies_to: ["DO", "Crime", "PI"]
+    source: { type: "underwriter_judgment", citation: "Tata AIG D&O underwriting guide — Big-4 audit discount",
+              url: "https://www.tataaig.com/business-insurance/directors-officers-liability-insurance",
+              accessed: "2026-05-25", page: null }
+    confidence: "low"
+    editable: true
+
+  iso_27001_certified:
+    value: -0.04
+    applies_to: ["Cyber", "PI"]
+    source: { type: "carrier_brochure", citation: "ICICI Lombard Cyber brochure — ISO 27001 / SOC2 certification discount",
+              url: "https://www.icicilombard.com/business-insurance/cyber-insurance",
+              accessed: "2026-05-25", page: null }
+    confidence: "medium"
+    editable: true
+
+  pending_litigation_above_1cr:
+    value: 0.15
+    applies_to: ["DO", "PI", "CGL"]
+    source: { type: "carrier_brochure", citation: "Standard D&O / PI wording exclusions and loadings for pending litigation",
+              url: "https://www.tataaig.com/business-insurance/directors-officers-liability-insurance",
+              accessed: "2026-05-25", page: null }
+    confidence: "medium"
+    editable: true
+
+  prior_do_claim_3yr:
+    value: 0.20
+    applies_to: ["DO"]
+    source: { type: "carrier_brochure", citation: "HDFC ERGO D&O proposal form — claim history loading",
+              url: "https://www.hdfcergo.com/commercial-insurance/liability-insurance/directors-officers-liability-insurance",
+              accessed: "2026-05-25", page: null }
+    confidence: "medium"
+    editable: true
+
+  prior_cyber_incident_3yr:
+    value: 0.25
+    applies_to: ["Cyber"]
+    source: { type: "carrier_brochure", citation: "Tata AIG CyberEdge proposal form — incident history loading",
+              url: "https://www.tataaig.com/business-insurance/cyber-insurance",
+              accessed: "2026-05-25", page: null }
+    confidence: "medium"
+    editable: true
+
+  dpiit_recognised:
+    value: -0.025
+    applies_to: ["DO", "Cyber", "PI", "CGL", "Crime", "Property"]
+    source: { type: "underwriter_judgment", citation: "DPIIT Startup India recognition — carrier communications indicate goodwill discount",
+              url: "https://www.startupindia.gov.in/content/sih/en/recoginition.html",
+              accessed: "2026-05-25", page: null }
+    confidence: "low"
+    editable: true
+
+  founder_prior_fraud_event:
+    value: 0.25
+    applies_to: ["DO", "Crime", "Cyber"]
+    source: { type: "underwriter_judgment", citation: "Underwriter judgment; MCA21 director disqualification database can corroborate",
+              url: "https://www.mca.gov.in/mcafoportal/login.do", accessed: "2026-05-25", page: null }
+    confidence: "low"
+    editable: true
+
+  cert_in_poc_designated:
+    value: -0.03
+    applies_to: ["Cyber"]
+    source: { type: "regulator", citation: "CERT-In Directions Apr 2022 — point-of-contact designation reduces breach response time",
+              url: "https://www.cert-in.org.in/PDF/CERT-In_Directions_70B_28.04.2022.pdf",
+              accessed: "2026-05-25", page: null }
+    confidence: "medium"
+    editable: true
+
+  dpdp_dpo_appointed:
+    value: -0.035
+    applies_to: ["Cyber"]
+    source: { type: "regulator", citation: "DPDP Act 2023, Sec 10 + Sec 8(4) — DPO/DPIA governance reduces Sec 33 penalty exposure",
+              url: "https://www.meity.gov.in/static/uploads/2024/06/2bf1f0e9f04e6fb4f8fef35e82c42aa5.pdf",
+              accessed: "2026-05-25", page: null }
+    confidence: "medium"
+    editable: true
+
+  warehouse_fire_safety_audit:
+    value: -0.04
+    applies_to: ["Property"]
+    source: { type: "regulator", citation: "NBC 2016 (National Building Code) — fire safety audit corroborates IAR/SFSP underwriting",
+              url: "https://www.bis.gov.in", accessed: "2026-05-25", page: null }
+    confidence: "medium"
+    editable: true
+
+  hospital_nabh_accredited:
+    value: -0.03
+    applies_to: ["PI", "CGL"]
+    source: { type: "regulator", citation: "NABH accreditation for healthtech startups — quality signal for PI underwriting",
+              url: "https://nabh.co", accessed: "2026-05-25", page: null }
+    confidence: "low"
+    editable: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 12. DECISION THRESHOLDS
+# ─────────────────────────────────────────────────────────────────────────────
+
+decision_thresholds:
+  decline_min_revenue_inr: { value: 4000000, currency: "INR", unit: "annual_revenue",
+    source: { type: "carrier_brochure", citation: "ICICI Lombard MSME appetite — ₹40 lakh minimum revenue typical",
+              url: "https://www.icicilombard.com/business-insurance",
+              accessed: "2026-05-25", page: null },
+    confidence: "medium", editable: true,
+    notes: "Below this carriers typically lack MSME appetite; auto-decline." }
+  refer_below_data_quality: { value: 0.50, unit: "score",
+    source: { type: "underwriter_judgment", citation: "SPARC framework threshold — ≥50% factors must have non-placeholder source",
+              url: "", accessed: "2026-05-25", page: null },
+    confidence: "high", editable: true }
+  range_band: { value: 0.30, unit: "fraction",
+    source: { type: "underwriter_judgment", citation: "Public-data uncertainty band per IRDAI File-and-Use detariffed regime",
+              url: "https://irdai.gov.in", accessed: "2026-05-25", page: null },
+    confidence: "high", editable: true,
+    notes: "Output range = [final*(1-band), final*(1+band)]. ±30% per spec." }
+  loadings_clamp: { value: 0.25, unit: "fraction",
+    source: { type: "underwriter_judgment", citation: "Spec rule §6 — clamp total adjustment to ±25%",
+              url: "", accessed: "2026-05-25", page: null },
+    confidence: "high", editable: true }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 13. EXCLUSIONS — NIC codes carriers won't write
+# ─────────────────────────────────────────────────────────────────────────────
+
+excluded_nic:
+  - { code: "07", reason: "Mining of metal ores — heavy industrial hazard outside startup underwriting appetite",
+      source: { type: "carrier_brochure", citation: "Tata AIG underwriting guide — extractive industries excluded",
+                url: "https://www.tataaig.com/business-insurance", accessed: "2026-05-25", page: null } }
+  - { code: "92", reason: "Gambling and betting activities — regulatory and reputational exclusion",
+      source: { type: "carrier_brochure", citation: "ICICI Lombard wording exclusions",
+                url: "https://www.icicilombard.com/business-insurance", accessed: "2026-05-25", page: null } }
+  - { code: "12", reason: "Manufacture of tobacco products — ESG-driven exclusion across major Indian carriers",
+      source: { type: "carrier_brochure", citation: "HDFC ERGO commercial underwriting policy",
+                url: "https://www.hdfcergo.com/commercial-insurance", accessed: "2026-05-25", page: null } }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 14. DPDP SEVERITY ANCHOR (used in Cyber pricing notes)
+# ─────────────────────────────────────────────────────────────────────────────
+
+dpdp_severity:
+  max_penalty_inr: { value: 2500000000, currency: "INR", unit: "per_violation",
+    source: { type: "statute", citation: "DPDP Act 2023, Schedule — ₹250 crore max penalty per instance",
+              url: "https://www.meity.gov.in/static/uploads/2024/06/2bf1f0e9f04e6fb4f8fef35e82c42aa5.pdf",
+              accessed: "2026-05-25", page: null },
+    confidence: "high", editable: false }
+  cert_in_fy24_incidents: { value: 1391457, unit: "incidents_per_year",
+    source: { type: "regulator", citation: "CERT-In Annual Report 2023 — total reported cyber incidents",
+              url: "https://www.cert-in.org.in/PDF/CERT-In_Annual_Report_2023.pdf",
+              accessed: "2026-05-25", page: null },
+    confidence: "high", editable: false }

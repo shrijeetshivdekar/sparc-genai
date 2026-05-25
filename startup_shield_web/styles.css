@@ -2425,6 +2425,34 @@ button, input, select, textarea { font: inherit; }
   line-height: 1.5;
 }
 
+.hero-financials {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+.hero-fin-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 14px;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 8px;
+}
+.hero-fin-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.45);
+}
+.hero-fin-value {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
 .hero-actions {
   display: flex;
   gap: 10px;
@@ -4561,34 +4589,42 @@ pre {
 
 /* Outreach AI loader */
 .outreach-ai-loader {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 14px;
-  margin-bottom: 12px;
+  padding: 14px 18px;
+  border-radius: 10px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 12px;
-  color: var(--ink-muted);
+  margin-bottom: 16px;
 }
-.outreach-ai-loader-text {
-  margin-left: 2px;
+.oal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.oal-label {
+  font-size: 12px;
   font-weight: 600;
+  color: var(--ink-muted);
   letter-spacing: 0.01em;
 }
-.outreach-ai-loader-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--red);
-  animation: outreach-pulse 1.2s ease-in-out infinite;
+.oal-pct {
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--red);
 }
-.outreach-ai-loader-dot:nth-child(2) { animation-delay: 0.2s; }
-.outreach-ai-loader-dot:nth-child(3) { animation-delay: 0.4s; }
-@keyframes outreach-pulse {
-  0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
-  40%            { opacity: 1;   transform: scale(1);   }
+.oal-track {
+  height: 4px;
+  background: var(--border);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.oal-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--red);
+  border-radius: 99px;
+  transition: width 0.2s ease-out;
 }
 
 /* Outreach */

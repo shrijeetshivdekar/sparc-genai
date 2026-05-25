@@ -3393,8 +3393,58 @@ function profileToPricingInputs(profile, lob, sumInsuredInr) {
   };
 }
 
-function renderEstimateQuoteButton(profile) {
+// Map product recommendation keys → pricing LOB id + display label
+const _PRODUCT_KEY_TO_LOB = {
+  D_AND_O:                    ["DO",       "D&O"],
+  DNO_LIABILITY:              ["DO",       "D&O"],
+  CYBER:                      ["Cyber",    "Cyber"],
+  CYBER_LIABILITY:            ["Cyber",    "Cyber"],
+  PI:                         ["PI",       "PI"],
+  PI_TECH_EO:                 ["PI",       "PI / Tech E&O"],
+  CGL:                        ["CGL",      "CGL"],
+  COMMERCIAL_GENERAL_LIABILITY:["CGL",     "CGL"],
+  PUBLIC_LIABILITY:           ["CGL",      "Public Liability"],
+  PRODUCT_LIABILITY:          ["CGL",      "Product Liability"],
+  FIRE_AND_PROPERTY:          ["Property", "Fire & Property"],
+  GROUP_HEALTH:               ["GH",       "Group Health"],
+  EMPLOYEE_HEALTH:            ["GH",       "Group Health"],
+  GROUP_PA:                   ["GPA",      "Group PA"],
+  GPA:                        ["GPA",      "Group PA"],
+  EMPLOYEES_COMP:             ["EC",       "Emp. Comp."],
+  WORKMEN_COMPENSATION:       ["EC",       "Emp. Comp."],
+  CRIME_FIDELITY:             ["Crime",    "Crime"],
+};
+
+function _lobsFromResult(result) {
+  const bundle = result.bundle_match || {};
+  const allKeys = [
+    ...(bundle.mandatory_covers || []),
+    ...(bundle.optional_covers || []),
+    ...(bundle.companion_bundle?.mandatory_covers || []),
+    ...(bundle.companion_bundle?.optional_covers || []),
+    ...(result.recommendations || []).map(r => typeof r === "string" ? r : r.key).filter(Boolean),
+  ];
+  const seen = new Set();
+  const chips = [];
+  for (const key of allKeys) {
+    const entry = _PRODUCT_KEY_TO_LOB[key] || _PRODUCT_KEY_TO_LOB[(key || "").toUpperCase()];
+    if (!entry) continue;
+    const [lob, label] = entry;
+    if (!seen.has(lob)) {
+      seen.add(lob);
+      chips.push([lob, label]);
+    }
+  }
+  return chips;
+}
+
+function renderEstimateQuoteButton(result) {
+  const profile = result.profile || result; // accept both result obj and bare profile
   const name = profile?.startup_name || "this profile";
+  const chips = _lobsFromResult(result.bundle_match !== undefined ? result : { bundle_match: {}, recommendations: [] });
+  const chipHtml = chips.length
+    ? chips.map(([lob, label]) => `<button class="eq-lob-chip" type="button" data-lob="${lob}">${label}</button>`).join("")
+    : `<span class="eq-no-lobs">Run analysis to see available covers</span>`;
   return `
     <div class="estimate-quote-strip">
       <div>
@@ -3402,11 +3452,7 @@ function renderEstimateQuoteButton(profile) {
         <div class="eq-title">Estimate quote for ${esc(name)}</div>
         <div class="eq-hint">Formula-chain calculator with editable public-source factors.</div>
       </div>
-      <div class="eq-lob-chips" id="eq-lob-chips">
-        ${["DO", "Cyber", "PI", "CGL", "Property", "GH"].map(lob =>
-          `<button class="eq-lob-chip" type="button" data-lob="${lob}">${lob}</button>`
-        ).join("")}
-      </div>
+      <div class="eq-lob-chips" id="eq-lob-chips">${chipHtml}</div>
     </div>
     <div id="pricing-panel" class="pricing-panel hidden"></div>`;
 }
@@ -3459,7 +3505,8 @@ async function loadPricingPanel(profile, lob, siOverrideInr = null) {
   if (!panel) return;
   panel.innerHTML = '<div class="pricing-loading">Calculating indicative range...</div>';
   panel.classList.remove("hidden");
-  const si = siOverrideInr || estimateSumInsured(profile, lob);
+  const geminiSI = Number(profile.sum_insured_cr || 0) * 1e7;
+  const si = siOverrideInr || (geminiSI > 0 ? geminiSI : estimateSumInsured(profile, lob));
   const inputs = profileToPricingInputs(profile, lob, si);
   try {
     const res = await fetch("/api/pricing", {
@@ -3713,6 +3760,14 @@ function renderResults(result) {
   window.__outreachLoaded = false;
   state.profile = structuredClone(result.profile || state.profile);
   const p = result.profile;
+  const autofilledFields = new Set(result.autofilled_fields || []);
+  const heroExtraMeta = [];
+  if (autofilledFields.has("annual_revenue_cr") && Number(p.annual_revenue_cr || 0) > 0) {
+    heroExtraMeta.push(`<span>INR ${formatCr(p.annual_revenue_cr)} Cr revenue</span>`);
+  }
+  if (autofilledFields.has("total_insurable_asset_value_cr") && Number(p.total_insurable_asset_value_cr || 0) > 0) {
+    heroExtraMeta.push(`<span>INR ${formatCr(p.total_insurable_asset_value_cr)} Cr insurable assets</span>`);
+  }
 
   const gaugeClass = result.overall >= 70 ? "gauge-critical" : result.overall >= 45 ? "gauge-moderate" : "gauge-low";
   const gaugeColor = result.overall >= 70 ? "var(--red)" : result.overall >= 45 ? "var(--amber)" : "var(--green)";
@@ -3730,8 +3785,19 @@ function renderResults(result) {
             <span>${esc(p.funding_stage)}</span>
             <span>${p.team_size} people</span>
             <span>${esc(p.operations)}</span>
+            ${heroExtraMeta.join("")}
           </div>
           ${p.product_description ? `<div class="hero-product-desc">${esc(p.product_description)}</div>` : ""}
+          ${(() => {
+            const rev = Number(p.annual_revenue_cr || 0);
+            const siCr = Number(p.sum_insured_cr || 0);
+            const assets = siCr > 0 ? siCr : (rev > 0 ? Math.round(rev * 1.5) : 0);
+            if (!rev && !assets) return "";
+            return `<div class="hero-financials">
+              ${rev > 0 ? `<div class="hero-fin-stat"><span class="hero-fin-label">Annual revenue</span><span class="hero-fin-value">INR ${Number(rev).toLocaleString("en-IN")} Cr</span></div>` : ""}
+              ${assets > 0 ? `<div class="hero-fin-stat"><span class="hero-fin-label">Insurable assets</span><span class="hero-fin-value">INR ${Number(assets).toLocaleString("en-IN")} Cr</span></div>` : ""}
+            </div>`;
+          })()}
         </div>
         <div class="hero-actions">
           <button class="btn-hero-ghost" onclick="renderRoleSelection()" style="margin-right:auto;">← Home</button>
@@ -3805,6 +3871,7 @@ function renderResults(result) {
 
       <!-- ── TAB: Estimated Quote ── -->
       <div class="tab-panel" id="tab-quote" style="display:none">
+        ${renderEstimateQuoteButton(result)}
         ${renderV2Insights(result)}
         ${renderMethodologyModal(result)}
         <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
@@ -3924,8 +3991,6 @@ function renderResults(result) {
         ${renderPolicyWordingComparison(result)}
       </div>
 
-      ${renderEstimateQuoteButton(result.profile)}
-
     </div>`;
 
   // Store result globally for download
@@ -3998,16 +4063,38 @@ async function loadOutreachTab(result) {
   const staticEl  = document.getElementById("outreach-static");
   if (!dynamicEl) return;
 
-  // Inject loading banner
+  // Inject progress loader
   const banner = document.createElement("div");
   banner.id = "outreach-ai-loader";
   banner.className = "outreach-ai-loader";
   banner.innerHTML =
-    `<span class="outreach-ai-loader-dot"></span>` +
-    `<span class="outreach-ai-loader-dot"></span>` +
-    `<span class="outreach-ai-loader-dot"></span>` +
-    `<span class="outreach-ai-loader-text">Generating AI drafts for all covers…</span>`;
+    `<div class="oal-header">` +
+      `<span class="oal-label">Generating AI drafts for all covers</span>` +
+      `<span class="oal-pct" id="oal-pct">0%</span>` +
+    `</div>` +
+    `<div class="oal-track"><div class="oal-bar" id="oal-bar"></div></div>`;
   dynamicEl.prepend(banner);
+
+  // Eased fake-progress: fast to 40%, then slow crawl to 90% over ~25s
+  let pct = 0;
+  const pctEl = document.getElementById("oal-pct");
+  const barEl = document.getElementById("oal-bar");
+  const _setProgress = (v) => {
+    pct = Math.min(v, 99);
+    if (pctEl) pctEl.textContent = Math.round(pct) + "%";
+    if (barEl) barEl.style.width = pct + "%";
+  };
+  const startTs = Date.now();
+  const _tick = () => {
+    const elapsed = (Date.now() - startTs) / 1000;
+    // fast phase 0-6s → 0-40%, slow phase 6-30s → 40-90%
+    const target = elapsed < 6
+      ? (elapsed / 6) * 40
+      : 40 + ((elapsed - 6) / 24) * 50;
+    _setProgress(target);
+    if (pct < 99) _progressTimer = setTimeout(_tick, 200);
+  };
+  let _progressTimer = setTimeout(_tick, 200);
 
   try {
     const res = await fetch("/api/outreach", {
@@ -4025,15 +4112,18 @@ async function loadOutreachTab(result) {
     if (!res.ok) throw new Error("skip");
     const data = await res.json();
     if (data.error) throw new Error("skip");
+    clearTimeout(_progressTimer);
+    _setProgress(100);
     window.__result.outreach_prompts   = data.outreach_prompts;
     window.__result.outreach_source    = data.outreach_source;
     window.__result.outreach_error     = data.outreach_error;
     window.__result.objection_handlers = data.objection_handlers;
     if (staticEl) staticEl.innerHTML = renderFounderPitch(window.__result);
+    await new Promise(r => setTimeout(r, 300)); // let 100% flash briefly
     dynamicEl.innerHTML = renderOutreach(data.outreach_prompts, data.outreach_source, data.outreach_error);
     _bindOutreachButtons(dynamicEl);
   } catch (_err) {
-    // Remove loader, leave fallback content visible
+    clearTimeout(_progressTimer);
     const loader = document.getElementById("outreach-ai-loader");
     if (loader) loader.remove();
   }

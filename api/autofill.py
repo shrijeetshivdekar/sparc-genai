@@ -37,7 +37,8 @@ Use ONLY the exact enum values shown. Return ONLY the JSON, no markdown fences.
   "payment_or_card_program": <true or false>,
   "contact_email": <best available public email — try in order: (1) founder/CEO email if publicly listed, (2) official contact like contact@, info@, hello@ + company domain, (3) construct from known pattern e.g. firstname@domain.com — return null only if nothing can be reasonably inferred>,
   "product_description": <one sentence max 160 chars — what the company does, where it operates, at what scale>,
-  "biggest_fear": <max 120 chars — 2-3 top risk concerns this company likely faces, comma-separated, e.g. "Cyber attacks, Data privacy breaches, Regulatory penalties">
+  "biggest_fear": <max 120 chars — 2-3 top risk concerns this company likely faces, comma-separated, e.g. "Cyber attacks, Data privacy breaches, Regulatory penalties">,
+  "sum_insured_cr": <estimated appropriate sum insured in INR crores for commercial insurance — base on the company's largest known contract value, funding raised, or typical sector exposure; e.g. a ₹500Cr funded fintech might need ₹50Cr SI, a seed-stage SaaS might need ₹5Cr; return 0 if genuinely unknown>
 }}"""
 
 

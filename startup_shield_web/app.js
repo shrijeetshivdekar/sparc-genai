@@ -4118,6 +4118,13 @@ async function loadOutreachTab(result) {
     window.__result.outreach_source    = data.outreach_source;
     window.__result.outreach_error     = data.outreach_error;
     window.__result.objection_handlers = data.objection_handlers;
+    if (data.pitch?.bullets?.length) {
+      window.__result.pitch_bullets = data.pitch.bullets;
+      window.__result.pitch_meta    = {
+        trigger_question: data.pitch.trigger_question || "",
+        best_timing:      data.pitch.best_timing      || "",
+      };
+    }
     if (staticEl) staticEl.innerHTML = renderFounderPitch(window.__result);
     await new Promise(r => setTimeout(r, 300)); // let 100% flash briefly
     dynamicEl.innerHTML = renderOutreach(data.outreach_prompts, data.outreach_source, data.outreach_error);

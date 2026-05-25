@@ -215,8 +215,11 @@ def _build_prompt(profile, scores, recommendations, bundle_match, signal_context
 
     signal_line = _signal_line(signal_context)
 
+    biggest_fear = profile.get("biggest_fear", "")
+    fear_line = f" Their stated concerns: {biggest_fear}." if biggest_fear else ""
+
     return f"""You are an ICICI Lombard RM. Write outreach for {name} ({sector}, {stage}, {team_line}{reg_line}).
-Top risks: {risk_names}.{f' Note: {signal_line}' if signal_line else ''}
+Top risks: {risk_names}.{f' Note: {signal_line}' if signal_line else ''}{fear_line}
 
 For EACH product below write one email and one WhatsApp.
 
@@ -239,9 +242,21 @@ Greetings from ICICI Lombard!
 WHATSAPP FORMAT (use for every product):
 Hi {name} team! [1-2 sentences on the specific risk and cover]. Let's connect — {contacts['RM_NAME']}, {contacts['RM_PHONE']}
 
+FOUNDER PITCH (one set for the whole company, not per product):
+- 3 talking-point bullets an RM would say on a founder call — each 2 sentences max, referencing {name}'s specific sector/stage/regulatory exposure and a real INR claim scenario
+- One sharp trigger question to surface urgency with the founder
+- One sentence on best timing to bring this up in the sales process
+
 Return ONLY valid JSON, no markdown:
-{{"PRODUCT_KEY": {{"email_subject": "...", "email_body": "...", "whatsapp": "..."}}}}
-Keys must exactly match: {", ".join(products)}"""
+{{
+  "PRODUCT_KEY": {{"email_subject": "...", "email_body": "...", "whatsapp": "..."}},
+  "pitch": {{
+    "bullets": ["...", "...", "..."],
+    "trigger_question": "...",
+    "best_timing": "..."
+  }}
+}}
+Product keys must exactly match: {", ".join(products)}"""
 
 
 # ── Gemini call ──────────────────────────────────────────────────────────────
@@ -372,9 +387,18 @@ class handler(BaseHTTPRequestHandler):
                 "whatsapp":      item.get("whatsapp") or "",
             }
 
+        # Extract pitch block (not a product key)
+        raw_pitch = raw.get("pitch") or {}
+        pitch = {
+            "bullets":          raw_pitch.get("bullets") or [],
+            "trigger_question": raw_pitch.get("trigger_question") or "",
+            "best_timing":      raw_pitch.get("best_timing") or "",
+        }
+
         self._send(200, json.dumps({
             "outreach_prompts":   normalized,
             "outreach_source":    "gemini",
             "outreach_error":     None,
             "objection_handlers": [],
+            "pitch":              pitch,
         }, ensure_ascii=False).encode("utf-8"))

@@ -3549,6 +3549,24 @@ def _fetch_direct_rss_signal_articles(limit: int = 18, window_days: int = 30) ->
     return (matched or rows)[:limit]
 
 
+_TELEMETRY_BY_REGULATION = {
+    "DPDP": "MeitY DPDP audit registry, SDF designations gazette, CERT-In incident reports",
+    "RBI":  "RBI circulars, NBFC database, Digital Lending Guidelines updates, SRO-FT bulletins",
+    "ONDC": "ONDC reputation ledger, network seller compliance reports, dispute resolution data",
+    "DGCA": "DGCA NPNT firmware registry, drone Type Certification database, RPAS operator permits",
+    "KGW":  "Karnataka Labour Department portal, gig worker welfare cess filings, GSTN reconciliation",
+    "GST":  "GSTN reconciliation portal, e-invoice mismatch reports, ITC denial notices",
+    "MeitY":"MeitY SDF notifications, IT Rules gazette, CERT-In incident registry",
+}
+
+
+def _telemetry_source_for(rule: dict, source_domain: str) -> str:
+    reg = rule.get("regulation") or ""
+    if reg in _TELEMETRY_BY_REGULATION:
+        return _TELEMETRY_BY_REGULATION[reg]
+    return f"Public news monitoring ({source_domain or 'multiple sources'})"
+
+
 def _contact_status_for_signal(profile: dict | None) -> dict:
     # MVP deliberately avoids personal email guessing. Official company email discovery
     # can be added behind this status when a compliant source is available.
@@ -3593,6 +3611,10 @@ def _signal_task_from_article(article: dict, profiles: dict) -> dict | None:
         "company": company,
         "signal_id": rule["id"],
         "signal": rule["label"],
+        "signal_indicator": rule["label"],
+        "telemetry_source": _telemetry_source_for(rule, source_domain),
+        "underwriting_rationale": rule["why"],
+        "target_products": f"{bundle.get('name') or 'SPARC bundle'} — {rule['angle']}",
         "why_it_matters": rule["why"],
         "insurance_angle": rule["angle"],
         "headline": article.get("title") or "",

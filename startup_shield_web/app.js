@@ -1578,6 +1578,24 @@ function renderSignalTask(signal) {
           <span>${escHtml(signal.funding_stage || "Stage inferred")}</span>
           <span>${escHtml(signal.source || "Public source")}</span>
         </div>
+        <dl class="signal-intel">
+          <div class="signal-intel-row">
+            <dt>Signal Indicator</dt>
+            <dd>${escHtml(signal.signal_indicator || signal.signal || "—")}</dd>
+          </div>
+          <div class="signal-intel-row">
+            <dt>Telemetry Source</dt>
+            <dd>${escHtml(signal.telemetry_source || "—")}</dd>
+          </div>
+          <div class="signal-intel-row">
+            <dt>Underwriting Rationale &amp; Risk Implication</dt>
+            <dd>${escHtml(signal.underwriting_rationale || signal.why_it_matters || "—")}</dd>
+          </div>
+          <div class="signal-intel-row">
+            <dt>Target ICICI Lombard Products</dt>
+            <dd>${escHtml(signal.target_products || signal.insurance_angle || "—")}</dd>
+          </div>
+        </dl>
       </div>
       <div class="signal-task-side">
         <div class="signal-reco">

@@ -8249,6 +8249,47 @@ pre {
   color: rgba(203,213,225,.92);
 }
 
+.signal-intel {
+  margin: 18px 0 4px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 12px;
+  background: rgba(255,255,255,.025);
+  display: grid;
+  gap: 10px;
+}
+
+.signal-intel-row {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.signal-intel-row dt {
+  margin: 0;
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(148,163,184,.72);
+}
+
+.signal-intel-row dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgba(226,232,240,.92);
+}
+
+@media (max-width: 720px) {
+  .signal-intel-row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+
 .signal-task h2 {
   margin: 16px 0 8px;
   color: rgba(255,255,255,.92);

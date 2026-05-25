@@ -5,6 +5,7 @@ import re
 import sqlite3
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -3659,21 +3660,40 @@ def get_signal_radar(limit: int = 30, live: bool = True, window_days: int = 30) 
         return added
 
     if live:
-        from concurrent.futures import ThreadPoolExecutor
-        fetch_limit = max(limit * 4, 80)
+        from concurrent.futures import ThreadPoolExecutor, TimeoutError
+        fetch_limit = max(24, min(limit * 2, 60))
+        total_budget = float(
+            os.environ.get(
+                "SIGNAL_RADAR_TOTAL_BUDGET_SECONDS",
+                "18" if os.environ.get("VERCEL") else "25",
+            )
+        )
+        deadline = time.monotonic() + max(3.0, total_budget)
         live_sources = []
-        with ThreadPoolExecutor(max_workers=3) as _ex:
+        _ex = ThreadPoolExecutor(max_workers=3)
+        try:
             futures = {
                 "rss":         _ex.submit(_fetch_direct_rss_signal_articles, limit=fetch_limit, window_days=window_days),
                 "google_news": _ex.submit(_fetch_google_news_signal_articles, limit=fetch_limit, window_days=window_days),
                 "gdelt":       _ex.submit(_fetch_gdelt_signal_articles, limit=fetch_limit),
             }
             for name in ("rss", "google_news", "gdelt"):
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    source_error = source_error or "signal_timeout_budget"
+                    break
                 try:
-                    if add_articles(futures[name].result()):
+                    if add_articles(futures[name].result(timeout=remaining)):
                         live_sources.append(name)
+                except TimeoutError:
+                    source_error = source_error or f"{name}_timeout"
                 except Exception as exc:
                     source_error = source_error or type(exc).__name__
+        finally:
+            try:
+                _ex.shutdown(wait=False, cancel_futures=True)
+            except TypeError:
+                _ex.shutdown(wait=False)
         if live_sources:
             source_status = "live_multi" if len(live_sources) > 1 else f"live_{live_sources[0]}"
             source_error = "" if articles else source_error

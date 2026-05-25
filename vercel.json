@@ -40,7 +40,7 @@
       "src": "api/signals.py",
       "use": "@vercel/python",
       "config": {
-        "includeFiles": ["**/*.py", "research_config.json"],
+        "includeFiles": ["**/*.py", "**/*.json", "research_config.json"],
         "maxDuration": 60
       }
     },

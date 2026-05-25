@@ -34,15 +34,24 @@ class handler(BaseHTTPRequestHandler):
         days = clean_int((params.get("days") or ["30"])[0], 30)
         live_raw = (params.get("live") or ["1"])[0].strip().lower()
         live = live_raw not in ("0", "false", "no")
-
-        body = json.dumps(
-            get_signal_radar(
-                limit=max(1, min(limit, 50)),
+        safe_limit = max(1, min(limit, 50))
+        safe_days = max(1, min(days, 30))
+        try:
+            payload = get_signal_radar(
+                limit=safe_limit,
                 live=live,
-                window_days=max(1, min(days, 30)),
-            ),
-            ensure_ascii=False,
-        ).encode("utf-8")
+                window_days=safe_days,
+            )
+        except Exception as exc:
+            payload = get_signal_radar(
+                limit=safe_limit,
+                live=False,
+                window_days=safe_days,
+            )
+            payload["source_status"] = "fallback_error"
+            payload["source_error"] = f"{type(exc).__name__}: {exc}"
+
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))

@@ -1918,6 +1918,7 @@
       "editable": true
     },
     "prior_do_claim_3yr": {
+      "label": "Prior D&O Claim (Last 3 Years)",
       "value": 0.2,
       "applies_to": [
         "DO"

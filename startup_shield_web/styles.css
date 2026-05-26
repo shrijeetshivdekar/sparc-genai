@@ -9315,6 +9315,9 @@ pre {
 .pc-mini-btn {
   min-width: 28px;
   height: 28px;
+  white-space: nowrap;
+  padding-left: 8px;
+  padding-right: 8px;
 }
 .pc-mini-btn:disabled {
   opacity: .35;
@@ -9586,8 +9589,7 @@ pre {
 .pc-net-zero { background: var(--surface-2); color: var(--ink-muted); }
 .pc-loadings-list,
 .pc-catalog-list { padding: 8px; }
-.pc-loading-row,
-.pc-catalog-row {
+.pc-loading-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 124px 34px;
   align-items: center;
@@ -9595,17 +9597,13 @@ pre {
   padding: 7px 8px;
   border-radius: 8px;
 }
-.pc-loading-row:hover,
-.pc-catalog-row:hover { background: var(--surface); }
-.pc-catalog-row.muted { opacity: .45; }
-.pc-loading-row strong,
-.pc-catalog-row strong {
+.pc-loading-row:hover { background: var(--surface); }
+.pc-loading-row strong {
   display: block;
   color: var(--ink-2);
   font-size: 12px;
 }
-.pc-loading-row span,
-.pc-catalog-row span {
+.pc-loading-row span {
   display: block;
   margin-top: 1px;
   overflow: hidden;
@@ -9614,6 +9612,115 @@ pre {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Expandable catalog rows */
+.pc-catalog-row {
+  border-radius: 8px;
+  margin-bottom: 2px;
+  border: 1px solid transparent;
+}
+.pc-catalog-row:hover { background: var(--surface); }
+.pc-catalog-row[open] {
+  background: var(--surface);
+  border-color: var(--border);
+}
+.pc-catalog-row.muted { opacity: .45; }
+.pc-catalog-row > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 7px 8px;
+  border-radius: 8px;
+  user-select: none;
+}
+.pc-catalog-row > summary::-webkit-details-marker { display: none; }
+.pc-cat-summary-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pc-cat-head-left {
+  min-width: 0;
+  flex: 1;
+}
+.pc-cat-head-left strong {
+  display: block;
+  color: var(--ink-2);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pc-cat-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+}
+.pc-conf-badge {
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.pc-conf-badge.pc-conf-high { background: rgba(22,163,74,.12); color: #16a34a; }
+.pc-conf-badge.pc-conf-medium { background: rgba(234,179,8,.12); color: #b45309; }
+.pc-conf-badge.pc-conf-low { background: rgba(173,30,35,.1); color: var(--red); }
+.pc-irdai-badge {
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: rgba(30,64,175,.1);
+  color: #1e40af;
+}
+.pc-na-badge {
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 9px;
+  background: var(--surface-2);
+  color: var(--ink-faint);
+}
+.pc-cat-head-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.pc-catalog-detail {
+  padding: 6px 10px 10px;
+  border-top: 1px solid var(--border);
+  margin: 0 4px;
+}
+.pc-detail-rationale {
+  margin: 0 0 6px;
+  font-size: 11px;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+.pc-detail-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 10.5px;
+  color: var(--ink-faint);
+  margin-bottom: 6px;
+}
+.pc-detail-meta em { font-style: normal; font-weight: 600; color: var(--ink-muted); }
+.pc-detail-source {
+  font-size: 10.5px;
+  color: var(--ink-faint);
+}
+.pc-src-link {
+  color: var(--accent);
+  text-decoration: none;
+  word-break: break-all;
+}
+.pc-src-link:hover { text-decoration: underline; }
+.pc-src-text { color: var(--ink-faint); }
 .pc-empty {
   padding: 10px;
   color: var(--ink-faint);
@@ -9759,6 +9866,7 @@ pre {
   .pc-right { position: static; }
   .pc-row { grid-template-columns: 24px minmax(0, 1fr) 104px 56px; }
   .pc-conf { display: none; }
-  .pc-loading-row,
-  .pc-catalog-row { grid-template-columns: minmax(0, 1fr) 104px 32px; }
+  .pc-loading-row { grid-template-columns: minmax(0, 1fr) 104px 32px; }
+  .pc-cat-summary-inner { flex-wrap: wrap; gap: 6px; }
+  .pc-cat-head-right { width: 100%; justify-content: flex-end; }
 }

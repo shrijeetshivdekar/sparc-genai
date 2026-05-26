@@ -3646,11 +3646,43 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
       const ok = (item.applies_to || []).includes(LOB);
       const on = activeLoadings.has(id);
       const v = catalogValue(id);
-      return `<div class="pc-catalog-row${ok ? "" : " muted"}">
-        <div><strong>${esc(labelize(id))}</strong><span>${esc((item.applies_to || []).join(", "))}${ok ? "" : " | N/A for " + LOB}</span></div>
-        ${valueCell("loading", id, v, pctText(v), true)}
-        <button class="pc-mini-btn" type="button" data-toggle-loading="${esc(id)}" ${ok ? "" : "disabled"}>${on ? "-" : "+"}</button>
-      </div>`;
+      const dir = item.direction === "discount" ? "grn" : "red";
+      const confBadge = item.confidence
+        ? `<span class="pc-conf-badge pc-conf-${esc(item.confidence)}">${esc(item.confidence)}</span>`
+        : "";
+      const irdaiBadge = item.irdai_formalised
+        ? `<span class="pc-irdai-badge">IRDAI</span>`
+        : "";
+      const rangeText = (item.low_pct != null && item.high_pct != null)
+        ? `${item.direction === "discount" ? "-" : "+"}${item.low_pct}% – ${item.direction === "discount" ? "-" : "+"}${item.high_pct}%`
+        : pctText(v);
+      const srcUrl = item.source?.url || "";
+      const srcCitation = item.source?.citation || "";
+      const sourceHtml = srcUrl
+        ? `<a class="pc-src-link" href="${esc(srcUrl)}" target="_blank" rel="noopener">${esc(srcCitation || srcUrl)}</a>`
+        : (srcCitation ? `<span class="pc-src-text">${esc(srcCitation)}</span>` : "");
+      return `<details class="pc-catalog-row${ok ? "" : " muted"}" ${on ? "open" : ""}>
+        <summary>
+          <div class="pc-cat-summary-inner">
+            <div class="pc-cat-head-left">
+              <strong>${esc(item.label || labelize(id))}</strong>
+              <div class="pc-cat-badges">${confBadge}${irdaiBadge}${ok ? "" : `<span class="pc-na-badge">N/A for ${LOB}</span>`}</div>
+            </div>
+            <div class="pc-cat-head-right">
+              <span class="pc-val ${dir}">${rangeText}</span>
+              <button class="pc-mini-btn" type="button" data-toggle-loading="${esc(id)}" ${ok ? "" : "disabled"}>${on ? "− Remove" : "+ Add"}</button>
+            </div>
+          </div>
+        </summary>
+        <div class="pc-catalog-detail">
+          ${item.rationale ? `<p class="pc-detail-rationale">${esc(item.rationale)}</p>` : ""}
+          <div class="pc-detail-meta">
+            <span><em>Applies to:</em> ${esc((item.applies_to || []).join(", ") || "All")}</span>
+            ${item.notes ? `<span><em>Note:</em> ${esc(item.notes)}</span>` : ""}
+          </div>
+          ${sourceHtml ? `<div class="pc-detail-source">Source: ${sourceHtml}</div>` : ""}
+        </div>
+      </details>`;
     }).join("");
     return { ratingRows, expenseRows, activeRows, catalogRows };
   }
@@ -3754,7 +3786,8 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
 
   function bind() {
     container.querySelectorAll(".pc-val.editable").forEach(btn => btn.addEventListener("click", e => startEdit(btn, e)));
-    container.querySelectorAll("[data-toggle-loading]").forEach(btn => btn.addEventListener("click", () => {
+    container.querySelectorAll("[data-toggle-loading]").forEach(btn => btn.addEventListener("click", e => {
+      e.stopPropagation(); // prevent <details> toggle when button is inside <summary>
       const id = btn.dataset.toggleLoading;
       activeLoadings.has(id) ? activeLoadings.delete(id) : activeLoadings.add(id);
       render();

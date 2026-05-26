@@ -851,6 +851,19 @@ async function init() {
     state.profile = loadDraftProfile(state.meta.defaults);
   }
   resetCustomerProfile();
+
+  // Restore last result if Vercel live-reloaded mid-session
+  try {
+    const saved = sessionStorage.getItem("sparc_last_result");
+    if (saved) {
+      const restored = JSON.parse(saved);
+      if (restored?.profile?.startup_name) {
+        renderResults(restored);
+        return;
+      }
+    }
+  } catch (_) {}
+
   renderRoleSelection();
 }
 
@@ -4076,6 +4089,9 @@ function renderResults(result) {
   window.__result = result;
   window.__refineResult = result;
 
+  // Persist to sessionStorage so Vercel live-reloads don't wipe the session
+  try { sessionStorage.setItem("sparc_last_result", JSON.stringify(result)); } catch (_) {}
+
   // Bind product row expand/collapse
   window.toggleProductRow = (i) => {
     const row = document.getElementById(`prow-${i}`);
@@ -4188,9 +4204,9 @@ async function loadOutreachTab(result) {
         regulatory_triggers_fired: result.regulatory_triggers_fired,
       }),
     });
-    if (!res.ok) throw new Error("skip");
+    if (!res.ok) throw new Error(`API ${res.status}`);
     const data = await res.json();
-    if (data.error) throw new Error("skip");
+    if (data.error) throw new Error(data.error);
     clearTimeout(_progressTimer);
     _setProgress(100);
     window.__result.outreach_prompts   = data.outreach_prompts;
@@ -4208,10 +4224,23 @@ async function loadOutreachTab(result) {
     await new Promise(r => setTimeout(r, 300)); // let 100% flash briefly
     dynamicEl.innerHTML = renderOutreach(data.outreach_prompts, data.outreach_source, data.outreach_error);
     _bindOutreachButtons(dynamicEl);
-  } catch (_err) {
+  } catch (err) {
     clearTimeout(_progressTimer);
+    // Animate to 100% so bar doesn't freeze mid-way, then show retry
+    _setProgress(100);
+    await new Promise(r => setTimeout(r, 400));
     const loader = document.getElementById("outreach-ai-loader");
-    if (loader) loader.remove();
+    if (loader) {
+      loader.innerHTML =
+        `<div class="oal-header oal-error">` +
+          `<span class="oal-label">AI drafts failed — ${escHtml(err.message || "timeout")}. </span>` +
+          `<button class="oal-retry-btn" type="button" id="oal-retry">Retry</button>` +
+        `</div>`;
+      document.getElementById("oal-retry")?.addEventListener("click", () => {
+        window.__outreachLoaded = false;
+        loadOutreachTab(window.__result);
+      });
+    }
   }
 }
 

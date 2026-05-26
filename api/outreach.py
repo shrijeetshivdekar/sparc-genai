@@ -148,32 +148,53 @@ def _product_context(key):
     return {"label": clean, "scenario": f"Cover for {clean.lower()} exposures."}
 
 
+# ── LOB-family dedup: prevents sending two near-identical emails (e.g. CYBER + CYBER_LIABILITY)
+_LOB_FAMILY = {
+    "CYBER": "CYBER", "CYBER_LIABILITY": "CYBER",
+    "D_AND_O": "DO", "DNO_LIABILITY": "DO",
+    "PI": "PI", "PI_TECH_EO": "PI",
+    "CGL": "CGL", "COMMERCIAL_GENERAL_LIABILITY": "CGL",
+    "PUBLIC_LIABILITY": "CGL", "PRODUCT_LIABILITY": "CGL",
+    "GROUP_HEALTH": "GH", "EMPLOYEE_HEALTH": "GH",
+    "GROUP_PA": "GPA", "GPA": "GPA",
+    "EMPLOYEES_COMP": "EC", "WORKMEN_COMPENSATION": "EC",
+    "CRIME_FIDELITY": "CRIME",
+    "FIRE_AND_PROPERTY": "PROPERTY",
+    "MARINE_CARGO": "MARINE",
+    "MOTOR_FLEET": "MOTOR",
+    "TRADE_CREDIT": "TRADE_CREDIT",
+    "KEY_PERSON": "KEY_PERSON",
+    "EMPLOYMENT_PRACTICES": "EPLI",
+    "GROUP_CRITI_SHIELD": "CRITICAL_ILLNESS",
+    "GROUP_HOSPISHIELD": "HOSPISHIELD",
+}
+
 # ── Collect all products to draft for ───────────────────────────────────────
 def _all_products(recommendations, bundle_match, limit=8):
-    seen = set()
+    seen_keys = set()
+    seen_families = set()
     products = []
     bm = bundle_match or {}
-    # primary bundle covers first
+
+    def _add(key):
+        if not key or key in seen_keys:
+            return
+        family = _LOB_FAMILY.get(key, key)
+        if family in seen_families:
+            return
+        seen_keys.add(key)
+        seen_families.add(family)
+        products.append(key)
+
     for tier in ("mandatory_covers", "optional_covers"):
         for c in bm.get(tier, []):
-            key = c if isinstance(c, str) else c.get("key", "")
-            if key and key not in seen:
-                seen.add(key)
-                products.append(key)
-    # companion bundle covers (Group Safeguard + Business Shield pairing)
+            _add(c if isinstance(c, str) else c.get("key", ""))
     companion = bm.get("companion_bundle") or {}
     for tier in ("mandatory_covers", "optional_covers"):
         for c in companion.get(tier, []):
-            key = c if isinstance(c, str) else c.get("key", "")
-            if key and key not in seen:
-                seen.add(key)
-                products.append(key)
-    # fill remaining slots from standalone recommendations
+            _add(c if isinstance(c, str) else c.get("key", ""))
     for r in (recommendations or []):
-        key = r if isinstance(r, str) else r.get("key", "")
-        if key and key not in seen:
-            seen.add(key)
-            products.append(key)
+        _add(r if isinstance(r, str) else r.get("key", ""))
     return products[:limit]
 
 
@@ -216,36 +237,59 @@ def _build_prompt(profile, scores, recommendations, bundle_match, signal_context
     signal_line = _signal_line(signal_context)
 
     biggest_fear = profile.get("biggest_fear", "")
-    fear_line = f" Their stated concerns: {biggest_fear}." if biggest_fear else ""
+    product_desc = profile.get("product_description", "")
+    revenue      = profile.get("annual_revenue_cr", 0)
 
-    return f"""You are an ICICI Lombard RM. Write outreach for {name} ({sector}, {stage}, {team_line}{reg_line}).
-Top risks: {risk_names}.{f' Note: {signal_line}' if signal_line else ''}{fear_line}
+    context_lines = []
+    if product_desc:
+        context_lines.append(f"What they do: {product_desc}")
+    if biggest_fear:
+        context_lines.append(f"Founder's stated concerns: {biggest_fear}")
+    if revenue:
+        context_lines.append(f"Annual revenue: ~INR {revenue} Cr")
+    if signal_line:
+        context_lines.append(f"Recent signal: {signal_line}")
+    context_block = "\n".join(context_lines)
+
+    return f"""You are a senior ICICI Lombard RM writing outreach to {name} ({sector}, {stage}, {team_line}{reg_line}).
+Top risks: {risk_names}.
+{context_block}
+
+WRITING RULES — follow exactly, no exceptions:
+1. Every sentence must be specific to {name}. Zero generic filler ("leading company", "in today's world", "it is crucial").
+2. Subject lines: hook with a regulatory trigger, recent event, or specific risk number — NOT the product name.
+3. Opening line: one sharp, specific fact about {name}'s business model, scale, or regulatory exposure that explains WHY this cover is relevant to them right now.
+4. Risk scenario: make it personal — name the PERSON who gets hurt (founder, director, CFO, DPO) and describe the moment of pain, not just the financial loss.
+5. Closing: end with a binary question the recipient can answer in one word — NOT "no pressure, just a friendly conversation."
+6. WhatsApp: max 2 sentences, conversational, sounds like a person typed it. Risk in sentence 1, ask in sentence 2.
 
 For EACH product below write one email and one WhatsApp.
 
 Products:
 {product_lines}
 
-EMAIL FORMAT (use for every product):
-Subject: [specific to {name} and the cover]
-Body:
-Dear {name} team,
-Greetings from ICICI Lombard!
+EMAIL FORMAT:
+Subject: [hook — regulatory deadline, specific risk number, or recent event tied to {name}]
 
-• Why it matters for you: [1 sentence — company-specific reason referencing their sector/stage/regulatory exposure]
-• If uninsured: [1 sentence realistic claim scenario using the claim hint above, include INR amount]
-• What it covers: [1 sentence on policy scope]
-• Next step: We'd love to walk you through this — no pressure, just a friendly conversation.
+Dear {name} team,
+
+[1 sentence: specific fact about {name}'s business that makes this cover urgent right now]
+
+[1 sentence: personal risk scenario — name who gets hurt, describe the moment, include INR amount from the claim hint]
+
+[1 sentence: what the policy actually pays for]
+
+[Binary closing question that advances the conversation — e.g. "Do you currently have a retro-date policy in place, or would this be a fresh inception?" or "Is this on your board's radar for this quarter?"]
 
 {contact_block}
 
-WHATSAPP FORMAT (use for every product):
-Hi {name} team! [1-2 sentences on the specific risk and cover]. Let's connect — {contacts['RM_NAME']}, {contacts['RM_PHONE']}
+WHATSAPP FORMAT (max 2 sentences, sounds like a human, NOT a brochure):
+[Sentence 1: specific risk for {name} with INR stakes]. [Sentence 2: direct ask] — {contacts['RM_NAME']}, {contacts['RM_PHONE']}
 
-FOUNDER PITCH (one set for the whole company, not per product):
-- 3 talking-point bullets an RM would say on a founder call — each 2 sentences max, referencing {name}'s specific sector/stage/regulatory exposure and a real INR claim scenario
-- One sharp trigger question to surface urgency with the founder
-- One sentence on best timing to bring this up in the sales process
+FOUNDER PITCH (one set for the whole company):
+- 3 sharp talking-point bullets for a founder call — each max 2 sentences, specific to {name}'s business model, with a real INR scenario
+- One trigger question that makes the founder feel urgency personally
+- One sentence on the single best moment in {name}'s journey to have this conversation
 
 Return ONLY valid JSON, no markdown:
 {{

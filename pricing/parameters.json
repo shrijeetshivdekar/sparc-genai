@@ -1821,68 +1821,100 @@
   },
   "loadings_discounts": {
     "independent_board_majority": {
-      "value": -0.075,
+      "label": "High Board Independence Ratio",
+      "value": -0.1,
+      "low_pct": 5.0,
+      "mid_pct": 10.0,
+      "high_pct": 15.0,
+      "direction": "discount",
       "applies_to": [
         "DO"
       ],
+      "rationale": "High independence correlates with robust internal controls, lowering regulatory and shareholder litigation frequency.",
+      "notes": "Insurers look for functional independence, not just misclassified advisors/promoters.",
       "source": {
-        "type": "underwriter_judgment",
-        "citation": "Marsh India D&O Market Outlook 2024 commentary — governance discount typical 5-10%",
-        "url": "https://www.marsh.com/in/insights.html",
-        "accessed": "2026-05-25",
+        "type": "MARKET",
+        "citation": "Industry Practice",
+        "url": "https://blog.ipleaders.in/independent-director-liability-and-do-insurance-in-india-a-2026-guide/",
+        "accessed": "2026-05-26",
         "page": null
       },
-      "confidence": "low",
+      "confidence": "medium",
+      "irdai_formalised": false,
       "editable": true
     },
     "audited_financials_big4": {
-      "value": -0.05,
+      "label": "Big 4 Auditor Retention",
+      "value": -0.1,
+      "low_pct": 5.0,
+      "mid_pct": 10.0,
+      "high_pct": 15.0,
+      "direction": "discount",
       "applies_to": [
         "DO",
         "Crime",
         "PI"
       ],
+      "rationale": "Reduces risk of financial misstatement and subsequent Side C (Entity Securities) claims.",
+      "notes": "Signifies rigorous external financial validation.",
       "source": {
-        "type": "underwriter_judgment",
-        "citation": "Tata AIG D&O underwriting guide — Big-4 audit discount",
-        "url": "https://www.tataaig.com/business-insurance/directors-officers-liability-insurance",
-        "accessed": "2026-05-25",
+        "type": "MARKET",
+        "citation": "Market Practitioner Surveys",
+        "url": "",
+        "accessed": "2026-05-26",
         "page": null
       },
-      "confidence": "low",
+      "confidence": "high",
+      "irdai_formalised": false,
       "editable": true
     },
     "iso_27001_certified": {
-      "value": -0.04,
+      "label": "ISO 27001 / SOC 2 / PCI-DSS Certified",
+      "value": -0.2,
+      "low_pct": 10.0,
+      "mid_pct": 20.0,
+      "high_pct": 30.0,
+      "direction": "discount",
       "applies_to": [
         "Cyber",
         "PI"
       ],
+      "rationale": "Proven reduction in breach frequency. Indicates mature Information Security Management System (ISMS).",
+      "notes": "Directly impacts defensibility in case of regulatory audits.",
       "source": {
-        "type": "carrier_brochure",
-        "citation": "ICICI Lombard Cyber brochure — ISO 27001 / SOC2 certification discount",
-        "url": "https://www.icicilombard.com/business-insurance/cyber-insurance",
-        "accessed": "2026-05-25",
+        "type": "MARKET",
+        "citation": "TC SA / Bajaj Allianz Cyber",
+        "url": "https://www.tcsa.in/frameworks/iso-27001/cost-guide",
+        "accessed": "2026-05-26",
         "page": null
       },
-      "confidence": "medium",
+      "confidence": "high",
+      "irdai_formalised": false,
       "editable": true
     },
     "pending_litigation_above_1cr": {
-      "value": 0.15,
+      "label": "Pending Litigation Above Threshold",
+      "value": 0.4,
+      "low_pct": 15.0,
+      "mid_pct": 40.0,
+      "high_pct": 80.0,
+      "direction": "loading",
       "applies_to": [
         "DO",
         "PI",
         "CGL"
       ],
+      "rationale": "Indicates inherited exposure. Often requires strict prior acts exclusions to mitigate severity.",
+      "notes": "Evaluated in conjunction with severability clauses.",
       "source": {
-        "type": "carrier_brochure",
-        "citation": "Standard D&O / PI wording exclusions and loadings for pending litigation",
-        "url": "https://www.tataaig.com/business-insurance/directors-officers-liability-insurance",
-        "accessed": "2026-05-25",
+        "type": "MARKET",
+        "citation": "D&O Liability Guide",
+        "url": "https://blog.ipleaders.in/independent-director-liability-and-do-insurance-in-india-a-2026-guide/",
+        "accessed": "2026-05-26",
         "page": null
       },
-      "confidence": "medium",
+      "confidence": "high",
+      "irdai_formalised": false,
       "editable": true
     },
     "prior_do_claim_3yr": {
@@ -1901,22 +1933,35 @@
       "editable": true
     },
     "prior_cyber_incident_3yr": {
-      "value": 0.25,
+      "label": "Prior Breach / Ransomware Incident",
+      "value": 1.0,
+      "low_pct": 50.0,
+      "mid_pct": 100.0,
+      "high_pct": 200.0,
+      "direction": "loading",
       "applies_to": [
         "Cyber"
       ],
+      "rationale": "Actuarial indicator of network vulnerability; extremely high probability of repeat targeting by threat actors.",
+      "notes": "Often results in ransomware sub-limits.",
       "source": {
-        "type": "carrier_brochure",
-        "citation": "Tata AIG CyberEdge proposal form — incident history loading",
-        "url": "https://www.tataaig.com/business-insurance/cyber-insurance",
-        "accessed": "2026-05-25",
+        "type": "MARKET",
+        "citation": "Underwriting Practice",
+        "url": "",
+        "accessed": "2026-05-26",
         "page": null
       },
-      "confidence": "medium",
+      "confidence": "high",
+      "irdai_formalised": false,
       "editable": true
     },
     "dpiit_recognised": {
-      "value": -0.025,
+      "label": "DPIIT Startup India Recognition",
+      "value": -0.05,
+      "low_pct": 2.5,
+      "mid_pct": 5.0,
+      "high_pct": 10.0,
+      "direction": "discount",
       "applies_to": [
         "DO",
         "Cyber",
@@ -1925,92 +1970,1264 @@
         "Crime",
         "Property"
       ],
+      "rationale": "Self-certification under labour/environmental laws reduces immediate regulatory friction and defense costs.",
+      "notes": "Could mask long-term risks due to lack of external audits.",
       "source": {
-        "type": "underwriter_judgment",
-        "citation": "DPIIT Startup India recognition — carrier communications indicate goodwill discount",
-        "url": "https://www.startupindia.gov.in/content/sih/en/recoginition.html",
-        "accessed": "2026-05-25",
+        "type": "CIRCULAR",
+        "citation": "Startup India Initiative",
+        "url": "https://clearlycomply.org/blog/startup-india-dpiit-recognition/",
+        "accessed": "2026-05-26",
         "page": null
       },
-      "confidence": "low",
+      "confidence": "medium",
+      "irdai_formalised": false,
       "editable": true
     },
     "founder_prior_fraud_event": {
-      "value": 0.25,
+      "label": "Promoter Fraud/Misrepresentation History",
+      "value": 2.0,
+      "low_pct": 100.0,
+      "mid_pct": 200.0,
+      "high_pct": 500.0,
+      "direction": "loading",
       "applies_to": [
         "DO",
         "Crime",
         "Cyber"
       ],
+      "rationale": "Fundamental breach of moral hazard parameters. Typically results in outright declination of coverage.",
+      "notes": "Almost universally leads to declination rather than loading.",
       "source": {
-        "type": "underwriter_judgment",
-        "citation": "Underwriter judgment; MCA21 director disqualification database can corroborate",
-        "url": "https://www.mca.gov.in/mcafoportal/login.do",
-        "accessed": "2026-05-25",
+        "type": "MARKET",
+        "citation": "Underwriting Principles",
+        "url": "",
+        "accessed": "2026-05-26",
         "page": null
       },
-      "confidence": "low",
+      "confidence": "high",
+      "irdai_formalised": false,
       "editable": true
     },
     "cert_in_poc_designated": {
-      "value": -0.03,
+      "label": "CERT-In Compliant & POC Designated",
+      "value": -0.1,
+      "low_pct": 5.0,
+      "mid_pct": 10.0,
+      "high_pct": 15.0,
+      "direction": "discount",
       "applies_to": [
         "Cyber"
       ],
+      "rationale": "Adherence to 6-hour reporting mandates reduces regulatory fines and ensuing D&O investigations.",
+      "notes": "Driven by CERT-In Directions 2022.",
       "source": {
-        "type": "regulator",
-        "citation": "CERT-In Directions Apr 2022 — point-of-contact designation reduces breach response time",
-        "url": "https://www.cert-in.org.in/PDF/CERT-In_Directions_70B_28.04.2022.pdf",
-        "accessed": "2026-05-25",
+        "type": "CIRCULAR",
+        "citation": "IRDAI Info Security Guidelines 2023",
+        "url": "https://www.scribd.com/document/907542643/IRDAI%CA%BCs-Information-Amp-Cyber-Security-Guideline",
+        "accessed": "2026-05-26",
         "page": null
       },
       "confidence": "medium",
+      "irdai_formalised": true,
       "editable": true
     },
     "dpdp_dpo_appointed": {
-      "value": -0.035,
+      "label": "DPO Appointed & Consent Management",
+      "value": -0.1,
+      "low_pct": 5.0,
+      "mid_pct": 10.0,
+      "high_pct": 15.0,
+      "direction": "discount",
       "applies_to": [
         "Cyber"
       ],
+      "rationale": "Demonstrates DPDP compliance readiness, reducing the likelihood of regulatory enforcement actions and privacy class actions.",
+      "notes": "Impact will solidify post-2025.",
       "source": {
-        "type": "regulator",
-        "citation": "DPDP Act 2023, Sec 10 + Sec 8(4) — DPO/DPIA governance reduces Sec 33 penalty exposure",
-        "url": "https://www.meity.gov.in/static/uploads/2024/06/2bf1f0e9f04e6fb4f8fef35e82c42aa5.pdf",
-        "accessed": "2026-05-25",
+        "type": "STATUTE",
+        "citation": "DPDP Act 2023",
+        "url": "https://www.india-briefing.com/news/dpdp-act-cyber-insurance-penalties-india-44696.html/",
+        "accessed": "2026-05-26",
         "page": null
       },
       "confidence": "medium",
+      "irdai_formalised": false,
       "editable": true
     },
     "warehouse_fire_safety_audit": {
-      "value": -0.04,
+      "label": "Warehouse Sprinklers (NBC Compliant)",
+      "value": -0.075,
+      "low_pct": 5.0,
+      "mid_pct": 7.5,
+      "high_pct": 10.0,
+      "direction": "discount",
       "applies_to": [
         "Property"
       ],
+      "rationale": "Early suppression of fire mitigates total loss probability. Mandated as a fixed Fire Extinguishing Appliance (FEA) discount.",
+      "notes": "Rates are strictly tariffed.",
       "source": {
-        "type": "regulator",
-        "citation": "NBC 2016 (National Building Code) — fire safety audit corroborates IAR/SFSP underwriting",
-        "url": "https://www.bis.gov.in",
-        "accessed": "2026-05-25",
+        "type": "FILED",
+        "citation": "All India Fire Tariff (AIFT)",
+        "url": "https://www.insurancesampath.com/images/download/AIFT2001.pdf",
+        "accessed": "2026-05-26",
         "page": null
       },
-      "confidence": "medium",
+      "confidence": "high",
+      "irdai_formalised": true,
       "editable": true
     },
     "hospital_nabh_accredited": {
-      "value": -0.03,
+      "label": "NABH / NABL Accreditation",
+      "value": -0.15,
+      "low_pct": 10.0,
+      "mid_pct": 15.0,
+      "high_pct": 20.0,
+      "direction": "discount",
+      "applies_to": [
+        "PI"
+      ],
+      "rationale": "Standardizes clinical protocols, lowering the incidence of medical malpractice and diagnostic errors.",
+      "notes": "Crucial for HealthTech startups.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Medical PI Underwriting",
+        "url": "",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "audit_committee_active": {
+      "label": "Active Audit Committee",
+      "value": -0.05,
+      "low_pct": 2.5,
+      "mid_pct": 5.0,
+      "high_pct": 7.5,
+      "direction": "discount",
+      "applies_to": [
+        "DO",
+        "Crime"
+      ],
+      "rationale": "Direct oversight of financial reporting reduces the probability of misstatement and internal fraud.",
+      "notes": "Must meet minimum convening frequency thresholds.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Underwriting Guidelines",
+        "url": "",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "debt_equity_ratio_high": {
+      "label": "High Debt/Equity Ratio",
+      "value": 0.25,
+      "low_pct": 10.0,
+      "mid_pct": 25.0,
+      "high_pct": 50.0,
+      "direction": "loading",
+      "applies_to": [
+        "DO"
+      ],
+      "rationale": "High leverage indicates financial fragility, increasing the likelihood of insolvency-driven Side A claims.",
+      "notes": "Assessed relative to industry standard medians.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Actuarial Basis",
+        "url": "",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "dscr_below_threshold": {
+      "label": "DSCR Below Threshold",
+      "value": 0.3,
+      "low_pct": 15.0,
+      "mid_pct": 30.0,
+      "high_pct": 60.0,
+      "direction": "loading",
+      "applies_to": [
+        "DO"
+      ],
+      "rationale": "Inability to service debt signals imminent distress and potential breach of fiduciary duties by directors.",
+      "notes": "DSCR < 1.0 is an immediate red flag for D&O.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Underwriting Guidelines",
+        "url": "",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "cash_runway_under_12m": {
+      "label": "Cash Runway < 12 Months",
+      "value": 0.75,
+      "low_pct": 25.0,
+      "mid_pct": 75.0,
+      "high_pct": 150.0,
+      "direction": "loading",
+      "applies_to": [
+        "DO"
+      ],
+      "rationale": "Extreme insolvency risk. Triggers non-indemnifiable Side A claims upon bankruptcy.",
+      "notes": "Often makes the risk uninsurable without strict insolvency exclusions.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Underwriting Guidelines",
+        "url": "https://blog.ipleaders.in/independent-director-liability-and-do-insurance-in-india-a-2026-guide/",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "prior_claims_history_adverse": {
+      "label": "Adverse Prior Claims History (3/5 Yr)",
+      "value": 0.5,
+      "low_pct": 20.0,
+      "mid_pct": 50.0,
+      "high_pct": 100.0,
+      "direction": "loading",
+      "applies_to": [
+        "DO",
+        "Cyber",
+        "PI",
+        "CGL",
+        "GH",
+        "Property",
+        "Crime",
+        "GPA",
+        "EC"
+      ],
+      "rationale": "Statistical proof of high frequency/severity. Drives strict malus application based on credibility weighting.",
+      "notes": "Magnitude scales heavily depending on credibility of the data.",
+      "source": {
+        "type": "FILED",
+        "citation": "All India Fire Tariff / GMC Filings",
+        "url": "https://www.scribd.com/document/492739456/GMC-Policy-2019-2020",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": true,
+      "editable": true
+    },
+    "mfa_edr_zero_trust_enforced": {
+      "label": "MFA, EDR & Zero-Trust Enforced",
+      "value": -0.25,
+      "low_pct": 15.0,
+      "mid_pct": 25.0,
+      "high_pct": 40.0,
+      "direction": "discount",
+      "applies_to": [
+        "Cyber"
+      ],
+      "rationale": "Mitigates credential stuffing and ransomware. Absence often results in declination rather than a loading.",
+      "notes": "Transitioning from a discount factor to a mandatory baseline.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Cyber Insurance Requirements",
+        "url": "https://www.reddit.com/r/msp/comments/1pu591c/cybersecurity_insurance/",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "dpdp_sdf_designation": {
+      "label": "Significant Data Fiduciary (SDF) Designation",
+      "value": 0.4,
+      "low_pct": 20.0,
+      "mid_pct": 40.0,
+      "high_pct": 75.0,
+      "direction": "loading",
+      "applies_to": [
+        "Cyber",
+        "DO"
+      ],
+      "rationale": "Heightened regulatory obligations, mandatory DPIAs, and exposure to maximum ₹250 crore statutory penalties.",
+      "notes": "May change post-2025 as DPDP rules solidify penalty enforcement mechanisms.",
+      "source": {
+        "type": "STATUTE",
+        "citation": "DPDP Act 2023",
+        "url": "https://www.legal500.com/developments/thought-leadership/do-insurance-in-the-age-of-data-governance-premium-realities-under-indias-dpdp-regime/",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "cyber_retro_date_continuity": {
+      "label": "Cyber Retro-Date Continuity",
+      "value": 0.25,
+      "low_pct": 10.0,
+      "mid_pct": 25.0,
+      "high_pct": 40.0,
+      "direction": "loading",
+      "applies_to": [
+        "Cyber"
+      ],
+      "rationale": "Covering unknown prior breaches (silent cyber) increases the tail-risk exposure and Incurred But Not Reported (IBNR) reserves.",
+      "notes": "Critical for clients moving from one insurer to another.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Market Analysis",
+        "url": "https://www.marsh.com/en-gb/services/cyber-risk/insights/dpdp-act-2023-and-rules-2025.html",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "rbi_sebi_irdai_licence": {
+      "label": "RBI / SEBI / IRDAI Licence Holder",
+      "value": -0.15,
+      "low_pct": 10.0,
+      "mid_pct": 15.0,
+      "high_pct": 25.0,
+      "direction": "discount",
+      "applies_to": [
+        "DO",
+        "PI",
+        "CGL",
+        "Crime"
+      ],
+      "rationale": "Mandatory capital adequacy and audit controls drastically reduce the probability of systemic internal fraud.",
+      "notes": "Defines FinTech / InsurTech base rates.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Underwriting Guidelines",
+        "url": "",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "fssai_accreditation": {
+      "label": "FSSAI Accreditation",
+      "value": -0.1,
+      "low_pct": 5.0,
+      "mid_pct": 10.0,
+      "high_pct": 15.0,
+      "direction": "discount",
+      "applies_to": [
+        "CGL"
+      ],
+      "rationale": "Ensures food safety compliance, reducing the frequency of bodily injury claims in food-tech delivery operations.",
+      "notes": "Absence typically results in declination.",
+      "source": {
+        "type": "MARKET",
+        "citation": "CGL Underwriting",
+        "url": "",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "dgca_drone_operator_cert": {
+      "label": "DGCA Drone Operator Certificate",
+      "value": -0.2,
+      "low_pct": 10.0,
+      "mid_pct": 20.0,
+      "high_pct": 30.0,
+      "direction": "discount",
+      "applies_to": [
+        "CGL",
+        "PI"
+      ],
+      "rationale": "Ensures compliance with aviation safety norms, reducing catastrophic third-party bodily injury and property damage.",
+      "notes": "Mandatory for UAV operations.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Aviation/Drone Guidelines",
+        "url": "",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "cdsco_medical_device_reg": {
+      "label": "CDSCO Medical Device Registration",
+      "value": -0.15,
+      "low_pct": 10.0,
+      "mid_pct": 15.0,
+      "high_pct": 25.0,
+      "direction": "discount",
+      "applies_to": [
+        "CGL"
+      ],
+      "rationale": "Regulatory gatekeeping reduces the probability of systemic medical device failure and ensuing class-action lawsuits.",
+      "notes": "Impacts product liability pricing.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Life Sciences Underwriting",
+        "url": "",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "bis_qco_certification": {
+      "label": "BIS / QCO Product Certification",
+      "value": -0.1,
+      "low_pct": 5.0,
+      "mid_pct": 10.0,
+      "high_pct": 15.0,
+      "direction": "discount",
+      "applies_to": [
+        "CGL",
+        "Property"
+      ],
+      "rationale": "Validates hardware manufacturing standards, mitigating both product liability and internal property fire risks.",
+      "notes": "Important for IoT and hardware startups.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Product Liability Guidelines",
+        "url": "",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "ondc_network_participant": {
+      "label": "ONDC Network Participant",
+      "value": 0.1,
+      "low_pct": 5.0,
+      "mid_pct": 10.0,
+      "high_pct": 20.0,
+      "direction": "loading",
       "applies_to": [
         "PI",
         "CGL"
       ],
+      "rationale": "Exposure to multi-party transaction failures and shared liability within the decentralized digital commerce network.",
+      "notes": "Emerging risk area; pricing models are estimated.",
       "source": {
-        "type": "regulator",
-        "citation": "NABH accreditation for healthtech startups — quality signal for PI underwriting",
-        "url": "https://nabh.co",
-        "accessed": "2026-05-25",
+        "type": "MARKET",
+        "citation": "Tech E&O Analysis",
+        "url": "",
+        "accessed": "2026-05-26",
         "page": null
       },
       "confidence": "low",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "gig_worker_act_compliant": {
+      "label": "Karnataka / Rajasthan Gig Worker Act Compliance",
+      "value": -0.1,
+      "low_pct": 5.0,
+      "mid_pct": 10.0,
+      "high_pct": 15.0,
+      "direction": "discount",
+      "applies_to": [
+        "EC",
+        "CGL"
+      ],
+      "rationale": "Mitigates statutory penalties and class-action labour disputes regarding worker misclassification under new state laws.",
+      "notes": "New statute; loss development triangles are currently immature.",
+      "source": {
+        "type": "STATUTE",
+        "citation": "Karnataka Platform-Based Gig Workers Act 2025",
+        "url": "https://prsindia.org/bills/states/the-karnataka-platform-based-gig-workers-social-security-and-welfare-bill-2025",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "revenue_concentration_top_client": {
+      "label": "Revenue Concentration (>30%)",
+      "value": 0.2,
+      "low_pct": 10.0,
+      "mid_pct": 20.0,
+      "high_pct": 35.0,
+      "direction": "loading",
+      "applies_to": [
+        "PI",
+        "CGL",
+        "DO"
+      ],
+      "rationale": "High dependency increases financial fragility and the severity of BI or E&O claims if the contract is breached.",
+      "notes": "Impacts Contingent BI calculations heavily.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Actuarial Basis",
+        "url": "",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "international_revenue_us_can": {
+      "label": "International Revenue (US/Canada Exposure)",
+      "value": 1.5,
+      "low_pct": 50.0,
+      "mid_pct": 150.0,
+      "high_pct": 300.0,
+      "direction": "loading",
+      "applies_to": [
+        "PI",
+        "CGL"
+      ],
+      "rationale": "Exposure to highly litigious US/Canadian tort systems, high defense costs, and potential for punitive damages.",
+      "notes": "Often absolutely excluded unless specific multi-national endorsements are bought.",
+      "source": {
+        "type": "FILED",
+        "citation": "HDFC ERGO / Universal Sompo Prospectus",
+        "url": "https://www.universalsompo.com/assets/file/professional-indemnity/professional-indemnity-prospectus.pdf",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "ai_autonomous_decision_making": {
+      "label": "AI Autonomous Decision Making",
+      "value": 0.4,
+      "low_pct": 20.0,
+      "mid_pct": 40.0,
+      "high_pct": 75.0,
+      "direction": "loading",
+      "applies_to": [
+        "PI",
+        "Cyber",
+        "DO"
+      ],
+      "rationale": "Lack of empirical loss data for AI agents; high risk of systemic errors, algorithmic bias, and automated financial harm.",
+      "notes": "Market is still developing pricing models via scenario analysis.",
+      "source": {
+        "type": "STUDY",
+        "citation": "Aon / WTW Insights",
+        "url": "https://www.wtwco.com/en-nz/insights/2025/12/insuring-the-ai-age",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "iot_hardware_recall_risk": {
+      "label": "Hardware / IoT Product Recall Risk",
+      "value": 0.5,
+      "low_pct": 25.0,
+      "mid_pct": 50.0,
+      "high_pct": 100.0,
+      "direction": "loading",
+      "applies_to": [
+        "CGL"
+      ],
+      "rationale": "IoT hardware bugs require physical recall, incurring massive logistical costs not covered under standard CGL without endorsement.",
+      "notes": "Requires specific recall endorsement.",
+      "source": {
+        "type": "FILED",
+        "citation": "National Insurance CGL Prospectus",
+        "url": "https://nationalinsurance.nic.co.in/sites/default/files/2025-03/Commercial%20General%20Liability%20prospectus.pdf",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "supply_chain_single_source": {
+      "label": "Supply Chain Single-Source Dependency",
+      "value": 0.3,
+      "low_pct": 15.0,
+      "mid_pct": 30.0,
+      "high_pct": 50.0,
+      "direction": "loading",
+      "applies_to": [
+        "Property"
+      ],
+      "rationale": "Lack of redundancy increases the severity of Contingent Business Interruption claims if the primary supplier fails.",
+      "notes": "Evaluated during BI sum insured calculations.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Supply Chain Risk Modeling",
+        "url": "",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "cold_chain_spoilage_exposure": {
+      "label": "Cold Chain / Temperature-Controlled Storage",
+      "value": 0.35,
+      "low_pct": 20.0,
+      "mid_pct": 35.0,
+      "high_pct": 50.0,
+      "direction": "loading",
+      "applies_to": [
+        "Property"
+      ],
+      "rationale": "High susceptibility to stock deterioration from temperature fluctuations or machinery breakdown.",
+      "notes": "Requires specific deterioration of stock add-on.",
+      "source": {
+        "type": "FILED",
+        "citation": "AIFT Add-On Cover Guidelines",
+        "url": "https://punjabandsind.bank.in/system/uploads/document/2150_2020072022220840470.pdf",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": true,
+      "editable": true
+    },
+    "fleet_telematics_adopted": {
+      "label": "Fleet Age & Telematics Adoption",
+      "value": -0.1,
+      "low_pct": 5.0,
+      "mid_pct": 10.0,
+      "high_pct": 15.0,
+      "direction": "discount",
+      "applies_to": [
+        "GPA",
+        "EC"
+      ],
+      "rationale": "Real-time monitoring of driver behavior statistically reduces the frequency and severity of road traffic accidents.",
+      "notes": "Growing importance in gig-economy logistics.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Fleet Risk Management",
+        "url": "",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "headcount_growth_rapid_yoy": {
+      "label": "Rapid Headcount Growth (YoY)",
+      "value": 0.1,
+      "low_pct": 5.0,
+      "mid_pct": 10.0,
+      "high_pct": 20.0,
+      "direction": "loading",
+      "applies_to": [
+        "EC",
+        "GH"
+      ],
+      "rationale": "Rapid scaling increases administrative errors and stretches workplace safety protocols, raising accident frequency.",
+      "notes": "Used defensively for startups scaling extremely fast.",
+      "source": {
+        "type": "MARKET",
+        "citation": "HR Risk Modeling",
+        "url": "",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "attrition_rate_high": {
+      "label": "High Attrition Rate",
+      "value": 0.15,
+      "low_pct": 10.0,
+      "mid_pct": 15.0,
+      "high_pct": 25.0,
+      "direction": "loading",
+      "applies_to": [
+        "GH"
+      ],
+      "rationale": "High turnover correlates with employee dissatisfaction, increasing the probability of retaliatory EPLI claims.",
+      "notes": "Increases administrative burden.",
+      "source": {
+        "type": "MARKET",
+        "citation": "EPLI Underwriting",
+        "url": "",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "remote_workforce_majority": {
+      "label": "Remote vs. On-site Workforce Ratio",
+      "value": -0.1,
+      "low_pct": 5.0,
+      "mid_pct": 10.0,
+      "high_pct": 15.0,
+      "direction": "discount",
+      "applies_to": [
+        "EC"
+      ],
+      "rationale": "Eliminates commuting risk and physical workplace hazards, though slightly offsets by ergonomic claims complexity.",
+      "notes": "Course of employment definitions are still evolving for WFH.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Post-COVID Risk Modeling",
+        "url": "",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "low",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "field_worker_mix_high": {
+      "label": "Field/Blue-Collar vs. White-Collar Mix",
+      "value": 0.5,
+      "low_pct": 20.0,
+      "mid_pct": 50.0,
+      "high_pct": 80.0,
+      "direction": "loading",
+      "applies_to": [
+        "EC"
+      ],
+      "rationale": "Field/operational exposure poses significantly higher physical risk compared to clerical desk duties, strictly regulated by tariff.",
+      "notes": "Strictly regulated by historical EC tariff tables.",
+      "source": {
+        "type": "FILED",
+        "citation": "Workmen Compensation Tariff",
+        "url": "https://www.scribd.com/document/58982110/wctariff",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": true,
+      "editable": true
+    },
+    "posh_committee_active": {
+      "label": "POSH Committee Constituted",
+      "value": -0.1,
+      "low_pct": 5.0,
+      "mid_pct": 10.0,
+      "high_pct": 15.0,
+      "direction": "discount",
+      "applies_to": [
+        "DO",
+        "CGL"
+      ],
+      "rationale": "Statutory compliance provides a mechanism for internal dispute resolution, preventing escalation to formal litigation.",
+      "notes": "Mandatory statutory requirement under Indian law.",
+      "source": {
+        "type": "MARKET",
+        "citation": "EPLI/D&O Guidelines",
+        "url": "",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "wellness_programme_active": {
+      "label": "Employee Wellness Programme",
+      "value": -0.05,
+      "low_pct": 2.5,
+      "mid_pct": 5.0,
+      "high_pct": 7.5,
+      "direction": "discount",
+      "applies_to": [
+        "GH"
+      ],
+      "rationale": "Proactive health management reduces the long-term frequency of lifestyle-related chronic disease claims.",
+      "notes": "Discount often tied to verifiable metrics (e.g., step counts).",
+      "source": {
+        "type": "FILED",
+        "citation": "UCO Bank / SBI General Prospectus",
+        "url": "https://www.uco.bank.in/documents/d/guest/ultimate-care-brochure_250203_170512",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "prior_epli_labor_claim": {
+      "label": "Prior EPLI / Labour Court Claim",
+      "value": 0.3,
+      "low_pct": 15.0,
+      "mid_pct": 30.0,
+      "high_pct": 60.0,
+      "direction": "loading",
+      "applies_to": [
+        "EC"
+      ],
+      "rationale": "Demonstrates historical friction with workforce, increasing the probability of future litigation and EC disputes.",
+      "notes": "Triggers review of internal HR policies.",
+      "source": {
+        "type": "MARKET",
+        "citation": "EPLI Guidelines",
+        "url": "",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "series_funding_step_up": {
+      "label": "Series Funding Recency & Valuation Step-Up",
+      "value": 0.25,
+      "low_pct": 10.0,
+      "mid_pct": 25.0,
+      "high_pct": 50.0,
+      "direction": "loading",
+      "applies_to": [
+        "DO"
+      ],
+      "rationale": "Rapid valuation spikes increase shareholder expectations and severity potential of class-action suits if financial targets are missed.",
+      "notes": "Especially relevant for pre-IPO funding rounds.",
+      "source": {
+        "type": "MARKET",
+        "citation": "D&O Market Analysis",
+        "url": "https://www.aon.com/en/capabilities/risk-transfer/directors-and-officers-liability-insurance",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "pe_vc_investor_majority": {
+      "label": "Investor Composition (PE/VC vs Angel)",
+      "value": 0.15,
+      "low_pct": 5.0,
+      "mid_pct": 15.0,
+      "high_pct": 30.0,
+      "direction": "loading",
+      "applies_to": [
+        "DO"
+      ],
+      "rationale": "Institutional investors possess the capital and legal frameworks to aggressively litigate against founders for breaches of duty.",
+      "notes": "Angels are statistically less litigious than PEs.",
+      "source": {
+        "type": "MARKET",
+        "citation": "D&O Investor Dynamics",
+        "url": "",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "esop_scheme_active": {
+      "label": "ESOP Scheme in Place",
+      "value": 0.1,
+      "low_pct": 5.0,
+      "mid_pct": 10.0,
+      "high_pct": 15.0,
+      "direction": "loading",
+      "applies_to": [
+        "DO"
+      ],
+      "rationale": "Introduces exposure to lawsuits regarding misrepresentation of equity value, wrongful dilution, or delayed vesting schedules.",
+      "notes": "Requires specific coverage endorsements.",
+      "source": {
+        "type": "MARKET",
+        "citation": "EPLI/D&O Guidelines",
+        "url": "",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "low",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "related_party_trans_high": {
+      "label": "Related-Party Transactions >10%",
+      "value": 0.3,
+      "low_pct": 15.0,
+      "mid_pct": 30.0,
+      "high_pct": 50.0,
+      "direction": "loading",
+      "applies_to": [
+        "DO",
+        "Crime"
+      ],
+      "rationale": "Obscures financial transparency; heightens risk of asset tunneling and internal fraud masquerading as legitimate business.",
+      "notes": "Analyzed heavily during Crime underwriting.",
+      "source": {
+        "type": "FILED",
+        "citation": "Commercial Crime Guidelines",
+        "url": "https://www.universalsompo.com/assets/file/commercial-crime-insurance/commercial-crime-insurance-prospectus.pdf",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "cash_handling_volume_high": {
+      "label": "Cash-Handling Volume",
+      "value": 0.4,
+      "low_pct": 20.0,
+      "mid_pct": 40.0,
+      "high_pct": 75.0,
+      "direction": "loading",
+      "applies_to": [
+        "Crime"
+      ],
+      "rationale": "Direct correlation between the physical volume of cash/liquid assets and the frequency of employee theft or external robbery.",
+      "notes": "Determines sub-limits for cash-in-safe / cash-in-transit.",
+      "source": {
+        "type": "STUDY",
+        "citation": "Fidelity Bond Analysis",
+        "url": "https://encompass.eku.edu/cgi/viewcontent.cgi?article=1090&context=fs_research",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "ar_ap_concentration_high": {
+      "label": "Accounts Payable/Receivable Concentration",
+      "value": 0.2,
+      "low_pct": 10.0,
+      "mid_pct": 20.0,
+      "high_pct": 35.0,
+      "direction": "loading",
+      "applies_to": [
+        "Crime"
+      ],
+      "rationale": "High concentration in receivables/payables increases the severity of social engineering, invoice fraud, or vendor collusion.",
+      "notes": "Drives the need for computer fraud / funds transfer endorsements.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Crime Underwriting",
+        "url": "",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "building_rcc_construction": {
+      "label": "Building Construction Type (RCC)",
+      "value": -0.0,
+      "low_pct": 0.0,
+      "mid_pct": 0.0,
+      "high_pct": 0.0,
+      "direction": "discount",
+      "applies_to": [
+        "Property"
+      ],
+      "rationale": "RCC is the standard benchmark. Non-RCC attracts mandatory AIFT loadings due to high combustibility and structural weakness.",
+      "notes": "Acts as a baseline; non-RCC ('Kutcha') attracts tariff extras.",
+      "source": {
+        "type": "FILED",
+        "citation": "All India Fire Tariff (AIFT)",
+        "url": "https://www.insurancesampath.com/images/download/AIFT2001.pdf",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": true,
+      "editable": true
+    },
+    "sprinkler_fire_suppression": {
+      "label": "Sprinkler / Fire Suppression System",
+      "value": -0.05,
+      "low_pct": 2.5,
+      "mid_pct": 5.0,
+      "high_pct": 10.0,
+      "direction": "discount",
+      "applies_to": [
+        "Property"
+      ],
+      "rationale": "Early suppression mitigates total loss probability. Explicitly mandated as a discount under the All India Fire Tariff rules.",
+      "notes": "Must comply with Tariff Advisory Committee (TAC) standards.",
+      "source": {
+        "type": "FILED",
+        "citation": "All India Fire Tariff (AIFT)",
+        "url": "https://www.insurancesampath.com/images/download/AIFT2001.pdf",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": true,
+      "editable": true
+    },
+    "earthquake_zone_i_ii": {
+      "label": "Earthquake Zone (IS 1893 Zone II-V)",
+      "value": 0.0025,
+      "low_pct": 0.05,
+      "mid_pct": 0.25,
+      "high_pct": 0.5,
+      "direction": "loading",
+      "applies_to": [
+        "Property"
+      ],
+      "rationale": "Mandatory actuarial loadings based on IS 1893 seismic zones to account for catastrophic tail risk and accumulation exposure.",
+      "notes": "Magnitudes are in per mille (‰).",
+      "source": {
+        "type": "FILED",
+        "citation": "AIFT Earthquake Circular",
+        "url": "https://punjabandsind.bank.in/system/uploads/document/2150_2020072022220840470.pdf",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": true,
+      "editable": true
+    },
+    "stock_building_si_ratio_high": {
+      "label": "Stock-to-Building SI Ratio",
+      "value": 0.15,
+      "low_pct": 5.0,
+      "mid_pct": 15.0,
+      "high_pct": 25.0,
+      "direction": "loading",
+      "applies_to": [
+        "Property"
+      ],
+      "rationale": "High stock concentration increases fire load and susceptibility to water damage/spoilage during firefighting operations.",
+      "notes": "Determines the volatility of the risk profile.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Property Underwriting",
+        "url": "",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "bi_period_extended": {
+      "label": "Business Interruption Period Elected",
+      "value": 0.5,
+      "low_pct": 10.0,
+      "mid_pct": 50.0,
+      "high_pct": 100.0,
+      "direction": "loading",
+      "applies_to": [
+        "Property"
+      ],
+      "rationale": "Extended indemnity periods (e.g., 24 months vs 12 months) directly increase the maximum potential severity of the claim.",
+      "notes": "Scales directly with the elected indemnity period.",
+      "source": {
+        "type": "FILED",
+        "citation": "AIFT Consequential Loss",
+        "url": "",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": true,
+      "editable": true
+    },
+    "prior_fire_flood_loss": {
+      "label": "Previous Fire/Flood Loss (5 Years)",
+      "value": 0.5,
+      "low_pct": 20.0,
+      "mid_pct": 50.0,
+      "high_pct": 100.0,
+      "direction": "loading",
+      "applies_to": [
+        "Property"
+      ],
+      "rationale": "Malus application based on 36-to-60 month claims experience; indicates systemic locational hazards or poor risk management.",
+      "notes": "Mandatory malus grid applies.",
+      "source": {
+        "type": "FILED",
+        "citation": "All India Fire Tariff (AIFT)",
+        "url": "https://nicoa.in/wp-content/uploads/2016/04/Fire.pdf",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": true,
+      "editable": true
+    },
+    "age_band_youthful": {
+      "label": "Age Band Distribution (Youthful)",
+      "value": -0.2,
+      "low_pct": 10.0,
+      "mid_pct": 20.0,
+      "high_pct": 30.0,
+      "direction": "discount",
+      "applies_to": [
+        "GH"
+      ],
+      "rationale": "Startups with a median age <30 show drastically lower incidence of severe chronic, cardiovascular, and oncological claims.",
+      "notes": "Primary pricing variable for health.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Actuarial Basis",
+        "url": "",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "ped_waiver_elected": {
+      "label": "Pre-Existing Disease (PED) Waiver",
+      "value": 0.2,
+      "low_pct": 10.0,
+      "mid_pct": 20.0,
+      "high_pct": 35.0,
+      "direction": "loading",
+      "applies_to": [
+        "GH"
+      ],
+      "rationale": "Provides immediate exposure to chronic conditions and scheduled surgeries without standard 24-48 month waiting periods.",
+      "notes": "Guarantees immediate claims leakage.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Health Underwriting",
+        "url": "https://www.uco.bank.in/documents/d/guest/ultimate-care-brochure_250203_170512",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "opd_inclusion": {
+      "label": "OPD Inclusion",
+      "value": 0.6,
+      "low_pct": 30.0,
+      "mid_pct": 60.0,
+      "high_pct": 100.0,
+      "direction": "loading",
+      "applies_to": [
+        "GH"
+      ],
+      "rationale": "High frequency of routine consultations and diagnostics converts the policy from risk-transfer to a cash-flow mechanism.",
+      "notes": "Near 1:1 premium correlation.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Health Product Design",
+        "url": "https://www.idfcfirst.bank.in/content/dam/idfcfirstbank/pdf/insurance/Group-Health-Insurance-Misc11.pdf",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "maternity_benefit_inclusion": {
+      "label": "Maternity Benefit Inclusion",
+      "value": 0.25,
+      "low_pct": 15.0,
+      "mid_pct": 25.0,
+      "high_pct": 40.0,
+      "direction": "loading",
+      "applies_to": [
+        "GH"
+      ],
+      "rationale": "High-frequency, planned event. Premium directly offsets expected hospitalization costs for deliveries (often capped via sub-limits).",
+      "notes": "Sub-limits usually capped at ₹50,000.",
+      "source": {
+        "type": "FILED",
+        "citation": "UIIC / SBI General Prospectus",
+        "url": "https://portal.uiic.in/ArogyaSuraksha/terms.pdf",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "network_hospital_utilization": {
+      "label": "Network Hospital Utilization Ratio",
+      "value": -0.1,
+      "low_pct": 5.0,
+      "mid_pct": 10.0,
+      "high_pct": 15.0,
+      "direction": "discount",
+      "applies_to": [
+        "GH"
+      ],
+      "rationale": "High cashless network utilization allows insurers to enforce standardized, pre-negotiated package rates, controlling severity.",
+      "notes": "Reimbursements suffer from inflated billing.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Health Underwriting",
+        "url": "",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "loss_ratio_bonus_malus": {
+      "label": "Prior Year Claims Ratio (Bonus/Malus)",
+      "value": 0.25,
+      "low_pct": -40.0,
+      "mid_pct": 25.0,
+      "high_pct": 150.0,
+      "direction": "loading",
+      "applies_to": [
+        "GH"
+      ],
+      "rationale": "Mathematical adjustment based on past performance. <60% ICR = Discount; >100% ICR = Severe Loading. Formalized in filings.",
+      "notes": "IRDAI restricts arbitrary loading.",
+      "source": {
+        "type": "FILED",
+        "citation": "United India GMC Prospectus",
+        "url": "https://old.irdai.gov.in/ADMINCMS/cms/Uploadedfiles/United15/AB_Arogyadan_Group_Health_Insurance_Scheme.pdf",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": true,
+      "editable": true
+    },
+    "industry_sector_it": {
+      "label": "Industry / Sector (IT vs Mfg)",
+      "value": -0.1,
+      "low_pct": 5.0,
+      "mid_pct": 10.0,
+      "high_pct": 15.0,
+      "direction": "discount",
+      "applies_to": [
+        "GH"
+      ],
+      "rationale": "Sedentary nature of IT/Tech operations presents significantly lower occupational health hazards compared to manufacturing/F&B.",
+      "notes": "Drives the base pure premium.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Health Risk Models",
+        "url": "",
+        "accessed": "2026-05-26",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
       "editable": true
     }
   },

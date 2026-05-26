@@ -50,14 +50,22 @@ def make_pricing_response(body):
 
     params = load_params()
     catalog = {}
-    for key, value in (params.get("loadings_discounts") or {}).items():
-        raw_value = value.get("value")
-        raw_confidence = value.get("confidence", "low")
+    for key, entry in (params.get("loadings_discounts") or {}).items():
+        raw_value = entry.get("value")
+        raw_confidence = entry.get("confidence", "low")
         catalog[key] = {
             "value": raw_value.get("value") if isinstance(raw_value, dict) else raw_value,
-            "applies_to": value.get("applies_to", []),
-            "source": value.get("source", {}),
+            "label": entry.get("label") or key,
+            "direction": entry.get("direction", "loading"),
+            "low_pct": entry.get("low_pct"),
+            "mid_pct": entry.get("mid_pct"),
+            "high_pct": entry.get("high_pct"),
+            "applies_to": entry.get("applies_to", []),
+            "rationale": entry.get("rationale", ""),
+            "notes": entry.get("notes", ""),
+            "source": entry.get("source", {}),
             "confidence": raw_confidence.get("value") if isinstance(raw_confidence, dict) else raw_confidence,
+            "irdai_formalised": bool(entry.get("irdai_formalised", False)),
         }
 
     return {

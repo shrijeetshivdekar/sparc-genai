@@ -3540,6 +3540,7 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
   const catalogOverrides = {};
   const activeLoadings = new Set((Q.active_loadings || []).map(x => x.id));
   let currentSI = Q.inputs_echo?.sum_insured_inr || estimateSumInsured(profile, LOB);
+  const customAdjustments = []; // {id, label, value} added by the underwriter
 
   const money = (n) => "Rs. " + Math.round(Number(n) || 0).toLocaleString("en-IN");
   const compactMoney = (n) => {
@@ -3570,6 +3571,7 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
     activeLoadings.forEach(id => {
       if (CATALOG[id]) net += catalogValue(id);
     });
+    customAdjustments.forEach(adj => { net += adj.value; });
     const clamped = Math.abs(net) > CLAMP;
     net = Math.max(-CLAMP, Math.min(CLAMP, net));
     const loaded = tech * (1 + net);
@@ -3622,16 +3624,24 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
         <div class="pc-src">${sourceLink(s)}</div>
         <div class="pc-conf"><span class="pc-conf-dot pc-conf-${esc(s.confidence || "medium")}"></span></div>
       </div>`).join("");
-    const activeRows = Array.from(activeLoadings).map(id => {
-      const item = CATALOG[id];
-      if (!item) return "";
-      const v = catalogValue(id);
-      return `<div class="pc-loading-row">
-        <div><strong>${esc(labelize(id))}</strong><span>${esc((item.source?.citation || "").slice(0, 95))}</span></div>
-        ${valueCell("loading", id, v, pctText(v), true)}
-        <button class="pc-mini-btn" type="button" data-remove-loading="${esc(id)}">x</button>
-      </div>`;
-    }).join("") || `<div class="pc-empty">No adjustments applied.</div>`;
+    const activeRows = [
+      ...Array.from(activeLoadings).map(id => {
+        const item = CATALOG[id];
+        if (!item) return "";
+        const v = catalogValue(id);
+        return `<div class="pc-loading-row">
+          <div><strong>${esc(labelize(id))}</strong><span>${esc((item.source?.citation || "").slice(0, 95))}</span></div>
+          ${valueCell("loading", id, v, pctText(v), true)}
+          <button class="pc-mini-btn" type="button" data-remove-loading="${esc(id)}">x</button>
+        </div>`;
+      }),
+      ...customAdjustments.map(adj => `
+        <div class="pc-loading-row pc-custom-row">
+          <div><strong>${esc(adj.label)}</strong><span class="pc-custom-tag">Custom</span></div>
+          <div class="pc-val bold ${adj.value < 0 ? "grn" : "red"}">${pctText(adj.value)}</div>
+          <button class="pc-mini-btn" type="button" data-remove-custom="${esc(adj.id)}">x</button>
+        </div>`),
+    ].join("") || `<div class="pc-empty">No adjustments applied.</div>`;
     const catalogRows = Object.entries(CATALOG || {}).map(([id, item]) => {
       const ok = (item.applies_to || []).includes(LOB);
       const on = activeLoadings.has(id);
@@ -3660,6 +3670,16 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
             <div class="pc-factor-table">${renderSIRow()}${rows.ratingRows}<div class="pc-row sub"><div class="pc-op">=</div><div class="pc-label">Technical premium<span class="pc-sub">Before adjustments and expense loading</span></div><div class="pc-val bold"><span class="val-text">${money(c.tech)}</span></div><div class="pc-src">derived</div><div class="pc-conf"></div></div></div>
             <div class="pc-section-eyebrow">Active Adjustments</div>
             <div class="pc-loadings-card"><div class="pc-loadings-head"><span>Loadings and discounts</span><span class="pc-net-badge ${c.net < 0 ? "pc-net-neg" : c.net > 0 ? "pc-net-pos" : "pc-net-zero"}">${pctText(c.net)}</span></div><div class="pc-loadings-list">${rows.activeRows}</div><div class="pc-clamp ${c.clamped ? "on" : ""}">Net adjustment clamped to +/-25%</div></div>
+            <div class="pc-custom-adj-wrap" id="pc-custom-adj-wrap">
+              <button class="pc-add-custom-btn" type="button" id="pc-add-custom-btn">+ Add custom adjustment</button>
+              <div class="pc-custom-form hidden" id="pc-custom-form">
+                <input class="pc-custom-label-input" id="pc-custom-label" type="text" placeholder="Label, e.g. Renewal loyalty discount" maxlength="60">
+                <input class="pc-custom-pct-input" id="pc-custom-pct" type="number" step="0.5" placeholder="e.g. -10 or +15">
+                <span class="pc-custom-pct-hint">%</span>
+                <button class="pc-mini-btn pc-custom-apply" type="button" id="pc-custom-apply">Apply</button>
+                <button class="pc-mini-btn" type="button" id="pc-custom-cancel">Cancel</button>
+              </div>
+            </div>
             <details class="pc-loadings-card"><summary class="pc-catalog-summary">Add from catalog</summary><div class="pc-catalog-list">${rows.catalogRows}</div></details>
             <div class="pc-section-eyebrow">Expense and Tax</div>
             <div class="pc-factor-table">${rows.expenseRows}</div>
@@ -3743,10 +3763,36 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
       activeLoadings.delete(btn.dataset.removeLoading);
       render();
     }));
+    container.querySelectorAll("[data-remove-custom]").forEach(btn => btn.addEventListener("click", () => {
+      const idx = customAdjustments.findIndex(a => a.id === btn.dataset.removeCustom);
+      if (idx !== -1) customAdjustments.splice(idx, 1);
+      render();
+    }));
+    const addBtn    = document.getElementById("pc-add-custom-btn");
+    const form      = document.getElementById("pc-custom-form");
+    const applyBtn  = document.getElementById("pc-custom-apply");
+    const cancelBtn = document.getElementById("pc-custom-cancel");
+    if (addBtn) addBtn.addEventListener("click", () => {
+      form.classList.remove("hidden");
+      addBtn.classList.add("hidden");
+      document.getElementById("pc-custom-label").focus();
+    });
+    if (cancelBtn) cancelBtn.addEventListener("click", () => {
+      form.classList.add("hidden");
+      addBtn.classList.remove("hidden");
+    });
+    if (applyBtn) applyBtn.addEventListener("click", () => {
+      const label = (document.getElementById("pc-custom-label").value || "").trim();
+      const pct   = Number(document.getElementById("pc-custom-pct").value);
+      if (!label || !Number.isFinite(pct) || pct === 0) return;
+      customAdjustments.push({ id: "custom_" + Date.now(), label, value: pct / 100 });
+      render();
+    });
     const reset = $("pc-reset-all");
     if (reset) reset.addEventListener("click", () => {
       Object.keys(ratingOverrides).forEach(k => delete ratingOverrides[k]);
       Object.keys(catalogOverrides).forEach(k => delete catalogOverrides[k]);
+      customAdjustments.length = 0;
       render();
     });
   }

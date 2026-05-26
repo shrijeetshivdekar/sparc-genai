@@ -8663,6 +8663,65 @@ pre {
   background: var(--red);
   color: #fff;
 }
+.signal-actions .signal-draft-btn {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,.25);
+  color: rgba(255,255,255,.75);
+}
+.signal-actions .signal-draft-btn:hover:not(:disabled) {
+  background: rgba(255,255,255,.07);
+  color: #fff;
+}
+.signal-actions .signal-draft-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Signal draft output panel */
+.signal-draft-output {
+  margin-top: 14px;
+  border-top: 1px solid rgba(255,255,255,.1);
+  padding-top: 14px;
+}
+.sdo-loader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sdo-loader .oal-track { flex: 1; }
+.sdo-pct {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--red);
+  min-width: 36px;
+}
+.sdo-item { padding: 10px 0; }
+.sdo-product {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: rgba(255,255,255,.45);
+  margin-bottom: 6px;
+}
+.sdo-subject {
+  font-size: 12px;
+  color: rgba(255,255,255,.8);
+  margin-bottom: 8px;
+}
+.sdo-body {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: rgba(255,255,255,.65);
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0 0 8px;
+  font-family: inherit;
+}
+.sdo-wa {
+  font-size: 11px;
+  color: rgba(255,255,255,.5);
+  font-style: italic;
+}
+.sdo-sep { border: none; border-top: 1px solid rgba(255,255,255,.08); margin: 12px 0; }
+.sdo-error { font-size: 12px; color: #f87171; display: flex; align-items: center; gap: 10px; }
 
 .signal-empty {
   display: flex;

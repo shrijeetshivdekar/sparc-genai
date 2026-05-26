@@ -1597,6 +1597,138 @@ async function renderSignalRadarDashboard(filter = _signalRadarFilter, forceRefr
   document.querySelectorAll(".signal-analyze-btn").forEach(btn => {
     btn.onclick = () => triggerAutoProfiling(btn.dataset.company);
   });
+  document.querySelectorAll(".signal-draft-btn").forEach(btn => {
+    btn.onclick = () => loadSignalDraft(btn);
+  });
+}
+
+async function loadSignalDraft(btn) {
+  let sig;
+  try { sig = JSON.parse(btn.dataset.signal); } catch (_) { sig = {}; }
+  const idx = btn.dataset.idx || "";
+  const outputEl = document.getElementById(`sdo-${idx}`);
+  if (!outputEl) return;
+
+  btn.disabled = true;
+  btn.textContent = "Generating…";
+  outputEl.style.display = "";
+  outputEl.innerHTML =
+    `<div class="sdo-loader">` +
+      `<div class="oal-track"><div class="oal-bar" id="sdo-bar-${escHtml(idx)}" style="width:0%"></div></div>` +
+      `<span class="sdo-pct" id="sdo-pct-${escHtml(idx)}">0%</span>` +
+    `</div>`;
+
+  // Fake progress
+  let pct = 0;
+  const barEl  = document.getElementById(`sdo-bar-${idx}`);
+  const pctEl  = document.getElementById(`sdo-pct-${idx}`);
+  const startTs = Date.now();
+  let _timer;
+  const _tick = () => {
+    const e = (Date.now() - startTs) / 1000;
+    const t = e < 6 ? (e / 6) * 40 : 40 + ((e - 6) / 24) * 50;
+    pct = Math.min(t, 99);
+    if (barEl) barEl.style.width = pct + "%";
+    if (pctEl) pctEl.textContent = Math.round(pct) + "%";
+    if (pct < 99) _timer = setTimeout(_tick, 200);
+  };
+  _timer = setTimeout(_tick, 200);
+
+  // Build a minimal profile from signal fields + call autofill to enrich it
+  const profile = {
+    startup_name: sig.company || "Unknown startup",
+    sector: sig.sector || "SaaS / Enterprise Software",
+    funding_stage: sig.funding_stage || "Seed",
+    team_size: 50,
+    operations: "Hybrid",
+    data_handled: [],
+    regulatory: [],
+    physical_assets: [],
+    ai_in_product: false,
+    has_investors: "Yes",
+    annual_revenue_cr: 0,
+    biggest_fear: sig.underwriting_rationale || "",
+    product_description: sig.headline || "",
+  };
+
+  const signal_context = {
+    signal: sig.signal,
+    company_name: sig.company,
+    insurance_angle: sig.insurance_angle,
+    recommended_bundle: sig.recommended_bundle,
+    headline: sig.headline,
+  };
+
+  try {
+    // Try to enrich profile via autofill first (best effort, 8s timeout)
+    const afCtrl = new AbortController();
+    const afTimeout = setTimeout(() => afCtrl.abort(), 8000);
+    try {
+      const afRes = await fetch("/api/autofill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ company_name: sig.company, signal_context }),
+        signal: afCtrl.signal,
+      });
+      if (afRes.ok) {
+        const afData = await afRes.json();
+        if (afData && !afData.error) Object.assign(profile, afData);
+      }
+    } catch (_) {} finally { clearTimeout(afTimeout); }
+
+    // Now call outreach with enriched profile + signal context
+    const res = await fetch("/api/outreach", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        profile,
+        scores: {},
+        recommendations: [],
+        bundle_match: { name: sig.recommended_bundle },
+        signal_context,
+      }),
+    });
+    clearTimeout(_timer);
+    if (!res.ok) throw new Error(`API ${res.status}`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    pct = 100;
+    if (barEl) barEl.style.width = "100%";
+    if (pctEl) pctEl.textContent = "100%";
+    await new Promise(r => setTimeout(r, 300));
+
+    const prompts = data.outreach_prompts || {};
+    const keys = Object.keys(prompts);
+    if (!keys.length) throw new Error("No drafts returned");
+
+    outputEl.innerHTML = keys.map(key => {
+      const item = prompts[key];
+      return `<div class="sdo-item">
+        <div class="sdo-product">${escHtml(key.replace(/_/g," "))}</div>
+        <div class="sdo-subject"><strong>Subject:</strong> ${escHtml(item.email_subject || "")}</div>
+        <pre class="sdo-body">${escHtml(item.email_body || "")}</pre>
+        ${item.whatsapp ? `<div class="sdo-wa"><strong>WhatsApp:</strong> ${escHtml(item.whatsapp)}</div>` : ""}
+      </div>`;
+    }).join("<hr class='sdo-sep'>");
+
+    btn.textContent = "Regenerate";
+    btn.disabled = false;
+  } catch (err) {
+    clearTimeout(_timer);
+    if (barEl) barEl.style.width = "100%";
+    if (pctEl) pctEl.textContent = "100%";
+    await new Promise(r => setTimeout(r, 300));
+    outputEl.innerHTML = `<div class="sdo-error">Failed: ${escHtml(err.message)} <button class="oal-retry-btn" type="button">Retry</button></div>`;
+    outputEl.querySelector("button")?.addEventListener("click", () => {
+      outputEl.style.display = "none";
+      btn.disabled = false;
+      btn.textContent = "Draft outreach";
+      loadSignalDraft(btn);
+    });
+    btn.textContent = "Draft outreach";
+    btn.disabled = false;
+  }
 }
 
 function renderSignalTask(signal) {
@@ -1655,8 +1787,10 @@ function renderSignalTask(signal) {
         <p class="signal-action">${escHtml(signal.rm_action)}</p>
         <div class="signal-actions">
           ${signal.source_url ? `<a href="${escHtml(signal.source_url)}" target="_blank" rel="noopener">Open source</a>` : ""}
+          <button class="signal-draft-btn" type="button" data-idx="${escHtml(signal.signal_id || signal.signal)}" data-signal='${JSON.stringify({company:signal.company,sector:signal.sector,funding_stage:signal.funding_stage,signal:signal.signal,insurance_angle:signal.insurance_angle,underwriting_rationale:signal.underwriting_rationale,recommended_bundle:signal.recommended_bundle,headline:signal.headline}).replace(/'/g,"&#39;")}'>Draft outreach</button>
           <button class="signal-analyze-btn" type="button" data-company="${escHtml(signal.company)}">Run SPARC</button>
         </div>
+        <div class="signal-draft-output" id="sdo-${escHtml(signal.signal_id || signal.signal)}" style="display:none"></div>
       </div>
     </article>`;
 }

@@ -3358,7 +3358,72 @@ _QUESTION_STARTERS = {
     "will", "would", "could", "is", "are", "does", "do", "has", "have",
 }
 
+
+def _gemini_validate_companies(articles: list[dict]) -> dict[int, str | None]:
+    """One Gemini batch call that validates company names for all articles.
+
+    Returns {article_index: company_name} where company_name is None when
+    Gemini determined the article is not about a specific Indian startup.
+    Returns {} silently on any error so the caller falls back to regex.
+    """
+    if not gemini_enabled() or not articles:
+        return {}
+
+    lines = "\n".join(
+        f"{i}. {str(art.get('title') or '')[:130]}"
+        for i, art in enumerate(articles)
+    )
+    prompt = (
+        "You are classifying news headlines to identify Indian startup companies "
+        "that are prospects for commercial insurance.\n\n"
+        "For each numbered headline, return the specific Indian startup or SME company "
+        "that is the SUBJECT of the news.\n\n"
+        "Return null when:\n"
+        "- The headline is about a large established company (Bajaj, Tata, Reliance, "
+        "PhonePe, Zomato, Swiggy, Ola, Paytm, HDFC, SBI, Infosys, Wipro, "
+        "Dell, Apple, Google, Meta, Microsoft, Anthropic, OpenAI, Samsung, etc.)\n"
+        "- The company is foreign / not an Indian startup\n"
+        "- The headline is a question, opinion piece, industry overview, or list article\n"
+        "- No specific single company is the subject\n"
+        "- The extracted name would be a common English word, verb, or phrase fragment\n\n"
+        f"Headlines:\n{lines}\n\n"
+        "Return ONLY a JSON object with integer string keys (0-indexed) and string or null values.\n"
+        'Example: {"0": "Eazzy", "1": null, "2": "Tiea Connectors", "3": null}'
+    )
+
+    try:
+        result, err = call_gemini_json(prompt)
+        if err or not isinstance(result, dict):
+            return {}
+        validated: dict[int, str | None] = {}
+        for k, v in result.items():
+            try:
+                idx = int(k)
+                name = str(v).strip() if v and str(v).strip().lower() not in ("null", "none", "") else None
+                validated[idx] = name
+            except (ValueError, TypeError):
+                continue
+        return validated
+    except Exception:
+        return {}
+
+
 def _match_signal_company(article: dict, profiles: dict) -> tuple[str, dict | None]:
+    # Use Gemini-validated name if the batch call ran for this article.
+    # "_gemini_company" key present + None  → Gemini said not a valid company → skip.
+    # "_gemini_company" key present + string → use that name.
+    # key absent → Gemini not called → fall through to regex.
+    if "_gemini_company" in article:
+        gemini_name = article["_gemini_company"]
+        if not gemini_name:
+            return "", None
+        # Still try to match the Gemini-provided name against known profiles
+        lower_g = gemini_name.lower()
+        for name, profile in sorted(profiles.items(), key=lambda x: len(x[0]), reverse=True):
+            if re.search(rf"(?<![a-z0-9]){re.escape(name.lower())}(?![a-z0-9])", lower_g):
+                return name, profile.copy()
+        return gemini_name, None
+
     title = str(article.get("title") or "")
     # Strip leading tags like [Update], [Breaking], [Exclusive], [Sponsored]
     title = re.sub(r"^\s*\[[^\]]{1,20}\]\s*", "", title).strip()
@@ -3976,6 +4041,14 @@ def get_signal_radar(limit: int = 30, live: bool = True, window_days: int = 30) 
         return dt or datetime.min.replace(tzinfo=timezone.utc)
 
     articles.sort(key=_article_dt, reverse=True)
+
+    # One Gemini batch call to validate all company names before per-article scoring.
+    # Attaches "_gemini_company" to each article; falls back silently to regex on error.
+    if gemini_enabled():
+        gemini_map = _gemini_validate_companies(articles)
+        for i, article in enumerate(articles):
+            if i in gemini_map:
+                article["_gemini_company"] = gemini_map[i]
 
     def _norm_company(name):
         s = re.sub(r"\s+", " ", str(name or "").lower().strip())

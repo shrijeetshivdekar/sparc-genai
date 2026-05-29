@@ -87,6 +87,17 @@ def handle_post_request(payload: dict) -> tuple[int, dict]:
         result = pipeline_service.claim_lead(lead_id, rm_email)
         return (200 if result.get("ok") else 400), result
 
+    if action == "sync_signals":
+        try:
+            from startup_shield_web.server import get_signal_radar
+            radar = get_signal_radar(limit=50, live=False)
+            signals = radar.get("signals", [])
+            result = funding_ingest.sync_from_signals(signals)
+            result["disclaimer"] = _DISCLAIMER
+            return 200, result
+        except Exception as exc:
+            return 500, {"error": f"sync failed: {exc}"}
+
     return 400, {"error": f"unknown action: {action!r}"}
 
 

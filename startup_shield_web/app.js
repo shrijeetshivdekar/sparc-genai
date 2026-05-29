@@ -8423,6 +8423,7 @@ async function renderFundingFeed() {
           <p class="cmx-sub" id="cmx-feed-sub">Auto-analysed and valued from the latest ingest.</p>
         </div>
         <div class="cmx-feed-actions">
+          <button type="button" class="btn-ghost" id="sync-signals-btn" onclick="syncSignalsToFeed()">Sync signal radar</button>
           <button type="button" class="btn-ghost" onclick="openFundingImportModal()">Import funding CSV</button>
         </div>
       </header>
@@ -8434,6 +8435,24 @@ async function renderFundingFeed() {
     </div>`;
 
   await refreshFundingFeed();
+}
+
+async function syncSignalsToFeed() {
+  const btn = $("sync-signals-btn");
+  if (btn) { btn.disabled = true; btn.textContent = "Syncing…"; }
+  try {
+    const res = await fetch("/api/commerce/funding", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "sync_signals" }),
+    });
+    const data = await res.json();
+    if (btn) btn.textContent = `Synced ${data.synced ?? 0} new · ${data.skipped ?? 0} already in`;
+    await refreshFundingFeed();
+  } catch (e) {
+    if (btn) btn.textContent = "Sync failed";
+  }
+  setTimeout(() => { if (btn) { btn.disabled = false; btn.textContent = "Sync signal radar"; } }, 3000);
 }
 
 async function refreshFundingFeed() {

@@ -198,6 +198,60 @@ def ingest_csv(
     return {"ingested": len(leads_summary), "leads": leads_summary}
 
 
+def sync_from_signals(
+    signals: list[dict],
+    *,
+    db_path: Path | str | None = None,
+) -> dict:
+    """Upsert signal-radar entries as funding_leads (idempotent on company+stage).
+
+    Each signal carries company, sector, funding_stage, premium_min_lakh,
+    premium_max_lakh, recommended_bundle, and signal_id.  We convert the lakh
+    premium bands to INR integers and write one open lead per unique
+    (company, stage) pair — skipping duplicates that are already in the table.
+    """
+    if not signals:
+        return {"synced": 0, "skipped": 0}
+
+    db.migrate(db_path)
+    conn = db.get_conn(db_path)
+    synced = skipped = 0
+    try:
+        with conn:
+            for sig in signals:
+                company = (sig.get("company") or "").strip()
+                if not company:
+                    continue
+                sector = sig.get("sector") or ""
+                stage  = sig.get("funding_stage") or ""
+                lo = int(float(sig.get("premium_min_lakh") or 0) * 100_000)
+                hi = int(float(sig.get("premium_max_lakh") or 0) * 100_000)
+                bundle = sig.get("recommended_bundle") or sig.get("est_bundle") or ""
+                source = f"signal_radar:{sig.get('signal_id','')}"
+
+                # Skip if an open or claimed lead already exists for this company+stage
+                existing = conn.execute(
+                    "SELECT lead_id FROM funding_leads WHERE company = ? AND stage = ? "
+                    "AND status IN ('open','claimed') LIMIT 1",
+                    (company, stage),
+                ).fetchone()
+                if existing:
+                    skipped += 1
+                    continue
+
+                conn.execute(
+                    """INSERT INTO funding_leads
+                       (lead_id, company, sector, stage, est_gwp_low_inr,
+                        est_gwp_high_inr, est_bundle, status, source)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?)""",
+                    ("lead_" + secrets.token_hex(8), company, sector, stage, lo, hi, bundle, source),
+                )
+                synced += 1
+    finally:
+        conn.close()
+    return {"synced": synced, "skipped": skipped}
+
+
 def list_leads(
     *,
     city: str | None = None,

@@ -69,47 +69,11 @@
       }
     },
     {
-      "src": "api/commerce_funding.py",
-      "use": "@vercel/python",
-      "config": {
-        "includeFiles": ["**/*.py", "**/*.json"],
-        "maxDuration": 45
-      }
-    },
-    {
-      "src": "api/commerce_dashboard.py",
-      "use": "@vercel/python",
-      "config": {
-        "includeFiles": ["**/*.py", "**/*.json"]
-      }
-    },
-    {
-      "src": "api/commerce_proposal.py",
+      "src": "api/commerce.py",
       "use": "@vercel/python",
       "config": {
         "includeFiles": ["**/*.py", "**/*.json", "templates/*.html"],
-        "maxDuration": 15
-      }
-    },
-    {
-      "src": "api/commerce_metrics.py",
-      "use": "@vercel/python",
-      "config": {
-        "includeFiles": ["**/*.py", "**/*.json"]
-      }
-    },
-    {
-      "src": "api/commerce_alerts.py",
-      "use": "@vercel/python",
-      "config": {
-        "includeFiles": ["**/*.py", "**/*.json"]
-      }
-    },
-    {
-      "src": "api/commerce_pipeline.py",
-      "use": "@vercel/python",
-      "config": {
-        "includeFiles": ["**/*.py", "**/*.json"]
+        "maxDuration": 60
       }
     },
     {
@@ -167,28 +131,8 @@
       "dest": "/api/outreach.py"
     },
     {
-      "src": "/api/commerce/funding",
-      "dest": "/api/commerce_funding.py"
-    },
-    {
-      "src": "/api/commerce/dashboard",
-      "dest": "/api/commerce_dashboard.py"
-    },
-    {
-      "src": "/api/commerce/proposal",
-      "dest": "/api/commerce_proposal.py"
-    },
-    {
-      "src": "/api/commerce/metrics",
-      "dest": "/api/commerce_metrics.py"
-    },
-    {
-      "src": "/api/commerce/alerts",
-      "dest": "/api/commerce_alerts.py"
-    },
-    {
-      "src": "/api/commerce/pipeline",
-      "dest": "/api/commerce_pipeline.py"
+      "src": "/api/commerce/(.*)",
+      "dest": "/api/commerce.py"
     },
     {
       "src": "/app.js",

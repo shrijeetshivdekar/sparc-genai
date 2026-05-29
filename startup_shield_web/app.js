@@ -8839,7 +8839,7 @@ const _NEXT_STAGE = {
 };
 
 let _pipelineActiveStage = "prospect";
-let _pipelineData = null;
+let _cmxPipelineData = null;
 
 async function renderPipeline() {
   const target = $("cmx-content");
@@ -8869,7 +8869,7 @@ async function refreshPipeline() {
     if (list) list.innerHTML = `<div class="cmx-error">Failed to load: ${esc(String(e))}</div>`;
     return;
   }
-  _pipelineData = data;
+  _cmxPipelineData = data;
   _renderPipeSummary(data.summary || {});
   _renderPipeTabs(data.accounts || [], data.summary || {});
   _renderPipeList(data.accounts || []);
@@ -8911,7 +8911,7 @@ function _renderPipeTabs(accounts, summary) {
       _pipelineActiveStage = btn.getAttribute("data-stage");
       tabs.querySelectorAll(".pipe-tab").forEach(b => b.classList.remove("is-active"));
       btn.classList.add("is-active");
-      _renderPipeList((_pipelineData || {}).accounts || []);
+      _renderPipeList((_cmxPipelineData || {}).accounts || []);
     });
   });
 }

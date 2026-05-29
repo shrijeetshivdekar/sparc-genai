@@ -52,7 +52,10 @@ def funnel(
         "       COALESCE(SUM(g.gwp_low_inr), 0)  AS gwp_low, "
         "       COALESCE(SUM(g.gwp_high_inr), 0) AS gwp_high "
         "FROM accounts a "
-        "LEFT JOIN gwp_estimates g ON g.account_id = a.account_id "
+        "LEFT JOIN gwp_estimates g ON g.estimate_id = ("
+        "  SELECT estimate_id FROM gwp_estimates WHERE account_id = a.account_id "
+        "  ORDER BY created_at DESC LIMIT 1"
+        ") "
         + where_sql +
         " GROUP BY a.stage"
     )
@@ -87,7 +90,10 @@ def territory_gwp(
         "       COALESCE(SUM(g.gwp_high_inr), 0) AS hi, "
         "       COUNT(DISTINCT a.account_id)     AS n "
         "FROM accounts a "
-        "LEFT JOIN gwp_estimates g ON g.account_id = a.account_id "
+        "LEFT JOIN gwp_estimates g ON g.estimate_id = ("
+        "  SELECT estimate_id FROM gwp_estimates WHERE account_id = a.account_id "
+        "  ORDER BY created_at DESC LIMIT 1"
+        ") "
         + where_sql
     )
 

@@ -3355,6 +3355,8 @@ def _verified_profiles():
 
 def _match_signal_company(article: dict, profiles: dict) -> tuple[str, dict | None]:
     title = str(article.get("title") or "")
+    # Strip leading tags like [Update], [Breaking], [Exclusive], [Sponsored]
+    title = re.sub(r"^\s*\[[^\]]{1,20}\]\s*", "", title).strip()
     title_core = re.split(r"\s[-|]\s", title, maxsplit=1)[0]
     lower_title = title_core.lower()
     for name, profile in sorted(profiles.items(), key=lambda item: len(item[0]), reverse=True):
@@ -3448,6 +3450,29 @@ _HEADLINE_VERBS = {
     "bags", "bag", "wins", "win", "plans", "plan", "adds", "add", "opens", "open",
     "drops", "drop", "surges", "surge", "jumps", "jump", "declines", "decline",
     "trails", "trail", "catches", "leads", "lead", "beats", "beat", "slashes",
+    "needs", "outsources", "tightens", "eyes", "bets", "reshaping", "fuels",
+    "gains", "alleges", "watches", "comes", "enables", "fend", "takes", "fires",
+}
+
+# Large established companies / conglomerates / US tech firms that appear in startup news
+# but are not SPARC target accounts (Indian early-stage startups).
+_NON_STARTUP_BLOCKLIST = {
+    # US big tech
+    "apple", "google", "microsoft", "amazon", "meta", "nvidia", "dell", "ibm",
+    "intel", "qualcomm", "samsung", "sony", "lg", "tesla", "openai", "anthropic",
+    "perplexity", "deepmind", "mistral", "cohere",
+    # Large Indian conglomerates / established companies
+    "reliance", "tata", "infosys", "wipro", "hcl", "bajaj", "mahindra",
+    "hdfc", "icici", "axis", "sbi", "kotak", "lic", "airtel", "jio",
+    "flipkart", "snapdeal", "naukri", "indiamart", "justdial",
+    "zomato", "swiggy", "ola", "uber", "paytm", "phonepe", "googlepay",
+    "policybazaar", "lenskart", "nykaa", "meesho", "myntra",
+    "tcs", "accenture", "deloitte", "kpmg", "pwc", "ey",
+    # Common news article non-companies
+    "india", "indian", "startups", "startup", "companies", "company",
+    "government", "ministry", "rbi", "sebi", "irdai", "niti",
+    "end", "era", "report", "update", "analysis", "review", "news",
+    "watch", "tracker", "roundup", "digest", "brief",
 }
 
 # Personal title words — a "company name" containing these is actually a person description
@@ -3486,6 +3511,19 @@ def _looks_generic_signal_company(company: str) -> bool:
     if re.match(r"^[a-z]+\d$", text_clean) and len(text_clean) <= 5:
         return True
     generic_terms = [
+        "fintech startups",
+        "deeptech startups",
+        "edtech startups",
+        "healthtech startups",
+        "ai startups",
+        "copilot",
+        "chatgpt",
+        "gemini",
+        "llm",
+        "outsources jobs",
+        "outsources work",
+        "layoff",
+        "layoffs",
         "funding",
         "funding declines",
         "funding surges",
@@ -3520,6 +3558,10 @@ def _looks_generic_signal_company(company: str) -> bool:
 
 def _is_plausible_signal_company(company: str, base_profile: dict | None) -> bool:
     if base_profile is not None:
+        # Even verified profiles: skip if the name is a known non-startup entity
+        name_l = re.sub(r"[^a-z0-9 ]+", "", str(company).lower()).strip()
+        if name_l in _NON_STARTUP_BLOCKLIST or name_l.split()[0] in _NON_STARTUP_BLOCKLIST if name_l else False:
+            return False
         return True
     candidate = str(company or "").strip()
     if not candidate or _looks_generic_signal_company(candidate):
@@ -3528,17 +3570,28 @@ def _is_plausible_signal_company(company: str, base_profile: dict | None) -> boo
     # 4+ word names are almost always person descriptions or phrase fragments, not company names
     if len(words) >= 4:
         return False
+    words_lower = [re.sub(r"[^a-z0-9]+", "", w.lower()) for w in words]
+    # Block if any word is in the non-startup blocklist
+    if any(w in _NON_STARTUP_BLOCKLIST for w in words_lower):
+        return False
     generic_words = {
         "india", "indian", "startup", "startups", "funding", "round", "report",
         "review", "sector", "sectors", "bengaluru", "delhi", "mumbai",
         "weekly", "monthly", "q1", "q2", "q3", "q4", "news", "unicorn",
     }
-    words_lower = [re.sub(r"[^a-z0-9]+", "", w.lower()) for w in words]
     if all(w in generic_words for w in words_lower):
         return False
     if any(w in _HEADLINE_VERBS for w in words_lower):
         return False
     if any(w in _PERSONAL_TITLE_WORDS for w in words_lower):
+        return False
+    # Single common English word — not a company name
+    _COMMON_WORDS = {
+        "end", "era", "age", "rise", "fall", "peak", "wave", "shift", "turn",
+        "push", "pull", "boom", "bust", "deal", "move", "play", "work", "run",
+        "new", "big", "key", "top", "hot", "old", "low", "high", "deep",
+    }
+    if len(words) == 1 and words_lower[0] in _COMMON_WORDS:
         return False
     if not re.match(r"^[A-Z0-9][A-Za-z0-9&.\-]*(?:\s+[A-Z0-9][A-Za-z0-9&.\-]*){0,3}$", candidate):
         return False

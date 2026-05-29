@@ -151,14 +151,16 @@ def top_leads(
     sql = (
         "SELECT a.account_id, a.name, a.sector, a.funding_stage AS stage, "
         "       a.city, a.stage AS pipeline_stage, a.rm_email, "
-        "       COALESCE(SUM(g.gwp_low_inr), 0)  AS gwp_low_inr, "
-        "       COALESCE(SUM(g.gwp_high_inr), 0) AS gwp_high_inr, "
-        "       MAX(g.basis) AS basis "
+        "       COALESCE(g.gwp_low_inr, 0)  AS gwp_low_inr, "
+        "       COALESCE(g.gwp_high_inr, 0) AS gwp_high_inr, "
+        "       g.basis AS basis "
         "FROM accounts a "
-        "LEFT JOIN gwp_estimates g ON g.account_id = a.account_id "
+        "LEFT JOIN gwp_estimates g ON g.estimate_id = ("
+        "  SELECT estimate_id FROM gwp_estimates WHERE account_id = a.account_id "
+        "  ORDER BY created_at DESC LIMIT 1"
+        ") "
         + where_sql +
-        " GROUP BY a.account_id "
-        + f"ORDER BY {sort_col} "
+        f" ORDER BY {sort_col} "
         "LIMIT :limit"
     )
     conn = db.get_conn(db_path)

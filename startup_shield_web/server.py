@@ -3353,18 +3353,26 @@ def _verified_profiles():
         return {}
 
 
+_QUESTION_STARTERS = {
+    "want", "how", "why", "what", "which", "where", "when", "who", "can", "should",
+    "will", "would", "could", "is", "are", "does", "do", "has", "have",
+}
+
 def _match_signal_company(article: dict, profiles: dict) -> tuple[str, dict | None]:
     title = str(article.get("title") or "")
     # Strip leading tags like [Update], [Breaking], [Exclusive], [Sponsored]
     title = re.sub(r"^\s*\[[^\]]{1,20}\]\s*", "", title).strip()
+    # Skip question-form titles entirely — first word is a question word
+    first_word = title.split()[0].rstrip("?").lower() if title else ""
+    if first_word in _QUESTION_STARTERS:
+        return "", None
     title_core = re.split(r"\s[-|]\s", title, maxsplit=1)[0]
     lower_title = title_core.lower()
+    # Use word-boundary matching for ALL profile names to prevent substring hits
+    # (e.g. "porter" matching inside "exporter")
     for name, profile in sorted(profiles.items(), key=lambda item: len(item[0]), reverse=True):
         name_l = name.lower()
-        if len(name_l) <= 4:
-            if re.search(rf"(?<![a-z0-9]){re.escape(name_l)}(?![a-z0-9])", lower_title):
-                return name, profile.copy()
-        elif name_l in lower_title:
+        if re.search(rf"(?<![a-z0-9]){re.escape(name_l)}(?![a-z0-9])", lower_title):
             return name, profile.copy()
 
     splitters = [
@@ -3590,6 +3598,7 @@ def _is_plausible_signal_company(company: str, base_profile: dict | None) -> boo
         "end", "era", "age", "rise", "fall", "peak", "wave", "shift", "turn",
         "push", "pull", "boom", "bust", "deal", "move", "play", "work", "run",
         "new", "big", "key", "top", "hot", "old", "low", "high", "deep",
+        "want", "how", "why", "what", "which", "these", "those", "this",
     }
     if len(words) == 1 and words_lower[0] in _COMMON_WORDS:
         return False

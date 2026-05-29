@@ -198,15 +198,39 @@ def _all_products(recommendations, bundle_match, limit=8):
     return products[:limit]
 
 
-def _signal_line(signal_context):
+def _signal_block(signal_context):
     sc = signal_context or {}
-    signal = sc.get("signal") or sc.get("signal_type") or ""
-    company = sc.get("company_name") or ""
-    if signal and company:
-        return f"We noticed {company}'s recent {signal.lower()} — congratulations!"
-    if signal:
-        return f"Your recent {signal.lower()} caught our attention — congratulations!"
-    return ""
+    headline = sc.get("headline", "")
+    sig_type = sc.get("signal", "") or sc.get("signal_type", "")
+    regulation = sc.get("regulation_tag", "")
+    angle = sc.get("insurance_angle", "")
+    bundle = sc.get("recommended_bundle", "")
+    if not headline and not sig_type:
+        return ""
+    parts = [
+        f'SIGNAL TRIGGER — THIS IS THE PRIMARY HOOK FOR ALL EMAILS:',
+        f'This outreach is triggered by a specific real-world event — use it as the opening hook.',
+    ]
+    if headline:
+        parts.append(f'  Headline: "{headline}"')
+    if sig_type:
+        parts.append(f'  Signal type: {sig_type}')
+    if regulation:
+        parts.append(f'  Regulation / trigger: {regulation}')
+    if angle:
+        parts.append(f'  Insurance angle to lead with: {angle}')
+    if bundle:
+        parts.append(f'  Recommended bundle: {bundle}')
+    parts += [
+        '',
+        'SIGNAL EMAIL RULES (override all generic rules below when a signal is present):',
+        f'- The FIRST sentence of every email body MUST reference this specific headline or event — not generic risk analysis.',
+        f'- Subject lines must reference the signal, regulation ({regulation}), or headline directly — NOT the product name.',
+        f'- Explain WHY this specific event creates an insurance urgency RIGHT NOW.',
+        f'- Do NOT use "our underwriters have been studying..." opener. Start with the event.',
+        f'- WhatsApp must reference the event or headline in sentence 1.',
+    ]
+    return "\n".join(parts)
 
 
 def _build_prompt(profile, scores, recommendations, bundle_match, signal_context, contacts):
@@ -234,7 +258,7 @@ def _build_prompt(profile, scores, recommendations, bundle_match, signal_context
         f"{contacts['RM_OFFICE']}"
     )
 
-    signal_line = _signal_line(signal_context)
+    signal_section = _signal_block(signal_context)
 
     biggest_fear = profile.get("biggest_fear", "")
     product_desc = profile.get("product_description", "")
@@ -247,13 +271,12 @@ def _build_prompt(profile, scores, recommendations, bundle_match, signal_context
         context_lines.append(f"Founder's stated concerns: {biggest_fear}")
     if revenue:
         context_lines.append(f"Annual revenue: ~INR {revenue} Cr")
-    if signal_line:
-        context_lines.append(f"Recent signal: {signal_line}")
     context_block = "\n".join(context_lines)
 
     return f"""You are a senior ICICI Lombard RM writing outreach to {name} ({sector}, {stage}, {team_line}{reg_line}).
 Top risks: {risk_names}.
 {context_block}
+{signal_section}
 
 WRITING RULES — follow exactly, no exceptions:
 1. Every sentence must be specific to {name}. Zero generic filler ("leading company", "in today's world", "it is crucial").

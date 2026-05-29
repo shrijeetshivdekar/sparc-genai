@@ -254,6 +254,15 @@ def init_db():
 
 init_db()
 
+# Commerce Layer (v1): ensure the 9 commerce tables exist alongside the
+# legacy `recommendations` table created by init_db(). Idempotent.
+try:
+    import db as _commerce_db
+    _commerce_db.migrate()
+    _commerce_db.seed_rms_from_contacts()
+except Exception as _exc:
+    print(f"[commerce] migrate skipped: {_exc}", flush=True)
+
 
 def clean_float(value, default=0.0):
     try:
@@ -725,7 +734,12 @@ def load_contacts():
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+import threading as _threading
+_gemini_disabled_local = _threading.local()
+
 def gemini_enabled():
+    if getattr(_gemini_disabled_local, "disabled", False):
+        return False
     return bool(os.environ.get("GEMINI_API_KEY"))
 
 
@@ -795,8 +809,8 @@ def call_gemini_json(prompt):
             return None, f"Gemini HTTP {exc.code}: {detail}"
         except urllib.error.URLError as exc:
             return None, f"Gemini network error: {exc.reason}"
-        except TimeoutError:
-            return None, "Gemini request timed out."
+        except (TimeoutError, OSError) as exc:
+            return None, f"Gemini request timed out: {exc}"
         except json.JSONDecodeError:
             return None, "Gemini returned a non-JSON API envelope."
     if body is None:
@@ -871,6 +885,108 @@ def call_gemini_grounded(prompt, model=None):
         print(f"[gemini_grounded] Could not parse JSON; finishReason={finish_reason!r}; raw: {text[:500]!r}", flush=True)
         return None, "Gemini grounded response did not contain a valid JSON object."
     return parsed, None
+
+
+_ADV_RANGE_TO_VALUE = {
+    # investor_cn_hk_pct
+    "cn_hk_none": 0.0, "cn_hk_low": 0.05, "cn_hk_moderate": 0.20, "cn_hk_high": 0.40,
+    # founder_equity_pct
+    "founder_eq_low": 0.20, "founder_eq_moderate": 0.45, "founder_eq_high": 0.70, "founder_eq_very_high": 0.88,
+    # cumulative_fundraising_inr_cr
+    "fundraising_none": 0, "fundraising_small": 8, "fundraising_mid": 40, "fundraising_large": 150, "fundraising_very_large": 500,
+    # gig_headcount_pct
+    "gig_none": 0.0, "gig_low": 0.10, "gig_moderate": 0.35, "gig_high": 0.65,
+    # hardware_software_split
+    "hw_pure_software": 0.0, "hw_mostly_software": 0.10, "hw_hybrid": 0.40, "hw_mostly_hardware": 0.70,
+    # b2b_pct
+    "b2b_mostly_b2c": 0.15, "b2b_mixed": 0.50, "b2b_mostly_b2b": 0.80, "b2b_pure": 1.0,
+    # export_eu_pct / export_us_pct / export_china_pct
+    "export_none": 0.0, "export_minimal": 0.02, "export_moderate": 0.12, "export_significant": 0.30,
+    # chinese_supplier_pct_cogs
+    "cn_supplier_none": 0.0, "cn_supplier_low": 0.05, "cn_supplier_moderate": 0.20, "cn_supplier_high": 0.40,
+    # gross_profit_cr
+    "gp_unknown": 0, "gp_small": 2, "gp_mid": 20, "gp_large": 80, "gp_very_large": 250,
+    # fleet_count
+    "fleet_none": 0, "fleet_small": 5, "fleet_medium": 25, "fleet_large": 100,
+    # project_value_cr
+    "project_none": 0, "project_small": 2, "project_mid": 20, "project_large": 100,
+    # claims_last_3_years
+    "claims_none": 0, "claims_few": 1, "claims_several": 4, "claims_many": 8,
+}
+
+
+def _build_advanced_autofill_prompt(company_name: str, profile: dict) -> str:
+    sector = profile.get("sector", "Unknown")
+    stage = profile.get("funding_stage", "Unknown")
+    team = profile.get("team_size", "Unknown")
+    ops = profile.get("operations", "Unknown")
+    return f"""You are a startup risk analyst. Based on public information about "{company_name}" ({sector}, {stage}, ~{team} employees, {ops}), estimate the following advanced risk parameters.
+
+Return ONLY a JSON object. Use the EXACT range keys listed — do not invent values.
+
+{{
+  "investor_cn_hk_pct": <one of: "cn_hk_none", "cn_hk_low", "cn_hk_moderate", "cn_hk_high">,
+  "founder_equity_pct": <one of: "founder_eq_low", "founder_eq_moderate", "founder_eq_high", "founder_eq_very_high">,
+  "cumulative_fundraising_inr_cr": <one of: "fundraising_none", "fundraising_small", "fundraising_mid", "fundraising_large", "fundraising_very_large">,
+  "holdco_domicile": <one of: "India", "Singapore", "Delaware / USA", "Mauritius", "Cayman Islands">,
+  "rbi_registration": <one of: null, "NBFC", "Payment Aggregator", "Prepaid Instrument", "Account Aggregator", "Core Investment Company">,
+  "dpiit_recognition": <true or false>,
+  "has_independent_directors": <true or false>,
+  "gross_profit_cr": <one of: "gp_unknown", "gp_small", "gp_mid", "gp_large", "gp_very_large">,
+  "claims_last_3_years": <one of: "claims_none", "claims_few", "claims_several", "claims_many">,
+  "gig_headcount_pct": <one of: "gig_none", "gig_low", "gig_moderate", "gig_high">,
+  "posh_ic_constituted": <true or false>,
+  "cert_in_poc_designated": <true or false>,
+  "state_footprint": <array of 1-5 Indian states where operations exist, e.g. ["Maharashtra", "Karnataka", "Delhi"]>,
+  "ai_tier": <one of: "None", "AI-assisted", "AI-native", "AI-core">,
+  "sdf_likely": <true or false — DPDP Act Significant Data Fiduciary likely?>,
+  "hardware_software_split": <one of: "hw_pure_software", "hw_mostly_software", "hw_hybrid", "hw_mostly_hardware">,
+  "data_localisation_status": <one of: "Unknown", "Full_onshore", "Hybrid", "Offshore">,
+  "b2b_pct": <one of: "b2b_mostly_b2c", "b2b_mixed", "b2b_mostly_b2b", "b2b_pure">,
+  "export_eu_pct": <one of: "export_none", "export_minimal", "export_moderate", "export_significant">,
+  "export_us_pct": <one of: "export_none", "export_minimal", "export_moderate", "export_significant">,
+  "export_china_pct": <one of: "export_none", "export_minimal", "export_moderate", "export_significant">,
+  "chinese_supplier_pct_cogs": <one of: "cn_supplier_none", "cn_supplier_low", "cn_supplier_moderate", "cn_supplier_high">,
+  "listed_customer_brsr_dependency": <true or false>,
+  "facility_climate_risk_zone": <one of: "Low", "Moderate", "High", "Very High">,
+  "fleet_count": <one of: "fleet_none", "fleet_small", "fleet_medium", "fleet_large">,
+  "project_value_cr": <one of: "project_none", "project_small", "project_mid", "project_large">,
+  "healthcare_operations": <true or false>,
+  "payment_or_card_program": <true or false>,
+  "product_recall_exposure": <true or false>,
+  "food_or_pharma_manufacturing": <true or false>,
+  "contract_bid_or_performance_bond_need": <true or false>,
+  "event_or_production_operations": <true or false>
+}}
+
+Return ONLY the JSON object. No markdown, no explanation."""
+
+
+def autofill_advanced(company_name: str, profile: dict) -> dict:
+    if not gemini_enabled():
+        return {"error": "Gemini not available", "fields": {}}
+    prompt = _build_advanced_autofill_prompt(company_name, profile)
+    try:
+        parsed, err = call_gemini_json(prompt)
+        if err or not parsed:
+            return {"error": err or "Empty response", "fields": {}}
+    except Exception as exc:
+        return {"error": str(exc), "fields": {}}
+
+    # Map range labels to numeric values; pass through booleans, strings, arrays as-is
+    _RANGE_FIELDS = {
+        "investor_cn_hk_pct", "founder_equity_pct", "cumulative_fundraising_inr_cr",
+        "gig_headcount_pct", "hardware_software_split", "b2b_pct",
+        "export_eu_pct", "export_us_pct", "export_china_pct", "chinese_supplier_pct_cogs",
+        "gross_profit_cr", "fleet_count", "project_value_cr", "claims_last_3_years",
+    }
+    fields = {}
+    for key, val in parsed.items():
+        if key in _RANGE_FIELDS:
+            fields[key] = _ADV_RANGE_TO_VALUE.get(str(val), val)
+        else:
+            fields[key] = val
+    return {"fields": fields}
 
 
 def _build_autofill_prompt(company_name):
@@ -1891,11 +2007,16 @@ def _outreach_products_for_drafts(recommendations, bundle):
     return products
 
 
-def fallback_outreach_prompts(profile, scores, recommendations, bundle):
+def fallback_outreach_prompts(profile, scores, recommendations, bundle, signal_context=None):
     contacts = load_contacts()
     top_scores = sorted(scores.items(), key=lambda item: item[1], reverse=True)[:3]
     risk_names = ", ".join(name for name, _ in top_scores)
     products = _outreach_products_for_drafts(recommendations, bundle)
+    sc = signal_context or {}
+    sig_headline = sc.get("headline", "")
+    sig_type = sc.get("signal", "") or sc.get("signal_type", "")
+    sig_angle = sc.get("insurance_angle", "")
+    sig_reg = sc.get("regulation_tag", "")
     output = {}
     for product in products:
         key = product.get("key", "bundle")
@@ -1908,15 +2029,28 @@ def fallback_outreach_prompts(profile, scores, recommendations, bundle):
             f"{contacts.get('RM_PHONE')} | {contacts.get('RM_EMAIL')}\n"
             f"{contacts.get('RM_OFFICE')}"
         )
-        output[key] = {
-            "email_subject": f"A tailored coverage recommendation for {profile.get('startup_name')}",
-            "email_body": (
-                f"Dear {profile.get('startup_name')} team,\n\n"
-                f"Greetings from ICICI Lombard!\n\n"
+        if sig_headline:
+            subject = f"{sig_reg + ': ' if sig_reg else ''}{sig_type} — coverage implication for {profile.get('startup_name')}"
+            opening = (
+                f"We came across the recent development — \"{sig_headline}\" — and it immediately "
+                f"flagged a coverage gap our underwriters believe is relevant to {profile.get('startup_name')} right now."
+            )
+            if sig_angle:
+                opening += f" The immediate risk angle is: {sig_angle}."
+        else:
+            subject = f"A tailored coverage recommendation for {profile.get('startup_name')}"
+            opening = (
                 f"Our expert underwriters have been closely studying risk profiles across the "
                 f"{profile.get('sector')} landscape, and {profile.get('startup_name')} stood out. "
                 f"Based on their assessment, your most significant risk dimensions — {risk_names} — "
-                f"deserve proactive, well-structured coverage, especially at your current stage of growth.\n\n"
+                f"deserve proactive, well-structured coverage, especially at your current stage of growth."
+            )
+        output[key] = {
+            "email_subject": subject,
+            "email_body": (
+                f"Dear {profile.get('startup_name')} team,\n\n"
+                f"Greetings from ICICI Lombard!\n\n"
+                f"{opening}\n\n"
                 f"We'd love to introduce you to {name}. {nudge} "
                 f"It is thoughtfully designed for companies like yours and we believe it can give "
                 f"your team real peace of mind as you scale.\n\n"
@@ -1926,10 +2060,14 @@ def fallback_outreach_prompts(profile, scores, recommendations, bundle):
                 f"{contact_block}"
             ),
             "whatsapp": (
-                f"Hi {profile.get('startup_name')} team! Greetings from ICICI Lombard. "
-                f"Our underwriters flagged {risk_names} as key exposures for your stage. "
-                f"{name} looks like a strong fit — happy to walk you through it whenever convenient. "
-                f"{contacts.get('RM_NAME')} | {contacts.get('RM_PHONE')}"
+                (f"Hi {profile.get('startup_name')} team — saw the news around \"{sig_headline[:80]}...\" "
+                 f"and wanted to flag a {sig_angle or name} angle worth a quick conversation. "
+                 f"{contacts.get('RM_NAME')} | {contacts.get('RM_PHONE')}")
+                if sig_headline else
+                (f"Hi {profile.get('startup_name')} team! Greetings from ICICI Lombard. "
+                 f"Our underwriters flagged {risk_names} as key exposures for your stage. "
+                 f"{name} looks like a strong fit — happy to walk you through it whenever convenient. "
+                 f"{contacts.get('RM_NAME')} | {contacts.get('RM_PHONE')}")
             ),
             "personalized_points": personalized_points,
             "email_html_data": {
@@ -1947,7 +2085,7 @@ def fallback_outreach_prompts(profile, scores, recommendations, bundle):
     return output
 
 
-def outreach_prompt_payload(profile, scores, recommendations, bundle, size_bucket):
+def outreach_prompt_payload(profile, scores, recommendations, bundle, size_bucket, signal_context=None):
     contacts = load_contacts()
     top_scores = sorted(scores.items(), key=lambda item: item[1], reverse=True)[:3]
     products = _outreach_products_for_drafts(recommendations, bundle)
@@ -1966,6 +2104,33 @@ def outreach_prompt_payload(profile, scores, recommendations, bundle, size_bucke
         profile_highlights.insert(0, f"What the company does: {product_desc}")
     if founder_concern:
         profile_highlights.insert(1 if product_desc else 0, f"Founder concern: {founder_concern}")
+
+    sc = signal_context or {}
+    sig_headline = sc.get("headline", "")
+    sig_type = sc.get("signal", "") or sc.get("signal_type", "")
+    sig_angle = sc.get("insurance_angle", "")
+    sig_reg = sc.get("regulation_tag", "")
+    sig_bundle = sc.get("recommended_bundle", "")
+
+    signal_section = ""
+    if sig_headline:
+        signal_section = f"""
+SIGNAL TRIGGER — THIS IS THE PRIMARY HOOK FOR ALL EMAILS:
+This outreach is specifically triggered by the following real-world event:
+  Headline: "{sig_headline}"
+  Signal type: {sig_type}
+  Regulation / trigger: {sig_reg}
+  Insurance angle to lead with: {sig_angle}
+  Recommended bundle: {sig_bundle}
+
+SIGNAL EMAIL RULES (override all generic rules below):
+- The FIRST sentence of every email body MUST reference this specific headline or event — not generic risk analysis.
+- Subject lines must reference the signal, regulation, or headline directly — NOT the product name.
+- The email must explain WHY this specific event creates a coverage urgency RIGHT NOW for {profile.get('startup_name')}.
+- Do NOT write generic "our underwriters have been studying..." opener when a signal is present.
+- WhatsApp must reference the event/headline in sentence 1.
+"""
+
     return f"""
 You are a warm, knowledgeable ICICI Lombard Relationship Manager writing personalised outreach for
 {profile.get('startup_name')} ({profile.get('sector')}, {profile.get('funding_stage')}, {profile.get('team_size')} people).
@@ -1973,6 +2138,7 @@ You are a warm, knowledgeable ICICI Lombard Relationship Manager writing persona
 Their leading risk dimensions (mention by name only, NO scores or numbers): {top_risk_names}.
 Their profile highlights:
 {chr(10).join('- ' + item for item in profile_highlights)}
+{signal_section}
 TONE RULES (strictly follow):
 - Always open with: "Dear [Company] team," then "Greetings from ICICI Lombard!"
 - Attribute risk insights to "our expert underwriters" — never cite numerical scores.
@@ -2014,8 +2180,8 @@ Return compact JSON only. Do not wrap in markdown. Do not add commentary outside
 """.strip()
 
 
-def normalize_outreach_response(raw, profile, scores, recommendations, bundle):
-    fallback = fallback_outreach_prompts(profile, scores, recommendations, bundle)
+def normalize_outreach_response(raw, profile, scores, recommendations, bundle, signal_context=None):
+    fallback = fallback_outreach_prompts(profile, scores, recommendations, bundle, signal_context)
     if not isinstance(raw, dict):
         return fallback, "fallback"
     normalized = {}
@@ -2047,13 +2213,13 @@ def normalize_outreach_response(raw, profile, scores, recommendations, bundle):
     return normalized, "gemini"
 
 
-def outreach_prompts(profile, scores, recommendations, bundle, size_bucket):
+def outreach_prompts(profile, scores, recommendations, bundle, size_bucket, signal_context=None):
     if not gemini_enabled():
-        return fallback_outreach_prompts(profile, scores, recommendations, bundle), "fallback", None
+        return fallback_outreach_prompts(profile, scores, recommendations, bundle, signal_context), "fallback", None
 
-    prompt = outreach_prompt_payload(profile, scores, recommendations, bundle, size_bucket)
+    prompt = outreach_prompt_payload(profile, scores, recommendations, bundle, size_bucket, signal_context)
     raw, error = call_gemini_json(prompt)
-    prompts, source = normalize_outreach_response(raw, profile, scores, recommendations, bundle)
+    prompts, source = normalize_outreach_response(raw, profile, scores, recommendations, bundle, signal_context)
     return prompts, source, error
 
 
@@ -3284,17 +3450,40 @@ _HEADLINE_VERBS = {
     "trails", "trail", "catches", "leads", "lead", "beats", "beat", "slashes",
 }
 
+# Personal title words — a "company name" containing these is actually a person description
+_PERSONAL_TITLE_WORDS = {
+    "cofounder", "co-founder", "founder", "ceo", "cto", "cfo", "coo", "cpo",
+    "director", "chairman", "president", "partner", "managing", "executive",
+    "officer", "head", "chief", "vice", "svp", "vp", "md", "gm",
+}
+
+# Newsletter / column section names that appear as title prefixes before " | "
+_NEWSLETTER_SECTION_NAMES = {
+    "tech3", "tech360", "startupdigest", "startupfunding", "dealstreet",
+    "morningbrief", "eveningbrief", "techtalks", "businessbrief", "market wrap",
+    "the daily", "the weekly",
+}
+
 
 def _looks_generic_signal_company(company: str) -> bool:
     text = company.lower()
-    text = re.sub(r"[^a-z0-9]+", " ", text).strip()
+    text_clean = re.sub(r"[^a-z0-9]+", " ", text).strip()
     if len(company.split()) > 4:
         return True
-    if not re.search(r"[a-z]", text):
+    if not re.search(r"[a-z]", text_clean):
         return True
-    # block any word that is a common headline verb — real company names don't contain them
-    words_set = set(text.split())
+    words_set = set(text_clean.split())
+    # Block headline verbs
     if words_set & _HEADLINE_VERBS:
+        return True
+    # Block personal title words — "Cofounder Ashish Kumar" is a person, not a company
+    if words_set & _PERSONAL_TITLE_WORDS:
+        return True
+    # Block known newsletter section names
+    if text_clean in _NEWSLETTER_SECTION_NAMES or any(text_clean.startswith(n) for n in _NEWSLETTER_SECTION_NAMES):
+        return True
+    # Block alphanumeric-only tokens under 5 chars that look like section codes (e.g. "tech3", "q1")
+    if re.match(r"^[a-z]+\d$", text_clean) and len(text_clean) <= 5:
         return True
     generic_terms = [
         "funding",
@@ -3304,14 +3493,8 @@ def _looks_generic_signal_company(company: str) -> bool:
         "bengaluru leads",
         "india deal review",
         "deal review",
-        "q1",
-        "q2",
-        "q3",
-        "q4",
-        "april",
-        "may",
-        "june",
-        "july",
+        "q1", "q2", "q3", "q4",
+        "april", "may", "june", "july",
         "between may",
         "as many as",
         "diverse sectors",
@@ -3332,7 +3515,7 @@ def _looks_generic_signal_company(company: str) -> bool:
         "technology news",
         "tech news",
     ]
-    return any(term in text for term in generic_terms)
+    return any(term in text_clean for term in generic_terms)
 
 
 def _is_plausible_signal_company(company: str, base_profile: dict | None) -> bool:
@@ -3342,7 +3525,8 @@ def _is_plausible_signal_company(company: str, base_profile: dict | None) -> boo
     if not candidate or _looks_generic_signal_company(candidate):
         return False
     words = candidate.split()
-    if len(words) > 4:
+    # 4+ word names are almost always person descriptions or phrase fragments, not company names
+    if len(words) >= 4:
         return False
     generic_words = {
         "india", "indian", "startup", "startups", "funding", "round", "report",
@@ -3353,6 +3537,8 @@ def _is_plausible_signal_company(company: str, base_profile: dict | None) -> boo
     if all(w in generic_words for w in words_lower):
         return False
     if any(w in _HEADLINE_VERBS for w in words_lower):
+        return False
+    if any(w in _PERSONAL_TITLE_WORDS for w in words_lower):
         return False
     if not re.match(r"^[A-Z0-9][A-Za-z0-9&.\-]*(?:\s+[A-Z0-9][A-Za-z0-9&.\-]*){0,3}$", candidate):
         return False
@@ -3384,6 +3570,8 @@ def _merge_signal_profile(company: str, base: dict | None, rule: dict) -> dict:
     profile = DEFAULT_PROFILE.copy()
     if base:
         profile.update(base)
+    else:
+        profile["sector"] = "Other"
     profile["startup_name"] = company
     if rule.get("sector"):
         profile["sector"] = rule["sector"]
@@ -3416,8 +3604,11 @@ def _fetch_gdelt_signal_articles(limit: int = 18) -> list[dict]:
         })
         url = f"https://api.gdeltproject.org/api/v2/doc/doc?{params}"
         req = urllib.request.Request(url, headers={"User-Agent": "SPARC-SignalRadar/1.0"})
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            payload = json.loads(resp.read().decode("utf-8", errors="ignore") or "{}")
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                payload = json.loads(resp.read().decode("utf-8", errors="ignore") or "{}")
+        except Exception:
+            continue
 
         for art in payload.get("articles") or []:
             source_url = art.get("url") or ""
@@ -3543,8 +3734,6 @@ def _fetch_direct_rss_signal_articles(limit: int = 18, window_days: int = 30) ->
             })
             if len(rows) >= limit * 3:
                 break
-        if len(rows) >= limit * 3:
-            break
 
     matched = [r for r in rows if _classify_signal(r).get("id") != "market_news"]
     return (matched or rows)[:limit]
@@ -3600,12 +3789,15 @@ def _signal_task_from_article(article: dict, profiles: dict) -> dict | None:
     parsed_domain = urllib.parse.urlparse(source_url).netloc.replace("www.", "") if source_url else ""
     source_domain = article.get("source", "") if parsed_domain == "news.google.com" else (parsed_domain or article.get("source", ""))
     contact = _contact_status_for_signal(base_profile)
+    _delta_seen = set()
     profile_delta = []
     for key in sorted((rule.get("profile") or {}).keys()):
-        profile_delta.append(key)
-    if rule.get("sector"):
+        if key not in _delta_seen:
+            _delta_seen.add(key)
+            profile_delta.append(key)
+    if rule.get("sector") and "sector" not in _delta_seen:
         profile_delta.append("sector")
-    if rule.get("stage"):
+    if rule.get("stage") and "funding_stage" not in _delta_seen:
         profile_delta.append("funding_stage")
 
     return {
@@ -3722,8 +3914,7 @@ def get_signal_radar(limit: int = 30, live: bool = True, window_days: int = 30) 
         return s
 
     best_by_company: dict = {}
-    _saved_key = os.environ.get("GEMINI_API_KEY", "")
-    os.environ["GEMINI_API_KEY"] = ""
+    _gemini_disabled_local.disabled = True
     try:
         for article in articles:
             task = _signal_task_from_article(article, profiles)
@@ -3734,10 +3925,7 @@ def get_signal_radar(limit: int = 30, live: bool = True, window_days: int = 30) 
             if prev is None or task.get("confidence", 0) > prev.get("confidence", 0):
                 best_by_company[nc] = task
     finally:
-        if _saved_key:
-            os.environ["GEMINI_API_KEY"] = _saved_key
-        else:
-            os.environ.pop("GEMINI_API_KEY", None)
+        _gemini_disabled_local.disabled = False
 
     def _task_sort_key(t):
         seendate = t.get("seen_at") or ""
@@ -3956,6 +4144,26 @@ class Handler(SimpleHTTPRequestHandler):
             limit = clean_int((params.get("limit") or ["500"])[0], 500)
             self.send_json(200, get_pipeline(sector_filter, stage_filter, limit))
             return
+        if path == "/api/commerce/funding":
+            from api.commerce_funding import handle_get_request as _cf_get
+            status, body = _cf_get(params)
+            self.send_json(status, body)
+            return
+        if path == "/api/commerce/dashboard":
+            from api.commerce_dashboard import handle_get_request as _cd_get
+            status, body = _cd_get(params)
+            self.send_json(status, body)
+            return
+        if path == "/api/commerce/metrics":
+            from api.commerce_metrics import handle_get_request as _cm_get
+            status, body = _cm_get(params)
+            self.send_json(status, body)
+            return
+        if path == "/api/commerce/alerts":
+            from api.commerce_alerts import handle_get_request as _ca_get
+            status, body = _ca_get(params)
+            self.send_json(status, body)
+            return
         if path == "/api/signals":
             limit = clean_int((params.get("limit") or ["30"])[0], 30)
             days = clean_int((params.get("days") or ["30"])[0], 30)
@@ -3970,7 +4178,7 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self):
-        if self.path not in ("/api/analyze", "/api/policy/compare", "/api/autofill", "/api/outreach", "/api/pricing"):
+        if self.path not in ("/api/analyze", "/api/policy/compare", "/api/autofill", "/api/autofill-advanced", "/api/outreach", "/api/pricing", "/api/commerce/funding", "/api/commerce/proposal", "/api/commerce/metrics", "/api/commerce/alerts"):
             self.send_json(404, {"error": "Not found"})
             return
         try:
@@ -3984,6 +4192,13 @@ class Handler(SimpleHTTPRequestHandler):
                 # even if pricing-only packages are missing or misconfigured.
                 from api.pricing import make_pricing_response
                 self.send_json(200, make_pricing_response(payload))
+            elif self.path == "/api/autofill-advanced":
+                company_name = (payload.get("company_name") or "").strip()
+                profile = payload.get("profile") or {}
+                if not company_name:
+                    self.send_json(400, {"error": "company_name is required."})
+                    return
+                self.send_json(200, autofill_advanced(company_name, profile))
             elif self.path == "/api/autofill":
                 company_name = (payload.get("company_name") or "").strip()
                 if not company_name:
@@ -3996,6 +4211,7 @@ class Handler(SimpleHTTPRequestHandler):
                 scores = payload.get("scores") or {}
                 recommendations = payload.get("recommendations") or []
                 bundle_match = payload.get("bundle_match") or {}
+                signal_context = payload.get("signal_context") or {}
                 triggers = (
                     payload.get("display_regulatory_triggers")
                     or payload.get("regulatory_triggers_fired")
@@ -4004,13 +4220,13 @@ class Handler(SimpleHTTPRequestHandler):
                 size_bucket = profile.get("size_bucket", "mid")
                 try:
                     out_prompts, out_source, out_error = outreach_prompts(
-                        profile, scores, recommendations, bundle_match, size_bucket
+                        profile, scores, recommendations, bundle_match, size_bucket, signal_context
                     )
                     handlers = json_safe(generate_objection_handlers(
                         profile, bundle_match, scores, triggers
                     ))
                 except Exception:
-                    out_prompts = fallback_outreach_prompts(profile, scores, recommendations, bundle_match)
+                    out_prompts = fallback_outreach_prompts(profile, scores, recommendations, bundle_match, signal_context)
                     out_source = "fallback"
                     out_error = None
                     handlers = []
@@ -4020,6 +4236,22 @@ class Handler(SimpleHTTPRequestHandler):
                     "outreach_error": out_error,
                     "objection_handlers": handlers,
                 })
+            elif self.path == "/api/commerce/funding":
+                from api.commerce_funding import handle_post_request as _cf_post
+                status, body = _cf_post(payload)
+                self.send_json(status, body)
+            elif self.path == "/api/commerce/proposal":
+                from api.commerce_proposal import handle_post_request as _cp_post
+                status, body = _cp_post(payload)
+                self.send_json(status, body)
+            elif self.path == "/api/commerce/metrics":
+                from api.commerce_metrics import handle_post_request as _cm_post
+                status, body = _cm_post(payload)
+                self.send_json(status, body)
+            elif self.path == "/api/commerce/alerts":
+                from api.commerce_alerts import handle_post_request as _ca_post
+                status, body = _ca_post(payload)
+                self.send_json(status, body)
             else:
                 self.send_json(200, analyze(payload))
         except Exception as exc:

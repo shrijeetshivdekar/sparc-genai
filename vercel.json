@@ -69,6 +69,43 @@
       }
     },
     {
+      "src": "api/commerce_funding.py",
+      "use": "@vercel/python",
+      "config": {
+        "includeFiles": ["**/*.py", "**/*.json"],
+        "maxDuration": 45
+      }
+    },
+    {
+      "src": "api/commerce_dashboard.py",
+      "use": "@vercel/python",
+      "config": {
+        "includeFiles": ["**/*.py", "**/*.json"]
+      }
+    },
+    {
+      "src": "api/commerce_proposal.py",
+      "use": "@vercel/python",
+      "config": {
+        "includeFiles": ["**/*.py", "**/*.json", "templates/*.html"],
+        "maxDuration": 15
+      }
+    },
+    {
+      "src": "api/commerce_metrics.py",
+      "use": "@vercel/python",
+      "config": {
+        "includeFiles": ["**/*.py", "**/*.json"]
+      }
+    },
+    {
+      "src": "api/commerce_alerts.py",
+      "use": "@vercel/python",
+      "config": {
+        "includeFiles": ["**/*.py", "**/*.json"]
+      }
+    },
+    {
       "src": "startup_shield_web/index.html",
       "use": "@vercel/static"
     },
@@ -78,6 +115,10 @@
     },
     {
       "src": "startup_shield_web/styles.css",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "startup_shield_web/email-template-signal-outreach.html",
       "use": "@vercel/static"
     }
   ],
@@ -119,12 +160,36 @@
       "dest": "/api/outreach.py"
     },
     {
+      "src": "/api/commerce/funding",
+      "dest": "/api/commerce_funding.py"
+    },
+    {
+      "src": "/api/commerce/dashboard",
+      "dest": "/api/commerce_dashboard.py"
+    },
+    {
+      "src": "/api/commerce/proposal",
+      "dest": "/api/commerce_proposal.py"
+    },
+    {
+      "src": "/api/commerce/metrics",
+      "dest": "/api/commerce_metrics.py"
+    },
+    {
+      "src": "/api/commerce/alerts",
+      "dest": "/api/commerce_alerts.py"
+    },
+    {
       "src": "/app.js",
       "dest": "/startup_shield_web/app.js"
     },
     {
       "src": "/styles.css",
       "dest": "/startup_shield_web/styles.css"
+    },
+    {
+      "src": "/email-template-signal-outreach.html",
+      "dest": "/startup_shield_web/email-template-signal-outreach.html"
     },
     {
       "src": "/",

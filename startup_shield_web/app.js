@@ -975,9 +975,20 @@ function renderApp() {
         </div>
         <div class="topbar-sep"></div>
         <span class="topbar-sub">ICICI Lombard · Startup Risk Intelligence</span>
+        <div class="topbar-mode" role="tablist" aria-label="App mode">
+          <button type="button" class="topbar-mode-pill is-active" data-mode="analyse" role="tab" aria-selected="true">Analyse</button>
+          <button type="button" class="topbar-mode-pill" data-mode="commerce" role="tab" aria-selected="false">Commerce</button>
+        </div>
       </header>
       <div id="main-content"></div>
     </div>`;
+  document.querySelectorAll(".topbar-mode-pill").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const mode = btn.getAttribute("data-mode");
+      if (mode === "commerce") enterCommerceMode();
+      else exitCommerceMode();
+    });
+  });
 }
 
 /* ─── FORM RENDER ────────────────────────────────────────────── */
@@ -1190,7 +1201,7 @@ function renderProfileSneak(profile) {
   requestAnimationFrame(() => card.classList.add("profile-sneak-visible"));
 }
 
-async function triggerAutoProfiling(companyName, _retryCount = 0) {
+async function triggerAutoProfiling(companyName, _retryCount = 0, signalContext = null) {
   const cancelLoader = renderAutoProfilingLoader(companyName);
   try {
     // Step 1: /api/autofill — Gemini only, no server.py import, fast (<8s)
@@ -1205,7 +1216,7 @@ async function triggerAutoProfiling(companyName, _retryCount = 0) {
     } catch (jsonErr) {
       if (_retryCount < 1) {
         cancelLoader();
-        return triggerAutoProfiling(companyName, _retryCount + 1);
+        return triggerAutoProfiling(companyName, _retryCount + 1, signalContext);
       }
       throw new Error("JSON parse error: " + jsonErr.message);
     }
@@ -1214,7 +1225,7 @@ async function triggerAutoProfiling(companyName, _retryCount = 0) {
       const isTransient = !autofillRes.ok || /busy|overload|503|504|timeout|incomplete|truncat|json|parse/i.test(errMsg);
       if (_retryCount < 1 && isTransient) {
         cancelLoader();
-        return triggerAutoProfiling(companyName, _retryCount + 1);
+        return triggerAutoProfiling(companyName, _retryCount + 1, signalContext);
       }
       throw new Error(errMsg || "Auto-profile failed");
     }
@@ -1223,6 +1234,7 @@ async function triggerAutoProfiling(companyName, _retryCount = 0) {
     // Vercel's /api/autofill returns only the raw Gemini profile — needs a second /api/analyze call.
     if (profile.scores && profile.bundle_match) {
       cancelLoader();
+      if (signalContext) profile.signal_context = signalContext;
       renderResults(profile);
       return;
     }
@@ -1245,6 +1257,7 @@ async function triggerAutoProfiling(companyName, _retryCount = 0) {
     if (!analyzeRes.ok || result.error) {
       throw new Error(result.error || "Analysis failed");
     }
+    if (signalContext) result.signal_context = signalContext;
     renderResults(result);
   } catch (err) {
     cancelLoader();
@@ -1598,137 +1611,21 @@ async function renderSignalRadarDashboard(filter = _signalRadarFilter, forceRefr
     btn.onclick = () => triggerAutoProfiling(btn.dataset.company);
   });
   document.querySelectorAll(".signal-draft-btn").forEach(btn => {
-    btn.onclick = () => loadSignalDraft(btn);
+    btn.onclick = () => {
+      let sig;
+      try { sig = JSON.parse(btn.dataset.signal); } catch (_) { sig = {}; }
+      window.__pendingSignalContext = {
+        signal: sig.signal,
+        company_name: sig.company,
+        insurance_angle: sig.insurance_angle,
+        recommended_bundle: sig.recommended_bundle,
+        headline: sig.headline,
+        regulation_tag: sig.regulation_tag,
+        confidence: sig.confidence,
+      };
+      triggerAutoProfiling(sig.company);
+    };
   });
-}
-
-async function loadSignalDraft(btn) {
-  let sig;
-  try { sig = JSON.parse(btn.dataset.signal); } catch (_) { sig = {}; }
-  const idx = btn.dataset.idx || "";
-  const outputEl = document.getElementById(`sdo-${idx}`);
-  if (!outputEl) return;
-
-  btn.disabled = true;
-  btn.textContent = "Generating…";
-  outputEl.style.display = "";
-  outputEl.innerHTML =
-    `<div class="sdo-loader">` +
-      `<div class="oal-track"><div class="oal-bar" id="sdo-bar-${escHtml(idx)}" style="width:0%"></div></div>` +
-      `<span class="sdo-pct" id="sdo-pct-${escHtml(idx)}">0%</span>` +
-    `</div>`;
-
-  // Fake progress
-  let pct = 0;
-  const barEl  = document.getElementById(`sdo-bar-${idx}`);
-  const pctEl  = document.getElementById(`sdo-pct-${idx}`);
-  const startTs = Date.now();
-  let _timer;
-  const _tick = () => {
-    const e = (Date.now() - startTs) / 1000;
-    const t = e < 6 ? (e / 6) * 40 : 40 + ((e - 6) / 24) * 50;
-    pct = Math.min(t, 99);
-    if (barEl) barEl.style.width = pct + "%";
-    if (pctEl) pctEl.textContent = Math.round(pct) + "%";
-    if (pct < 99) _timer = setTimeout(_tick, 200);
-  };
-  _timer = setTimeout(_tick, 200);
-
-  // Build a minimal profile from signal fields + call autofill to enrich it
-  const profile = {
-    startup_name: sig.company || "Unknown startup",
-    sector: sig.sector || "SaaS / Enterprise Software",
-    funding_stage: sig.funding_stage || "Seed",
-    team_size: 50,
-    operations: "Hybrid",
-    data_handled: [],
-    regulatory: [],
-    physical_assets: [],
-    ai_in_product: false,
-    has_investors: "Yes",
-    annual_revenue_cr: 0,
-    biggest_fear: sig.underwriting_rationale || "",
-    product_description: sig.headline || "",
-  };
-
-  const signal_context = {
-    signal: sig.signal,
-    company_name: sig.company,
-    insurance_angle: sig.insurance_angle,
-    recommended_bundle: sig.recommended_bundle,
-    headline: sig.headline,
-  };
-
-  try {
-    // Try to enrich profile via autofill first (best effort, 8s timeout)
-    const afCtrl = new AbortController();
-    const afTimeout = setTimeout(() => afCtrl.abort(), 8000);
-    try {
-      const afRes = await fetch("/api/autofill", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ company_name: sig.company, signal_context }),
-        signal: afCtrl.signal,
-      });
-      if (afRes.ok) {
-        const afData = await afRes.json();
-        if (afData && !afData.error) Object.assign(profile, afData);
-      }
-    } catch (_) {} finally { clearTimeout(afTimeout); }
-
-    // Now call outreach with enriched profile + signal context
-    const res = await fetch("/api/outreach", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        profile,
-        scores: {},
-        recommendations: [],
-        bundle_match: { name: sig.recommended_bundle },
-        signal_context,
-      }),
-    });
-    clearTimeout(_timer);
-    if (!res.ok) throw new Error(`API ${res.status}`);
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-
-    pct = 100;
-    if (barEl) barEl.style.width = "100%";
-    if (pctEl) pctEl.textContent = "100%";
-    await new Promise(r => setTimeout(r, 300));
-
-    const prompts = data.outreach_prompts || {};
-    const keys = Object.keys(prompts);
-    if (!keys.length) throw new Error("No drafts returned");
-
-    outputEl.innerHTML = keys.map(key => {
-      const item = prompts[key];
-      return `<div class="sdo-item">
-        <div class="sdo-product">${escHtml(key.replace(/_/g," "))}</div>
-        <div class="sdo-subject"><strong>Subject:</strong> ${escHtml(item.email_subject || "")}</div>
-        <pre class="sdo-body">${escHtml(item.email_body || "")}</pre>
-        ${item.whatsapp ? `<div class="sdo-wa"><strong>WhatsApp:</strong> ${escHtml(item.whatsapp)}</div>` : ""}
-      </div>`;
-    }).join("<hr class='sdo-sep'>");
-
-    btn.textContent = "Regenerate";
-    btn.disabled = false;
-  } catch (err) {
-    clearTimeout(_timer);
-    if (barEl) barEl.style.width = "100%";
-    if (pctEl) pctEl.textContent = "100%";
-    await new Promise(r => setTimeout(r, 300));
-    outputEl.innerHTML = `<div class="sdo-error">Failed: ${escHtml(err.message)} <button class="oal-retry-btn" type="button">Retry</button></div>`;
-    outputEl.querySelector("button")?.addEventListener("click", () => {
-      outputEl.style.display = "none";
-      btn.disabled = false;
-      btn.textContent = "Draft outreach";
-      loadSignalDraft(btn);
-    });
-    btn.textContent = "Draft outreach";
-    btn.disabled = false;
-  }
 }
 
 function renderSignalTask(signal) {
@@ -1787,10 +1684,9 @@ function renderSignalTask(signal) {
         <p class="signal-action">${escHtml(signal.rm_action)}</p>
         <div class="signal-actions">
           ${signal.source_url ? `<a href="${escHtml(signal.source_url)}" target="_blank" rel="noopener">Open source</a>` : ""}
-          <button class="signal-draft-btn" type="button" data-idx="${escHtml(signal.signal_id || signal.signal)}" data-signal='${JSON.stringify({company:signal.company,sector:signal.sector,funding_stage:signal.funding_stage,signal:signal.signal,insurance_angle:signal.insurance_angle,underwriting_rationale:signal.underwriting_rationale,recommended_bundle:signal.recommended_bundle,headline:signal.headline}).replace(/'/g,"&#39;")}'>Draft outreach</button>
+          <button class="signal-draft-btn" type="button" data-signal='${JSON.stringify({company:signal.company,sector:signal.sector,funding_stage:signal.funding_stage,signal:signal.signal,insurance_angle:signal.insurance_angle,underwriting_rationale:signal.underwriting_rationale,recommended_bundle:signal.recommended_bundle,headline:signal.headline,regulation_tag:signal.regulation_tag,confidence:signal.confidence}).replace(/'/g,"&#39;")}'>Draft outreach</button>
           <button class="signal-analyze-btn" type="button" data-company="${escHtml(signal.company)}">Run SPARC</button>
         </div>
-        <div class="signal-draft-output" id="sdo-${escHtml(signal.signal_id || signal.signal)}" style="display:none"></div>
       </div>
     </article>`;
 }
@@ -3532,7 +3428,7 @@ function profileToPricingInputs(profile, lob, sumInsuredInr) {
     years_since_incorporation: Number(p.years_since_incorporation || 3),
     cin: p.cin || "U99999MH2020PTC000000",
     dpiit_recognised: Boolean(p.dpiit_recognised || p.dpiit_recognition),
-    line_of_business: lob,
+    line_of_business: _LOB_TO_PRICING_LOB[lob] || lob,
     sum_insured_inr: sumInsuredInr,
     deductible_inr: sumInsuredInr >= 1e8 ? 500000 : 100000,
     prior_claims: 0,
@@ -3553,6 +3449,10 @@ const _PRODUCT_KEY_TO_LOB = {
   PUBLIC_LIABILITY:           ["CGL",      "Public Liability"],
   PRODUCT_LIABILITY:          ["CGL",      "Product Liability"],
   FIRE_AND_PROPERTY:          ["Property", "Fire & Property"],
+  PROPERTY_ALL_RISK:          ["Property", "Prop. All Risk"],
+  BUSINESS_INTERRUPTION:      ["BI",       "Business Int."],
+  MACHINERY_BREAKDOWN:        ["MB",       "Machinery Bkdn"],
+  ELECTRONIC_EQUIPMENT:       ["EEI",      "Elec. Equipment"],
   GROUP_HEALTH:               ["GH",       "Group Health"],
   EMPLOYEE_HEALTH:            ["GH",       "Group Health"],
   GROUP_PA:                   ["GPA",      "Group PA"],
@@ -3561,6 +3461,9 @@ const _PRODUCT_KEY_TO_LOB = {
   WORKMEN_COMPENSATION:       ["EC",       "Emp. Comp."],
   CRIME_FIDELITY:             ["Crime",    "Crime"],
 };
+
+// IAR sub-types that the pricing backend routes through "Property" formula
+const _LOB_TO_PRICING_LOB = { BI: "Property", MB: "Property", EEI: "Property" };
 
 function _lobsFromResult(result) {
   const bundle = result.bundle_match || {};
@@ -3688,6 +3591,14 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
   const activeLoadings = new Set((Q.active_loadings || []).map(x => x.id));
   let currentSI = Q.inputs_echo?.sum_insured_inr || estimateSumInsured(profile, LOB);
   const customAdjustments = []; // {id, label, value} added by the underwriter
+  const catalogState = {
+    search: "",
+    filter: "applicable",
+    scrollTop: 0,
+    mobileOpen: false,
+    focusTarget: "",
+    openDetails: new Set((Q.active_loadings || []).map(x => x.id)),
+  };
 
   const money = (n) => "Rs. " + Math.round(Number(n) || 0).toLocaleString("en-IN");
   const compactMoney = (n) => {
@@ -3702,6 +3613,21 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
     ? `<a href="${esc(entry.source_url)}" target="_blank" rel="noopener">${esc(entry.source_citation || "-")}</a>`
     : esc(entry?.source_citation || "-");
   const catalogValue = (id) => Number(catalogOverrides[id] ?? CATALOG[id]?.value ?? 0);
+  const catalogMatchesSearch = (label) => !catalogState.search || label.toLowerCase().includes(catalogState.search.toLowerCase());
+  const preserveCatalogStateFromDOM = () => {
+    const searchEl = container.querySelector("#pc-catalog-search");
+    const filterEl = container.querySelector("#pc-catalog-filter");
+    const listEl = container.querySelector("#pc-catalog-list");
+    const mobileToggle = container.querySelector("#pc-catalog-mobile-toggle");
+    if (searchEl) catalogState.search = searchEl.value || "";
+    if (filterEl) catalogState.filter = filterEl.value || "applicable";
+    if (listEl) catalogState.scrollTop = listEl.scrollTop || 0;
+    if (mobileToggle) catalogState.mobileOpen = mobileToggle.getAttribute("aria-expanded") === "true";
+  };
+  const rerender = () => {
+    preserveCatalogStateFromDOM();
+    render();
+  };
 
   function recalc() {
     const trace = Q.factor_trace || [];
@@ -3793,6 +3719,11 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
       const ok = (item.applies_to || []).includes(LOB);
       const on = activeLoadings.has(id);
       const v = catalogValue(id);
+      const label = item.label || labelize(id);
+      const matchesFilter = catalogState.filter === "all"
+        || (catalogState.filter === "applicable" && ok)
+        || (catalogState.filter === "active" && on);
+      if (!matchesFilter || !catalogMatchesSearch(label)) return "";
       const dir = item.direction === "discount" ? "grn" : "red";
       const confBadge = item.confidence
         ? `<span class="pc-conf-badge pc-conf-${esc(item.confidence)}">${esc(item.confidence)}</span>`
@@ -3808,11 +3739,12 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
       const sourceHtml = srcUrl
         ? `<a class="pc-src-link" href="${esc(srcUrl)}" target="_blank" rel="noopener">${esc(srcCitation || srcUrl)}</a>`
         : (srcCitation ? `<span class="pc-src-text">${esc(srcCitation)}</span>` : "");
-      return `<details class="pc-catalog-row${ok ? "" : " muted"}" ${on ? "open" : ""}>
+      const open = catalogState.openDetails.has(id) || on;
+      return `<details class="pc-catalog-row${ok ? "" : " muted"}" data-catalog-id="${esc(id)}" ${open ? "open" : ""}>
         <summary>
           <div class="pc-cat-summary-inner">
             <div class="pc-cat-head-left">
-              <strong>${esc(item.label || labelize(id))}</strong>
+              <strong>${esc(label)}</strong>
               <div class="pc-cat-badges">${confBadge}${irdaiBadge}${ok ? "" : `<span class="pc-na-badge">N/A for ${LOB}</span>`}</div>
             </div>
             <div class="pc-cat-head-right">
@@ -3830,7 +3762,7 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
           ${sourceHtml ? `<div class="pc-detail-source">Source: ${sourceHtml}</div>` : ""}
         </div>
       </details>`;
-    }).join("");
+    }).filter(Boolean).join("");
     return { ratingRows, expenseRows, activeRows, catalogRows };
   }
 
@@ -3841,27 +3773,54 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
       <div class="pc-shell">
         <div class="pc-topline">
           <div><div class="eq-label">Premium Triage</div><h3>${esc(LOB)} formula-chain quote</h3><p>${esc(profile?.startup_name || "Startup")} | NIC ${esc(Q.inputs_echo?.nic_code || "")} | ${esc(Q.inputs_echo?.stage || "")} | ${esc(Q.inputs_echo?.state || "")}</p></div>
-          <button class="pc-reset-all" type="button" id="pc-reset-all">Reset all edits</button>
+          <div class="pc-topline-actions">
+            <button class="pc-explain-btn" type="button" id="pc-explain-btn" title="Show step-by-step calculation rationale">Why this number?</button>
+            <button class="pc-reset-all" type="button" id="pc-reset-all">Reset all edits</button>
+          </div>
         </div>
         <div class="pc-layout">
           <div class="pc-left">
-            <div class="pc-section-eyebrow">Rating Factors</div>
-            <div class="pc-factor-table">${renderSIRow()}${rows.ratingRows}<div class="pc-row sub"><div class="pc-op">=</div><div class="pc-label">Technical premium<span class="pc-sub">Before adjustments and expense loading</span></div><div class="pc-val bold"><span class="val-text">${money(c.tech)}</span></div><div class="pc-src">derived</div><div class="pc-conf"></div></div></div>
-            <div class="pc-section-eyebrow">Active Adjustments</div>
-            <div class="pc-loadings-card"><div class="pc-loadings-head"><span>Loadings and discounts</span><span class="pc-net-badge ${c.net < 0 ? "pc-net-neg" : c.net > 0 ? "pc-net-pos" : "pc-net-zero"}">${pctText(c.net)}</span></div><div class="pc-loadings-list">${rows.activeRows}</div><div class="pc-clamp ${c.clamped ? "on" : ""}">Net adjustment clamped to +/-25%</div></div>
-            <div class="pc-custom-adj-wrap" id="pc-custom-adj-wrap">
-              <button class="pc-add-custom-btn" type="button" id="pc-add-custom-btn">+ Add custom adjustment</button>
-              <div class="pc-custom-form hidden" id="pc-custom-form">
-                <input class="pc-custom-label-input" id="pc-custom-label" type="text" placeholder="Label, e.g. Renewal loyalty discount" maxlength="60">
-                <input class="pc-custom-pct-input" id="pc-custom-pct" type="number" step="0.5" placeholder="e.g. -10 or +15">
-                <span class="pc-custom-pct-hint">%</span>
-                <button class="pc-mini-btn pc-custom-apply" type="button" id="pc-custom-apply">Apply</button>
-                <button class="pc-mini-btn" type="button" id="pc-custom-cancel">Cancel</button>
+            <div class="pc-left-layout">
+              <div class="pc-main">
+                <div class="pc-section-eyebrow">Rating Factors</div>
+                <div class="pc-factor-table">${renderSIRow()}${rows.ratingRows}<div class="pc-row sub"><div class="pc-op">=</div><div class="pc-label">Technical premium<span class="pc-sub">Before adjustments and expense loading</span></div><div class="pc-val bold"><span class="val-text">${money(c.tech)}</span></div><div class="pc-src">derived</div><div class="pc-conf"></div></div></div>
+                <div class="pc-section-eyebrow">Active Adjustments</div>
+                <div class="pc-loadings-card"><div class="pc-loadings-head"><span>Loadings and discounts</span><span class="pc-net-badge ${c.net < 0 ? "pc-net-neg" : c.net > 0 ? "pc-net-pos" : "pc-net-zero"}">${pctText(c.net)}</span></div><div class="pc-loadings-list">${rows.activeRows}</div><div class="pc-clamp ${c.clamped ? "on" : ""}">Net adjustment clamped to +/-25%</div></div>
+                <div class="pc-custom-adj-wrap" id="pc-custom-adj-wrap">
+                  <button class="pc-add-custom-btn" type="button" id="pc-add-custom-btn">+ Add custom adjustment</button>
+                  <div class="pc-custom-form hidden" id="pc-custom-form">
+                    <input class="pc-custom-label-input" id="pc-custom-label" type="text" placeholder="Label, e.g. Renewal loyalty discount" maxlength="60">
+                    <input class="pc-custom-pct-input" id="pc-custom-pct" type="number" step="0.5" placeholder="e.g. -10 or +15">
+                    <span class="pc-custom-pct-hint">%</span>
+                    <button class="pc-mini-btn pc-custom-apply" type="button" id="pc-custom-apply">Apply</button>
+                    <button class="pc-mini-btn" type="button" id="pc-custom-cancel">Cancel</button>
+                  </div>
+                </div>
+                <button class="pc-catalog-mobile-toggle" type="button" id="pc-catalog-mobile-toggle" aria-expanded="${catalogState.mobileOpen ? "true" : "false"}">Add from catalog</button>
+                <div class="pc-section-eyebrow">Expense and Tax</div>
+                <div class="pc-factor-table">${rows.expenseRows}</div>
               </div>
+              <aside class="pc-catalog-rail${catalogState.mobileOpen ? " is-open" : ""}">
+                <div class="pc-loadings-card pc-catalog-card">
+                  <div class="pc-loadings-head pc-catalog-head">
+                    <div>
+                      <span>Add from catalog</span>
+                      <p>Search and schedule adjustments without pushing the quote downward.</p>
+                    </div>
+                  </div>
+                  <div class="pc-catalog-controls">
+                    <input id="pc-catalog-search" class="pc-catalog-search" type="search" value="${esc(catalogState.search)}" placeholder="Search factor, e.g. ISO, DPIIT, litigation">
+                    <select id="pc-catalog-filter" class="pc-catalog-filter">
+                      <option value="all"${catalogState.filter === "all" ? " selected" : ""}>All</option>
+                      <option value="applicable"${catalogState.filter === "applicable" ? " selected" : ""}>Applicable to current LOB</option>
+                      <option value="active"${catalogState.filter === "active" ? " selected" : ""}>Active only</option>
+                    </select>
+                  </div>
+                  <div class="pc-catalog-meta"><span>${Object.keys(CATALOG || {}).length} factors</span><span>${rows.catalogRows ? "Live catalog" : "No matching factors"}</span></div>
+                  <div class="pc-catalog-list" id="pc-catalog-list">${rows.catalogRows || `<div class="pc-empty">No catalog adjustments match the current search/filter state.</div>`}</div>
+                </div>
+              </aside>
             </div>
-            <details class="pc-loadings-card"><summary class="pc-catalog-summary">Add from catalog</summary><div class="pc-catalog-list">${rows.catalogRows}</div></details>
-            <div class="pc-section-eyebrow">Expense and Tax</div>
-            <div class="pc-factor-table">${rows.expenseRows}</div>
           </div>
           <aside class="pc-right">
             <div class="pcard">
@@ -3882,15 +3841,188 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
             <details class="pc-sources"><summary>Sources cited</summary>${(Q.sources_cited || []).map(s => `<div class="pc-source-row"><span>${esc(s.code)}</span><a href="${esc(s.url || "#")}" target="_blank" rel="noopener">${esc(s.citation || "")}</a></div>`).join("")}</details>
           </aside>
         </div>
+        <div class="pc-explain-modal hidden" id="pc-explain-modal" role="dialog" aria-modal="true" aria-labelledby="pc-explain-title">
+          <div class="pc-explain-backdrop" id="pc-explain-backdrop"></div>
+          <div class="pc-explain-card">
+            <header class="pc-explain-header">
+              <div>
+                <div class="pc-explain-eyebrow">Premium Triage — calculation walkthrough</div>
+                <h3 id="pc-explain-title">How we arrived at ${money(c.mid)}</h3>
+              </div>
+              <button class="pc-explain-close" type="button" id="pc-explain-close" aria-label="Close">×</button>
+            </header>
+            <div class="pc-explain-body">${renderExplanation(c)}</div>
+          </div>
+        </div>
       </div>`;
     bind();
+  }
+
+  function renderExplanation(c) {
+    const trace = Q.factor_trace || [];
+    const baseStep = trace.find(s => String(s.step).startsWith("1."));
+    const baseRate = Number(ratingOverrides[baseStep?.step] ?? baseStep?.raw_value ?? 0);
+    const siCr = (currentSI / 1e7).toFixed(2);
+    const insuredName = esc(profile?.startup_name || "Startup");
+    const nic = esc(Q.inputs_echo?.nic_code || "—");
+    const stage = esc(Q.inputs_echo?.stage || "—");
+    const stateName = esc(Q.inputs_echo?.state || "—");
+    const tenure = Number(Q.inputs_echo?.years_since_incorporation || 0).toFixed(1);
+
+    const ratingRows = trace
+      .filter(s => { const n = parseInt(s.step, 10); return n >= 2 && n <= 4; })
+      .map(s => {
+        const v = Number(ratingOverrides[s.step] ?? s.raw_value ?? 1);
+        const effect = v === 1
+          ? "neutral"
+          : v > 1
+            ? `loads premium <strong>+${((v - 1) * 100).toFixed(1)}%</strong>`
+            : `discounts premium <strong>−${((1 - v) * 100).toFixed(1)}%</strong>`;
+        const phTag = s.is_placeholder ? ' <span class="pc-explain-ph">PLACEHOLDER</span>' : "";
+        return `<tr>
+          <td><strong>${esc(labelStep(s.step))}</strong>${phTag}</td>
+          <td class="pc-explain-num">×${v.toFixed(3)}</td>
+          <td>${effect}</td>
+          <td>${esc(s.notes || "—")}</td>
+          <td>${sourceLink(s)}</td>
+        </tr>`;
+      }).join("");
+
+    const adjustments = [
+      ...Array.from(activeLoadings).map(id => {
+        const item = CATALOG[id];
+        if (!item) return null;
+        return {
+          label: labelize(id),
+          pct: catalogValue(id),
+          why: item.source?.citation || item.rationale || "Catalog adjustment",
+          source: item.source?.url ? `<a href="${esc(item.source.url)}" target="_blank" rel="noopener">${esc(item.source.citation || "Source")}</a>` : esc(item.source?.citation || ""),
+        };
+      }).filter(Boolean),
+      ...customAdjustments.map(a => ({
+        label: a.label,
+        pct: a.value,
+        why: "Custom adjustment — underwriter judgement",
+        source: "—",
+      })),
+    ];
+    const adjRows = adjustments.length
+      ? adjustments.map(a => `<tr>
+          <td><strong>${esc(a.label)}</strong></td>
+          <td class="pc-explain-num ${a.pct < 0 ? "grn" : "red"}">${pctText(a.pct)}</td>
+          <td>${esc(a.why)}</td>
+          <td>${a.source}</td>
+        </tr>`).join("")
+      : `<tr><td colspan="4" class="pc-explain-empty">No loadings or discounts applied. Premium reflects rating factors only.</td></tr>`;
+
+    const placeholders = (Q.placeholders_used || []);
+    const dqLine = placeholders.length
+      ? `Score is reduced by <strong>${placeholders.length} placeholder factor${placeholders.length > 1 ? "s" : ""}</strong> (${placeholders.map(p => esc(p)).join(", ")}). Replacing these with carrier-quoted or broker-benchmarked values will lift the score.`
+      : `All rating factors trace to a cited public source. Score reflects the credibility of those sources.`;
+
+    const sourcesList = (Q.sources_cited || []).map(s => `<tr>
+        <td><code>${esc(s.code || "—")}</code></td>
+        <td><a href="${esc(s.url || "#")}" target="_blank" rel="noopener">${esc(s.citation || s.url || "—")}</a></td>
+      </tr>`).join("");
+
+    return `
+      <section class="pc-explain-section">
+        <h4>1 · What this quote actually is</h4>
+        <p>An <strong>indicative premium estimate</strong> for ${esc(LOB)} cover, generated under IRDAI's File-and-Use detariffed regime (in force since 2007 for most general insurance lines). It is <strong>not a bindable quote</strong> — every value is either a cited public-domain rate or a flagged placeholder. Use it to plan, benchmark carrier quotes, and frame underwriter conversations.</p>
+      </section>
+
+      <section class="pc-explain-section">
+        <h4>2 · The risk we are pricing</h4>
+        <div class="pc-explain-anchor">
+          <div><span>Insured</span><strong>${insuredName}</strong></div>
+          <div><span>Line of business</span><strong>${esc(LOB)}</strong></div>
+          <div><span>NIC 2008 code</span><strong>${nic}</strong></div>
+          <div><span>Funding stage</span><strong>${stage}</strong></div>
+          <div><span>State</span><strong>${stateName}</strong></div>
+          <div><span>Years since incorporation</span><strong>${tenure}</strong></div>
+          <div><span>Sum Insured</span><strong>₹${siCr} Cr</strong></div>
+        </div>
+      </section>
+
+      <section class="pc-explain-section">
+        <h4>3 · Step 1 — Pure premium</h4>
+        <p>We anchor on a <strong>base rate of ₹${Math.round(baseRate).toLocaleString("en-IN")} per ₹1 crore of Sum Insured</strong> for this line, then multiply by the SI in crores.</p>
+        <div class="pc-explain-formula">₹${Math.round(baseRate).toLocaleString("en-IN")} / cr × ${siCr} cr = <strong>${money(baseRate * (currentSI / 1e7))}</strong></div>
+        <p class="pc-explain-source">Source: ${sourceLink(baseStep)} <span class="pc-explain-conf">confidence: ${esc(baseStep?.confidence || "medium")}</span></p>
+      </section>
+
+      <section class="pc-explain-section">
+        <h4>4 · Steps 2–4 — Risk multipliers</h4>
+        <p>Pure premium is multiplied by a chain of risk factors. Each one captures a different driver — sector hazard, startup stage, state, tenure, sum-insured band, deductible, and the insured's own loss experience. Every factor is sourced from a public Indian regulator, bureau, or carrier disclosure, or flagged <span class="pc-explain-ph">PLACEHOLDER</span> when no public source exists.</p>
+        <div class="pc-explain-table-wrap">
+          <table class="pc-explain-table">
+            <thead><tr><th>Factor</th><th>×</th><th>Effect</th><th>What it captures</th><th>Source</th></tr></thead>
+            <tbody>${ratingRows}</tbody>
+          </table>
+        </div>
+        <p class="pc-explain-running">After all multipliers → <strong>Technical premium = ${money(c.tech)}</strong></p>
+      </section>
+
+      <section class="pc-explain-section">
+        <h4>5 · Step 5 — Underwriter adjustments</h4>
+        <p>Schedule-rated loadings or discounts toggled from the catalog (or added manually). The net adjustment is clamped to <strong>±25%</strong> in line with standard schedule-rating practice.</p>
+        <div class="pc-explain-table-wrap">
+          <table class="pc-explain-table">
+            <thead><tr><th>Adjustment</th><th>%</th><th>Rationale</th><th>Source</th></tr></thead>
+            <tbody>${adjRows}</tbody>
+          </table>
+        </div>
+        <p class="pc-explain-running">Net adjustment: <strong>${pctText(c.net)}</strong>${c.clamped ? " (clamped at ±25%)" : ""} → Loaded premium = <strong>${money(c.loaded)}</strong></p>
+      </section>
+
+      <section class="pc-explain-section">
+        <h4>6 · Step 6 — Expense and reinsurance gross-up</h4>
+        <p>Insurers must recover operating expenses, broker commission, reinsurance cession, and a target profit margin before they break even. The loaded premium is grossed up by dividing by (1 − total load):</p>
+        <ul class="pc-explain-list">
+          <li><strong>Management expense ratio · 18%</strong> — derived from <a href="https://www.irdai.gov.in/" target="_blank" rel="noopener">IRDAI Annual Report</a> industry averages for general insurers</li>
+          <li><strong>Broker commission · 12.5%</strong> — within caps under <a href="https://www.irdai.gov.in/" target="_blank" rel="noopener">IRDAI (Payment of Commission) Regulations, 2023</a></li>
+          <li><strong>Reinsurance cession load · 4%</strong> — calibrated to GIC Re obligatory cession share (placeholder until carrier-specific treaty cost is supplied)</li>
+          <li><strong>Target profit margin · 8%</strong> — IRDAI solvency-implied target</li>
+        </ul>
+        <div class="pc-explain-formula">${money(c.loaded)} ÷ (1 − 0.18 − 0.125 − 0.04 − 0.08) = ${money(c.loaded)} × ${EXP_MULTI.toFixed(3)} = <strong>${money(c.gross)}</strong> gross premium</div>
+      </section>
+
+      <section class="pc-explain-section">
+        <h4>7 · Step 7 — Statutory loads (GST + stamp duty)</h4>
+        <ul class="pc-explain-list">
+          <li><strong>GST @ 18% = ${money(c.gstAmt)}</strong> — per Department of Financial Services notification on insurance premium GST</li>
+          <li><strong>Stamp duty (${stateName}) = ${money(Q.stamp_duty_inr || 0)}</strong> — per state stamp act schedule for policies of insurance</li>
+        </ul>
+        <div class="pc-explain-formula"><strong>Final indicative premium (mid-point) = ${money(c.mid)}</strong></div>
+      </section>
+
+      <section class="pc-explain-section">
+        <h4>8 · Why a range, not a single number?</h4>
+        <p>Indian general-insurance rate filings are <strong>not publicly browsable</strong> (no SERFF equivalent exists). Public sources let us anchor a credible mid-point, but the actual rate any insurer will offer will vary by approximately <strong>±30%</strong> depending on appetite, treaty terms, competitive intent, and risk-specific underwriter judgement. We surface this honestly as an indicative range of <strong>${compactMoney(c.low)} – ${compactMoney(c.high)}</strong> rather than pretending a precision we do not have.</p>
+      </section>
+
+      <section class="pc-explain-section">
+        <h4>9 · Data quality score: <span class="pc-explain-dq">${Number(Q.data_quality_score || 0).toFixed(2)}</span> / 1.00</h4>
+        <p>${dqLine} A score above 0.70 is generally defensible to a CFO / MD / CEO audience; below 0.50 the engine returns <code>refer_to_underwriter</code> rather than a quote.</p>
+      </section>
+
+      <section class="pc-explain-section">
+        <h4>10 · Sources cited in this quote</h4>
+        <div class="pc-explain-table-wrap">
+          <table class="pc-explain-table pc-explain-sources">
+            <thead><tr><th>Ref</th><th>Citation</th></tr></thead>
+            <tbody>${sourcesList || `<tr><td colspan="2" class="pc-explain-empty">No structured sources attached to this quote.</td></tr>`}</tbody>
+          </table>
+        </div>
+        <p class="pc-explain-foot">Every numeric value above is editable in the formula chain — overrides reset the source confidence to "underwriter override" in audit trail.</p>
+      </section>`;
   }
 
   function startEdit(btn, clickEvent) {
     if (clickEvent?.target?.dataset?.reset) {
       if (btn.dataset.kind === "factor") delete ratingOverrides[btn.dataset.key];
       if (btn.dataset.kind === "loading") delete catalogOverrides[btn.dataset.key];
-      render();
+      rerender();
       return;
     }
     const isPct = btn.dataset.pct === "1";
@@ -3914,7 +4046,7 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
           currentSI = n * 1e7;
           loadPricingPanel(profile, LOB, currentSI);
         } else {
-          render();
+          rerender();
         }
         return;
       }
@@ -3922,31 +4054,74 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
         if (btn.dataset.kind === "factor") ratingOverrides[btn.dataset.key] = n;
         if (btn.dataset.kind === "loading") catalogOverrides[btn.dataset.key] = isPct ? n / 100 : n;
       }
-      render();
+      rerender();
     };
     input.addEventListener("blur", save, { once: true });
     input.addEventListener("keydown", e => {
       if (e.key === "Enter") input.blur();
-      if (e.key === "Escape") render();
+      if (e.key === "Escape") rerender();
     });
   }
 
   function bind() {
     container.querySelectorAll(".pc-val.editable").forEach(btn => btn.addEventListener("click", e => startEdit(btn, e)));
+    const catalogSearch = container.querySelector("#pc-catalog-search");
+    const catalogFilter = container.querySelector("#pc-catalog-filter");
+    const catalogList = container.querySelector("#pc-catalog-list");
+    const mobileToggle = container.querySelector("#pc-catalog-mobile-toggle");
+    if (catalogSearch) catalogSearch.addEventListener("input", () => {
+      catalogState.search = catalogSearch.value || "";
+      catalogState.scrollTop = 0;
+      catalogState.focusTarget = "search";
+      render();
+    });
+    if (catalogFilter) catalogFilter.addEventListener("change", () => {
+      catalogState.filter = catalogFilter.value || "applicable";
+      catalogState.scrollTop = 0;
+      catalogState.focusTarget = "filter";
+      render();
+    });
+    if (catalogList) {
+      catalogList.scrollTop = catalogState.scrollTop || 0;
+      catalogList.addEventListener("scroll", () => {
+        catalogState.scrollTop = catalogList.scrollTop || 0;
+      });
+    }
+    if (catalogState.focusTarget === "search" && catalogSearch) {
+      catalogSearch.focus();
+      const len = catalogSearch.value.length;
+      catalogSearch.setSelectionRange(len, len);
+      catalogState.focusTarget = "";
+    }
+    if (catalogState.focusTarget === "filter" && catalogFilter) {
+      catalogFilter.focus();
+      catalogState.focusTarget = "";
+    }
+    if (mobileToggle) mobileToggle.addEventListener("click", () => {
+      catalogState.mobileOpen = !catalogState.mobileOpen;
+      render();
+    });
+    container.querySelectorAll(".pc-catalog-row").forEach(row => row.addEventListener("toggle", () => {
+      const id = row.dataset.catalogId;
+      if (!id) return;
+      if (row.open) catalogState.openDetails.add(id);
+      else catalogState.openDetails.delete(id);
+    }));
     container.querySelectorAll("[data-toggle-loading]").forEach(btn => btn.addEventListener("click", e => {
       e.stopPropagation(); // prevent <details> toggle when button is inside <summary>
       const id = btn.dataset.toggleLoading;
       activeLoadings.has(id) ? activeLoadings.delete(id) : activeLoadings.add(id);
-      render();
+      catalogState.openDetails.add(id);
+      rerender();
     }));
     container.querySelectorAll("[data-remove-loading]").forEach(btn => btn.addEventListener("click", () => {
       activeLoadings.delete(btn.dataset.removeLoading);
-      render();
+      rerender();
     }));
     container.querySelectorAll("[data-remove-custom]").forEach(btn => btn.addEventListener("click", () => {
       const idx = customAdjustments.findIndex(a => a.id === btn.dataset.removeCustom);
       if (idx !== -1) customAdjustments.splice(idx, 1);
-      render();
+      rerender();
     }));
     const addBtn    = document.getElementById("pc-add-custom-btn");
     const form      = document.getElementById("pc-custom-form");
@@ -3966,15 +4141,31 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
       const pct   = Number(document.getElementById("pc-custom-pct").value);
       if (!label || !Number.isFinite(pct) || pct === 0) return;
       customAdjustments.push({ id: "custom_" + Date.now(), label, value: pct / 100 });
-      render();
+      rerender();
     });
     const reset = $("pc-reset-all");
     if (reset) reset.addEventListener("click", () => {
       Object.keys(ratingOverrides).forEach(k => delete ratingOverrides[k]);
       Object.keys(catalogOverrides).forEach(k => delete catalogOverrides[k]);
       customAdjustments.length = 0;
+      catalogState.search = "";
+      catalogState.filter = "applicable";
+      catalogState.scrollTop = 0;
       render();
     });
+    const explainBtn      = $("pc-explain-btn");
+    const explainModal    = $("pc-explain-modal");
+    const explainClose    = $("pc-explain-close");
+    const explainBackdrop = $("pc-explain-backdrop");
+    const openExplain  = () => { if (explainModal) explainModal.classList.remove("hidden"); document.body.classList.add("pc-explain-open"); };
+    const closeExplain = () => { if (explainModal) explainModal.classList.add("hidden"); document.body.classList.remove("pc-explain-open"); };
+    if (explainBtn)      explainBtn.addEventListener("click", openExplain);
+    if (explainClose)    explainClose.addEventListener("click", closeExplain);
+    if (explainBackdrop) explainBackdrop.addEventListener("click", closeExplain);
+    if (explainModal) {
+      const escHandler = (e) => { if (e.key === "Escape" && !explainModal.classList.contains("hidden")) closeExplain(); };
+      document.addEventListener("keydown", escHandler);
+    }
   }
 
   render();
@@ -3982,6 +4173,11 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
 
 function renderResults(result) {
   result = normalizeGroupSafeguardCompanion(result);
+  // Consume any pending signal context (set by "Draft outreach" button on signal cards)
+  if (window.__pendingSignalContext) {
+    result.signal_context = window.__pendingSignalContext;
+    window.__pendingSignalContext = null;
+  }
   if (!_navCalledByHistory) { const _r = result; _navHistory = _navHistory.slice(0, _navPos + 1); _navHistory.push({ fn: renderResults, args: [_r], view: "results" }); _navPos = _navHistory.length - 1; setTimeout(_updateNavButtons, 0); }
   window.__outreachLoaded = false;
   state.profile = structuredClone(result.profile || state.profile);
@@ -4029,6 +4225,7 @@ function renderResults(result) {
           <button class="btn-hero-ghost" onclick="renderRoleSelection()" style="margin-right:auto;">← Home</button>
           <button class="btn-hero-primary" onclick="openSummaryPDF()">Download report</button>
           <button class="btn-hero-ghost" onclick="renderForm()">Edit inputs</button>
+          <button class="btn-hero-ghost" onclick="openAdvancedPanel()" id="btn-refine-inputs" title="Add governance, gig, data &amp; AI, and physical inputs to sharpen the risk score">Refine inputs ⚙</button>
         </div>
       </div>
 
@@ -4091,8 +4288,18 @@ function renderResults(result) {
 
       <!-- ── TAB: Outreach ── -->
       <div class="tab-panel" id="tab-outreach" style="display:none">
-        <div id="outreach-static">${renderFounderPitch(result)}</div>
-        <div id="outreach-dynamic">${renderOutreach(result.outreach_fallback || {}, "fallback", null)}</div>
+        <div class="ot-subnav" id="ot-subnav" style="${result.signal_context ? "" : "display:none"}">
+          <button class="ot-sub-pill ot-sub-active" id="ot-sub-company" onclick="showOutreachSubTab('company')">Company outreach</button>
+          <button class="ot-sub-pill" id="ot-sub-signal" onclick="showOutreachSubTab('signal')">Signal outreach</button>
+        </div>
+        <div class="ot-sub-panel" id="ot-panel-company">
+          <div id="outreach-static">${renderFounderPitch(result)}</div>
+          <div id="outreach-dynamic">${renderOutreach(result.outreach_fallback || {}, "fallback", null)}</div>
+        </div>
+        <div class="ot-sub-panel" id="ot-panel-signal" style="display:none">
+          <div id="signal-outreach-context"></div>
+          <div id="signal-outreach-dynamic"></div>
+        </div>
       </div>
 
       <!-- ── TAB: Estimated Quote ── -->
@@ -4100,25 +4307,6 @@ function renderResults(result) {
         ${renderEstimateQuoteButton(result)}
         ${renderV2Insights(result)}
         ${renderMethodologyModal(result)}
-        <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
-          <button class="hc-trigger-btn" type="button" onclick="toggleHowCalculated(true)">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-            How is this calculated?
-          </button>
-        </div>
-        ${renderPricingSeparation(result)}
-        ${renderDualPricingPanel(result)}
-        ${shouldSuppressBenchmarkRange(result) ? `
-        <div class="premium-card">
-          <div class="premium-card-label">Benchmark range, not a quote</div>
-          <div class="premium-card-value">Suppressed for enterprise account</div>
-          <div class="premium-card-note">${esc((result.pricing_engine_quote?.pricing_scale || result.bundle_only_pricing_quote?.pricing_scale || {}).message || "The submitted limits are outside startup benchmark range. Use the quote estimate and underwriter checks instead.")}</div>
-        </div>` : result.premium_summary ? `
-        <div class="premium-card">
-          <div class="premium-card-label">Benchmark range, not a quote</div>
-          <div class="premium-card-value">INR ${result.premium_summary.min_lakh} - ${result.premium_summary.max_lakh} lakhs</div>
-          <div class="premium-card-note">Pre-quote product benchmark across ${result.premium_summary.count} products. It does not use selected SI, GST, bundle discount, or underwriter checks. ${esc(result.premium_footnote||"Indicative estimates only.")}</div>
-        </div>` : ""}
         <details class="expander-card" style="margin-bottom:14px;">
           <summary>Product comparison table</summary>
           <div class="expander-body">${renderComparisonTable(result.recommendations)}</div>
@@ -4247,12 +4435,94 @@ function renderResults(result) {
   // Overdrive: scroll-reveal + number shock
   setTimeout(setupScrollReveal, 80);
 
-  // Activate default tab
-  showTab("bundle");
+  // Activate default tab — go directly to outreach sub-tab if signal context is set
+  if (result.signal_context) {
+    showTab("outreach");
+    showOutreachSubTab("signal");
+  } else {
+    showTab("bundle");
+  }
 }
 
 /* ─── TAB NAVIGATION ─────────────────────────────────────────── */
 window.__outreachLoaded = false;
+
+function _buildAdvPanel(loading) {
+  return `
+    <div class="adv-panel-backdrop" onclick="closeAdvancedPanel()"></div>
+    <div class="adv-panel-drawer">
+      <div class="adv-panel-head">
+        <div class="adv-panel-title">Refine risk inputs</div>
+        <div class="adv-panel-subtitle">AI-estimated advanced signals — governance, gig exposure, data/AI tier, physical assets. Adjust any value then recalculate.</div>
+        <button class="adv-panel-close" onclick="closeAdvancedPanel()" aria-label="Close">✕</button>
+      </div>
+      <div class="adv-panel-body" id="adv-panel-body">
+        ${loading
+          ? `<div class="adv-panel-loading"><div class="loading-ring" style="width:32px;height:32px;"></div><span>AI is estimating advanced inputs…</span></div>`
+          : renderSectionAdvanced()}
+      </div>
+      <div class="adv-panel-footer">
+        <button class="adv-panel-cancel" onclick="closeAdvancedPanel()">Cancel</button>
+        <button class="adv-panel-recalc" id="adv-recalc-btn" onclick="recalcFromAdvanced()" ${loading ? "disabled" : ""}>Recalculate risk score →</button>
+      </div>
+    </div>`;
+}
+
+async function openAdvancedPanel() {
+  const existing = document.getElementById("adv-refine-panel");
+  if (existing) { closeAdvancedPanel(); return; }
+  if (window.__result?.profile) state.profile = structuredClone(window.__result.profile);
+
+  const panel = document.createElement("div");
+  panel.id = "adv-refine-panel";
+  panel.innerHTML = _buildAdvPanel(true);
+  document.body.appendChild(panel);
+  requestAnimationFrame(() => panel.querySelector(".adv-panel-drawer").classList.add("adv-panel-open"));
+
+  const companyName = state.profile?.startup_name || window.__result?.profile?.startup_name || "";
+  try {
+    const res = await fetch("/api/autofill-advanced", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ company_name: companyName, profile: state.profile }),
+    });
+    const data = await res.json();
+    if (data.fields && Object.keys(data.fields).length) {
+      Object.assign(state.profile, data.fields);
+    }
+  } catch (_) {}
+
+  const body = document.getElementById("adv-panel-body");
+  const recalc = document.getElementById("adv-recalc-btn");
+  if (body) body.innerHTML = renderSectionAdvanced();
+  if (recalc) { recalc.disabled = false; recalc.textContent = "Recalculate risk score →"; }
+}
+
+function closeAdvancedPanel() {
+  const panel = document.getElementById("adv-refine-panel");
+  if (!panel) return;
+  const drawer = panel.querySelector(".adv-panel-drawer");
+  drawer.classList.remove("adv-panel-open");
+  drawer.addEventListener("transitionend", () => panel.remove(), { once: true });
+}
+
+async function recalcFromAdvanced() {
+  const btn = document.getElementById("adv-recalc-btn");
+  if (btn) { btn.textContent = "Recalculating…"; btn.disabled = true; }
+  try {
+    const res = await fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(state.profile),
+    });
+    const result = await res.json();
+    if (!res.ok || result.error) throw new Error(result.error || "Analysis failed");
+    closeAdvancedPanel();
+    renderResults(result);
+  } catch (err) {
+    if (btn) { btn.textContent = "Recalculate risk score →"; btn.disabled = false; }
+  }
+}
 
 window.showTab = (id) => {
   document.querySelectorAll(".tab-panel").forEach(p => { p.style.display = "none"; });
@@ -4270,6 +4540,15 @@ window.showTab = (id) => {
   }
 };
 
+window.showOutreachSubTab = (id) => {
+  document.querySelectorAll(".ot-sub-panel").forEach(p => { p.style.display = "none"; });
+  document.querySelectorAll(".ot-sub-pill").forEach(p => p.classList.remove("ot-sub-active"));
+  const panel = document.getElementById("ot-panel-" + id);
+  if (panel) panel.style.display = "";
+  const btn = document.getElementById("ot-sub-" + id);
+  if (btn) btn.classList.add("ot-sub-active");
+};
+
 function _bindOutreachButtons(container) {
   container.querySelectorAll("[data-copy]").forEach(btn => {
     btn.addEventListener("click", async () => {
@@ -4283,6 +4562,19 @@ function _bindOutreachButtons(container) {
     btn.addEventListener("click", () => {
       const item = _outreachItems[btn.dataset.key] || {};
       openEmailModal(item.email_subject || "", item.email_body || "", item.email_html_data, window.__result?.profile?.contact_email || "");
+    });
+  });
+}
+
+function _bindSignalOutreachButtons(container, sigCtx, outreachPrompts) {
+  // Standard copy/send bindings
+  _bindOutreachButtons(container);
+  // Add "Copy signal email HTML" button behaviour
+  container.querySelectorAll(".ot-copy-signal-email").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const key = btn.dataset.key || Object.keys(outreachPrompts || {})[0] || "";
+      const item = (outreachPrompts || {})[key] || {};
+      openSignalOutreachEmail(sigCtx, item);
     });
   });
 }
@@ -4325,6 +4617,27 @@ async function loadOutreachTab(result) {
   };
   let _progressTimer = setTimeout(_tick, 200);
 
+  // Render signal context card if signal context is present
+  const sigCtx = result.signal_context;
+  const sigCtxEl = document.getElementById("signal-outreach-context");
+  if (sigCtx && sigCtxEl) {
+    const regBadge = sigCtx.regulation_tag
+      ? `<span class="signal-reg-badge reg-${escHtml(String(sigCtx.regulation_tag).toLowerCase())}">${escHtml(sigCtx.regulation_tag)}</span>` : "";
+    sigCtxEl.innerHTML =
+      `<div class="ot-signal-card">` +
+        `<div class="ot-signal-head">` +
+          `<span class="signal-type">${escHtml(sigCtx.signal || "Signal")}</span>` +
+          regBadge +
+          (sigCtx.confidence ? `<span class="signal-confidence">${escHtml(String(sigCtx.confidence))}% confidence</span>` : "") +
+        `</div>` +
+        `<p class="ot-signal-headline">${escHtml(sigCtx.headline || "")}</p>` +
+        `<div class="ot-signal-meta">` +
+          `<span><strong>Insurance angle:</strong> ${escHtml(sigCtx.insurance_angle || "")}</span>` +
+          `<span><strong>Bundle:</strong> ${escHtml(sigCtx.recommended_bundle || "")}</span>` +
+        `</div>` +
+      `</div>`;
+  }
+
   try {
     const res = await fetch("/api/outreach", {
       method: "POST",
@@ -4336,9 +4649,13 @@ async function loadOutreachTab(result) {
         bundle_match: result.bundle_match,
         display_regulatory_triggers: result.display_regulatory_triggers,
         regulatory_triggers_fired: result.regulatory_triggers_fired,
+        signal_context: result.signal_context || {},
       }),
     });
-    if (!res.ok) throw new Error(`API ${res.status}`);
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new Error(errBody.error || `API ${res.status}`);
+    }
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     clearTimeout(_progressTimer);
@@ -4356,18 +4673,33 @@ async function loadOutreachTab(result) {
     }
     if (staticEl) staticEl.innerHTML = renderFounderPitch(window.__result);
     await new Promise(r => setTimeout(r, 300)); // let 100% flash briefly
+
+    // Render company sub-tab drafts
     dynamicEl.innerHTML = renderOutreach(data.outreach_prompts, data.outreach_source, data.outreach_error);
     _bindOutreachButtons(dynamicEl);
+
+    // Render signal sub-tab drafts if signal context present
+    const sigDynEl = document.getElementById("signal-outreach-dynamic");
+    if (sigCtx && sigDynEl) {
+      const firstKey = Object.keys(data.outreach_prompts || {})[0] || "";
+      sigDynEl.innerHTML =
+        `<button class="ot-copy-signal-email ot-sub-pill ot-sub-active" type="button" data-key="${escHtml(firstKey)}" style="margin-bottom:18px;">` +
+          `Copy signal email HTML` +
+        `</button>` +
+        renderOutreach(data.outreach_prompts, data.outreach_source, data.outreach_error);
+      _bindSignalOutreachButtons(sigDynEl, sigCtx, data.outreach_prompts);
+    }
   } catch (err) {
     clearTimeout(_progressTimer);
-    // Animate to 100% so bar doesn't freeze mid-way, then show retry
     _setProgress(100);
-    await new Promise(r => setTimeout(r, 400));
+    await new Promise(r => setTimeout(r, 300));
+    // Show static pitch and a non-blocking retry notice — don't block the whole tab
+    if (staticEl) staticEl.innerHTML = renderFounderPitch(result);
     const loader = document.getElementById("outreach-ai-loader");
     if (loader) {
       loader.innerHTML =
-        `<div class="oal-header oal-error">` +
-          `<span class="oal-label">AI drafts failed — ${escHtml(err.message || "timeout")}. </span>` +
+        `<div class="oal-header oal-error" style="margin-bottom:8px;">` +
+          `<span class="oal-label">AI email drafts unavailable (Gemini busy). </span>` +
           `<button class="oal-retry-btn" type="button" id="oal-retry">Retry</button>` +
         `</div>`;
       document.getElementById("oal-retry")?.addEventListener("click", () => {
@@ -4375,10 +4707,50 @@ async function loadOutreachTab(result) {
         loadOutreachTab(window.__result);
       });
     }
+    if (dynamicEl) dynamicEl.innerHTML = renderOutreach(result.outreach_fallback || {}, "fallback", null);
   }
 }
 
 /* ─── METHODOLOGY PANEL ──────────────────────────────────────────── */
+async function openSignalOutreachEmail(sigCtx, outreachItem) {
+  let template = "";
+  try {
+    const res = await fetch("/email-template-signal-outreach.html");
+    if (res.ok) template = await res.text();
+  } catch (_) {}
+  if (!template) {
+    alert("Signal email template not found.");
+    return;
+  }
+  const profile = window.__result?.profile || {};
+  const filled = template
+    .replace(/\{\{SIGNAL_TYPE\}\}/g, escHtml(sigCtx.signal || ""))
+    .replace(/\{\{REGULATION_BADGE\}\}/g, escHtml(sigCtx.regulation_tag || ""))
+    .replace(/\{\{HEADLINE\}\}/g, escHtml(sigCtx.headline || ""))
+    .replace(/\{\{COMPANY_NAME\}\}/g, escHtml(sigCtx.company_name || profile.startup_name || ""))
+    .replace(/\{\{EMAIL_SUBJECT\}\}/g, escHtml(outreachItem.email_subject || ""))
+    .replace(/\{\{EMAIL_BODY\}\}/g, (outreachItem.email_body || "").replace(/\n/g, "<br>"))
+    .replace(/\{\{INSURANCE_ANGLE\}\}/g, escHtml(sigCtx.insurance_angle || ""))
+    .replace(/\{\{PREHEADER_TEXT\}\}/g, escHtml(outreachItem.email_subject || sigCtx.signal || ""))
+    .replace(/\{\{CTA_URL\}\}/g, "")
+    .replace(/\{\{CTA_TEXT\}\}/g, "Schedule a call")
+    .replace(/\{\{RM_NAME\}\}/g, "Your Name")
+    .replace(/\{\{RM_TITLE\}\}/g, "Relationship Manager, ICICI Lombard")
+    .replace(/\{\{RM_PHONE\}\}/g, "+91 XXXXX XXXXX")
+    .replace(/\{\{RM_EMAIL\}\}/g, "rm@icicilombard.com");
+  try {
+    await navigator.clipboard.writeText(filled);
+    // Brief toast
+    const toast = document.createElement("div");
+    toast.className = "ot-toast";
+    toast.textContent = "Signal email HTML copied to clipboard";
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2500);
+  } catch (_) {
+    alert("Clipboard write failed — try copying manually.");
+  }
+}
+
 window.toggleMethodology = () => {
   const panel = document.getElementById("methodology-panel");
   const btn   = document.getElementById("methodology-btn");
@@ -5361,7 +5733,6 @@ function renderDualPricingPanel(result) {
   return `
     <div class="pricing-split">
       ${renderPricePanel(bundleQ, "Bundle price", "bundle", bundleName)}
-      ${renderPricePanel(fullQ,   "Full recommended cover", "full", `${fullCount ? fullCount + " covers — " : ""}bundle + critical products`)}
     </div>
     ${renderLiveSliderStrip(fields)}`;
 }
@@ -7483,6 +7854,970 @@ function drawRadar(canvasId, data, opts = {}) {
     ctx.fillStyle = "#AD1E23"; ctx.fill();
   });
 }
+
+/* ─── COMMERCE MODE (M1 — Funding Feed only) ────────────────── */
+const COMMERCE_RAIL = [
+  { id: "opportunity",   label: "Opportunity",   ready: true,  hint: "Territory GWP, funnel, top leads" },
+  { id: "funding",       label: "Funding Feed",  ready: true,  hint: "Newly funded startups with auto-valued GWP" },
+  { id: "pipeline",      label: "Pipeline",      ready: false, hint: "Accounts by stage — later" },
+  { id: "renewals",      label: "Renewals",      ready: true,  hint: "Renewal / upsell / at-risk / coverage-gap alerts" },
+  { id: "performance",   label: "Performance",   ready: true,  hint: "RM leaderboard, conversion, weekly digest" },
+];
+
+const COMMERCE_DEFAULT_RM = "ilom43171@icicilombard.com";
+
+function _setTopbarMode(mode) {
+  document.querySelectorAll(".topbar-mode-pill").forEach(b => {
+    const isActive = b.getAttribute("data-mode") === mode;
+    b.classList.toggle("is-active", isActive);
+    b.setAttribute("aria-selected", isActive ? "true" : "false");
+  });
+}
+
+function enterCommerceMode(railId = "opportunity") {
+  _setTopbarMode("commerce");
+  renderCommerceShell(railId);
+}
+
+function exitCommerceMode() {
+  _setTopbarMode("analyse");
+  // Return to whatever the user was last on. If a result exists, render it;
+  // otherwise return to the landing role selection.
+  if (window.__result?.profile?.startup_name) {
+    renderResults(window.__result);
+  } else {
+    renderRoleSelection();
+  }
+}
+
+function renderCommerceShell(activeRailId) {
+  const rail = COMMERCE_RAIL.map(item => {
+    const cls = ["cmx-rail-item"];
+    if (item.id === activeRailId) cls.push("is-active");
+    if (!item.ready) cls.push("is-disabled");
+    return `<button type="button" class="${cls.join(" ")}" data-rail="${item.id}" ${item.ready ? "" : "aria-disabled=\"true\""} title="${esc(item.hint)}">
+      <span class="cmx-rail-label">${esc(item.label)}</span>
+      ${item.ready ? "" : `<span class="cmx-rail-soon">soon</span>`}
+    </button>`;
+  }).join("");
+
+  $("main-content").innerHTML = `
+    <div class="cmx-shell">
+      <aside class="cmx-rail" aria-label="Commerce sections">
+        <div class="cmx-rail-eyebrow">Commerce</div>
+        ${rail}
+      </aside>
+      <section class="cmx-content" id="cmx-content"></section>
+    </div>`;
+
+  document.querySelectorAll(".cmx-rail-item").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-rail");
+      const item = COMMERCE_RAIL.find(x => x.id === id);
+      if (!item || !item.ready) return;
+      enterCommerceMode(id);
+    });
+  });
+
+  if (activeRailId === "funding") {
+    renderFundingFeed();
+  } else if (activeRailId === "opportunity") {
+    renderOpportunity();
+  } else if (activeRailId === "performance") {
+    renderPerformance();
+  } else if (activeRailId === "renewals") {
+    renderRenewals();
+  } else {
+    $("cmx-content").innerHTML = `
+      <div class="cmx-empty">
+        <div class="cmx-empty-eyebrow">Coming soon</div>
+        <h2 class="cmx-empty-headline">This section ships in a later milestone.</h2>
+        <p class="cmx-empty-sub">Funding Feed is live now — claim a lead to seed the pipeline.</p>
+        <button type="button" class="btn-primary" onclick="enterCommerceMode('funding')">Open Funding Feed →</button>
+      </div>`;
+  }
+}
+
+/* ── Money formatter — INR rupees → ₹L / ₹Cr ranges ────────── */
+function fmtInrRange(low, high) {
+  const fmt = v => {
+    const n = Number(v) || 0;
+    if (n >= 1e7)  return (n / 1e7).toFixed(n >= 1e8 ? 0 : 1).replace(/\.0$/, "") + " Cr";
+    if (n >= 1e5)  return Math.round(n / 1e5) + " L";
+    return Math.round(n).toLocaleString("en-IN");
+  };
+  const lo = fmt(low), hi = fmt(high);
+  // Same unit suffix → collapse: "₹2–5 Cr" not "₹2 Cr–5 Cr"
+  const loParts = lo.split(" "), hiParts = hi.split(" ");
+  if (loParts.length === 2 && hiParts.length === 2 && loParts[1] === hiParts[1]) {
+    return `₹${loParts[0]}–${hiParts[0]} ${hiParts[1]}`;
+  }
+  return `₹${lo} – ₹${hi}`;
+}
+
+/* ── Opportunity (F1 GWP Dashboard) ─────────────────────────── */
+const _oppState = { data: null, scope: { city: "", sector: "", stage: "" }, sort_by: "gwp_high" };
+
+const _FUNNEL_LABELS = {
+  prospect:  "Prospect",
+  analysed:  "Analysed",
+  quoted:    "Quoted",
+  converted: "Converted",
+  lost:      "Lost",
+};
+
+async function renderOpportunity() {
+  const target = $("cmx-content");
+  if (!target) return;
+  target.innerHTML = `
+    <div class="opp-hero" id="opp-hero">
+      <div class="opp-hero-eyebrow">Territory opportunity</div>
+      <div class="opp-hero-headline" id="opp-hero-headline">Loading…</div>
+      <div class="opp-hero-sub" id="opp-hero-sub">Aggregating accounts and open leads.</div>
+      <div class="opp-hero-scope" id="opp-hero-scope"></div>
+      <div class="opp-hero-disclaimer" id="opp-hero-disclaimer">Indicative only under IRDAI File-and-Use detariffed regime. Not a bindable quote.</div>
+    </div>
+    <h3 class="opp-section-h">Pipeline funnel</h3>
+    <div class="opp-funnel" id="opp-funnel"></div>
+    <div class="opp-leads-head">
+      <h3 class="opp-section-h">Top-value leads</h3>
+      <div class="opp-sort">
+        <span class="cmx-filter-label">Sort</span>
+        <button type="button" class="cmx-chip is-active" data-sort="gwp_high">GWP high</button>
+        <button type="button" class="cmx-chip" data-sort="gwp_low">GWP low</button>
+        <button type="button" class="cmx-chip" data-sort="sector">Sector</button>
+        <button type="button" class="cmx-chip" data-sort="city">City</button>
+      </div>
+    </div>
+    <div class="opp-leads" id="opp-leads"><div class="cmx-skeleton">Loading…</div></div>`;
+
+  document.querySelectorAll(".opp-sort .cmx-chip").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".opp-sort .cmx-chip").forEach(b => b.classList.remove("is-active"));
+      btn.classList.add("is-active");
+      _oppState.sort_by = btn.getAttribute("data-sort");
+      refreshOpportunity();
+    });
+  });
+
+  await refreshOpportunity();
+}
+
+async function refreshOpportunity() {
+  const qs = new URLSearchParams();
+  const s = _oppState.scope;
+  if (s.city)   qs.set("city", s.city);
+  if (s.sector) qs.set("sector", s.sector);
+  if (s.stage)  qs.set("stage", s.stage);
+  qs.set("sort_by", _oppState.sort_by);
+  qs.set("limit", "10");
+  let data;
+  try {
+    const res = await fetch("/api/commerce/dashboard?" + qs.toString());
+    data = await res.json();
+  } catch (e) {
+    const leads = $("opp-leads");
+    if (leads) leads.innerHTML = `<div class="cmx-error">Failed to load: ${esc(String(e))}</div>`;
+    return;
+  }
+  _oppState.data = data;
+  _renderOppHero(data);
+  _renderOppFunnel(data.funnel || []);
+  _renderOppLeads(data.top_leads || []);
+  const d = $("opp-hero-disclaimer");
+  if (d && data.disclaimer) d.textContent = data.disclaimer;
+}
+
+function _renderOppHero(data) {
+  const t = data.territory_gwp || {};
+  const h = $("opp-hero-headline");
+  const sub = $("opp-hero-sub");
+  if (h) {
+    h.textContent = (t.low_inr || t.high_inr)
+      ? `${fmtInrRange(t.low_inr, t.high_inr)} addressable GWP`
+      : "No accounts in scope yet";
+  }
+  if (sub) {
+    const n = (t.account_count || 0) + (t.open_lead_count || 0);
+    sub.textContent = n
+      ? `${t.account_count} pipeline account${t.account_count === 1 ? "" : "s"} · ${t.open_lead_count} open funded lead${t.open_lead_count === 1 ? "" : "s"}`
+      : "Import a funding CSV to size the opportunity.";
+  }
+}
+
+function _renderOppFunnel(funnel) {
+  const node = $("opp-funnel");
+  if (!node) return;
+  node.innerHTML = funnel.map((row, i) => `
+    <div class="opp-funnel-tile" data-stage="${esc(row.stage)}">
+      <div class="opp-funnel-label">${esc(_FUNNEL_LABELS[row.stage] || row.stage)}</div>
+      <div class="opp-funnel-count">${row.count.toLocaleString("en-IN")}</div>
+      <div class="opp-funnel-gwp">${(row.gwp_low_inr || row.gwp_high_inr) ? fmtInrRange(row.gwp_low_inr, row.gwp_high_inr) : "—"}</div>
+    </div>
+    ${i < funnel.length - 1 ? `<div class="opp-funnel-chev" aria-hidden="true">›</div>` : ""}
+  `).join("");
+}
+
+function _renderOppLeads(leads) {
+  const node = $("opp-leads");
+  if (!node) return;
+  if (leads.length === 0) {
+    node.innerHTML = `
+      <div class="cmx-empty-card">
+        <div class="cmx-empty-eyebrow">No accounts</div>
+        <p>Claim a funding lead to populate the pipeline and surface top-value accounts here.</p>
+        <button type="button" class="btn-primary" onclick="enterCommerceMode('funding')">Open Funding Feed →</button>
+      </div>`;
+    return;
+  }
+  // Stash leads so the proposal handler can look them up by account_id.
+  _oppState.leads_by_id = {};
+  leads.forEach(l => { _oppState.leads_by_id[l.account_id] = l; });
+  node.innerHTML = leads.map(l => `
+    <article class="cmx-lead-card opp-lead">
+      <div class="cmx-lead-main">
+        <div class="cmx-lead-row1">
+          <h3 class="cmx-lead-name">${esc(l.name || "—")}</h3>
+          <span class="cmx-lead-meta">${[esc(l.sector || ""), esc(l.stage || ""), esc(l.city || "")].filter(Boolean).join(" · ")}</span>
+        </div>
+        ${l.rm_email ? `<div class="cmx-lead-source">RM · ${esc(l.rm_email)}</div>` : ""}
+        <div class="cmx-lead-bundle">
+          <span class="cmx-lead-bundle-label">Stage</span>
+          <span class="cmx-lead-bundle-value">${esc((_FUNNEL_LABELS[l.pipeline_stage] || l.pipeline_stage) || "—")}</span>
+        </div>
+      </div>
+      <div class="cmx-lead-side">
+        <div class="cmx-lead-gwp-label">Estimated annual GWP</div>
+        <div class="cmx-lead-gwp">${fmtInrRange(l.gwp_low_inr, l.gwp_high_inr)}</div>
+        <button type="button" class="btn-primary cmx-lead-claim" data-proposal="${esc(l.account_id || "")}">Generate proposal</button>
+      </div>
+    </article>
+  `).join("");
+  node.querySelectorAll("[data-proposal]").forEach(btn => {
+    btn.addEventListener("click", () => generateProposalForAccount(btn.getAttribute("data-proposal")));
+  });
+}
+
+/* ── F3 Proposal generation + preview modal ────────────────── */
+function _analysisFromLead(lead) {
+  // Synthesise a minimal analysis stub from the lead card data. The proposal
+  // builder enriches via the account row when account_id is known; the
+  // bundle covers come from whatever the engine attached when the lead was
+  // ingested (stored on the account/funding_lead row for richer cases).
+  return {
+    profile: {
+      startup_name:  lead.name,
+      sector:        lead.sector,
+      funding_stage: lead.stage,
+      city:          lead.city,
+    },
+    bundle_match: {
+      name: "Recommended bundle",
+      // The proposal_builder falls back to top-level recommendations if
+      // bundle_match.mandatory_covers is empty.
+      mandatory_covers: [],
+    },
+    recommendations: ["CYBER", "D_AND_O", "GROUP_HEALTH"],
+  };
+}
+
+async function generateProposalForAccount(accountId) {
+  if (!accountId) return;
+  const lead = (_oppState.leads_by_id || {})[accountId];
+  if (!lead) return;
+  const analysis = window.__result?.profile?.startup_name === lead.name
+    ? window.__result
+    : _analysisFromLead(lead);
+
+  _openProposalModalLoading(lead);
+  let data;
+  try {
+    const res = await fetch("/api/commerce/proposal", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ account_id: accountId, analysis }),
+    });
+    data = await res.json();
+  } catch (e) {
+    _setProposalModalError("Network error: " + e);
+    return;
+  }
+  if (!data || data.error) {
+    _setProposalModalError(data?.error || "Proposal generation failed.");
+    return;
+  }
+  _renderProposalModalReady(lead, data);
+}
+
+function _proposalModalShell(lead) {
+  return `
+    <div class="cmx-modal cmx-proposal-modal" role="dialog" aria-modal="true" aria-labelledby="cmx-prop-title">
+      <header class="cmx-modal-head">
+        <h2 id="cmx-prop-title">Proposal · ${esc(lead.name || "—")}</h2>
+        <button type="button" class="cmx-modal-x" aria-label="Close" data-close>×</button>
+      </header>
+      <div class="cmx-modal-body" id="cmx-prop-body">
+        <div class="cmx-skeleton">Generating proposal…</div>
+      </div>
+      <footer class="cmx-modal-foot">
+        <button type="button" class="btn-ghost" data-close>Close</button>
+        <button type="button" class="btn-primary" id="cmx-prop-open" disabled>Open & save as PDF</button>
+      </footer>
+    </div>`;
+}
+
+function _openProposalModalLoading(lead) {
+  closeProposalModal();
+  const overlay = document.createElement("div");
+  overlay.id = "cmx-prop-modal";
+  overlay.className = "cmx-modal-overlay";
+  overlay.innerHTML = _proposalModalShell(lead);
+  document.body.appendChild(overlay);
+  overlay.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", closeProposalModal));
+  overlay.addEventListener("click", e => { if (e.target === overlay) closeProposalModal(); });
+}
+
+function _setProposalModalError(msg) {
+  const body = document.getElementById("cmx-prop-body");
+  if (body) body.innerHTML = `<div class="cmx-error">${esc(msg)}</div>`;
+}
+
+function _renderProposalModalReady(lead, data) {
+  const body = document.getElementById("cmx-prop-body");
+  const openBtn = document.getElementById("cmx-prop-open");
+  if (!body) return;
+  body.innerHTML = `
+    <div class="cmx-prop-meta">
+      <div><span class="cmx-prop-label">Proposal</span> <strong>${esc(data.proposal_id)}</strong></div>
+      <div><span class="cmx-prop-label">Bundle</span> ${esc(data.bundle || "—")}</div>
+      <div><span class="cmx-prop-label">Indicative GWP</span> <strong>${fmtInrRange(data.gwp_low_inr, data.gwp_high_inr)}</strong></div>
+    </div>
+    <iframe class="cmx-prop-iframe" id="cmx-prop-iframe" title="Proposal preview"></iframe>
+    <p class="cmx-prop-disclaimer">${esc(data.disclaimer)}</p>`;
+  // Fill iframe with the HTML (srcdoc keeps it inline, no extra request).
+  const iframe = document.getElementById("cmx-prop-iframe");
+  if (iframe) iframe.srcdoc = data.html;
+  if (openBtn) {
+    openBtn.disabled = false;
+    openBtn.onclick = () => _openProposalInNewTab(data);
+  }
+}
+
+function _openProposalInNewTab(data) {
+  const blob = new Blob([data.html], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url, "_blank");
+  // Revoke the blob URL after the new tab has a chance to load.
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  if (!win) {
+    // Popup blocked — fall back to download.
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${data.proposal_id}.html`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+}
+
+function closeProposalModal() {
+  const node = document.getElementById("cmx-prop-modal");
+  if (node) node.remove();
+}
+
+window.generateProposalForAccount = generateProposalForAccount;
+
+/* ── F2 RM Performance ─────────────────────────────────────── */
+function _fmtPct(rate) {
+  return ((rate || 0) * 100).toFixed(0) + "%";
+}
+function _fmtDays(sec) {
+  if (sec == null) return "—";
+  const days = sec / 86400;
+  if (days >= 1) return `${days.toFixed(1)}d`;
+  return `${(sec / 3600).toFixed(1)}h`;
+}
+
+async function renderPerformance() {
+  const target = $("cmx-content");
+  if (!target) return;
+  target.innerHTML = `
+    <header class="cmx-feed-head">
+      <div>
+        <div class="cmx-eyebrow">RM intelligence</div>
+        <h1 class="cmx-headline">Performance</h1>
+        <p class="cmx-sub">Activity, conversion, and weekly digest across the territory.</p>
+      </div>
+    </header>
+    <div id="perf-tiles" class="perf-tiles"></div>
+    <h3 class="opp-section-h">RM leaderboard</h3>
+    <div id="perf-leaderboard" class="perf-leaderboard"><div class="cmx-skeleton">Loading…</div></div>
+    <h3 class="opp-section-h">Sector conversion</h3>
+    <div id="perf-sectors" class="perf-sectors"></div>
+    <h3 class="opp-section-h">Weekly digest</h3>
+    <div id="perf-digest" class="perf-digest"></div>
+    <p class="cmx-disclaimer" id="perf-disclaimer">Indicative only under IRDAI File-and-Use detariffed regime. Not a bindable quote.</p>`;
+  await refreshPerformance();
+}
+
+async function refreshPerformance() {
+  let data;
+  try {
+    const res = await fetch("/api/commerce/metrics");
+    data = await res.json();
+  } catch (e) {
+    const lb = $("perf-leaderboard");
+    if (lb) lb.innerHTML = `<div class="cmx-error">Failed to load: ${esc(String(e))}</div>`;
+    return;
+  }
+  _renderPerfTiles(data.speed || {});
+  _renderPerfLeaderboard(data.leaderboard || []);
+  _renderPerfSectors(data.conversion_by_sector || []);
+  _renderPerfDigest(data.digest || {});
+  if (data.disclaimer) {
+    const d = $("perf-disclaimer"); if (d) d.textContent = data.disclaimer;
+  }
+}
+
+function _renderPerfTiles(speed) {
+  const node = $("perf-tiles");
+  if (!node) return;
+  const tiles = [
+    ["Prospect → Analysed", speed.prospect_to_analysed],
+    ["Analysed → Quoted",   speed.analysed_to_quoted],
+    ["Quoted → Converted",  speed.quoted_to_converted],
+  ];
+  node.innerHTML = tiles.map(([label, t]) => `
+    <div class="perf-tile">
+      <div class="perf-tile-label">${esc(label)}</div>
+      <div class="perf-tile-value">${_fmtDays(t && t.median_seconds)}</div>
+      <div class="perf-tile-n">${t && t.n ? `n = ${t.n}` : "no transitions yet"}</div>
+    </div>`).join("");
+}
+
+function _renderPerfLeaderboard(rows) {
+  const node = $("perf-leaderboard");
+  if (!node) return;
+  if (rows.length === 0) {
+    node.innerHTML = `<div class="cmx-skeleton">No RM activity yet.</div>`;
+    return;
+  }
+  const head = `
+    <div class="perf-lb-row perf-lb-head">
+      <div>RM</div>
+      <div class="perf-lb-num">Claimed</div>
+      <div class="perf-lb-num">Quoted</div>
+      <div class="perf-lb-num">Proposals</div>
+      <div class="perf-lb-num">Converted</div>
+      <div class="perf-lb-conv">Conversion</div>
+      <div class="perf-lb-gwp">Pipeline GWP</div>
+    </div>`;
+  const body = rows.map(r => `
+    <div class="perf-lb-row">
+      <div>
+        <div class="perf-lb-name">${esc(r.name || r.rm_email)}</div>
+        <div class="perf-lb-email">${esc(r.rm_email)}</div>
+      </div>
+      <div class="perf-lb-num">${r.claimed || 0}</div>
+      <div class="perf-lb-num">${r.quoted || 0}</div>
+      <div class="perf-lb-num">${r.proposals || 0}</div>
+      <div class="perf-lb-num">${r.converted || 0}</div>
+      <div class="perf-lb-conv">
+        <div class="perf-bar" aria-label="${_fmtPct(r.conversion_rate)} conversion">
+          <div class="perf-bar-fill" style="width: ${Math.min(100, (r.conversion_rate || 0) * 100)}%"></div>
+        </div>
+        <span class="perf-bar-text">${_fmtPct(r.conversion_rate)}</span>
+      </div>
+      <div class="perf-lb-gwp">${(r.pipeline_gwp_low || r.pipeline_gwp_high) ? fmtInrRange(r.pipeline_gwp_low, r.pipeline_gwp_high) : "—"}</div>
+    </div>`).join("");
+  node.innerHTML = head + body;
+}
+
+function _renderPerfSectors(rows) {
+  const node = $("perf-sectors");
+  if (!node) return;
+  if (rows.length === 0) {
+    node.innerHTML = `<div class="cmx-skeleton">No sector activity yet.</div>`;
+    return;
+  }
+  const maxQuoted = Math.max(...rows.map(r => r.quoted || 0), 1);
+  node.innerHTML = rows.map(r => `
+    <div class="perf-sector-row">
+      <div class="perf-sector-name">${esc(r.sector)}</div>
+      <div class="perf-sector-bars">
+        <div class="perf-sector-bar perf-sector-bar-quoted" style="width: ${((r.quoted || 0) / maxQuoted) * 100}%"></div>
+        <div class="perf-sector-bar perf-sector-bar-converted" style="width: ${((r.converted || 0) / maxQuoted) * 100}%"></div>
+      </div>
+      <div class="perf-sector-meta">${r.converted || 0} converted · ${r.quoted || 0} quoted · ${_fmtPct(r.conv_rate)}</div>
+    </div>`).join("");
+}
+
+function _renderPerfDigest(digest) {
+  const node = $("perf-digest");
+  if (!node) return;
+  if (!digest || !digest.headline) {
+    node.innerHTML = `<div class="cmx-skeleton">No digest data yet.</div>`;
+    return;
+  }
+  const t = digest.totals || {};
+  const top = digest.top_rm;
+  const sectors = digest.best_converting_sectors || [];
+  node.innerHTML = `
+    <article class="cmx-lead-card perf-digest-card">
+      <div class="cmx-lead-main">
+        <div class="cmx-eyebrow">SVP weekly summary</div>
+        <h3 class="cmx-lead-name perf-digest-h">${esc(digest.headline)}</h3>
+        <div class="perf-digest-totals">
+          <span>${t.claimed || 0} claimed</span> ·
+          <span>${t.quoted || 0} quoted</span> ·
+          <span>${t.proposals || 0} proposals</span> ·
+          <span>${t.converted || 0} converted</span>
+        </div>
+        ${top ? `<div class="cmx-lead-source">Top RM · <strong>${esc(top.name || top.rm_email)}</strong> · pipeline ${fmtInrRange(0, top.pipeline_gwp_high_inr)}</div>` : ""}
+        ${sectors.length ? `<div class="cmx-lead-source">Best converting · ${sectors.map(s => esc(s.sector) + " (" + _fmtPct(s.conv_rate) + ")").join(" · ")}</div>` : ""}
+      </div>
+      <div class="cmx-lead-side">
+        <button type="button" class="btn-primary" id="perf-send-digest">Send digest</button>
+      </div>
+    </article>`;
+  const btn = $("perf-send-digest");
+  if (btn) btn.addEventListener("click", sendWeeklyDigest);
+}
+
+async function sendWeeklyDigest() {
+  const btn = $("perf-send-digest");
+  if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
+  let data;
+  try {
+    const res = await fetch("/api/commerce/metrics", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ action: "send_digest" }),
+    });
+    data = await res.json();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = "Send digest"; }
+    alert("Send failed: " + e);
+    return;
+  }
+  if (btn) {
+    btn.textContent = data.ok ? "✓ Sent" : "Send failed";
+    setTimeout(() => { btn.disabled = false; btn.textContent = "Send digest"; }, 2000);
+  }
+}
+
+/* ── Funding Feed screen ───────────────────────────────────── */
+const _cmxState = { leads: [], filters: { city: "", sector: "", stage: "" } };
+
+async function renderFundingFeed() {
+  const target = $("cmx-content");
+  if (!target) return;
+  target.innerHTML = `
+    <div class="cmx-feed">
+      <header class="cmx-feed-head">
+        <div>
+          <div class="cmx-eyebrow">New leads</div>
+          <h1 class="cmx-headline" id="cmx-feed-headline">Loading funded startups…</h1>
+          <p class="cmx-sub" id="cmx-feed-sub">Auto-analysed and valued from the latest ingest.</p>
+        </div>
+        <div class="cmx-feed-actions">
+          <button type="button" class="btn-ghost" onclick="openFundingImportModal()">Import funding CSV</button>
+        </div>
+      </header>
+      <div class="cmx-filters" id="cmx-filters"></div>
+      <div class="cmx-feed-list" id="cmx-feed-list">
+        <div class="cmx-skeleton">Loading…</div>
+      </div>
+      <p class="cmx-disclaimer" id="cmx-feed-disclaimer">Indicative only under IRDAI File-and-Use detariffed regime. Not a bindable quote.</p>
+    </div>`;
+
+  await refreshFundingFeed();
+}
+
+async function refreshFundingFeed() {
+  const list = $("cmx-feed-list");
+  if (!list) return;
+  const f = _cmxState.filters;
+  const qs = new URLSearchParams();
+  if (f.city)   qs.set("city", f.city);
+  if (f.sector) qs.set("sector", f.sector);
+  if (f.stage)  qs.set("stage", f.stage);
+  let data;
+  try {
+    const res = await fetch("/api/commerce/funding" + (qs.toString() ? "?" + qs : ""));
+    data = await res.json();
+  } catch (e) {
+    list.innerHTML = `<div class="cmx-error">Failed to load leads: ${esc(String(e))}</div>`;
+    return;
+  }
+  _cmxState.leads = data.leads || [];
+  renderFundingFilters();
+  renderFundingCards();
+  renderFundingHeader(data);
+  if (data.disclaimer) {
+    const d = $("cmx-feed-disclaimer");
+    if (d) d.textContent = data.disclaimer;
+  }
+}
+
+function renderFundingHeader(data) {
+  const leads = _cmxState.leads;
+  const sumLo = leads.reduce((a, x) => a + (x.est_gwp_low_inr || 0), 0);
+  const sumHi = leads.reduce((a, x) => a + (x.est_gwp_high_inr || 0), 0);
+  const byCity = {};
+  leads.forEach(x => { const c = x.city || "Unknown"; byCity[c] = (byCity[c] || 0) + 1; });
+  const cityStr = Object.entries(byCity)
+    .sort((a,b) => b[1]-a[1]).slice(0,3)
+    .map(([c,n]) => `${esc(c)} (${n})`).join(" · ");
+  const h = $("cmx-feed-headline");
+  const s = $("cmx-feed-sub");
+  if (leads.length === 0) {
+    if (h) h.textContent = "No leads in scope yet.";
+    if (s) s.textContent = "Import a funding CSV to size the opportunity.";
+    return;
+  }
+  if (h) h.textContent = `${fmtInrRange(sumLo, sumHi)} surfaced GWP`;
+  if (s) s.textContent = `${leads.length} funded startups · ${cityStr || "across India"}`;
+}
+
+function _uniq(values) {
+  return Array.from(new Set(values.filter(Boolean))).sort();
+}
+
+function renderFundingFilters() {
+  const node = $("cmx-filters");
+  if (!node) return;
+  const leads = _cmxState.leads;
+  const cities  = _uniq(leads.map(x => x.city));
+  const sectors = _uniq(leads.map(x => x.sector));
+  const stages  = _uniq(leads.map(x => x.stage));
+  const f = _cmxState.filters;
+  const mkGroup = (label, key, values) => {
+    if (!values.length) return "";
+    const pills = ['<button type="button" class="cmx-chip ' + (f[key] ? "" : "is-active") + '" data-filter="' + key + '" data-value="">All</button>']
+      .concat(values.map(v => `<button type="button" class="cmx-chip ${f[key] === v ? "is-active" : ""}" data-filter="${key}" data-value="${esc(v)}">${esc(v)}</button>`))
+      .join("");
+    return `<div class="cmx-filter-group"><span class="cmx-filter-label">${label}</span>${pills}</div>`;
+  };
+  node.innerHTML = mkGroup("City", "city", cities) + mkGroup("Sector", "sector", sectors) + mkGroup("Stage", "stage", stages);
+  node.querySelectorAll(".cmx-chip").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const key = btn.getAttribute("data-filter");
+      _cmxState.filters[key] = btn.getAttribute("data-value") || "";
+      refreshFundingFeed();
+    });
+  });
+}
+
+function renderFundingCards() {
+  const list = $("cmx-feed-list");
+  if (!list) return;
+  const leads = _cmxState.leads;
+  if (leads.length === 0) {
+    list.innerHTML = `
+      <div class="cmx-empty-card">
+        <div class="cmx-empty-eyebrow">No leads</div>
+        <p>Import a funding CSV to populate the feed.</p>
+        <button type="button" class="btn-primary" onclick="openFundingImportModal()">Import funding CSV</button>
+      </div>`;
+    return;
+  }
+  list.innerHTML = leads.map(lead => _renderLeadCard(lead)).join("");
+  list.querySelectorAll("[data-claim]").forEach(btn => {
+    btn.addEventListener("click", () => claimFundingLead(btn.getAttribute("data-claim")));
+  });
+}
+
+function _renderLeadCard(lead) {
+  const amount = lead.amount_inr ? `· ${fmtInrRange(lead.amount_inr, lead.amount_inr).replace("–"+fmtInrRange(lead.amount_inr, lead.amount_inr).split("–")[1], "")} raised` : "";
+  const round = lead.round ? `· ${esc(lead.round)}` : "";
+  const meta  = [lead.source, lead.announced_on].filter(Boolean).map(esc).join(" · ");
+  const claimed = lead.status === "claimed";
+  return `
+    <article class="cmx-lead-card${claimed ? " is-claimed" : ""}" data-lead="${esc(lead.lead_id)}">
+      <div class="cmx-lead-main">
+        <div class="cmx-lead-row1">
+          <h3 class="cmx-lead-name">${esc(lead.company)}</h3>
+          <span class="cmx-lead-meta">${[esc(lead.sector||""), esc(lead.stage||""), esc(lead.city||"")].filter(Boolean).join(" · ")} ${round} ${amount}</span>
+        </div>
+        ${meta ? `<div class="cmx-lead-source">${meta}</div>` : ""}
+        <div class="cmx-lead-bundle">
+          <span class="cmx-lead-bundle-label">Auto-analysed bundle</span>
+          <span class="cmx-lead-bundle-value">${esc(lead.est_bundle || "—")}</span>
+        </div>
+      </div>
+      <div class="cmx-lead-side">
+        <div class="cmx-lead-gwp-label">Estimated annual GWP</div>
+        <div class="cmx-lead-gwp">${fmtInrRange(lead.est_gwp_low_inr, lead.est_gwp_high_inr)}</div>
+        ${claimed
+          ? `<div class="cmx-lead-claimed">✓ Claimed${lead.claimed_by ? ` · ${esc(lead.claimed_by)}` : ""}</div>`
+          : `<button type="button" class="btn-primary cmx-lead-claim" data-claim="${esc(lead.lead_id)}">Claim lead</button>`}
+      </div>
+    </article>`;
+}
+
+async function claimFundingLead(leadId) {
+  if (!leadId) return;
+  const rmEmail = (state?.profile?.rm_email) || COMMERCE_DEFAULT_RM;
+  const card = document.querySelector(`[data-lead="${leadId}"]`);
+  const btn = card?.querySelector("[data-claim]");
+  if (btn) { btn.disabled = true; btn.textContent = "Claiming…"; }
+  let data;
+  try {
+    const res = await fetch("/api/commerce/funding", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ action: "claim", lead_id: leadId, rm_email: rmEmail }),
+    });
+    data = await res.json();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = "Claim lead"; }
+    alert("Claim failed: " + e);
+    return;
+  }
+  if (!data.ok) {
+    if (btn) { btn.disabled = false; btn.textContent = "Claim lead"; }
+    alert(data.error || "Claim failed");
+    return;
+  }
+  // Optimistically update local state then re-render the card row.
+  const lead = _cmxState.leads.find(l => l.lead_id === leadId);
+  if (lead) {
+    lead.status = "claimed";
+    lead.claimed_by = rmEmail;
+    lead.account_id = data.account_id;
+    renderFundingCards();
+  }
+}
+
+/* ── Import CSV modal ────────────────────────────────────────── */
+function openFundingImportModal() {
+  if (document.getElementById("cmx-import-modal")) return;
+  const overlay = document.createElement("div");
+  overlay.id = "cmx-import-modal";
+  overlay.className = "cmx-modal-overlay";
+  overlay.innerHTML = `
+    <div class="cmx-modal" role="dialog" aria-modal="true" aria-labelledby="cmx-import-title">
+      <header class="cmx-modal-head">
+        <h2 id="cmx-import-title">Import funding CSV</h2>
+        <button type="button" class="cmx-modal-x" aria-label="Close">×</button>
+      </header>
+      <div class="cmx-modal-body">
+        <p class="cmx-modal-hint">Required columns: <code>company, city, sector, stage, amount_inr, round, source, announced_on</code>. Each row is auto-analysed and valued with an indicative GWP range.</p>
+        <textarea class="cmx-modal-textarea" id="cmx-import-textarea" placeholder="company,city,sector,stage,amount_inr,round,source,announced_on
+Acme HealthTech,Bengaluru,HealthTech,Series A,450000000,Series A,VCCircle,2026-05-22
+"></textarea>
+        <div class="cmx-modal-or">— or —</div>
+        <label class="cmx-modal-file">
+          <input type="file" id="cmx-import-file" accept=".csv,text/csv" />
+          <span>Choose a .csv file</span>
+        </label>
+        <div class="cmx-modal-status" id="cmx-import-status"></div>
+      </div>
+      <footer class="cmx-modal-foot">
+        <button type="button" class="btn-ghost" data-close>Cancel</button>
+        <button type="button" class="btn-primary" id="cmx-import-go">Ingest leads</button>
+      </footer>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector(".cmx-modal-x").addEventListener("click", closeFundingImportModal);
+  overlay.querySelector("[data-close]").addEventListener("click", closeFundingImportModal);
+  overlay.addEventListener("click", e => { if (e.target === overlay) closeFundingImportModal(); });
+  document.getElementById("cmx-import-file").addEventListener("change", async e => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const text = await file.text();
+    document.getElementById("cmx-import-textarea").value = text;
+  });
+  document.getElementById("cmx-import-go").addEventListener("click", submitFundingImport);
+}
+
+function closeFundingImportModal() {
+  const node = document.getElementById("cmx-import-modal");
+  if (node) node.remove();
+}
+
+async function submitFundingImport() {
+  const status = document.getElementById("cmx-import-status");
+  const csv = (document.getElementById("cmx-import-textarea").value || "").trim();
+  if (!csv) { if (status) status.textContent = "Paste CSV content or choose a file first."; return; }
+  if (status) status.textContent = "Ingesting + auto-analysing (this can take a few seconds per row)…";
+  let data;
+  try {
+    const res = await fetch("/api/commerce/funding", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ action: "import", csv }),
+    });
+    data = await res.json();
+  } catch (e) {
+    if (status) status.textContent = "Ingest failed: " + e;
+    return;
+  }
+  if (data.error) {
+    if (status) status.textContent = "Ingest failed: " + data.error;
+    return;
+  }
+  const sumLo = (data.leads || []).reduce((a, x) => a + (x.est_gwp_low_inr || 0), 0);
+  const sumHi = (data.leads || []).reduce((a, x) => a + (x.est_gwp_high_inr || 0), 0);
+  if (status) status.textContent = `Ingested ${data.ingested} lead${data.ingested === 1 ? "" : "s"} · ${fmtInrRange(sumLo, sumHi)} surfaced GWP.`;
+  setTimeout(() => {
+    closeFundingImportModal();
+    refreshFundingFeed();
+  }, 1200);
+}
+
+/* Expose for inline onclick handlers used above */
+window.enterCommerceMode = enterCommerceMode;
+window.openFundingImportModal = openFundingImportModal;
+
+/* ── F4 Renewals (alerts queue) ───────────────────────────── */
+const _ALERT_BADGE = {
+  renewal:      { label: "Renewal",      cls: "alert-badge-blue"  },
+  upsell:       { label: "Upsell",       cls: "alert-badge-blue"  },
+  at_risk:      { label: "At risk",      cls: "alert-badge-amber" },
+  coverage_gap: { label: "Coverage gap", cls: "alert-badge-amber" },
+};
+
+async function renderRenewals() {
+  const target = $("cmx-content");
+  if (!target) return;
+  target.innerHTML = `
+    <header class="cmx-feed-head">
+      <div>
+        <div class="cmx-eyebrow">Alerts queue</div>
+        <h1 class="cmx-headline">Renewals & upsell</h1>
+        <p class="cmx-sub">Sorted by delta-GWP descending. Money first — the SVP's instinct.</p>
+      </div>
+      <div class="cmx-feed-actions">
+        <button type="button" class="btn-ghost" id="renew-sweep">Re-evaluate all</button>
+      </div>
+    </header>
+    <div class="renew-summary" id="renew-summary"></div>
+    <div class="renew-list" id="renew-list"><div class="cmx-skeleton">Loading…</div></div>
+    <p class="cmx-disclaimer" id="renew-disclaimer">Indicative only under IRDAI File-and-Use detariffed regime. Not a bindable quote.</p>`;
+  const sweepBtn = $("renew-sweep");
+  if (sweepBtn) sweepBtn.addEventListener("click", sweepAlerts);
+  await refreshRenewals();
+}
+
+async function refreshRenewals() {
+  let data;
+  try {
+    const res = await fetch("/api/commerce/alerts?status=open");
+    data = await res.json();
+  } catch (e) {
+    const list = $("renew-list");
+    if (list) list.innerHTML = `<div class="cmx-error">Failed to load: ${esc(String(e))}</div>`;
+    return;
+  }
+  _renderRenewSummary(data.summary || {});
+  _renderRenewList(data.alerts || []);
+  const d = $("renew-disclaimer");
+  if (d && data.disclaimer) d.textContent = data.disclaimer;
+}
+
+function _renderRenewSummary(s) {
+  const node = $("renew-summary");
+  if (!node) return;
+  const atRiskRange = (s.at_risk_gwp_low_inr || s.at_risk_gwp_high_inr)
+    ? fmtInrRange(s.at_risk_gwp_low_inr, s.at_risk_gwp_high_inr) : "—";
+  const renewRange = (s.renewal_gwp_low_inr || s.renewal_gwp_high_inr)
+    ? fmtInrRange(s.renewal_gwp_low_inr, s.renewal_gwp_high_inr) : "—";
+  node.innerHTML = `
+    <div class="renew-tile renew-tile-warn">
+      <div class="perf-tile-label">⚠ GWP at risk ≤60d</div>
+      <div class="perf-tile-value">${atRiskRange}</div>
+      <div class="perf-tile-n">${s.at_risk_count || 0} account${(s.at_risk_count || 0) === 1 ? "" : "s"}</div>
+    </div>
+    <div class="renew-tile">
+      <div class="perf-tile-label">Renewals due ≤60d</div>
+      <div class="perf-tile-value">${renewRange}</div>
+      <div class="perf-tile-n">${s.renewal_count || 0} account${(s.renewal_count || 0) === 1 ? "" : "s"}</div>
+    </div>`;
+}
+
+function _renderRenewList(alerts) {
+  const node = $("renew-list");
+  if (!node) return;
+  if (alerts.length === 0) {
+    node.innerHTML = `
+      <div class="cmx-empty-card">
+        <div class="cmx-empty-eyebrow">No open alerts</div>
+        <p>No renewal, upsell, at-risk, or coverage-gap alerts in scope.</p>
+        <button type="button" class="btn-primary" onclick="sweepAlerts()">Re-evaluate all accounts</button>
+      </div>`;
+    return;
+  }
+  node.innerHTML = alerts.map(a => {
+    const badge = _ALERT_BADGE[a.type] || { label: a.type, cls: "" };
+    const delta = a.delta_gwp_high_inr || a.delta_gwp_low_inr || 0;
+    const signed = delta < 0 ? "− " : "";
+    const lo = Math.abs(a.delta_gwp_low_inr || 0);
+    const hi = Math.abs(a.delta_gwp_high_inr || 0);
+    const rangeStr = fmtInrRange(Math.min(lo, hi), Math.max(lo, hi));
+    return `
+      <article class="cmx-lead-card alert-card" data-alert="${esc(a.alert_id)}">
+        <div class="cmx-lead-main">
+          <div class="cmx-lead-row1">
+            <span class="alert-badge ${badge.cls}">${esc(badge.label)}</span>
+            <h3 class="cmx-lead-name">${esc(a.account_name || a.account_id)}</h3>
+            <span class="cmx-lead-meta">${[esc(a.sector || ""), esc(a.stage || ""), esc(a.city || "")].filter(Boolean).join(" · ")}</span>
+          </div>
+          <div class="alert-reason">${esc(a.reason)}</div>
+          ${a.rm_email ? `<div class="cmx-lead-source">RM · ${esc(a.rm_email)}</div>` : ""}
+        </div>
+        <div class="cmx-lead-side">
+          <div class="cmx-lead-gwp-label">${delta < 0 ? "GWP at risk" : "Delta GWP"}</div>
+          <div class="cmx-lead-gwp ${delta < 0 ? "alert-delta-neg" : ""}">${signed}${rangeStr}</div>
+          <div class="alert-actions">
+            <button type="button" class="btn-ghost btn-sm" data-dismiss="${esc(a.alert_id)}">Dismiss</button>
+          </div>
+        </div>
+      </article>`;
+  }).join("");
+  node.querySelectorAll("[data-dismiss]").forEach(btn => {
+    btn.addEventListener("click", () => dismissAlert(btn.getAttribute("data-dismiss")));
+  });
+}
+
+async function dismissAlert(alertId) {
+  if (!alertId) return;
+  const rmEmail = (state?.profile?.rm_email) || COMMERCE_DEFAULT_RM;
+  try {
+    await fetch("/api/commerce/alerts", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ action: "dismiss", alert_id: alertId, rm_email: rmEmail }),
+    });
+  } catch (e) {
+    alert("Dismiss failed: " + e);
+    return;
+  }
+  refreshRenewals();
+}
+
+async function sweepAlerts() {
+  const btn = $("renew-sweep");
+  if (btn) { btn.disabled = true; btn.textContent = "Evaluating…"; }
+  try {
+    const res = await fetch("/api/commerce/alerts", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ action: "sweep" }),
+    });
+    const data = await res.json();
+    if (btn) { btn.textContent = `Swept ${data.swept || 0} · ${data.created || 0} new`; }
+  } catch (e) {
+    if (btn) { btn.textContent = "Sweep failed"; }
+  }
+  setTimeout(() => {
+    if (btn) { btn.disabled = false; btn.textContent = "Re-evaluate all"; }
+    refreshRenewals();
+  }, 1500);
+}
+
+window.sweepAlerts = sweepAlerts;
 
 /* ─── KICK OFF ───────────────────────────────────────────────── */
 window.renderForm = renderForm;

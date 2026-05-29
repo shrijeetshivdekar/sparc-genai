@@ -3698,10 +3698,21 @@ def _fetch_google_news_signal_articles(limit: int = 18, window_days: int = 30) -
 def _fetch_direct_rss_signal_articles(limit: int = 18, window_days: int = 30) -> list[dict]:
     window_days = max(1, min(int(window_days or 30), 30))
     feeds = [
-        ("Inc42", "https://inc42.com/feed/"),
-        ("YourStory", "https://yourstory.com/feed"),
-        ("Economic Times Startups", "https://economictimes.indiatimes.com/small-biz/startups/rssfeeds/70591255.cms"),
-        ("Trak.in", "https://trak.in/feed/"),
+        # Tier-1 startup-native
+        ("Inc42",            "https://inc42.com/feed/"),
+        ("YourStory",        "https://yourstory.com/feed"),
+        ("FactorDaily",      "https://factordaily.com/feed/"),
+        ("KnowStartup",      "https://knowstartup.com/feed/"),
+        # Business press — startup/tech desks
+        ("ET Tech",          "https://economictimes.indiatimes.com/tech/rssfeeds/13357270.cms"),
+        ("ET Startups",      "https://economictimes.indiatimes.com/small-biz/startups/rssfeeds/70591255.cms"),
+        ("Livemint Tech",    "https://www.livemint.com/rss/technology"),
+        ("Moneycontrol Tech","https://www.moneycontrol.com/rss/technology.xml"),
+        ("Trak.in",          "https://trak.in/feed/"),
+        # Funding / deal-specific
+        ("Startuptalky",     "https://startuptalky.com/feed/"),
+        ("HT Tech",          "https://www.hindustantimes.com/feeds/rss/technology/rssfeed.xml"),
+        ("Mint Startups",    "https://www.livemint.com/rss/companies"),
     ]
     timeout = float(os.environ.get("SIGNAL_RADAR_TIMEOUT_SECONDS", "8"))
     rows = []
@@ -3717,7 +3728,7 @@ def _fetch_direct_rss_signal_articles(limit: int = 18, window_days: int = 30) ->
 
         channel = root.find("channel")
         items = channel.findall("item") if channel is not None else root.findall(".//item")
-        for item in items[:25]:
+        for item in items[:30]:
             title = (item.findtext("title") or "").strip()
             if not title or title in seen_titles:
                 continue

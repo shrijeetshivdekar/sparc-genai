@@ -161,13 +161,84 @@ def list_pipeline(
     if stage:
         where.append("stage = :stage");       params["stage"] = stage
     sql = (
-        "SELECT account_id, name, sector, funding_stage, city, stage, rm_email, "
-        "source, created_at, updated_at FROM accounts"
+        "SELECT a.account_id, a.name, a.sector, a.funding_stage, a.city, a.stage, "
+        "a.rm_email, a.source, a.created_at, a.updated_at, "
+        "g.gwp_low_inr, g.gwp_high_inr "
+        "FROM accounts a "
+        "LEFT JOIN gwp_estimates g ON g.estimate_id = ("
+        "  SELECT estimate_id FROM gwp_estimates WHERE account_id = a.account_id "
+        "  ORDER BY created_at DESC LIMIT 1"
+        ")"
         + (" WHERE " + " AND ".join(where) if where else "")
-        + " ORDER BY updated_at DESC"
+        + " ORDER BY a.updated_at DESC"
     )
     conn = db.get_conn(db_path)
     try:
         return [dict(r) for r in conn.execute(sql, params).fetchall()]
     finally:
         conn.close()
+
+
+_STAGE_ORDER = ["prospect", "analysed", "quoted", "proposal", "converted"]
+
+
+def move_stage(
+    account_id: str,
+    to_stage: str,
+    rm_email: str,
+    *,
+    db_path: Path | str | None = None,
+) -> dict:
+    """Advance (or revert) an account to a new pipeline stage."""
+    if to_stage not in _STAGE_ORDER + ["lost"]:
+        return {"ok": False, "error": f"invalid stage: {to_stage}"}
+    conn = db.get_conn(db_path)
+    try:
+        with conn:
+            row = conn.execute(
+                "SELECT stage, rm_email FROM accounts WHERE account_id = ?",
+                (account_id,),
+            ).fetchone()
+            if not row:
+                return {"ok": False, "error": "account not found"}
+            from_stage = row["stage"]
+            if from_stage == to_stage:
+                return {"ok": True, "idempotent": True, "stage": to_stage}
+            conn.execute(
+                "UPDATE accounts SET stage = ?, updated_at = datetime('now') WHERE account_id = ?",
+                (to_stage, account_id),
+            )
+            conn.execute(
+                "INSERT INTO pipeline_events (event_id, account_id, from_stage, to_stage, rm_email) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (_new_id("pe"), account_id, from_stage, to_stage, rm_email),
+            )
+        return {"ok": True, "from_stage": from_stage, "stage": to_stage}
+    finally:
+        conn.close()
+
+
+def pipeline_summary(*, db_path: Path | str | None = None) -> dict:
+    """Count accounts per stage and total GWP range across the whole pipeline."""
+    conn = db.get_conn(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT stage, COUNT(*) AS n FROM accounts GROUP BY stage"
+        ).fetchall()
+        counts = {r["stage"]: r["n"] for r in rows}
+        gwp = conn.execute(
+            "SELECT COALESCE(SUM(g.gwp_low_inr),0) AS low, "
+            "       COALESCE(SUM(g.gwp_high_inr),0) AS high "
+            "FROM accounts a "
+            "LEFT JOIN gwp_estimates g ON g.estimate_id = ("
+            "  SELECT estimate_id FROM gwp_estimates WHERE account_id = a.account_id "
+            "  ORDER BY created_at DESC LIMIT 1"
+            ") WHERE a.stage NOT IN ('lost','converted')"
+        ).fetchone()
+    finally:
+        conn.close()
+    return {
+        "counts": counts,
+        "pipeline_gwp_low_inr":  int(gwp["low"]  if gwp else 0),
+        "pipeline_gwp_high_inr": int(gwp["high"] if gwp else 0),
+    }

@@ -4164,6 +4164,11 @@ class Handler(SimpleHTTPRequestHandler):
             status, body = _ca_get(params)
             self.send_json(status, body)
             return
+        if path == "/api/commerce/pipeline":
+            from api.commerce_pipeline import handle_get_request as _cpl_get
+            status, body = _cpl_get(params)
+            self.send_json(status, body)
+            return
         if path == "/api/signals":
             limit = clean_int((params.get("limit") or ["30"])[0], 30)
             days = clean_int((params.get("days") or ["30"])[0], 30)
@@ -4178,7 +4183,7 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self):
-        if self.path not in ("/api/analyze", "/api/policy/compare", "/api/autofill", "/api/autofill-advanced", "/api/outreach", "/api/pricing", "/api/commerce/funding", "/api/commerce/proposal", "/api/commerce/metrics", "/api/commerce/alerts"):
+        if self.path not in ("/api/analyze", "/api/policy/compare", "/api/autofill", "/api/autofill-advanced", "/api/outreach", "/api/pricing", "/api/commerce/funding", "/api/commerce/proposal", "/api/commerce/metrics", "/api/commerce/alerts", "/api/commerce/pipeline"):
             self.send_json(404, {"error": "Not found"})
             return
         try:
@@ -4251,6 +4256,10 @@ class Handler(SimpleHTTPRequestHandler):
             elif self.path == "/api/commerce/alerts":
                 from api.commerce_alerts import handle_post_request as _ca_post
                 status, body = _ca_post(payload)
+                self.send_json(status, body)
+            elif self.path == "/api/commerce/pipeline":
+                from api.commerce_pipeline import handle_post_request as _cpl_post
+                status, body = _cpl_post(payload)
                 self.send_json(status, body)
             else:
                 self.send_json(200, analyze(payload))

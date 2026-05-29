@@ -11211,3 +11211,94 @@ body.pc-explain-open { overflow: hidden; }
 .alert-delta-neg { color: #D97706; }
 .alert-actions { margin-top: 8px; }
 .btn-sm { padding: 6px 12px !important; height: auto !important; font-size: 12px !important; }
+
+/* ─── F3 PIPELINE ──────────────────────────────────────────── */
+.pipe-summary {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.pipe-sum-tile {
+  padding: 18px 20px;
+  background: #F1F1EE;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Stage tabs */
+.pipe-tabs {
+  display: flex;
+  gap: 2px;
+  background: #E8E8E3;
+  border-radius: 10px;
+  padding: 3px;
+  margin-bottom: 20px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.pipe-tabs::-webkit-scrollbar { display: none; }
+.pipe-tab {
+  flex: 1;
+  min-width: max-content;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  font: 600 13px/1 "DM Sans", system-ui, sans-serif;
+  color: #64748B;
+  cursor: pointer;
+  transition: background 200ms cubic-bezier(0.32,0.72,0,1),
+              color 200ms cubic-bezier(0.32,0.72,0,1);
+}
+.pipe-tab:hover { background: rgba(255,255,255,.5); color: #1E293B; }
+.pipe-tab.is-active {
+  background: #fff;
+  color: #0F172A;
+  box-shadow: 0 1px 4px rgba(0,0,0,.08);
+}
+.pipe-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #E2E2DC;
+  font: 700 11px/1 "DM Sans", system-ui, sans-serif;
+  color: #64748B;
+  font-variant-numeric: tabular-nums;
+}
+.pipe-tab.is-active .pipe-tab-count {
+  background: #AD1E23;
+  color: #fff;
+}
+
+/* Account cards */
+.pipe-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.pipe-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.pipe-converted-badge {
+  font: 700 11px/1 "DM Sans", system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #16A34A;
+  padding: 6px 10px;
+  background: rgba(22,163,74,.08);
+  border-radius: 999px;
+}

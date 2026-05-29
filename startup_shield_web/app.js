@@ -7859,7 +7859,7 @@ function drawRadar(canvasId, data, opts = {}) {
 const COMMERCE_RAIL = [
   { id: "opportunity",   label: "Opportunity",   ready: true,  hint: "Territory GWP, funnel, top leads" },
   { id: "funding",       label: "Funding Feed",  ready: true,  hint: "Newly funded startups with auto-valued GWP" },
-  { id: "pipeline",      label: "Pipeline",      ready: false, hint: "Accounts by stage — later" },
+  { id: "pipeline",      label: "Pipeline",      ready: true,  hint: "Accounts by stage — move deals forward" },
   { id: "renewals",      label: "Renewals",      ready: true,  hint: "Renewal / upsell / at-risk / coverage-gap alerts" },
   { id: "performance",   label: "Performance",   ready: true,  hint: "RM leaderboard, conversion, weekly digest" },
 ];
@@ -7925,6 +7925,8 @@ function renderCommerceShell(activeRailId) {
     renderOpportunity();
   } else if (activeRailId === "performance") {
     renderPerformance();
+  } else if (activeRailId === "pipeline") {
+    renderPipeline();
   } else if (activeRailId === "renewals") {
     renderRenewals();
   } else {
@@ -8818,6 +8820,171 @@ async function sweepAlerts() {
 }
 
 window.sweepAlerts = sweepAlerts;
+
+/* ─── F3 PIPELINE ────────────────────────────────────────────── */
+
+const _PIPELINE_STAGES = [
+  { id: "prospect",  label: "Prospect" },
+  { id: "analysed",  label: "Analysed" },
+  { id: "quoted",    label: "Quoted" },
+  { id: "proposal",  label: "Proposal" },
+  { id: "converted", label: "Converted" },
+];
+
+const _NEXT_STAGE = {
+  prospect:  "analysed",
+  analysed:  "quoted",
+  quoted:    "proposal",
+  proposal:  "converted",
+};
+
+let _pipelineActiveStage = "prospect";
+let _pipelineData = null;
+
+async function renderPipeline() {
+  const target = $("cmx-content");
+  if (!target) return;
+  target.innerHTML = `
+    <header class="cmx-feed-head">
+      <div>
+        <div class="cmx-eyebrow">Deal pipeline</div>
+        <h1 class="cmx-headline">Pipeline</h1>
+        <p class="cmx-sub">Move accounts through stages as deals progress.</p>
+      </div>
+    </header>
+    <div class="pipe-summary" id="pipe-summary"></div>
+    <nav class="pipe-tabs" id="pipe-tabs" role="tablist"></nav>
+    <div class="pipe-list" id="pipe-list"><div class="cmx-skeleton">Loading…</div></div>
+    <p class="cmx-disclaimer">Indicative only under IRDAI File-and-Use detariffed regime. Not a bindable quote.</p>`;
+  await refreshPipeline();
+}
+
+async function refreshPipeline() {
+  let data;
+  try {
+    const res = await fetch("/api/commerce/pipeline");
+    data = await res.json();
+  } catch (e) {
+    const list = $("pipe-list");
+    if (list) list.innerHTML = `<div class="cmx-error">Failed to load: ${esc(String(e))}</div>`;
+    return;
+  }
+  _pipelineData = data;
+  _renderPipeSummary(data.summary || {});
+  _renderPipeTabs(data.accounts || [], data.summary || {});
+  _renderPipeList(data.accounts || []);
+}
+
+function _renderPipeSummary(s) {
+  const node = $("pipe-summary");
+  if (!node) return;
+  const counts = s.counts || {};
+  const active = _PIPELINE_STAGES.reduce((n, st) => n + (counts[st.id] || 0), 0);
+  const gwpLo  = s.pipeline_gwp_low_inr  || 0;
+  const gwpHi  = s.pipeline_gwp_high_inr || 0;
+  const gwpStr = (gwpLo || gwpHi) ? fmtInrRange(gwpLo, gwpHi) : "—";
+  node.innerHTML = `
+    <div class="pipe-sum-tile">
+      <div class="perf-tile-label">Active accounts</div>
+      <div class="perf-tile-value">${active}</div>
+    </div>
+    <div class="pipe-sum-tile">
+      <div class="perf-tile-label">Pipeline GWP</div>
+      <div class="perf-tile-value">${gwpStr}</div>
+      <div class="perf-tile-n">Indicative range</div>
+    </div>`;
+}
+
+function _renderPipeTabs(accounts, summary) {
+  const tabs = $("pipe-tabs");
+  if (!tabs) return;
+  const counts = summary.counts || {};
+  tabs.innerHTML = _PIPELINE_STAGES.map(st => {
+    const n = counts[st.id] || 0;
+    const active = st.id === _pipelineActiveStage ? " is-active" : "";
+    return `<button type="button" class="pipe-tab${active}" data-stage="${esc(st.id)}" role="tab">
+      ${esc(st.label)}<span class="pipe-tab-count">${n}</span>
+    </button>`;
+  }).join("");
+  tabs.querySelectorAll(".pipe-tab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      _pipelineActiveStage = btn.getAttribute("data-stage");
+      tabs.querySelectorAll(".pipe-tab").forEach(b => b.classList.remove("is-active"));
+      btn.classList.add("is-active");
+      _renderPipeList((_pipelineData || {}).accounts || []);
+    });
+  });
+}
+
+function _renderPipeList(accounts) {
+  const node = $("pipe-list");
+  if (!node) return;
+  const filtered = accounts.filter(a => a.stage === _pipelineActiveStage);
+  if (filtered.length === 0) {
+    const nextMsg = _pipelineActiveStage === "converted"
+      ? "" : ` Move accounts here from <strong>${
+        _PIPELINE_STAGES[_PIPELINE_STAGES.findIndex(s => s.id === _pipelineActiveStage) - 1]?.label || "previous"
+      }</strong>.`;
+    node.innerHTML = `
+      <div class="cmx-empty-card">
+        <div class="cmx-empty-eyebrow">No accounts</div>
+        <p>No accounts in the <strong>${_pipelineActiveStage}</strong> stage.${nextMsg}</p>
+      </div>`;
+    return;
+  }
+  node.innerHTML = filtered.map(a => {
+    const gwpStr = (a.gwp_low_inr || a.gwp_high_inr)
+      ? fmtInrRange(a.gwp_low_inr || 0, a.gwp_high_inr || 0) : "—";
+    const nextStage = _NEXT_STAGE[a.stage];
+    const nextLabel = nextStage
+      ? _PIPELINE_STAGES.find(s => s.id === nextStage)?.label : null;
+    return `
+      <article class="cmx-lead-card pipe-card" data-account="${esc(a.account_id)}">
+        <div class="cmx-lead-main">
+          <div class="cmx-lead-row1">
+            <h3 class="cmx-lead-name">${esc(a.name || a.account_id)}</h3>
+            <span class="cmx-lead-meta">${[a.sector, a.funding_stage, a.city].filter(Boolean).map(esc).join(" · ")}</span>
+          </div>
+          ${a.rm_email ? `<div class="cmx-lead-source">RM · ${esc(a.rm_email)}</div>` : ""}
+        </div>
+        <div class="cmx-lead-side">
+          <div class="cmx-lead-gwp-label">Est. GWP</div>
+          <div class="cmx-lead-gwp">${gwpStr}</div>
+          <div class="pipe-card-actions">
+            ${nextLabel ? `<button type="button" class="btn-primary btn-sm pipe-advance" data-account="${esc(a.account_id)}" data-to="${esc(nextStage)}">→ ${esc(nextLabel)}</button>` : `<span class="pipe-converted-badge">Converted</span>`}
+            ${a.stage !== "converted" ? `<button type="button" class="btn-ghost btn-sm pipe-lose" data-account="${esc(a.account_id)}">Mark lost</button>` : ""}
+          </div>
+        </div>
+      </article>`;
+  }).join("");
+  node.querySelectorAll(".pipe-advance").forEach(btn => {
+    btn.addEventListener("click", () => movePipelineStage(
+      btn.getAttribute("data-account"), btn.getAttribute("data-to")
+    ));
+  });
+  node.querySelectorAll(".pipe-lose").forEach(btn => {
+    btn.addEventListener("click", () => movePipelineStage(
+      btn.getAttribute("data-account"), "lost"
+    ));
+  });
+}
+
+async function movePipelineStage(accountId, toStage) {
+  const rmEmail = (state?.profile?.rm_email) || COMMERCE_DEFAULT_RM;
+  try {
+    const res = await fetch("/api/commerce/pipeline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "move_stage", account_id: accountId, to_stage: toStage, rm_email: rmEmail }),
+    });
+    const data = await res.json();
+    if (!data.ok) { alert("Move failed: " + (data.error || "unknown")); return; }
+  } catch (e) {
+    alert("Move failed: " + e); return;
+  }
+  if (toStage === "lost") _pipelineActiveStage = "prospect";
+  refreshPipeline();
+}
 
 /* ─── KICK OFF ───────────────────────────────────────────────── */
 window.renderForm = renderForm;

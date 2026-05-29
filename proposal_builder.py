@@ -24,6 +24,17 @@ from pathlib import Path
 import db
 import gwp_estimator
 
+_analyze_fn = None
+def _get_analyze():
+    global _analyze_fn
+    if _analyze_fn is None:
+        try:
+            from startup_shield_web.server import analyze as _a
+            _analyze_fn = _a
+        except Exception:
+            pass
+    return _analyze_fn
+
 PROJECT_ROOT = Path(__file__).resolve().parent
 TEMPLATE_PATH = PROJECT_ROOT / "templates" / "proposal.html"
 
@@ -80,23 +91,40 @@ def _profile_facts(profile: dict, account_row: dict | None) -> dict:
 
 
 def _bundle_facts(analysis: dict) -> dict:
-    """Pull bundle name, fit %, mandatory + optional covers from a SPARC result."""
+    """Pull bundle name, fit %, covers with per-cover premium from a SPARC result."""
     if not isinstance(analysis, dict):
         return {"name": "—", "fit_pct": 0.0, "covers": []}
     bm = analysis.get("bundle_match") or {}
     name = bm.get("name") or analysis.get("recommended_bundle") or "—"
     fit_pct = float(bm.get("fit_pct") or bm.get("fit") or 0)
 
+    # Primary path: rich recommendations list (has name, nudge, premium)
+    recs = analysis.get("recommendations") or []
+    rich_covers = []
+    for rec in recs:
+        if not isinstance(rec, dict):
+            continue
+        cover_name = rec.get("name") or rec.get("il_product") or str(rec.get("key") or "—")
+        why = rec.get("nudge") or rec.get("what_it_covers") or ""
+        prem = rec.get("premium") or {}
+        lo = int(float(prem.get("min_lakh") or 0) * 100_000)
+        hi = int(float(prem.get("max_lakh") or 0) * 100_000)
+        rich_covers.append({"cover": cover_name, "why": why, "low_inr": lo, "high_inr": hi})
+    if rich_covers:
+        return {"name": name, "fit_pct": fit_pct, "covers": rich_covers}
+
+    # Fallback: plain string/dict mandatory+optional covers
     def _str_covers(items, default_why=""):
         out = []
         if isinstance(items, list):
             for it in items:
                 if isinstance(it, str):
-                    out.append({"cover": it, "why": default_why})
+                    out.append({"cover": it, "why": default_why, "low_inr": 0, "high_inr": 0})
                 elif isinstance(it, dict):
                     out.append({
                         "cover": str(it.get("name") or it.get("product_key") or it.get("key") or "—"),
                         "why": str(it.get("why") or it.get("reason") or default_why),
+                        "low_inr": 0, "high_inr": 0,
                     })
         return out
 
@@ -104,16 +132,26 @@ def _bundle_facts(analysis: dict) -> dict:
         _str_covers(bm.get("mandatory_covers"), default_why="Mandatory for this bundle profile.")
         + _str_covers(bm.get("optional_covers"), default_why="Optional cover indicated for this profile.")
     )
-    if not covers:
-        # Fall back to top-level recommendations if bundle_match was sparse.
-        covers = _str_covers(analysis.get("recommendations"), default_why="Recommended by SPARC engine.")
     return {"name": name, "fit_pct": fit_pct, "covers": covers}
 
 
 def _gwp_for_proposal(profile: dict, covers: list[dict]) -> dict:
+    # If covers already have engine premium ranges, sum them directly.
+    if covers and all(c.get("low_inr") or c.get("high_inr") for c in covers):
+        total_lo = sum(c.get("low_inr", 0) for c in covers)
+        total_hi = sum(c.get("high_inr", 0) for c in covers)
+        return {
+            "low_inr": total_lo,
+            "high_inr": total_hi,
+            "basis": "engine_recommendations",
+            "data_quality": 0.85,
+            "disclaimer": gwp_estimator.INDICATIVE_DISCLAIMER,
+            "per_cover": covers,
+            "per_cover_by_name": {c["cover"]: c for c in covers},
+        }
+    # Fallback: bucket-based estimator
     cover_keys = [c["cover"] for c in covers]
     g = gwp_estimator.estimate_gwp(profile or {}, covers=cover_keys)
-    # Index per_cover by cover name for fast lookup in the template
     g["per_cover_by_name"] = {row["cover"]: row for row in g.get("per_cover", [])}
     return g
 
@@ -197,6 +235,27 @@ def build_proposal_payload(
         finally:
             conn.close()
 
+    # If analysis has no rich recommendations (Commerce stub path), run the
+    # deterministic engine on the profile so covers + rationale are real.
+    recs = analysis.get("recommendations") or []
+    has_rich_recs = any(isinstance(r, dict) and r.get("premium") for r in recs)
+    if not has_rich_recs and profile:
+        analyze = _get_analyze()
+        if analyze:
+            try:
+                engine_result = analyze(profile)
+                # Merge: keep any existing profile/meta, take engine covers+bundle
+                analysis = {**analysis, **{
+                    k: engine_result[k] for k in
+                    ("bundle_match", "recommendations", "regulatory_triggers_fired",
+                     "display_regulatory_triggers")
+                    if k in engine_result
+                }}
+                if not analysis.get("profile"):
+                    analysis["profile"] = profile
+            except Exception:
+                pass  # silently keep the stub — better than crashing
+
     bundle  = _bundle_facts(analysis)
     gwp     = _gwp_for_proposal(profile, bundle["covers"])
     facts   = _profile_facts(profile, account_row)
@@ -234,14 +293,13 @@ def build_proposal_payload(
 
 def _render_covers_rows(payload: dict) -> str:
     bundle = payload.get("bundle") or {}
-    per_cover_by_name = (payload.get("gwp") or {}).get("per_cover_by_name") or {}
     rows = []
     for c in bundle.get("covers", []):
         cover_name = c.get("cover") or "—"
         why = c.get("why") or ""
-        band = per_cover_by_name.get(cover_name) or {}
-        range_str = _fmt_inr_range(band.get("low_inr", 0), band.get("high_inr", 0)) \
-            if (band.get("low_inr") or band.get("high_inr")) else "—"
+        lo = c.get("low_inr") or 0
+        hi = c.get("high_inr") or 0
+        range_str = _fmt_inr_range(lo, hi) if (lo or hi) else "—"
         rows.append(
             f"<tr><td><strong>{_esc(cover_name)}</strong></td>"
             f"<td>{_esc(why)}</td>"

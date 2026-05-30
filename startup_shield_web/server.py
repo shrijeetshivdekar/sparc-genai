@@ -3762,17 +3762,23 @@ def _fetch_gdelt_signal_articles(limit: int = 18) -> list[dict]:
 def _fetch_google_news_signal_articles(limit: int = 18, window_days: int = 30) -> list[dict]:
     window_days = max(1, min(int(window_days or 30), 30))
     queries = [
-        f"Indian startup funding when:{window_days}d",
+        f"Indian startup funding raises Series when:{window_days}d",
         f"Indian startup RBI licence fintech NBFC when:{window_days}d",
         f"Indian startup warehouse factory manufacturing deployment when:{window_days}d",
         f"Indian startup healthcare clinic hospital AI GMV when:{window_days}d",
         f"Indian startup drone robotics UAV defence DGCA when:{window_days}d",
         f"Indian startup IPO DRHP SEBI confidential filing when:{window_days}d",
-        f"Indian startup layoffs restructuring IPO when:{window_days}d",
-        f"Indian startup dark store quick commerce expansion when:{window_days}d",
-        f"site:reuters.com India startup RBI NBFC fintech when:{window_days}d",
-        f"site:timesofindia.indiatimes.com startup funding IPO drone fintech when:{window_days}d",
-        f"site:business-standard.com startup robotics healthcare defence funding when:{window_days}d",
+        f"Indian startup Series A B funding round when:{window_days}d",
+        f"India startup DPDP data privacy cybersecurity breach when:{window_days}d",
+        f"India startup export import logistics supply chain when:{window_days}d",
+        f"India deeptech AI robotics hardware startup funding when:{window_days}d",
+        f"India healthtech medtech startup funding expansion when:{window_days}d",
+        f"India fintech NBFC RBI lending startup when:{window_days}d",
+        f"India edtech startup funding round expansion when:{window_days}d",
+        f"India agritech startup funding rural when:{window_days}d",
+        f"site:inc42.com startup raises funding when:{window_days}d",
+        f"site:yourstory.com startup raises funding when:{window_days}d",
+        f"site:entrackr.com startup funding when:{window_days}d",
     ]
     queries.extend(f"{q} when:{window_days}d" for q in SIGNAL_WATCHLIST_QUERIES)
     timeout = float(os.environ.get("SIGNAL_RADAR_TIMEOUT_SECONDS", "12"))
@@ -3827,19 +3833,29 @@ def _fetch_direct_rss_signal_articles(limit: int = 18, window_days: int = 30) ->
     feeds = [
         # Tier-1 startup-native
         ("Inc42",            "https://inc42.com/feed/"),
+        ("Inc42 Funding",    "https://inc42.com/category/startups/feed/"),
+        ("Inc42 Features",   "https://inc42.com/features/feed/"),
         ("YourStory",        "https://yourstory.com/feed"),
+        ("YS Funding",       "https://yourstory.com/category/funding/feed"),
         ("FactorDaily",      "https://factordaily.com/feed/"),
         ("KnowStartup",      "https://knowstartup.com/feed/"),
+        ("Medianama",        "https://www.medianama.com/feed/"),
         # Business press — startup/tech desks
         ("ET Tech",          "https://economictimes.indiatimes.com/tech/rssfeeds/13357270.cms"),
         ("ET Startups",      "https://economictimes.indiatimes.com/small-biz/startups/rssfeeds/70591255.cms"),
         ("Livemint Tech",    "https://www.livemint.com/rss/technology"),
-        ("Moneycontrol Tech","https://www.moneycontrol.com/rss/technology.xml"),
+        ("Livemint Companies","https://www.livemint.com/rss/companies"),
+        ("Livemint Industry","https://www.livemint.com/rss/industry"),
+        ("Livemint News",    "https://www.livemint.com/rss/news"),
+        ("TOI Tech",         "https://timesofindia.indiatimes.com/rssfeeds/66949542.cms"),
+        ("Hindu Business",   "https://www.thehindubusinessline.com/feeder/default.rss"),
+        ("Forbes India",     "https://www.forbesindia.com/blog/feed/"),
         ("Trak.in",          "https://trak.in/feed/"),
         # Funding / deal-specific
         ("Startuptalky",     "https://startuptalky.com/feed/"),
         ("HT Tech",          "https://www.hindustantimes.com/feeds/rss/technology/rssfeed.xml"),
-        ("Mint Startups",    "https://www.livemint.com/rss/companies"),
+        ("The Ken",          "https://the-ken.com/feed/"),
+        ("Finshots",         "https://finshots.in/feed/"),
     ]
     timeout = float(os.environ.get("SIGNAL_RADAR_TIMEOUT_SECONDS", "8"))
     rows = []

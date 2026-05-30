@@ -4102,6 +4102,17 @@ def get_signal_radar(limit: int = 30, live: bool = True, window_days: int = 30) 
 
     tasks = sorted(best_by_company.values(), key=_task_sort_key, reverse=True)[:limit]
 
+    # Annotate each signal with is_new (not previously seen by any RM)
+    try:
+        import db as _db
+        seen_keys = _db.get_seen_signal_keys()
+        for t in tasks:
+            key = f"{t.get('company','')}::{t.get('signal_id','')}"
+            t["is_new"] = key not in seen_keys
+    except Exception:
+        for t in tasks:
+            t["is_new"] = True
+
     high_conf = [t for t in tasks if t.get("confidence", 0) >= 70]
     premium_pool = round(sum(float(t.get("premium_max_lakh") or 0) for t in tasks) / 100, 1)
     signal_counts = {}
@@ -4345,7 +4356,7 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self):
-        if self.path not in ("/api/analyze", "/api/policy/compare", "/api/autofill", "/api/autofill-advanced", "/api/outreach", "/api/pricing", "/api/commerce/funding", "/api/commerce/proposal", "/api/commerce/metrics", "/api/commerce/alerts", "/api/commerce/pipeline"):
+        if self.path not in ("/api/analyze", "/api/policy/compare", "/api/autofill", "/api/autofill-advanced", "/api/outreach", "/api/pricing", "/api/signals", "/api/commerce/funding", "/api/commerce/proposal", "/api/commerce/metrics", "/api/commerce/alerts", "/api/commerce/pipeline"):
             self.send_json(404, {"error": "Not found"})
             return
         try:
@@ -4423,6 +4434,14 @@ class Handler(SimpleHTTPRequestHandler):
                 from api.commerce_pipeline import handle_post_request as _cpl_post
                 status, body = _cpl_post(payload)
                 self.send_json(status, body)
+            elif self.path == "/api/signals":
+                action = payload.get("action", "")
+                if action == "mark_seen":
+                    import db as _db
+                    n = _db.mark_signals_seen(payload.get("signals", []))
+                    self.send_json(200, {"ok": True, "marked": n})
+                else:
+                    self.send_json(400, {"error": f"unknown action: {action}"})
             else:
                 self.send_json(200, analyze(payload))
         except Exception as exc:

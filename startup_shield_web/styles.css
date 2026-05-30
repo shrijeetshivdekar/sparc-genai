@@ -8480,6 +8480,16 @@ pre {
   font-weight: 800;
 }
 
+.signal-new-badge {
+  background: #16A34A;
+  color: #fff;
+  font: 700 10px/1 "DM Sans", system-ui, sans-serif;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
 .signal-type {
   background: rgba(173,30,35,.14);
   color: rgba(248,113,113,.9);

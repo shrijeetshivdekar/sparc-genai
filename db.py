@@ -172,6 +172,14 @@ _SCHEMA_STATEMENTS: tuple[str, ...] = (
     """,
     "CREATE INDEX IF NOT EXISTS idx_events_rm   ON events(rm_email, kind)",
     "CREATE INDEX IF NOT EXISTS idx_events_time ON events(created_at)",
+    """
+    CREATE TABLE IF NOT EXISTS signals_seen (
+      company    TEXT NOT NULL,
+      signal_id  TEXT NOT NULL,
+      first_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (company, signal_id)
+    )
+    """,
 )
 
 
@@ -276,3 +284,38 @@ def seed_rms_from_contacts(
     finally:
         conn.close()
     return written
+
+
+def get_seen_signal_keys(db_path=None) -> set:
+    """Return set of 'company::signal_id' strings that have been marked seen."""
+    migrate(db_path)
+    conn = get_conn(db_path)
+    try:
+        rows = conn.execute("SELECT company, signal_id FROM signals_seen").fetchall()
+        return {f"{r['company']}::{r['signal_id']}" for r in rows}
+    finally:
+        conn.close()
+
+
+def mark_signals_seen(signals: list[dict], db_path=None) -> int:
+    """Insert (company, signal_id) pairs. Ignores duplicates. Returns count inserted."""
+    if not signals:
+        return 0
+    migrate(db_path)
+    conn = get_conn(db_path)
+    inserted = 0
+    try:
+        with conn:
+            for s in signals:
+                company = str(s.get("company") or "").strip()
+                signal_id = str(s.get("signal_id") or "").strip()
+                if not company or not signal_id:
+                    continue
+                conn.execute(
+                    "INSERT OR IGNORE INTO signals_seen (company, signal_id) VALUES (?, ?)",
+                    (company, signal_id),
+                )
+                inserted += 1
+    finally:
+        conn.close()
+    return inserted

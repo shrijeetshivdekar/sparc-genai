@@ -1476,6 +1476,7 @@ function renderRoleSelection() {
 // Signal Radar dashboard
 let _signalRadarData = null;
 let _signalRadarFilter = "";
+let _hideSeenSignals = false;
 
 function renderSignalRadarLoader() {
   return `
@@ -1538,9 +1539,11 @@ async function renderSignalRadarDashboard(filter = _signalRadarFilter, forceRefr
   }
 
   const allSignals = _signalRadarData.signals || [];
-  const signals = _signalRadarFilter
+  const newCount = allSignals.filter(s => s.is_new).length;
+  let signals = _signalRadarFilter
     ? allSignals.filter(s => s.signal_id === _signalRadarFilter)
     : allSignals;
+  if (_hideSeenSignals) signals = signals.filter(s => s.is_new);
   const kpis = _signalRadarData.kpis || {};
   const signalTypes = [...new Map(allSignals.map(s => [s.signal_id, s.signal])).entries()];
   const liveMode = String(_signalRadarData.source_status || "").startsWith("live_");
@@ -1563,6 +1566,8 @@ async function renderSignalRadarDashboard(filter = _signalRadarFilter, forceRefr
         <div class="signal-topbar">
           <button class="btn btn-ghost pipeline-back-btn" type="button" id="signal-back">&larr; Back</button>
           <button class="signal-refresh" type="button" id="signal-refresh">Refresh scan</button>
+          <button class="btn btn-ghost signal-hide-seen" type="button" id="signal-hide-seen">${_hideSeenSignals ? "Show all" : "Hide seen"}</button>
+          <button class="btn btn-ghost" type="button" id="signal-mark-seen">Mark all seen</button>
         </div>
 
         <section class="signal-hero">
@@ -1604,6 +1609,25 @@ async function renderSignalRadarDashboard(filter = _signalRadarFilter, forceRefr
 
   $("signal-back").onclick = () => renderRoleSelection();
   $("signal-refresh").onclick = () => renderSignalRadarDashboard(_signalRadarFilter, true);
+  $("signal-hide-seen").onclick = () => {
+    _hideSeenSignals = !_hideSeenSignals;
+    renderSignalRadarDashboard(_signalRadarFilter, false);
+  };
+  $("signal-mark-seen").onclick = async () => {
+    const btn = $("signal-mark-seen");
+    btn.disabled = true; btn.textContent = "Saving…";
+    try {
+      await fetch("/api/signals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "mark_seen", signals: allSignals.map(s => ({ company: s.company, signal_id: s.signal_id })) }),
+      });
+      // Mark all as seen in the local data so badges update immediately
+      allSignals.forEach(s => s.is_new = false);
+    } catch(e) {}
+    btn.disabled = false; btn.textContent = "Mark all seen";
+    renderSignalRadarDashboard(_signalRadarFilter, false);
+  };
   document.querySelectorAll(".signal-filter").forEach(btn => {
     btn.onclick = () => renderSignalRadarDashboard(btn.dataset.signal || "", false);
   });
@@ -1637,6 +1661,7 @@ function renderSignalTask(signal) {
     <article class="signal-task">
       <div class="signal-task-main">
         <div class="signal-task-head">
+          ${signal.is_new ? `<span class="signal-new-badge">New</span>` : ""}
           <span class="signal-type">${escHtml(signal.signal)}</span>
           ${signal.regulation_tag ? `<span class="signal-reg-badge reg-${escHtml(String(signal.regulation_tag).toLowerCase())}">${escHtml(signal.regulation_tag)}</span>` : ""}
           <span class="signal-confidence ${Number(signal.confidence) < 55 ? "low" : ""}">${escHtml(signal.confidence || "—")}% confidence</span>

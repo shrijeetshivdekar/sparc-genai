@@ -90,7 +90,7 @@ def handle_post_request(payload: dict) -> tuple[int, dict]:
     if action == "sync_signals":
         try:
             from startup_shield_web.server import get_signal_radar
-            radar = get_signal_radar(limit=50, live=False)
+            radar = get_signal_radar(limit=50, live=True)
             signals = radar.get("signals", [])
             result = funding_ingest.sync_from_signals(signals)
             result["disclaimer"] = _DISCLAIMER

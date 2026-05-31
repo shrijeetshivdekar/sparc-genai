@@ -3857,37 +3857,47 @@ def _fetch_direct_rss_signal_articles(limit: int = 18, window_days: int = 30) ->
         ("The Ken",          "https://the-ken.com/feed/"),
         ("Finshots",         "https://finshots.in/feed/"),
     ]
-    timeout = float(os.environ.get("SIGNAL_RADAR_TIMEOUT_SECONDS", "8"))
-    rows = []
-    seen_titles = set()
+    per_feed_timeout = float(os.environ.get("SIGNAL_RADAR_TIMEOUT_SECONDS", "5"))
 
-    for source_name, feed_url in feeds:
+    def _fetch_one_feed(name_url):
+        source_name, feed_url = name_url
         req = urllib.request.Request(feed_url, headers={"User-Agent": "Mozilla/5.0 SPARC-SignalRadar/1.0"})
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
+            with urllib.request.urlopen(req, timeout=per_feed_timeout) as resp:
                 root = ET.fromstring(resp.read())
         except Exception:
-            continue
-
+            return []
         channel = root.find("channel")
         items = channel.findall("item") if channel is not None else root.findall(".//item")
+        feed_rows = []
         for item in items[:30]:
             title = (item.findtext("title") or "").strip()
-            if not title or title in seen_titles:
+            if not title:
                 continue
-            seen_titles.add(title)
             pub_date = item.findtext("pubDate") or item.findtext("{*}date") or ""
             if not _within_signal_window(pub_date, window_days):
                 continue
-            rows.append({
+            feed_rows.append({
                 "title": title,
                 "url": item.findtext("link") or feed_url,
                 "source": source_name,
                 "seendate": pub_date,
                 "description": item.findtext("description") or "",
             })
-            if len(rows) >= limit * 3:
-                break
+        return feed_rows
+
+    # Fetch all feeds in parallel — all 22 fire concurrently instead of sequentially.
+    from concurrent.futures import ThreadPoolExecutor as _TPE
+    rows = []
+    seen_titles: set = set()
+    with _TPE(max_workers=10) as ex:
+        for feed_rows in ex.map(_fetch_one_feed, feeds, timeout=per_feed_timeout + 4):
+            for row in feed_rows:
+                if row["title"] not in seen_titles:
+                    seen_titles.add(row["title"])
+                    rows.append(row)
+                    if len(rows) >= limit * 3:
+                        break
 
     matched = [r for r in rows if _classify_signal(r).get("id") != "market_news"]
     return (matched or rows)[:limit]

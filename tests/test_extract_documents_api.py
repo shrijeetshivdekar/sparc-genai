@@ -51,7 +51,8 @@ def test_pipeline_pl_only():
     assert r["extraction_summary"]["payroll_cr"]["value"] == 285.0
 
     assert r["prefill_profile"]["funding_stage"]["value"] == "Series B+"
-    assert r["prefill_profile"]["team_size"]["value"] >= 3000  # ₹285Cr/₹8L
+    # ₹285Cr payroll in ₹100-1000Cr bucket → ₹12L/head → ~2375 employees
+    assert r["prefill_profile"]["team_size"]["value"] >= 2000
 
     assert r["evidence_packet"]["revenue_cr"] == 3288.0
 

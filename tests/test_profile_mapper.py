@@ -32,14 +32,14 @@ def test_revenue_buckets():
 # ── payroll → team_size ─────────────────────────────────────────────────────
 
 def test_payroll_to_team_size_typical():
-    # ₹8 Cr ÷ ₹8L = 100 people
-    assert payroll_to_team_size(8) == 100
+    # ₹8 Cr is in the <₹10 Cr bucket → ₹6L/head → 133 people
+    assert payroll_to_team_size(8) == 133
 
 
 def test_payroll_to_team_size_small_company():
-    # ₹1 Cr ÷ ₹8L ≈ 12.5 → 12 or 13
+    # ₹1 Cr ÷ ₹6L ≈ 17 people
     n = payroll_to_team_size(1)
-    assert 10 <= n <= 15
+    assert 15 <= n <= 20
 
 
 def test_payroll_to_team_size_none_or_zero():
@@ -56,7 +56,8 @@ def test_map_full_extraction():
     }
     pre = map_extracts_to_profile(summary)
     assert pre["funding_stage"]["value"] == "Series A"
-    assert pre["team_size"]["value"] == 100
+    # ₹8 Cr payroll in <₹10 Cr bucket → ₹6L/head → 133
+    assert pre["team_size"]["value"] == 133
 
 
 def test_map_falls_back_to_itr_revenue_when_no_pl():

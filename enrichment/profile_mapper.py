@@ -10,9 +10,12 @@ from __future__ import annotations
 from typing import Dict, Optional
 
 
-# Median annual cost per employee (INR), used to estimate team_size from payroll.
-# Conservative: covers loaded cost including benefits.
-_MEDIAN_COST_PER_EMPLOYEE_INR = 800_000  # ₹8 lakh
+def _cost_per_head_inr(payroll_cr: float) -> int:
+    """Sliding median cost per employee based on payroll scale."""
+    if payroll_cr < 10:    return 6_00_000   # small co — ₹6L loaded
+    if payroll_cr < 100:   return 8_00_000   # mid-market — ₹8L
+    if payroll_cr < 1000:  return 12_00_000  # large — ₹12L
+    return 18_00_000                          # enterprise IT services — ₹18L
 
 
 def revenue_to_funding_stage(revenue_cr: Optional[float]) -> Optional[str]:
@@ -33,10 +36,15 @@ def revenue_to_funding_stage(revenue_cr: Optional[float]) -> Optional[str]:
 
 
 def payroll_to_team_size(payroll_cr: Optional[float]) -> Optional[int]:
-    """Estimate team_size from annual employee benefit expense (₹Cr)."""
+    """Estimate team_size from annual employee benefit expense (₹Cr).
+
+    Uses sliding per-head cost so large IT services companies get realistic
+    headcounts (₹18L/head) instead of the naive ₹8L flat rate.
+    """
     if payroll_cr is None or payroll_cr <= 0:
         return None
-    headcount = (payroll_cr * 1_00_00_000) / _MEDIAN_COST_PER_EMPLOYEE_INR
+    cost = _cost_per_head_inr(payroll_cr)
+    headcount = (payroll_cr * 1_00_00_000) / cost
     return max(1, int(round(headcount)))
 
 
@@ -75,7 +83,7 @@ def map_extracts_to_profile(extraction_summary: Dict[str, dict]) -> Dict[str, di
             "value": team,
             "confidence": "calculated",
             "source": f"Estimated from P&L employee cost ₹{payroll_cr} Cr "
-                      f"@ ₹{_MEDIAN_COST_PER_EMPLOYEE_INR // 100000}L median per head",
+                      f"@ ₹{_cost_per_head_inr(payroll_cr) // 100000}L median per head",
         }
 
     return prefill

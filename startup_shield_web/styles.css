@@ -11663,3 +11663,171 @@ body.pc-explain-open { overflow: hidden; }
   .upload-extraction-actions .btn { width: 100%; }
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+   Verified Assessment additions — categorical inferences, ratios, SI,
+   loading, modifier reasons, confidence band, data-quality warnings
+   ───────────────────────────────────────────────────────────────────────── */
+
+.upload-fy-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  margin-left: 10px;
+  font: 600 12px/1 "Plus Jakarta Sans","DM Sans",system-ui,sans-serif;
+  letter-spacing: 0.04em;
+  color: #0369A1;
+  background: rgba(3,105,161,.08);
+  border: 1px solid rgba(3,105,161,.18);
+  border-radius: 999px;
+}
+
+.inf-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.inf-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  font: 600 12px/1.1 "DM Sans",system-ui,sans-serif;
+  background: #F1F5F9;
+  color: #334155;
+  border: 1px solid #E2E8F0;
+  border-radius: 999px;
+}
+.inf-pill-sector  { background: rgba(3,105,161,.08); color: #0369A1; border-color: rgba(3,105,161,.18); }
+.inf-pill-data-high   { background: rgba(185,28,28,.06); color: #B91C1C; border-color: rgba(185,28,28,.18); }
+.inf-pill-data-medium { background: rgba(217,119,6,.06); color: #B45309; border-color: rgba(217,119,6,.18); }
+.inf-pill-data-low    { background: rgba(22,163,74,.06); color: #15803D; border-color: rgba(22,163,74,.18); }
+.inf-pill-ai     { background: rgba(124,58,237,.06); color: #6D28D9; border-color: rgba(124,58,237,.18); }
+.inf-pill-reg    { background: rgba(217,119,6,.06); color: #B45309; border-color: rgba(217,119,6,.18); }
+
+.inf-evidence {
+  font: italic 13px/1.45 "DM Sans",system-ui,sans-serif;
+  color: #64748B;
+  margin-top: 6px;
+  padding-left: 2px;
+}
+
+.dq-warnings { display: flex; flex-direction: column; gap: 6px; }
+.dq-warning {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font: 500 13px/1.4 "DM Sans",system-ui,sans-serif;
+}
+.dq-warning.dq-info     { background: rgba(3,105,161,.06);  color: #0369A1; border: 1px solid rgba(3,105,161,.15); }
+.dq-warning.dq-warning  { background: rgba(217,119,6,.07);  color: #B45309; border: 1px solid rgba(217,119,6,.18); }
+.dq-warning.dq-critical { background: rgba(185,28,28,.07);  color: #B91C1C; border: 1px solid rgba(185,28,28,.20); }
+.dq-icon { font-size: 15px; line-height: 1.2; }
+.dq-msg  { color: inherit; }
+
+.ratios-table { display: flex; flex-direction: column; gap: 4px; }
+.ratio-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.3fr) 100px auto 2fr;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid #F1F5F9;
+  font: 500 13px/1.3 "DM Sans",system-ui,sans-serif;
+}
+.ratio-row:last-child { border-bottom: none; }
+.ratio-name { color: var(--ink); font-weight: 600; }
+.ratio-value { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+.ratio-formula { color: #64748B; font-size: 12px; }
+
+.ratio-band {
+  display: inline-flex;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  background: #F1F5F9;
+  color: #475569;
+}
+.ratio-band[class*="q1"] { background: rgba(217,119,6,.08);  color: #B45309; }
+.ratio-band[class*="q2"] { background: rgba(100,116,139,.08); color: #475569; }
+.ratio-band[class*="q3"] { background: rgba(14,165,233,.08); color: #0369A1; }
+.ratio-band[class*="q4"] { background: rgba(22,163,74,.08);  color: #15803D; }
+.ratio-band[class*="distressed"] { background: rgba(185,28,28,.10); color: #B91C1C; }
+.ratio-band[class*="burn"] { background: rgba(185,28,28,.10); color: #B91C1C; }
+.ratio-band[class*="highly"] { background: rgba(185,28,28,.10); color: #B91C1C; }
+
+.mods-list { display: flex; flex-direction: column; gap: 4px; }
+.mod-row {
+  display: grid;
+  grid-template-columns: 48px minmax(160px, 1fr) 3fr;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font: 500 13px/1.4 "DM Sans",system-ui,sans-serif;
+}
+.mod-row.mod-up   { background: rgba(185,28,28,.04); border: 1px solid rgba(185,28,28,.10); }
+.mod-row.mod-down { background: rgba(22,163,74,.04); border: 1px solid rgba(22,163,74,.10); }
+.mod-delta {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  padding: 3px 0;
+  border-radius: 6px;
+}
+.mod-up .mod-delta   { color: #B91C1C; background: rgba(185,28,28,.10); }
+.mod-down .mod-delta { color: #15803D; background: rgba(22,163,74,.10); }
+.mod-dim { color: var(--ink); font-weight: 700; }
+.mod-why { color: #475569; font-size: 12.5px; }
+
+.si-table {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 8px;
+}
+.si-row {
+  display: grid;
+  grid-template-columns: minmax(180px,1.4fr) 110px 70px 2fr;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 10px;
+  font: 500 13px/1.35 "DM Sans",system-ui,sans-serif;
+}
+.si-row + .si-row { border-top: 1px solid #E2E8F0; }
+.si-row-head {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748B;
+}
+.si-cover  { color: var(--ink); font-weight: 700; }
+.si-value  { color: #0369A1; font-weight: 800; font-variant-numeric: tabular-nums; }
+.si-loading { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.si-formula { color: #64748B; font-size: 12px; }
+
+.conf-band {
+  padding: 14px 16px;
+  border-radius: 10px;
+  font: 500 13.5px/1.45 "DM Sans",system-ui,sans-serif;
+}
+.conf-band strong { font-weight: 800; }
+.conf-band.conf-band-fully_verified     { background: rgba(22,163,74,.08);  color: #15803D; border: 1px solid rgba(22,163,74,.18); }
+.conf-band.conf-band-well_documented    { background: rgba(14,165,233,.07); color: #0369A1; border: 1px solid rgba(14,165,233,.18); }
+.conf-band.conf-band-partially_verified { background: rgba(217,119,6,.07);  color: #B45309; border: 1px solid rgba(217,119,6,.18); }
+.conf-band.conf-band-estimated          { background: rgba(100,116,139,.07); color: #475569; border: 1px solid rgba(100,116,139,.18); }
+.conf-inputs { font-size: 12px; color: inherit; opacity: 0.85; margin-top: 4px; }
+
+@media (max-width: 720px) {
+  .ratio-row, .mod-row, .si-row, .dq-warning {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}

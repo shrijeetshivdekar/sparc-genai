@@ -1361,8 +1361,8 @@ function renderRoleSelection() {
           </button>
           <button class="hev-mode-card" type="button" id="upload-docs-btn">
             <div class="hev-mode-card-inner">
-              <span class="hev-mode-kicker">Upload Financial Documents</span>
-              <strong class="hev-mode-name">Auto-fill from P&amp;L, BS, ITR</strong>
+              <span class="hev-mode-kicker">Verified Assessment · NEW</span>
+              <strong class="hev-mode-name">Upload P&amp;L / BS — full financial ratio engine + auto-classified sector</strong>
               <span class="hev-mode-arrow-r">→</span>
             </div>
           </button>
@@ -1500,9 +1500,9 @@ function renderUploadPanel() {
   $("main-content").innerHTML = `
     <main class="upload-shell">
       <header class="upload-hero">
-        <div class="upload-eyebrow"><span class="hev-eyebrow-dot"></span>Documents · Auto-prefill</div>
-        <h1 class="upload-title">Upload your financials.<br/><em>We do the typing.</em></h1>
-        <p class="upload-sub">Drop a P&amp;L, Balance Sheet, or ITR PDF and we'll extract the numbers, infer your stage and team size, and open the assessment form prefilled.</p>
+        <div class="upload-eyebrow"><span class="hev-eyebrow-dot"></span>Verified Assessment · Financial ratio engine</div>
+        <h1 class="upload-title">Drop the financials.<br/><em>Get the full picture.</em></h1>
+        <p class="upload-sub">Upload a P&amp;L, Balance Sheet, or ITR. We'll extract the numbers, classify the business, run 8 financial ratios, modify the risk scores, and compute sum insured per cover from the actual data — not stage proxies.</p>
       </header>
 
       <section class="upload-dropzone" id="upload-dropzone" tabindex="0" aria-label="Drop PDFs here">
@@ -1710,6 +1710,8 @@ function _renderExtractionSummary(result) {
   const summary = result.extraction_summary || {};
   const prefill = result.prefill_profile || {};
   const checks = result.consistency_checks || [];
+  const inferences = result.categorical_inferences || {};
+  const verified = result.verified_assessment || null;
   const fields = Object.entries(summary).filter(([, v]) => v && v.value !== null);
 
   // No fields at all after successful parse — doc type matched but nothing extracted.
@@ -1747,14 +1749,61 @@ function _renderExtractionSummary(result) {
     </div>
   `).join("");
 
+  // ── Categorical inferences card (sector, ops, data, regulatory, ai)
+  let inferenceHtml = "";
+  if (inferences && Object.keys(inferences).length) {
+    const tags = [];
+    if (inferences.sector) tags.push(`<span class="inf-pill inf-pill-sector">${_escape(inferences.sector)}</span>`);
+    if (inferences.operations) tags.push(`<span class="inf-pill">${_escape(inferences.operations)}</span>`);
+    if (inferences.data_sensitivity) tags.push(`<span class="inf-pill inf-pill-data-${inferences.data_sensitivity.toLowerCase()}">Data sensitivity: ${_escape(inferences.data_sensitivity)}</span>`);
+    if (inferences.ai_in_product) tags.push(`<span class="inf-pill inf-pill-ai">AI in product</span>`);
+    if (Array.isArray(inferences.regulatory_flags) && inferences.regulatory_flags.length) {
+      inferences.regulatory_flags.forEach(f => tags.push(`<span class="inf-pill inf-pill-reg">${_escape(f)}</span>`));
+    }
+    const conf = inferences.inference_confidence;
+    const confTxt = (typeof conf === "number") ? ` · Gemini confidence ${(conf*100).toFixed(0)}%` : "";
+    inferenceHtml = `
+      <div class="extraction-section-label">Business classification${confTxt}</div>
+      <div class="inf-tags">${tags.join("")}</div>
+      ${inferences.inference_evidence ? `<div class="inf-evidence">"${_escape(inferences.inference_evidence)}"</div>` : ""}
+    `;
+  }
+
+  // ── Verified-assessment renderings (ratios, SI, loading, band, warnings)
+  let verifiedHtml = "";
+  if (verified && !verified.error) {
+    verifiedHtml = _renderVerifiedAssessment(verified);
+  }
+
+  // ── Data quality warnings (inline in summary card — design choice)
+  const warnings = (verified && Array.isArray(verified.data_quality_warnings)) ? verified.data_quality_warnings : [];
+  const warningHtml = warnings.length ? `
+    <div class="extraction-section-label">Data quality notices</div>
+    <div class="dq-warnings">
+      ${warnings.map(w => `
+        <div class="dq-warning dq-${w.severity || "info"}">
+          <span class="dq-icon">${w.severity === "critical" ? "⛔" : (w.severity === "warning" ? "⚠" : "ℹ")}</span>
+          <span class="dq-msg">${_escape(w.message)}</span>
+        </div>
+      `).join("")}
+    </div>
+  ` : "";
+
   box.innerHTML = `
     <div class="upload-extraction-card">
       <div class="upload-extraction-head">
         <span class="hev-eyebrow-dot"></span>
-        <h2>Extracted from your documents</h2>
+        <h2>${inferences && inferences.company_name ? _escape(inferences.company_name) + " · " : ""}Verified Assessment</h2>
+        ${inferences && inferences.fiscal_year ? `<span class="upload-fy-pill">${_escape(inferences.fiscal_year)}</span>` : ""}
       </div>
 
-      ${fields.length ? `<div class="extraction-section-label">Numbers we found</div><div class="extraction-fields">${fieldRows}</div>` : ""}
+      ${inferenceHtml}
+
+      ${warningHtml}
+
+      ${fields.length ? `<div class="extraction-section-label">Numbers extracted</div><div class="extraction-fields">${fieldRows}</div>` : ""}
+
+      ${verifiedHtml}
 
       ${checks.filter(c => c.status !== "not_applicable").length
         ? `<div class="extraction-section-label">Consistency checks</div><div class="extraction-checks">${checkRows}</div>`
@@ -1777,6 +1826,125 @@ function _renderExtractionSummary(result) {
 
   $("upload-restart").onclick = () => renderUploadPanel();
   $("upload-continue").onclick = () => _applyExtractionAndOpenForm(result);
+}
+
+function _renderVerifiedAssessment(v) {
+  const ratios = v.ratios || {};
+  const si = v.sum_insured_per_cover || {};
+  const loading = v.risk_loading_per_cover || {};
+  const band = v.confidence_band || {};
+  const reasons = v.modifier_reasons || [];
+
+  // ── Financial ratios table
+  const ratioOrder = [
+    "net_profit_margin", "gross_margin", "debt_to_equity", "current_ratio_proxy",
+    "dso_days", "asset_intensity", "payroll_intensity", "tax_efficiency",
+  ];
+  const ratioRows = ratioOrder
+    .map(k => [k, ratios[k]])
+    .filter(([, r]) => r && (r.value !== null || r.band))
+    .map(([k, r]) => `
+      <div class="ratio-row">
+        <span class="ratio-name">${_humaniseRatio(k)}</span>
+        <span class="ratio-value">${_formatRatioValue(k, r.value)}</span>
+        <span class="ratio-band band-${r.band || "na"}">${_humaniseBand(r.band)}</span>
+        <span class="ratio-formula">${_escape(r.formula || "")}</span>
+      </div>
+    `).join("");
+
+  // ── Sum Insured per cover (financial-derived)
+  const siRows = Object.entries(si).map(([cover, c]) => `
+    <div class="si-row">
+      <span class="si-cover">${_escape(cover)}</span>
+      <span class="si-value">${_inrToHuman(c.si_inr)}</span>
+      <span class="si-loading">×${(loading[cover]?.loading || 1.0).toFixed(2)}</span>
+      <span class="si-formula">${_escape(c.formula || "")}</span>
+    </div>
+  `).join("");
+
+  // ── Score modifiers (only show actual changes)
+  const reasonRows = reasons.length ? reasons.map(r => `
+    <div class="mod-row mod-${r.modifier > 0 ? "up" : "down"}">
+      <span class="mod-delta">${r.modifier > 0 ? "+" : ""}${r.modifier}</span>
+      <span class="mod-dim">${_humaniseField(r.dim)}</span>
+      <span class="mod-why">${_escape(r.explanation)}</span>
+    </div>
+  `).join("") : "";
+
+  // ── Confidence band
+  const bandLabel = ({
+    fully_verified: "Fully verified",
+    well_documented: "Well documented",
+    partially_verified: "Partially verified",
+    estimated: "Estimated",
+  })[band.verification_level] || band.verification_level || "Unknown";
+
+  return `
+    ${ratioRows ? `
+      <div class="extraction-section-label">Financial ratios</div>
+      <div class="ratios-table">${ratioRows}</div>
+    ` : ""}
+
+    ${reasonRows ? `
+      <div class="extraction-section-label">Risk score modifiers applied</div>
+      <div class="mods-list">${reasonRows}</div>
+    ` : ""}
+
+    ${siRows ? `
+      <div class="extraction-section-label">Sum insured per cover (financial-derived)</div>
+      <div class="si-table">
+        <div class="si-row si-row-head">
+          <span class="si-cover">Cover</span>
+          <span class="si-value">Sum Insured</span>
+          <span class="si-loading">Loading</span>
+          <span class="si-formula">Formula</span>
+        </div>
+        ${siRows}
+      </div>
+    ` : ""}
+
+    <div class="extraction-section-label">Premium confidence</div>
+    <div class="conf-band conf-band-${band.verification_level || "estimated"}">
+      <strong>${bandLabel}</strong> · Premium range ±${band.plus_minus_pct || 25}%
+      ${band.verified_inputs?.length ? `<div class="conf-inputs">Verified from documents: ${band.verified_inputs.map(_humaniseField).join(", ")}</div>` : ""}
+    </div>
+  `;
+}
+
+function _humaniseRatio(k) {
+  const map = {
+    net_profit_margin: "Net profit margin",
+    gross_margin: "Gross margin",
+    debt_to_equity: "Debt / Equity",
+    current_ratio_proxy: "Current ratio (proxy)",
+    dso_days: "Days sales outstanding",
+    asset_intensity: "Asset intensity (PPE/Assets)",
+    payroll_intensity: "Payroll / Revenue",
+    tax_efficiency: "Tax / PBT",
+  };
+  return map[k] || k.replace(/_/g, " ");
+}
+
+function _humaniseBand(b) {
+  if (!b) return "—";
+  return b.replace(/_/g, " ").replace(/q[1-4]$/i, m => `(${m.toUpperCase()})`);
+}
+
+function _formatRatioValue(key, v) {
+  if (v === null || v === undefined) return "—";
+  if (key === "dso_days") return `${v} days`;
+  if (key === "debt_to_equity" || key === "current_ratio_proxy") return v.toFixed(2);
+  // Pct-style ratios
+  return `${(v * 100).toFixed(1)}%`;
+}
+
+function _inrToHuman(rupees) {
+  if (!rupees || rupees <= 0) return "—";
+  const cr = rupees / 1_00_00_000;
+  if (cr >= 100) return `₹${cr.toFixed(0)} Cr`;
+  if (cr >= 1) return `₹${cr.toFixed(2)} Cr`;
+  const lakh = rupees / 1_00_000;
+  return `₹${lakh.toFixed(1)} L`;
 }
 
 function _applyExtractionAndOpenForm(result) {

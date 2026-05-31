@@ -1359,6 +1359,13 @@ function renderRoleSelection() {
               <span class="hev-mode-arrow-r">→</span>
             </div>
           </button>
+          <button class="hev-mode-card" type="button" id="upload-docs-btn">
+            <div class="hev-mode-card-inner">
+              <span class="hev-mode-kicker">Upload Financial Documents</span>
+              <strong class="hev-mode-name">Auto-fill from P&amp;L, BS, ITR</strong>
+              <span class="hev-mode-arrow-r">→</span>
+            </div>
+          </button>
         </div>
 
       </div>
@@ -1461,6 +1468,7 @@ function renderRoleSelection() {
     renderCustomerInput();
   };
   $("underwriter-role-btn").onclick = () => renderForm();
+  $("upload-docs-btn").onclick = () => renderUploadPanel();
 
   const revealObserver = new IntersectionObserver((entries) => {
     entries.forEach(e => { if (e.isIntersecting) e.target.classList.add("hev-visible"); });
@@ -1469,6 +1477,363 @@ function renderRoleSelection() {
     el.style.transitionDelay = `${i * 80}ms`;
     revealObserver.observe(el);
   });
+}
+
+// ─── Upload Documents view ───────────────────────────────────────────────────
+const _UPLOAD_MAX_FILE_MB = 25;
+const _UPLOAD_MAX_TOTAL_MB = 100;
+
+let _uploadFiles = [];   // [{file, status, error, extractedText, detectedType}]
+let _uploadResult = null;
+
+function renderUploadPanel() {
+  state.view = "upload";
+  if (!_navCalledByHistory) {
+    _navHistory = _navHistory.slice(0, _navPos + 1);
+    _navHistory.push({ fn: renderUploadPanel, args: [], view: "upload" });
+    _navPos = _navHistory.length - 1;
+    setTimeout(_updateNavButtons, 0);
+  }
+  _uploadFiles = [];
+  _uploadResult = null;
+
+  $("main-content").innerHTML = `
+    <main class="upload-shell">
+      <header class="upload-hero">
+        <div class="upload-eyebrow"><span class="hev-eyebrow-dot"></span>Documents · Auto-prefill</div>
+        <h1 class="upload-title">Upload your financials.<br/><em>We do the typing.</em></h1>
+        <p class="upload-sub">Drop a P&amp;L, Balance Sheet, or ITR PDF and we'll extract the numbers, infer your stage and team size, and open the assessment form prefilled.</p>
+      </header>
+
+      <section class="upload-dropzone" id="upload-dropzone" tabindex="0" aria-label="Drop PDFs here">
+        <div class="upload-dropzone-inner">
+          <div class="upload-dropzone-icon">⇪</div>
+          <div class="upload-dropzone-headline">Drag PDFs here</div>
+          <div class="upload-dropzone-sub">or <button type="button" class="upload-browse" id="upload-browse-btn">browse files</button></div>
+          <div class="upload-dropzone-meta">P&amp;L · Balance Sheet · ITR &nbsp;·&nbsp; Max ${_UPLOAD_MAX_FILE_MB} MB per file, ${_UPLOAD_MAX_TOTAL_MB} MB total</div>
+        </div>
+        <input type="file" id="upload-file-input" accept="application/pdf" multiple hidden />
+      </section>
+
+      <div id="upload-file-list" class="upload-file-list"></div>
+      <div id="upload-result" class="upload-result"></div>
+    </main>
+  `;
+
+  _bindUploadHandlers();
+}
+
+function _bindUploadHandlers() {
+  const dz = $("upload-dropzone");
+  const input = $("upload-file-input");
+
+  $("upload-browse-btn").onclick = (e) => { e.preventDefault(); input.click(); };
+  input.onchange = (e) => _handleUploadFiles(Array.from(e.target.files || []));
+
+  dz.addEventListener("dragover", (e) => { e.preventDefault(); dz.classList.add("is-active"); });
+  dz.addEventListener("dragleave", () => dz.classList.remove("is-active"));
+  dz.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dz.classList.remove("is-active");
+    _handleUploadFiles(Array.from(e.dataTransfer.files || []));
+  });
+}
+
+function _handleUploadFiles(files) {
+  // Validate file types and sizes.
+  const pdfs = files.filter(f => (f.type === "application/pdf") || /\.pdf$/i.test(f.name));
+  const rejected = files.filter(f => !pdfs.includes(f));
+
+  let totalBytes = pdfs.reduce((s, f) => s + f.size, 0);
+  if (totalBytes > _UPLOAD_MAX_TOTAL_MB * 1_000_000) {
+    _renderUploadError(`Total upload (${(totalBytes/1_000_000).toFixed(1)} MB) exceeds ${_UPLOAD_MAX_TOTAL_MB} MB limit.`);
+    return;
+  }
+
+  for (const f of pdfs) {
+    if (f.size > _UPLOAD_MAX_FILE_MB * 1_000_000) {
+      _renderUploadError(`${f.name} (${(f.size/1_000_000).toFixed(1)} MB) exceeds ${_UPLOAD_MAX_FILE_MB} MB per-file limit.`);
+      return;
+    }
+  }
+
+  _uploadFiles = pdfs.map(f => ({ file: f, status: "queued", error: null, extractedText: "", detectedType: null }));
+  if (rejected.length) {
+    _renderUploadError(`Skipped ${rejected.length} non-PDF file${rejected.length > 1 ? "s" : ""}.`);
+  }
+  _renderUploadFileList();
+  _processUploads();
+}
+
+function _renderUploadError(msg) {
+  const box = $("upload-result");
+  if (!box) return;
+  box.innerHTML = `<div class="upload-error">${msg}</div>`;
+}
+
+function _renderUploadFileList() {
+  const box = $("upload-file-list");
+  if (!box) return;
+  if (!_uploadFiles.length) { box.innerHTML = ""; return; }
+  box.innerHTML = _uploadFiles.map((entry, i) => {
+    const statusLabel = ({
+      queued: "Queued",
+      extracting: "Extracting text…",
+      uploading: "Sending to server…",
+      done: "✓ Done",
+      error: `✗ ${entry.error || "Failed"}`,
+    })[entry.status] || entry.status;
+    return `
+      <div class="upload-file-row" data-idx="${i}">
+        <div class="upload-file-name">${_escape(entry.file.name)}</div>
+        <div class="upload-file-meta">${(entry.file.size/1_000_000).toFixed(2)} MB · ${entry.detectedType || "detecting…"}</div>
+        <div class="upload-file-status upload-status-${entry.status}">${statusLabel}</div>
+      </div>
+    `;
+  }).join("");
+}
+
+function _escape(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
+
+function _detectTypeFromName(name) {
+  const n = (name || "").toLowerCase();
+  if (/itr|income[-_]?tax/.test(n)) return "itr";
+  if (/balance|bsheet|\bbs[-_ ]/.test(n)) return "balance_sheet";
+  if (/p[&_]?l|pnl|profit|income_statement/.test(n)) return "pl";
+  return null;
+}
+
+async function _extractTextFromPdf(file) {
+  if (typeof pdfjsLib === "undefined") {
+    throw new Error("PDF.js library not loaded");
+  }
+  // Worker is required for PDF.js; point it at the same CDN version.
+  if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  }
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const pages = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    pages.push(content.items.map(it => it.str).join(" "));
+  }
+  return pages.join("\n");
+}
+
+async function _processUploads() {
+  for (const entry of _uploadFiles) {
+    entry.detectedType = _detectTypeFromName(entry.file.name);
+    entry.status = "extracting";
+    _renderUploadFileList();
+    try {
+      entry.extractedText = await _extractTextFromPdf(entry.file);
+      if (!entry.extractedText || !entry.extractedText.trim()) {
+        entry.status = "error";
+        entry.error = "No text — likely scanned image";
+      } else {
+        entry.status = "uploading";
+      }
+    } catch (err) {
+      entry.status = "error";
+      entry.error = (err && err.message) || "Extraction failed";
+    }
+    _renderUploadFileList();
+  }
+
+  const good = _uploadFiles.filter(e => e.status === "uploading" && e.extractedText);
+  if (!good.length) {
+    _renderUploadError("Couldn't read any of these PDFs. They may be scanned images — please upload text-based PDFs (download directly from your accounting software, not photos).");
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/extract-documents", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        documents: good.map(e => ({
+          filename: e.file.name,
+          text: e.extractedText,
+          detected_type: e.detectedType || undefined,
+        })),
+      }),
+    });
+    const json = await response.json();
+    if (!response.ok) {
+      _renderUploadError(json.error || "Server error during extraction.");
+      return;
+    }
+    // Mark done/error per-doc based on server response.
+    const serverDocs = json.documents || [];
+    for (const e of good) {
+      const sd = serverDocs.find(d => d.filename === e.file.name);
+      if (sd && sd.extraction_status === "error") {
+        e.status = "error";
+        e.error = (sd.extraction_errors || []).join("; ") || "Unrecognised document type";
+      } else {
+        e.status = "done";
+      }
+    }
+    _renderUploadFileList();
+
+    // If every document errored, surface the errors and bail.
+    const anySuccess = (json.documents || []).some(d => d.extraction_status !== "error");
+    if (!anySuccess) {
+      const msgs = (json.documents || []).map(d =>
+        `${d.filename}: ${(d.extraction_errors || ["unknown error"]).join("; ")}`
+      );
+      _renderUploadError(
+        `Couldn't extract fields from ${msgs.length > 1 ? "these files" : "this file"}.<br><br>` +
+        msgs.map(m => `• ${_escape(m)}`).join("<br>") +
+        `<br><br>Supported document types: P&amp;L Statement, Balance Sheet, Income Tax Return (ITR). ` +
+        `Try renaming the file to include "P&amp;L", "balance", or "ITR" in the filename, or upload a different financial document.`
+      );
+      return;
+    }
+
+    _uploadResult = json;
+    _renderExtractionSummary(json);
+  } catch (err) {
+    _renderUploadError(`Network error: ${err.message}`);
+  }
+}
+
+function _renderExtractionSummary(result) {
+  const box = $("upload-result");
+  const summary = result.extraction_summary || {};
+  const prefill = result.prefill_profile || {};
+  const checks = result.consistency_checks || [];
+  const fields = Object.entries(summary).filter(([, v]) => v && v.value !== null);
+
+  // No fields at all after successful parse — doc type matched but nothing extracted.
+  if (!fields.length && !Object.keys(prefill).length) {
+    _renderUploadError(
+      "Document was read but no financial figures were found.<br><br>" +
+      "This may be an Annual Report, Shareholding Pattern, or other filing rather than a standalone P&amp;L or Balance Sheet. " +
+      "Please upload the standalone P&amp;L Statement, Balance Sheet, or ITR filing."
+    );
+    return;
+  }
+
+  const fieldRows = fields.map(([key, v]) => `
+    <div class="extraction-field-row">
+      <span class="extraction-field-name">${_humaniseField(key)}</span>
+      <span class="extraction-field-value">${_formatValue(key, v.value)}</span>
+      <span class="extraction-field-badge ext-badge-${v.confidence}">${v.confidence}</span>
+      <span class="extraction-field-source">${_escape(v.document_source || v.source || "")}</span>
+    </div>
+  `).join("");
+
+  const checkRows = checks.filter(c => c.status !== "not_applicable").map(c => `
+    <div class="extraction-check extraction-check-${c.status}">
+      <span class="extraction-check-icon">${c.status === "pass" ? "✓" : "⚠"}</span>
+      <span class="extraction-check-name">${_escape(c.check)}</span>
+      <span class="extraction-check-msg">${_escape(c.message)}</span>
+    </div>
+  `).join("");
+
+  const prefillRows = Object.entries(prefill).map(([k, v]) => `
+    <div class="prefill-row">
+      <span class="prefill-name">${_humaniseField(k)}</span>
+      <span class="prefill-value">${_escape(String(v.value))}</span>
+      <span class="prefill-source">${_escape(v.source || "")}</span>
+    </div>
+  `).join("");
+
+  box.innerHTML = `
+    <div class="upload-extraction-card">
+      <div class="upload-extraction-head">
+        <span class="hev-eyebrow-dot"></span>
+        <h2>Extracted from your documents</h2>
+      </div>
+
+      ${fields.length ? `<div class="extraction-section-label">Numbers we found</div><div class="extraction-fields">${fieldRows}</div>` : ""}
+
+      ${checks.filter(c => c.status !== "not_applicable").length
+        ? `<div class="extraction-section-label">Consistency checks</div><div class="extraction-checks">${checkRows}</div>`
+        : ""}
+
+      ${Object.keys(prefill).length
+        ? `<div class="extraction-section-label">Form will be prefilled with</div><div class="prefill-grid">${prefillRows}</div>`
+        : ""}
+
+      <div class="upload-extraction-actions">
+        <button class="btn btn-ghost" type="button" id="upload-restart">← Upload different files</button>
+        <button class="btn btn-primary" type="button" id="upload-continue">${
+          Object.keys(prefill).length
+            ? "Open assessment with these values →"
+            : "Open assessment form →"
+        }</button>
+      </div>
+    </div>
+  `;
+
+  $("upload-restart").onclick = () => renderUploadPanel();
+  $("upload-continue").onclick = () => _applyExtractionAndOpenForm(result);
+}
+
+function _applyExtractionAndOpenForm(result) {
+  const prefill = result.prefill_profile || {};
+  const defaults = structuredClone(state.meta?.defaults || {});
+  const profile = { ...defaults };
+
+  for (const [k, v] of Object.entries(prefill)) {
+    if (v && v.value !== null && v.value !== undefined) {
+      profile[k] = v.value;
+    }
+  }
+
+  // Stamp provenance so the form can render the "from documents" badge.
+  profile.__prefill_from_documents = Object.keys(prefill);
+  profile.__evidence_packet = result.evidence_packet || {};
+
+  state.profile = profile;
+  state.quoteInputs = {};
+  state.quoteSuggestionsPreFilled = false;
+  state.section = 0;
+  state.maxVisitedSection = SECTIONS.length - 1;
+  saveDraftProfile();
+  if (typeof refreshAdaptiveSections === "function") refreshAdaptiveSections();
+  renderForm();
+}
+
+function _humaniseField(key) {
+  const map = {
+    revenue_cr: "Revenue",
+    itr_revenue_cr: "Revenue (ITR)",
+    cogs_cr: "Cost of goods sold",
+    gross_profit_cr: "Gross profit",
+    ebitda_cr: "EBITDA",
+    net_profit_cr: "Net profit",
+    payroll_cr: "Employee benefit expenses",
+    total_assets_cr: "Total assets",
+    fixed_assets_cr: "Fixed assets (PPE)",
+    current_assets_cr: "Current assets",
+    inventory_cr: "Inventory",
+    receivables_cr: "Trade receivables",
+    total_liabilities_cr: "Total liabilities",
+    equity_cr: "Equity",
+    debt_cr: "Debt",
+    profit_cr: "Profit (ITR)",
+    tax_paid_cr: "Advance tax paid",
+    funding_stage: "Funding stage",
+    team_size: "Team size",
+  };
+  return map[key] || key.replace(/_/g, " ");
+}
+
+function _formatValue(key, value) {
+  if (typeof value === "number" && /_cr$/.test(key)) {
+    return `₹${value.toLocaleString("en-IN")} Cr`;
+  }
+  return _escape(String(value));
 }
 
 // ─── Pipeline Intelligence dashboard ─────────────────────────────────────────

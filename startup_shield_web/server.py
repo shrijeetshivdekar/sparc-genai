@@ -4356,7 +4356,7 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self):
-        if self.path not in ("/api/analyze", "/api/policy/compare", "/api/autofill", "/api/autofill-advanced", "/api/outreach", "/api/pricing", "/api/signals", "/api/commerce/funding", "/api/commerce/proposal", "/api/commerce/metrics", "/api/commerce/alerts", "/api/commerce/pipeline"):
+        if self.path not in ("/api/analyze", "/api/policy/compare", "/api/autofill", "/api/autofill-advanced", "/api/extract-documents", "/api/outreach", "/api/pricing", "/api/signals", "/api/commerce/funding", "/api/commerce/proposal", "/api/commerce/metrics", "/api/commerce/alerts", "/api/commerce/pipeline"):
             self.send_json(404, {"error": "Not found"})
             return
         try:
@@ -4384,6 +4384,13 @@ class Handler(SimpleHTTPRequestHandler):
                     return
                 result = autofill_and_analyze(company_name)
                 self.send_json(200 if not result.get("error") else 500, result)
+            elif self.path == "/api/extract-documents":
+                from api.extract_documents import _build_response
+                documents = payload.get("documents")
+                if not isinstance(documents, list) or not documents:
+                    self.send_json(400, {"error": "documents (non-empty array) is required."})
+                    return
+                self.send_json(200, _build_response(documents))
             elif self.path == "/api/outreach":
                 profile = payload.get("profile") or {}
                 scores = payload.get("scores") or {}

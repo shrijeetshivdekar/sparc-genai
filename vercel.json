@@ -31,6 +31,14 @@
       }
     },
     {
+      "src": "api/extract_documents.py",
+      "use": "@vercel/python",
+      "config": {
+        "includeFiles": ["**/*.py"],
+        "maxDuration": 20
+      }
+    },
+    {
       "src": "api/company-profiles.py",
       "use": "@vercel/python",
       "config": {
@@ -109,6 +117,10 @@
     {
       "src": "/api/autofill",
       "dest": "/api/autofill.py"
+    },
+    {
+      "src": "/api/extract-documents",
+      "dest": "/api/extract_documents.py"
     },
     {
       "src": "/api/company-profiles",

@@ -8694,22 +8694,23 @@ pre {
   gap: 6px;
   margin-bottom: 20px;
   padding-bottom: 16px;
-  border-bottom: 1px solid rgba(255,255,255,.1);
+  border-bottom: 1px solid var(--border);
 }
 .ot-sub-pill {
   padding: 6px 16px;
   border-radius: 20px;
-  border: 1px solid rgba(255,255,255,.18);
-  background: transparent;
-  color: rgba(255,255,255,.55);
+  border: 1px solid var(--border);
+  background: var(--white);
+  color: var(--ink-muted);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: background .2s, color .2s, border-color .2s;
 }
 .ot-sub-pill:hover {
-  background: rgba(255,255,255,.06);
-  color: rgba(255,255,255,.8);
+  background: var(--surface);
+  border-color: rgba(173,30,35,.18);
+  color: var(--ink);
 }
 .ot-sub-pill.ot-sub-active {
   background: var(--red);
@@ -8720,8 +8721,8 @@ pre {
 
 /* ── Signal context card in outreach sub-tab ── */
 .ot-signal-card {
-  background: rgba(255,255,255,.04);
-  border: 1px solid rgba(255,255,255,.1);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 16px 18px;
   margin-bottom: 20px;
@@ -8733,9 +8734,40 @@ pre {
   margin-bottom: 8px;
   flex-wrap: wrap;
 }
+.ot-signal-card .signal-type {
+  color: var(--red);
+  background: rgba(173,30,35,.10);
+}
+.ot-signal-card .signal-confidence {
+  color: var(--ink-muted);
+}
+.ot-signal-card .signal-confidence.low {
+  color: #b45309;
+  background: rgba(245,158,11,.10);
+}
+.ot-signal-card .signal-reg-badge {
+  background: rgba(148,163,184,.12);
+  color: #475569;
+}
+.ot-signal-card .signal-reg-badge.reg-dpdp,
+.ot-signal-card .signal-reg-badge.reg-rbi {
+  background: rgba(220,38,38,.10);
+  color: #b91c1c;
+}
+.ot-signal-card .signal-reg-badge.reg-ondc,
+.ot-signal-card .signal-reg-badge.reg-dgca {
+  background: rgba(37,99,235,.10);
+  color: #1d4ed8;
+}
+.ot-signal-card .signal-reg-badge.reg-kgw,
+.ot-signal-card .signal-reg-badge.reg-gst,
+.ot-signal-card .signal-reg-badge.reg-meity {
+  background: rgba(5,150,105,.10);
+  color: #047857;
+}
 .ot-signal-headline {
   font-size: 13px;
-  color: rgba(255,255,255,.8);
+  color: var(--ink);
   margin: 0 0 10px;
   line-height: 1.5;
 }
@@ -8743,10 +8775,10 @@ pre {
   display: flex;
   gap: 16px;
   font-size: 11px;
-  color: rgba(255,255,255,.45);
+  color: var(--ink-muted);
   flex-wrap: wrap;
 }
-.ot-signal-meta strong { color: rgba(255,255,255,.65); }
+.ot-signal-meta strong { color: var(--ink); }
 
 /* ── Toast notification ── */
 .ot-toast {

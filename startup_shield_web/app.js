@@ -1815,17 +1815,243 @@ function _renderExtractionSummary(result) {
 
       <div class="upload-extraction-actions">
         <button class="btn btn-ghost" type="button" id="upload-restart">← Upload different files</button>
-        <button class="btn btn-primary" type="button" id="upload-continue">${
-          Object.keys(prefill).length
-            ? "Open assessment with these values →"
-            : "Open assessment form →"
-        }</button>
+        <button class="btn btn-ghost" type="button" id="upload-open-form">Edit values in full form →</button>
+      </div>
+    </div>
+
+    <div id="verified-analyze-container">
+      <div class="va-loading">
+        <div class="va-loading-spinner"></div>
+        <div class="va-loading-text">
+          <strong>Running full risk + insurance bundle analysis…</strong>
+          <span>Matching the financial profile against ICICI Lombard products, calculating premium, and drafting outreach.</span>
+        </div>
       </div>
     </div>
   `;
 
   $("upload-restart").onclick = () => renderUploadPanel();
-  $("upload-continue").onclick = () => _applyExtractionAndOpenForm(result);
+  $("upload-open-form").onclick = () => _applyExtractionAndOpenForm(result);
+
+  // Auto-fire full analysis. Render results below extraction summary card.
+  _fireVerifiedAnalyze(result);
+}
+
+async function _fireVerifiedAnalyze(extractResult) {
+  const container = $("verified-analyze-container");
+  if (!container) return;
+  try {
+    const res = await fetch("/api/verified-analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(extractResult),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.ok) {
+      const msg = json.error || (json.decline ? `Hard decline: ${json.decline}` : "Analysis failed");
+      container.innerHTML = `<div class="upload-error">${_escape(msg)}</div>`;
+      return;
+    }
+    _renderVerifiedAnalyzeResults(container, json);
+  } catch (err) {
+    container.innerHTML = `<div class="upload-error">Network error during analysis: ${_escape(err.message)}</div>`;
+  }
+}
+
+function _renderVerifiedAnalyzeResults(container, r) {
+  const b = r.bundle || {};
+  const additional = r.additional_products || [];
+  const total = r.premium_total_verified_lakh || {};
+  const outreach = (r.outreach && r.outreach.prompts) || {};
+  const bundleOutreach = outreach.bundle || (Array.isArray(outreach) ? outreach[0] : null) || {};
+  const email = r.profile?.contact_email;
+
+  // Bundle cover breakdown rows
+  const bundleCoverRows = (b.cover_breakdown || []).map(c => `
+    <div class="va-cover-row">
+      <span class="va-cover-name">${_escape(c.cover)}</span>
+      <span class="va-cover-si">${c.verified_si_cr != null ? `₹${c.verified_si_cr} Cr SI` : "—"}</span>
+      <span class="va-cover-loading">×${c.loading.toFixed(2)}</span>
+      <span class="va-cover-premium">₹${c.verified_premium_lakh.min}–${c.verified_premium_lakh.max} L</span>
+    </div>
+  `).join("");
+
+  // Additional ICICI standalone products
+  const additionalRows = additional.map(p => {
+    const vp = p.verified_premium;
+    const si = p.verified_si_cr;
+    const basePrem = p.premium || {};
+    const fitScore = (typeof p.score === "number") ? Math.round(p.score) : null;
+    const priority = (p.priority || "").toLowerCase();
+    const appetite = (p.appetite || "").toLowerCase();
+
+    const premiumHtml = vp
+      ? `<div class="va-prod-prem-line">
+           <span class="va-prod-prem-label">Verified premium</span>
+           <span class="va-prod-prem-value va-prod-prem-verified">₹${vp.min_lakh}–${vp.max_lakh} L</span>
+           <span class="va-loading-tag">×${vp.loading_applied.toFixed(2)} loading</span>
+         </div>`
+      : (basePrem.min_lakh || basePrem.max_lakh
+          ? `<div class="va-prod-prem-line">
+               <span class="va-prod-prem-label">Indicative premium</span>
+               <span class="va-prod-prem-value">₹${basePrem.min_lakh}–${basePrem.max_lakh} L</span>
+             </div>`
+          : "");
+
+    const siHtml = si
+      ? `<div class="va-prod-prem-line">
+           <span class="va-prod-prem-label">Verified SI</span>
+           <span class="va-prod-prem-value va-prod-prem-si">₹${si} Cr</span>
+         </div>`
+      : "";
+
+    const fitPill = fitScore !== null
+      ? `<span class="va-prod-fit" data-fit="${fitScore >= 75 ? "high" : (fitScore >= 50 ? "med" : "low")}">${fitScore}% fit</span>`
+      : "";
+    const priorityPill = (priority === "must-have" || p.mandatory)
+      ? `<span class="va-prod-pri va-prod-pri-must">Must-have</span>`
+      : (priority === "recommended"
+          ? `<span class="va-prod-pri va-prod-pri-rec">Recommended</span>` : "");
+
+    const blurb = p.what_it_covers || p.description || "";
+    const bestFor = p.best_for || "";
+
+    return `
+      <div class="va-product-card">
+        <div class="va-product-head">
+          <strong>${_escape(p.name || p.key || "Product")}</strong>
+          ${fitPill}
+          ${priorityPill}
+        </div>
+        ${blurb ? `<p class="va-product-blurb">${_escape(blurb.substring(0, 220))}${blurb.length > 220 ? "…" : ""}</p>` : ""}
+        ${siHtml}
+        ${premiumHtml}
+        ${bestFor ? `<p class="va-product-bestfor"><strong>Best for:</strong> ${_escape(bestFor.substring(0, 140))}</p>` : ""}
+      </div>
+    `;
+  }).join("");
+
+  container.innerHTML = `
+    <div class="va-results">
+      <header class="va-results-head">
+        <span class="hev-eyebrow-dot"></span>
+        <h2>Recommended Insurance Bundle</h2>
+      </header>
+
+      <div class="va-bundle-card">
+        <div class="va-bundle-head">
+          <div>
+            <div class="va-bundle-name">${_escape(b.name || "Bundle")}</div>
+            <div class="va-bundle-sub">${_escape(b.il_product_name || "")}</div>
+            ${b.description ? `<p class="va-bundle-desc">${_escape(b.description)}</p>` : ""}
+          </div>
+          <div class="va-bundle-fit">
+            <div class="va-fit-pct">${b.fit_pct || 0}%</div>
+            <div class="va-fit-label">match fit</div>
+          </div>
+        </div>
+
+        <div class="va-cover-table">
+          <div class="va-cover-row va-cover-row-head">
+            <span class="va-cover-name">Cover</span>
+            <span class="va-cover-si">Verified SI</span>
+            <span class="va-cover-loading">Loading</span>
+            <span class="va-cover-premium">Premium</span>
+          </div>
+          ${bundleCoverRows}
+        </div>
+
+        <div class="va-bundle-total">
+          <span class="va-bundle-total-label">Bundle premium (verified)</span>
+          <span class="va-bundle-total-value">₹${b.verified_premium_lakh?.min || 0}–${b.verified_premium_lakh?.max || 0} L</span>
+        </div>
+      </div>
+
+      ${additionalRows ? `
+        <header class="va-results-head" style="margin-top:24px;">
+          <span class="hev-eyebrow-dot"></span>
+          <h2>Top 5 additional ICICI Lombard standalone covers</h2>
+        </header>
+        <div class="va-products-sub">Ranked by risk-fit score from the ICICI Lombard commercial catalogue. Bundle covers excluded.</div>
+        <div class="va-products-grid">
+          ${additionalRows}
+        </div>
+      ` : ""}
+
+      <header class="va-results-head" style="margin-top:24px;">
+        <span class="hev-eyebrow-dot"></span>
+        <h2>Total expected annual premium</h2>
+      </header>
+      <div class="va-total-premium">
+        <div class="va-total-figure">₹${total.min || 0}–${total.max || 0} L</div>
+        <div class="va-total-sub">Bundle + verified-priced additional covers. Confidence band ±${r.confidence_band?.plus_minus_pct || 25}% (${_escape(r.confidence_band?.verification_level || "estimated")}).</div>
+      </div>
+
+      ${bundleOutreach.email_subject ? `
+        <header class="va-results-head" style="margin-top:24px;">
+          <span class="hev-eyebrow-dot"></span>
+          <h2>Bundle outreach draft</h2>
+        </header>
+        ${_renderOutreachCard(bundleOutreach, email, "va-bundle-outreach")}
+      ` : ""}
+
+      ${additional.some(p => p.outreach) ? `
+        <header class="va-results-head" style="margin-top:24px;">
+          <span class="hev-eyebrow-dot"></span>
+          <h2>Per-product outreach drafts</h2>
+        </header>
+        <div class="va-prod-outreach-list">
+          ${additional.filter(p => p.outreach).map(p => `
+            <div class="va-prod-outreach-section">
+              <div class="va-prod-outreach-label">${_escape(p.name || p.key)}</div>
+              ${_renderOutreachCard(p.outreach, email, "")}
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
+    </div>
+  `;
+
+  // Bind copy + Gmail buttons for all outreach cards rendered in this result.
+  container.querySelectorAll("[data-copy-outreach]").forEach(btn => {
+    btn.onclick = () => {
+      const subject = btn.dataset.subject || "";
+      const body = btn.dataset.body || "";
+      navigator.clipboard.writeText(`Subject: ${subject}\n\n${body}`).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = "Copied ✓";
+        setTimeout(() => { btn.textContent = orig; }, 2000);
+      });
+    };
+  });
+}
+
+function _gmailUrl(to, subject, body) {
+  const base = "https://mail.google.com/mail/?view=cm&fs=1";
+  const p = new URLSearchParams();
+  if (to) p.set("to", to);
+  p.set("su", subject || "");
+  p.set("body", body || "");
+  return base + "&" + p.toString();
+}
+
+function _renderOutreachCard(draft, email, cardId) {
+  if (!draft || !draft.email_subject) return "";
+  const idAttr = cardId ? `id="${cardId}"` : "";
+  const gmailHref = _gmailUrl(email || "", draft.email_subject, draft.email_body || "");
+  const copyData = `data-copy-outreach="1" data-subject="${_escape(draft.email_subject)}" data-body="${_escape(draft.email_body || "")}"`;
+  return `
+    <div class="va-outreach-card" ${idAttr}>
+      ${email ? `<div class="va-outreach-to"><strong>To:</strong> <span class="va-outreach-email">${_escape(email)}</span></div>` : ""}
+      <div class="va-outreach-subject"><strong>Subject:</strong> ${_escape(draft.email_subject)}</div>
+      <pre class="va-outreach-body">${_escape(draft.email_body || "")}</pre>
+      ${draft.whatsapp ? `<div class="va-outreach-wa"><strong>WhatsApp:</strong> ${_escape(draft.whatsapp)}</div>` : ""}
+      <div class="va-outreach-actions">
+        <button class="btn btn-ghost" type="button" ${copyData}>Copy email</button>
+        <a class="btn btn-primary" href="${gmailHref}" target="_blank" rel="noopener">Open in Gmail →</a>
+      </div>
+    </div>
+  `;
 }
 
 function _renderVerifiedAssessment(v) {

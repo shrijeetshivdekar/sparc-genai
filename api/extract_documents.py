@@ -75,11 +75,11 @@ Unit conversion rules (apply before returning):
 CATEGORICAL INFERENCES (infer from document content — what the company does):
 - company_name        Company name as appears in document, or null
 - fiscal_year         Year-end like "FY2024" or "FY2023-24", or null
-- sector              EXACTLY ONE of: "Fintech" | "Healthtech" | "SaaS / Enterprise Software" |
-                      "Deeptech / AI / Robotics" | "Edtech" | "D2C / Consumer Brands" |
-                      "Logistics / Mobility" | "Agritech / Foodtech" | "Cleantech / Climatetech" |
-                      "Gaming / Media / Content" | "HRtech" | "Legaltech" | "Proptech" |
-                      "Spacetech" | "Insurtech" | "IT Services" | "Manufacturing" | "Other"
+- sector              EXACTLY ONE of: "SaaS / Enterprise Software" | "Fintech" | "Healthtech" |
+                      "D2C / Consumer Brands" | "Deeptech / AI / Robotics" | "Edtech" |
+                      "Agritech" | "Cleantech / Climatetech" | "Logistics / Mobility" |
+                      "Legaltech" | "HRtech" | "Gaming / Media / Content" |
+                      "Foodtech / Cloud Kitchen" | "IT Services" | "Manufacturing"
 - operations          EXACTLY ONE of: "Digital-only" | "Physical-only" | "Hybrid"
                       (Digital-only = SaaS/services no physical assets;
                        Physical-only = manufacturing/logistics with significant PPE;

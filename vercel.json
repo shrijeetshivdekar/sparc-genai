@@ -39,6 +39,14 @@
       }
     },
     {
+      "src": "api/verified_analyze.py",
+      "use": "@vercel/python",
+      "config": {
+        "includeFiles": ["**/*.py", "**/*.json", "research_config.json"],
+        "maxDuration": 30
+      }
+    },
+    {
       "src": "api/company-profiles.py",
       "use": "@vercel/python",
       "config": {
@@ -121,6 +129,10 @@
     {
       "src": "/api/extract-documents",
       "dest": "/api/extract_documents.py"
+    },
+    {
+      "src": "/api/verified-analyze",
+      "dest": "/api/verified_analyze.py"
     },
     {
       "src": "/api/company-profiles",

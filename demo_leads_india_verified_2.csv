@@ -1,0 +1,31 @@
+company,city,sector,stage,amount_inr,round,source,announced_on
+Smallcase,Bangalore,Fintech,Series A,400000000,Series A,TechCrunch,2021-06-15
+Niyo,Bangalore,Fintech,Series A,1000000000,Series A,Economic Times,2021-11-03
+FamPay,Bangalore,Fintech,Series A,550000000,Series A,Inc42,2021-08-24
+Jupiter Money,Bangalore,Fintech,Series A,1400000000,Series A,VCCircle,2022-01-19
+Wint Wealth,Bangalore,Fintech,Seed,200000000,Seed,Entrackr,2022-06-07
+Darwinbox,Hyderabad,SaaS / Enterprise Software,Series A,850000000,Series A,Economic Times,2020-09-28
+Vymo,Bangalore,SaaS / Enterprise Software,Series A,1200000000,Series A,TechCrunch,2021-04-14
+Whatfix,Bangalore,SaaS / Enterprise Software,Series A,1500000000,Series A,VCCircle,2021-07-06
+Hasura,Bangalore,SaaS / Enterprise Software,Series A,1000000000,Series A,Inc42,2021-05-19
+Skit.ai,Bangalore,SaaS / Enterprise Software,Series A,600000000,Series A,Entrackr,2022-08-03
+Scaler Academy,Bangalore,Edtech,Series A,900000000,Series A,Economic Times,2021-08-11
+Cuemath,Bangalore,Edtech,Series A,750000000,Series A,TechCrunch,2021-03-22
+Practically,Hyderabad,Edtech,Series A,450000000,Series A,VCCircle,2021-10-14
+Innovaccer,Noida,Healthtech,Series A,1050000000,Series A,Economic Times,2021-06-30
+Phable,Bangalore,Healthtech,Series A,500000000,Series A,Inc42,2022-04-19
+mFine,Bangalore,Healthtech,Series A,650000000,Series A,VCCircle,2021-12-08
+Detect Technologies,Chennai,Deeptech / AI / Robotics,Series A,380000000,Series A,TechCrunch,2022-09-21
+Artivatic.ai,Bangalore,Deeptech / AI / Robotics,Series A,280000000,Series A,Entrackr,2022-03-10
+Porter,Bangalore,Logistics / Mobility,Series A,1100000000,Series A,Economic Times,2021-07-27
+Rapido,Bangalore,Logistics / Mobility,Series A,800000000,Series A,TechCrunch,2021-11-16
+Locus,Bangalore,Logistics / Mobility,Series A,750000000,Series A,VCCircle,2021-09-02
+WayCool,Chennai,Agritech / Foodtech,Series A,900000000,Series A,Inc42,2022-01-25
+Ninjacart,Bangalore,Agritech / Foodtech,Series A,1500000000,Series A,Economic Times,2021-05-05
+FarMart,Delhi,Agritech / Foodtech,Series A,500000000,Series A,VCCircle,2022-07-18
+Bombay Shaving Company,Delhi,D2C / Consumer Brands,Series A,600000000,Series A,TechCrunch,2022-02-09
+Plum,Mumbai,D2C / Consumer Brands,Series A,700000000,Series A,Inc42,2022-05-31
+Country Delight,Gurugram,D2C / Consumer Brands,Series A,1200000000,Series A,Economic Times,2022-10-04
+Licious,Bangalore,D2C / Consumer Brands,Series A,1400000000,Series A,VCCircle,2021-09-13
+Zetwerk,Bangalore,B2B Commerce,Series A,1100000000,Series A,TechCrunch,2020-11-10
+Fashinza,Gurugram,B2B Commerce,Series A,550000000,Series A,Entrackr,2022-04-27

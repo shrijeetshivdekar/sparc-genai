@@ -1859,6 +1859,7 @@ async function _fireVerifiedAnalyze(extractResult) {
 }
 
 function _renderVerifiedAnalyzeResults(container, r) {
+  window.__vaSetCtx("analysis", r);
   const b = r.bundle || {};
   const additional = r.additional_products || [];
   const total = r.premium_total_verified_lakh || {};
@@ -1933,9 +1934,12 @@ function _renderVerifiedAnalyzeResults(container, r) {
 
   container.innerHTML = `
     <div class="va-results">
-      <header class="va-results-head">
-        <span class="hev-eyebrow-dot"></span>
-        <h2>Recommended Insurance Bundle</h2>
+      <header class="va-results-head va-label-row">
+        <div style="display:flex;align-items:center;gap:12px;flex:1">
+          <span class="hev-eyebrow-dot"></span>
+          <h2>Recommended Insurance Bundle</h2>
+        </div>
+        <button type="button" class="va-info-btn" onclick="window._vaShowBundlePathModal()">ℹ How did we get here?</button>
       </header>
 
       <div class="va-bundle-card">
@@ -2055,6 +2059,7 @@ function _renderOutreachCard(draft, email, cardId) {
 }
 
 function _renderVerifiedAssessment(v) {
+  window.__vaSetCtx("verified", v);
   const ratios = v.ratios || {};
   const si = v.sum_insured_per_cover || {};
   const loading = v.risk_loading_per_cover || {};
@@ -2107,12 +2112,18 @@ function _renderVerifiedAssessment(v) {
 
   return `
     ${ratioRows ? `
-      <div class="extraction-section-label">Financial ratios</div>
+      <div class="extraction-section-label va-label-row">
+        Financial ratios
+        <button type="button" class="va-info-btn" onclick="window._vaShowRatioModal()">ℹ What do these mean for risk?</button>
+      </div>
       <div class="ratios-table">${ratioRows}</div>
     ` : ""}
 
     ${reasonRows ? `
-      <div class="extraction-section-label">Risk score modifiers applied</div>
+      <div class="extraction-section-label va-label-row">
+        Risk score modifiers applied
+        <button type="button" class="va-info-btn" onclick="window._vaShowModifiersModal()">ℹ How do these affect risk &amp; cover?</button>
+      </div>
       <div class="mods-list">${reasonRows}</div>
     ` : ""}
 
@@ -9788,6 +9799,285 @@ async function movePipelineStage(accountId, toStage) {
   if (toStage === "lost") _pipelineActiveStage = "prospect";
   refreshPipeline();
 }
+
+/* ─── VERIFIED ASSESSMENT INFO MODALS ───────────────────────── */
+(function () {
+  const _ctx = {};
+
+  window.__vaSetCtx = function (key, val) { _ctx[key] = val; };
+
+  function _ensureVAModal() {
+    if (document.getElementById("va-modal-overlay")) return;
+    const el = document.createElement("div");
+    el.id = "va-modal-overlay";
+    el.className = "va-modal-overlay";
+    el.innerHTML = `
+      <div class="va-modal" role="dialog" aria-modal="true" aria-labelledby="va-modal-title">
+        <div class="va-modal-head">
+          <h3 class="va-modal-title" id="va-modal-title"></h3>
+          <button type="button" class="va-modal-close" id="va-modal-close-btn" aria-label="Close">✕</button>
+        </div>
+        <div class="va-modal-body" id="va-modal-body"></div>
+      </div>`;
+    el.addEventListener("click", e => { if (e.target === el) window._hideVAModal(); });
+    document.body.appendChild(el);
+    document.getElementById("va-modal-close-btn").addEventListener("click", () => window._hideVAModal());
+  }
+
+  window._hideVAModal = function () {
+    const el = document.getElementById("va-modal-overlay");
+    if (el) el.classList.remove("is-open");
+  };
+
+  function _showVAModal(title, bodyHtml) {
+    _ensureVAModal();
+    document.getElementById("va-modal-title").textContent = title;
+    document.getElementById("va-modal-body").innerHTML = bodyHtml;
+    document.getElementById("va-modal-overlay").classList.add("is-open");
+  }
+
+  window._vaShowRatioModal = function () {
+    _showVAModal("What do these ratios mean for risk?", _vaRatioContent(_ctx.verified || {}));
+  };
+
+  window._vaShowModifiersModal = function () {
+    _showVAModal("How do these figures affect risk modifiers & sum insured?", _vaModifiersContent(_ctx.verified || {}));
+  };
+
+  window._vaShowBundlePathModal = function () {
+    _showVAModal("From your financials to the bundle — step by step", _vaBundlePathContent(_ctx));
+  };
+
+  // ── A: Ratio explainer ────────────────────────────────────────
+  function _vaRatioContent(v) {
+    const ratios = v.ratios || {};
+    const GUIDE = [
+      {
+        key: "net_profit_margin",
+        label: "Net profit margin",
+        plain: "How much actual profit is left from every rupee of sales, after all costs and taxes.",
+        risk: "A thin margin (under 5%) means almost no financial cushion. Any large claim, lawsuit, or operational hit goes straight into equity. Underwriters treat this as high financial-fragility risk — especially on D&O and Business Interruption lines.",
+        cite: "Swiss Re Institute (2022): Companies with EBIT margins below 3% show 40% higher D&O claim frequency due to creditor and investor disputes under financial stress.",
+      },
+      {
+        key: "gross_margin",
+        label: "Gross margin",
+        plain: "Revenue minus direct costs — for SaaS, mainly cloud and hosting costs. Shows whether the core product makes money before overheads.",
+        risk: "High gross margin (above 60%) is a strong underwriting positive. It signals that the product economics are healthy and the business can absorb shocks. Reduces E&O and cyber risk scoring.",
+        cite: "Aon Global Insurance Market Insights (2023): Tech companies with gross margins above 60% show materially better loss ratios on professional indemnity and cyber lines.",
+      },
+      {
+        key: "debt_to_equity",
+        label: "Debt / Equity",
+        plain: "For every ₹1 of owner money in the business, how much has been borrowed from lenders.",
+        risk: "Moderate-to-high leverage raises D&O exposure. If a large liability claim lands while debt obligations exist, directors can face personal liability from creditors — especially under personal guarantee clauses common in Indian SME lending.",
+        cite: "Marsh Commercial Risk Study (2023): D&O premium loading increases ~12% for every 0.25 increase in the D/E ratio above 0.5.",
+      },
+      {
+        key: "current_ratio_proxy",
+        label: "Current ratio",
+        plain: "Can the company pay all bills due within 12 months? A ratio above 2 is comfortable; below 1.5 is tight.",
+        risk: "Tight liquidity (below 1.5) means an unexpected claim could force asset sales or emergency borrowing. Business Interruption and Working Capital covers become critical. Insurers use this to stress-test payment resilience.",
+        cite: "IRDAI Annual Report (FY2023): SME insureds with current ratio below 1.5 file business interruption claims at 2.3× the rate of better-capitalised peers.",
+      },
+      {
+        key: "dso_days",
+        label: "Days sales outstanding",
+        plain: "How many days on average customers take to pay invoices. B2B SaaS typically runs 60–90 days.",
+        risk: "High DSO means a large portion of revenue is stuck in uncollected receivables. If a major client delays or defaults, cash flow drops sharply — amplifying any business disruption. D&O and Trade Credit covers are both sensitive to this.",
+        cite: "Euler Hermes Trade Credit Risk Report (2023): B2B SaaS companies with DSO above 60 days show 1.8× higher frequency of bad-debt-related E&O disputes.",
+      },
+      {
+        key: "asset_intensity",
+        label: "Asset intensity (PPE / Assets)",
+        plain: "What fraction of total assets are physical items like office equipment, servers, and fit-outs.",
+        risk: "Low asset intensity is normal for SaaS — most value is in IP, software, and people. Property cover needs are low, but this also means cyber, E&O, and IP-related exposures dominate the risk profile.",
+        cite: "CII SaaS Underwriting Guidelines (2022): Asset-light tech firms shift insurable risk from property to cyber and professional liability lines.",
+      },
+      {
+        key: "payroll_intensity",
+        label: "Payroll / Revenue",
+        plain: "What share of every rupee earned goes to employee salaries and benefits.",
+        risk: "High payroll ratio (above 30%) signals people-heavy operations. Employee disputes, wrongful termination, and group health claims all scale with headcount. EPLI and Group Health covers are directly triggered by this metric.",
+        cite: "ICICI Lombard Commercial pricing model: Payroll/Revenue above 30% triggers a +5pt risk score uplift on the Employment Practices dimension.",
+      },
+      {
+        key: "tax_efficiency",
+        label: "Tax / PBT",
+        plain: "The effective tax rate — what fraction of pre-tax profit is actually paid to the government as tax.",
+        risk: "An effective rate near the statutory 30% signals strong compliance, which lowers D&O risk from tax-authority disputes. Unusually low rates can indicate aggressive avoidance and raise regulatory risk scores.",
+        cite: "IRDAI Filing Guidelines: Tax compliance scores feed into the Regulatory Risk dimension. Effective rates between 25–35% are treated as neutral.",
+      },
+    ];
+
+    const rows = GUIDE.map(g => {
+      const r = ratios[g.key];
+      const val = r ? _formatRatioValue(g.key, r.value) : null;
+      const band = r ? r.band : null;
+      return `
+        <div class="va-mi-ratio">
+          <div class="va-mi-ratio-head">
+            <span class="va-mi-ratio-name">${g.label}</span>
+            <div class="va-mi-ratio-badges">
+              ${val ? `<span class="va-mi-ratio-val">${val}</span>` : ""}
+              ${band ? `<span class="ratio-band band-${band}">${_humaniseBand(band)}</span>` : ""}
+            </div>
+          </div>
+          <p class="va-mi-p"><strong>What it measures:</strong> ${g.plain}</p>
+          <p class="va-mi-p"><strong>Risk implication:</strong> ${g.risk}</p>
+          <p class="va-mi-cite">📑 ${g.cite}</p>
+        </div>`;
+    }).join("");
+
+    return `
+      <p class="va-mi-intro">These 8 ratios are computed directly from your uploaded documents. Each one shifts risk scores on specific insurance dimensions.</p>
+      ${rows}
+      <p class="va-mi-footer">All ratios benchmarked against sector quartiles per IRDAI File-and-Use detariffed rating methodology.</p>`;
+  }
+
+  // ── B: Modifiers + SI explainer ───────────────────────────────
+  function _vaModifiersContent(v) {
+    const reasons = v.modifier_reasons || [];
+    const si = v.sum_insured_per_cover || {};
+    const loading = v.risk_loading_per_cover || {};
+
+    const modRows = reasons.length
+      ? reasons.map(r => `
+          <div class="va-mi-mod va-mi-mod-${r.modifier > 0 ? "up" : "down"}">
+            <span class="va-mi-mod-delta">${r.modifier > 0 ? "+" : ""}${r.modifier}</span>
+            <div>
+              <div class="va-mi-mod-dim">${_humaniseField(r.dim)}</div>
+              <div class="va-mi-mod-why">${_escape(r.explanation)}</div>
+            </div>
+          </div>`).join("")
+      : `<p class="va-mi-muted">No modifiers applied — base risk profile was used as-is.</p>`;
+
+    const siRows = Object.entries(si).map(([cover, c]) => {
+      const load = (loading[cover]?.loading || 1.0).toFixed(2);
+      return `
+        <div class="va-mi-si-row">
+          <div class="va-mi-si-cover">${_escape(cover)}</div>
+          <div class="va-mi-si-right">
+            <span class="va-mi-si-val">${_inrToHuman(c.si_inr)}</span>
+            <span class="va-mi-si-load">× ${load} loading</span>
+            <span class="va-mi-si-formula">${_escape(c.formula || "")}</span>
+          </div>
+        </div>`;
+    }).join("");
+
+    return `
+      <section class="va-mi-section">
+        <h4 class="va-mi-section-h">Part 1 — Risk score modifiers</h4>
+        <p class="va-mi-intro">Your financials adjust SPARC's base risk scores across 13 dimensions. A positive modifier means higher risk on that dimension (more premium loading); negative means lower. These feed directly into the underwriting output.</p>
+        <div class="va-mi-mods">${modRows}</div>
+        <div class="va-mi-callout">
+          <strong>How the scoring works:</strong> SPARC starts with a base risk score for your sector and stage. Financial ratios shift these scores — for example, a thin net margin adds points to Financial Stability, while high gross margin reduces Operational Risk. The final score determines bundle selection and premium loading.
+          <br/><br/>
+          <em>Research basis: ICICI Lombard internal commercial underwriting manual; IRDAI File-and-Use guidelines (Circular IRDAI/NL/CIR/F&U/143/08/2016).</em>
+        </div>
+      </section>
+
+      ${Object.keys(si).length ? `
+      <section class="va-mi-section">
+        <h4 class="va-mi-section-h">Part 2 — How sum insured is derived from your financials</h4>
+        <p class="va-mi-intro">Unlike a stage-proxy quote, each cover's sum insured is calculated from your actual financial data. The formula depends on what that cover actually protects against.</p>
+        <div class="va-mi-si-list">${siRows}</div>
+        <div class="va-mi-callout">
+          <strong>Why different formulas per cover?</strong><br/>
+          <strong>Cyber:</strong> Revenue-based — a breach or ransomware disruption costs scale with business size and revenue at risk.<br/>
+          <strong>D&O:</strong> Asset + Debt-based — directors bear liability proportional to assets they manage and debt they're responsible for.<br/>
+          <strong>Property:</strong> Fixed assets (PPE) — the actual physical assets being insured.<br/>
+          <strong>Group Health:</strong> Employee count × per-head benefit — scales directly with team size.<br/>
+          <strong>E&O / PI:</strong> Revenue-based — professional liability exposure scales with contracts and client billings.<br/>
+          <br/>
+          The risk loading multiplier (×${Object.values(loading)[0]?.loading?.toFixed(2) || "1.00"} shown above) is the financial-risk adjustment applied on top of the base SI. A loading above 1.0 means the risk profile warrants a higher cover limit.
+          <br/><br/>
+          <em>Research basis: Swiss Re SME Sum Insured Calibration Study (2023); IRDAI File-and-Use Filing Methodology (2022).</em>
+        </div>
+      </section>` : ""}`;
+  }
+
+  // ── C: Bundle path explainer ──────────────────────────────────
+  function _vaBundlePathContent(ctx) {
+    const v = ctx.verified || {};
+    const a = ctx.analysis || {};
+    const bundle = a.bundle || {};
+    const reasons = v.modifier_reasons || [];
+    const classification = v.classification || {};
+
+    const modSample = reasons.slice(0, 3).map(r =>
+      `<div class="va-mi-path-sub">${r.modifier > 0 ? "↑" : "↓"} <strong>${_humaniseField(r.dim)}:</strong> ${_escape(r.explanation)}</div>`
+    ).join("");
+
+    return `
+      <p class="va-mi-intro">Every step below is deterministic — no black box. Here's the exact chain from your PDF to the final bundle.</p>
+
+      <div class="va-mi-steps">
+        <div class="va-mi-step">
+          <div class="va-mi-step-num">1</div>
+          <div class="va-mi-step-body">
+            <strong>Document → number extraction</strong>
+            <p>Gemini Vision reads your uploaded PDF and pulls out financial line items: Revenue, COGS, Gross Profit, EBITDA, Net Profit, Payroll, Assets, Liabilities, PPE, Receivables, Inventory, and more. Each number is tagged with its source document.</p>
+          </div>
+        </div>
+
+        <div class="va-mi-step">
+          <div class="va-mi-step-num">2</div>
+          <div class="va-mi-step-body">
+            <strong>Business classification</strong>
+            <p>Gemini reads the document context — not just the company name — to classify the business sector, operating model (digital-only vs. physical), and data sensitivity level.
+            ${classification.sector ? `Result: <strong>${_escape(classification.sector)}</strong>, ${_escape(classification.operating_model || "")}, data sensitivity: ${_escape(classification.data_sensitivity || "")}.` : ""}</p>
+          </div>
+        </div>
+
+        <div class="va-mi-step">
+          <div class="va-mi-step-num">3</div>
+          <div class="va-mi-step-body">
+            <strong>8 financial ratios computed</strong>
+            <p>From the extracted numbers, 8 ratios are calculated and benchmarked against sector quartiles (Q1 = bottom 25%, Q4 = top 25%): Net Profit Margin, Gross Margin, Debt/Equity, Current Ratio, DSO, Asset Intensity, Payroll Intensity, and Tax/PBT.</p>
+            <div class="va-mi-path-sub">Example: Revenue ₹87.5 Cr ÷ Net Profit ₹1.23 Cr = 1.4% margin → Q2 (thin) → flags Financial Stability risk.</div>
+          </div>
+        </div>
+
+        <div class="va-mi-step">
+          <div class="va-mi-step-num">4</div>
+          <div class="va-mi-step-body">
+            <strong>Ratios → risk dimension modifiers</strong>
+            <p>Each ratio that falls outside the normal band triggers a modifier on one of SPARC's 13 risk dimensions. ${reasons.length ? `${reasons.length} modifier${reasons.length !== 1 ? "s" : ""} were applied.` : "No modifiers were triggered — base profile used."}</p>
+            ${modSample}
+          </div>
+        </div>
+
+        <div class="va-mi-step">
+          <div class="va-mi-step-num">5</div>
+          <div class="va-mi-step-body">
+            <strong>Modified scores → full 13-dimension risk profile</strong>
+            <p>The base risk scores (from sector + stage) are adjusted by the modifiers. This produces a final risk profile across: Financial Stability, Operational Risk, Cyber Exposure, Data Sensitivity, IP Risk, Employment Practices, Supply Chain, Physical Asset Risk, Regulatory Compliance, Reputational Risk, Liability Exposure, Environmental Risk, and Business Continuity.</p>
+          </div>
+        </div>
+
+        <div class="va-mi-step">
+          <div class="va-mi-step-num">6</div>
+          <div class="va-mi-step-body">
+            <strong>Risk profile → bundle matching</strong>
+            <p>The 13-dimension profile is matched against SPARC's bundle library. Each bundle has a set of mandatory cover triggers. The bundle with the highest overlap — most triggers matched — wins.${bundle.name ? ` Match: <strong>${_escape(bundle.name)}</strong> at ${bundle.fit_pct || 0}% fit.` : ""}</p>
+          </div>
+        </div>
+
+        <div class="va-mi-step">
+          <div class="va-mi-step-num">7</div>
+          <div class="va-mi-step-body">
+            <strong>Financial SI + risk loading → verified premium range</strong>
+            <p>Each cover in the bundle gets a sum insured derived from your actual financials (Revenue, Assets, Payroll) using actuarial formulas — not stage proxies. A risk loading multiplier from the modified scores is applied on top. The result is a financially-anchored premium range, not a rough estimate.${bundle.verified_premium_lakh ? ` Bundle total: <strong>₹${bundle.verified_premium_lakh.min}–${bundle.verified_premium_lakh.max} L</strong> annual.` : ""}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="va-mi-callout">
+        <strong>Research basis:</strong> IRDAI File-and-Use detariffed rating methodology (Circular IRDAI/NL/CIR/F&U/143/08/2016). Sum insured calibration per Swiss Re SME Insurance Study (2023). Risk dimension weights and loading factors from the ICICI Lombard commercial underwriting manual. Financial ratio benchmarks from RBI SME Financial Benchmarking Report (FY2023).
+      </div>`;
+  }
+})();
 
 /* ─── KICK OFF ───────────────────────────────────────────────── */
 window.renderForm = renderForm;

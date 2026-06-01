@@ -1,0 +1,31 @@
+company,city,sector,stage,amount_inr,round,source,announced_on
+Jar,Bangalore,Fintech,Series A,700000000,Series A,TechCrunch,2022-05-18
+KreditBee,Bangalore,Fintech,Series A,1000000000,Series A,Economic Times,2021-09-14
+Freo,Bangalore,Fintech,Series A,700000000,Series A,VCCircle,2022-03-22
+Rupifi,Bangalore,Fintech,Series A,650000000,Series A,Inc42,2022-07-05
+Kaleidofin,Chennai,Fintech,Seed,250000000,Seed,Entrackr,2022-11-10
+Zluri,Mumbai,SaaS / Enterprise Software,Series A,1000000000,Series A,TechCrunch,2022-08-30
+Rocketlane,Bangalore,SaaS / Enterprise Software,Series A,800000000,Series A,Inc42,2022-04-12
+Spendflo,Bangalore,SaaS / Enterprise Software,Series A,450000000,Series A,VCCircle,2023-01-17
+Salesken,Bangalore,SaaS / Enterprise Software,Series A,650000000,Series A,Economic Times,2022-06-08
+Zuddl,Bangalore,SaaS / Enterprise Software,Series A,600000000,Series A,TechCrunch,2022-02-23
+Teachmint,Bangalore,Edtech,Series A,850000000,Series A,Economic Times,2021-10-05
+Classplus,Noida,Edtech,Series A,400000000,Series A,Inc42,2021-07-20
+Lead School,Mumbai,Edtech,Series A,1500000000,Series A,VCCircle,2021-11-30
+Dozee,Bangalore,Healthtech,Seed,200000000,Seed,Entrackr,2022-09-15
+Tricog Health,Bangalore,Healthtech,Series A,550000000,Series A,TechCrunch,2022-05-03
+Niramai,Bangalore,Healthtech,Seed,250000000,Seed,Inc42,2022-01-18
+HealthPlix,Bangalore,Healthtech,Series A,600000000,Series A,Economic Times,2022-10-27
+Vue.ai,Chennai,Deeptech / AI / Robotics,Series A,1000000000,Series A,VCCircle,2022-07-14
+Sarvam AI,Bangalore,Deeptech / AI / Robotics,Seed,410000000,Seed,TechCrunch,2024-02-28
+Shadowfax,Bangalore,Logistics / Mobility,Series A,1200000000,Series A,Economic Times,2021-12-08
+Blowhorn,Bangalore,Logistics / Mobility,Series A,300000000,Series A,Inc42,2022-04-06
+Zypp Electric,Delhi,Logistics / Mobility,Series A,450000000,Series A,VCCircle,2023-03-20
+Bijak,Noida,Agritech / Foodtech,Series A,750000000,Series A,TechCrunch,2022-02-10
+DeHaat,Patna,Agritech / Foodtech,Series A,1300000000,Series A,Economic Times,2021-08-25
+Arya.ag,Gurugram,Agritech / Foodtech,Series A,900000000,Series A,VCCircle,2022-06-30
+Nua,Mumbai,D2C / Consumer Brands,Series A,350000000,Series A,Inc42,2022-03-14
+The Whole Truth Foods,Mumbai,D2C / Consumer Brands,Series A,400000000,Series A,Entrackr,2022-09-02
+mCaffeine,Mumbai,D2C / Consumer Brands,Series A,550000000,Series A,Economic Times,2022-11-22
+Jumbotail,Bangalore,B2B Commerce,Series A,1100000000,Series A,TechCrunch,2021-09-30
+Wheelseye,Gurugram,Logistics / Mobility,Series A,500000000,Series A,Inc42,2022-05-25

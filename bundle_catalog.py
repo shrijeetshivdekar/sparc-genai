@@ -496,11 +496,12 @@ def _pretty_cover(key: str) -> str:
 
 def _score_bundle(bundle: dict, sector: str, stage: str, score_signal: float) -> int:
     fit = 0
-    if sector in bundle["eligible_sectors"]:
+    sector_match = sector in bundle["eligible_sectors"] or "any" in bundle["eligible_sectors"]
+    if sector_match:
         fit += 40
     if stage in bundle["eligible_stages"]:
         fit += 30
-    relevance = 1.0 if sector in bundle["eligible_sectors"] else 0.55
+    relevance = 1.0 if sector_match else 0.55
     fit += int(round(30 * score_signal * relevance))
     return fit
 

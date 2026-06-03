@@ -156,6 +156,7 @@ _SECTOR_KEY = {
     "Proptech": "saas_b2b",
     "Spacetech": "deeptech",
     "Other": "saas_b2b",
+    "Manufacturing": "manufacturing",
 }
 
 _STAGE_KEY = {

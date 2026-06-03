@@ -370,6 +370,7 @@ _SECTOR_KEY = {
     "Agritech":                   "d2c",
     "Foodtech / Cloud Kitchen":   "d2c",
     "Logistics / Mobility":       "d2c",
+    "Manufacturing":              "manufacturing",
 }
 
 _STAGE_KEY = {
@@ -607,7 +608,11 @@ def rank_bundles(sector: str, stage: str, scores: dict, inp) -> list:
             prem  = round(_premium_potential(meta, mults))
             rev   = _revenue_score(meta)
             rm    = meta.get("risk_mult", 1.0)
-            final = (0.45 * cov + 0.30 * (rev / 100) + 0.25 * meta.get("adoption", 0)) * (2 - rm)
+            # Explicit sector match scores higher than wildcard "any" — prevents
+            # generic high-adoption bundles from outranking sector-specific ones.
+            elig_s = meta.get("eligible_sectors", ["any"])
+            sector_bonus = 5.0 if (sector_key and sector_key in elig_s and "any" not in elig_s) else 0.0
+            final = (0.45 * cov + 0.30 * (rev / 100) + 0.25 * meta.get("adoption", 0)) * (2 - rm) + sector_bonus
             rationale = (
                 f"Coverage {cov:.3f} × weights; rev_score {rev}; "
                 f"risk_mult {rm}× ({meta.get('trajectory', '')})"

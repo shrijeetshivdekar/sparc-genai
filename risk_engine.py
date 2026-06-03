@@ -212,6 +212,17 @@ SECTOR_PROFILES = {
         "emoji": "🍔",
         "description": "FSSAI per-location, MV Aggregator 2025, gig Acts, food-safety reputation risk.",
     },
+    "Manufacturing": {
+        "cyber_technical": 5, "data_privacy": 3,
+        "liability": 9, "ip_infringement": 7,
+        "key_person": 6, "governance_fraud": 7,
+        "property": 10, "regulatory_compliance": 8,
+        "esg_climate": 8, "geopolitical": 7,
+        "gig_labour": 6, "policy_velocity": 4,
+        "reputation": 6, "tax_tp": 6,
+        "emoji": "🏭",
+        "description": "Factory/plant property risk, product liability, employees compensation, marine transit for inventory.",
+    },
 }
 
 

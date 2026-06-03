@@ -168,7 +168,7 @@ def _build_profile(extracts: dict, inferences: dict, prefill: dict) -> dict:
         else:
             mapping = {
                 "IT Services":            "SaaS / Enterprise Software",
-                "Manufacturing":          "D2C / Consumer Brands",
+                "Manufacturing":          "Manufacturing",
                 "Agritech / Foodtech":    "Foodtech / Cloud Kitchen",
                 "Foodtech":               "Foodtech / Cloud Kitchen",
                 "Insurtech":              "Fintech",
@@ -210,8 +210,11 @@ def _build_profile(extracts: dict, inferences: dict, prefill: dict) -> dict:
     if reg:
         profile["regulatory"] = reg
 
-    # Physical assets — derive from operations
-    profile["physical_assets"] = list(_ASSETS_BY_OPERATIONS.get(profile["operations"], []))
+    # Physical assets — derive from operations + sector
+    assets = list(_ASSETS_BY_OPERATIONS.get(profile["operations"], []))
+    if profile.get("sector") == "Manufacturing" and "Manufacturing plant / factory" not in assets:
+        assets.append("Manufacturing plant / factory")
+    profile["physical_assets"] = assets
 
     # Financial fields the engine consumes
     rev_cr = _v(extracts, "revenue_cr") or _v(extracts, "itr_revenue_cr")

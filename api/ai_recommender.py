@@ -237,14 +237,30 @@ If prior_bundle_inferred is empty, use this:
    - Order by urgency: Critical first
 3. List critical gaps.
 
-Return ONLY this JSON (no markdown, no explanation):
+Return ONLY this JSON (no markdown, no explanation).
+Write ALL text fields in plain English for a business reader (RM or founder).
+Use real numbers from the data. Never write field paths like "msa.foreign_jurisdiction_flag".
+
 {{
- "bundle": {{"key":"...","fit_pct":0,"why":"cite the specific rule + signal that drove this pick"}},
+ "bundle": {{
+   "key": "...",
+   "fit_pct": 0,
+   "why": "2-3 sentences in plain English. Name WHY this bundle fits — reference actual numbers (revenue, sector, operations, prior policy LOB, PPE value). Example good output: 'Business Shield SME is the right choice because NeuralPay is a digital-only Fintech with no physical assets and high cyber exposure. Their previous Cyber policy (₹2 Cr SI) lapsed in March 2025 and they already had one claim — renewing with upgraded cover is the immediate priority. The bundle covers Cyber, D&O, PI and Crime, which directly address all four of their top-scoring risk areas.'"
+ }},
  "additional": [
-   {{"rank":1,"product":"<key>","urgency":"Critical|High|Medium","why":"cite specific signal"}}
+   {{
+     "rank": 1,
+     "product": "<key from standalone list>",
+     "urgency": "Critical|High|Medium",
+     "why": "1-2 sentences in plain English with actual numbers. Example good output: 'With ₹7.4 Cr in payroll across 8 states, Employees Compensation is a statutory requirement — the company is currently uninsured for every workplace injury across its entire workforce.'"
+   }}
  ],
  "critical_gaps": [
-   {{"cover":"<key>","issue":"lapsed|underinsured|uninsured","evidence":"signal: value"}}
+   {{
+     "cover": "<key>",
+     "issue": "lapsed|underinsured|uninsured",
+     "evidence": "Plain English with numbers. Example good output: 'Prior Cyber policy covered only ₹2 Cr SI but the company has 4 unpatched critical CVEs, no MFA, and had one claim last year — real exposure is at least ₹5 Cr.'"
+   }}
  ]
 }}"""
 

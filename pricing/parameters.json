@@ -3230,6 +3230,1582 @@
       "confidence": "high",
       "irdai_formalised": false,
       "editable": true
+    },
+    "eei_no_amc": {
+      "label": "No Annual Maintenance Contract (AMC)",
+      "value": 0.175,
+      "low_pct": 10.0,
+      "mid_pct": 17.5,
+      "high_pct": 25.0,
+      "direction": "loading",
+      "applies_to": [
+        "EEI"
+      ],
+      "rationale": "AMC absence is the single largest risk driver in EEI underwriting. Scheduled preventive maintenance by authorized technicians prevents the majority of sudden electronic failures — dust ingress, loose connections and thermal degradation go undetected without it.",
+      "notes": "Verify AMC is with OEM or IRDAI-recognised service provider, not a local aggregator. Annual-only PMs attract half-discount vs quarterly.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Insurance Institute of India IC-57 (Engineering Insurance); GIC Re EEI Rating Guidelines",
+        "url": "https://www.iii.org.in/content/ic-57-engineering-insurance",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "eei_equipment_age_over5yr": {
+      "label": "Equipment Age > 5 Years",
+      "value": 0.275,
+      "low_pct": 15.0,
+      "mid_pct": 27.5,
+      "high_pct": 40.0,
+      "direction": "loading",
+      "applies_to": [
+        "EEI"
+      ],
+      "rationale": "Electronic components (capacitors, fans, PSUs) have a 5-7 year design life. Beyond this, MTBF rises sharply, OEM spare-parts availability drops, and firmware support ends — all increasing loss frequency and average repair cost.",
+      "notes": "For mixed-age fleets use weighted-average age by sum insured. Equipment > 10 years may require independent valuation survey before acceptance.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Insurance Institute of India IC-57 Engineering Insurance",
+        "url": "https://www.iii.org.in/content/ic-57-engineering-insurance",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "eei_no_ups_power_protection": {
+      "label": "No UPS / Surge Protection / AVR Installed",
+      "value": 0.15,
+      "low_pct": 10.0,
+      "mid_pct": 15.0,
+      "high_pct": 20.0,
+      "direction": "loading",
+      "applies_to": [
+        "EEI"
+      ],
+      "rationale": "Power fluctuation (voltage surges, sags, and unplanned outages) is the leading cause of EEI claims in India due to grid instability. Without UPS or AVR, sensitive electronics are directly exposed. BEE data confirms frequent voltage excursions across Indian Tier 2/3 cities.",
+      "notes": "Ask for DG/inverter records or power quality logs. Loading reduces to 50% if online UPS is present but not sized correctly for full load.",
+      "source": {
+        "type": "MARKET",
+        "citation": "BEE India Power Quality Programme; Market Practitioner Surveys",
+        "url": "https://beeindia.gov.in/en/programmes/energy-efficiency-industry",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "eei_portable_mobile_equipment": {
+      "label": "Portable / Handheld / Mobile Equipment",
+      "value": 0.225,
+      "low_pct": 15.0,
+      "mid_pct": 22.5,
+      "high_pct": 30.0,
+      "direction": "loading",
+      "applies_to": [
+        "EEI"
+      ],
+      "rationale": "Laptops, tablets, cameras, drones, and handheld scanners face accidental damage, transit risk, and theft at 3-5x the frequency of fixed rack-mounted equipment. Loss ratios on portable schedules are structurally elevated.",
+      "notes": "Apply loading to the portable equipment schedule value only, not total SI. Require serial number inventory. Drone fleets should confirm DGCA registration and geofencing compliance.",
+      "source": {
+        "type": "MARKET",
+        "citation": "ICICI Lombard EEI Underwriting Guidelines; Market Practice",
+        "url": "",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "eei_adverse_environment": {
+      "label": "Adverse Operating Environment (Dust / Humidity / Vibration)",
+      "value": 0.175,
+      "low_pct": 10.0,
+      "mid_pct": 17.5,
+      "high_pct": 25.0,
+      "direction": "loading",
+      "applies_to": [
+        "EEI"
+      ],
+      "rationale": "Equipment on factory floors, in warehouses, outdoors, or near construction activity is exposed to dust ingress, high humidity (corrosion), vibration (solder-joint fatigue), and temperature extremes beyond IEC 60068 operating envelopes — all accelerating failure.",
+      "notes": "Check IP/NEMA rating of equipment vs actual environment classification (IEC 60068-2 / BIS IS 13252-1). Unrated equipment in IP54+ environments attracts the top-end loading.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Insurance Institute of India IC-57; BIS IS 13252-1 (aligned IEC 60950-1)",
+        "url": "https://www.bis.gov.in/",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "eei_prior_claims_3yr": {
+      "label": "Prior EEI Claims in Last 3 Years (Malus)",
+      "value": 0.4,
+      "low_pct": 20.0,
+      "mid_pct": 40.0,
+      "high_pct": 60.0,
+      "direction": "loading",
+      "applies_to": [
+        "EEI"
+      ],
+      "rationale": "Adverse EEI claims experience indicates systemic risk management gaps: poor maintenance, unstable power supply, or a high-risk deployment environment. Malus loading applied per standard market grid based on loss ratio and claim frequency.",
+      "notes": "Obtain 3-year loss run before binding. Loss ratio > 80% requires referral to reinsurance treaty desk. Single catastrophic loss (fire, flood) treated differently from frequency losses.",
+      "source": {
+        "type": "MARKET",
+        "citation": "GIC Re Engineering Underwriting Guidelines; Market Practice (EEI Malus Grids)",
+        "url": "",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "eei_prototype_custom_equipment": {
+      "label": "Prototype / Custom-Built / R&D Equipment",
+      "value": 0.35,
+      "low_pct": 20.0,
+      "mid_pct": 35.0,
+      "high_pct": 50.0,
+      "direction": "loading",
+      "applies_to": [
+        "EEI"
+      ],
+      "rationale": "Custom or prototype electronics have no OEM repair ecosystem: spare parts must be fabricated, repair timelines are unpredictable, and replacement cost is difficult to validate at inception. Mean time to repair (MTTR) is substantially higher, amplifying downstream BI exposure.",
+      "notes": "Require independent valuation certificate for SI > Rs. 1 Cr. Consider excluding 'improvements' clause for iteratively-upgraded prototypes to avoid moral hazard.",
+      "source": {
+        "type": "MARKET",
+        "citation": "GIC Re Engineering Underwriting Notes; Market Practitioner View",
+        "url": "",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "eei_amc_oem_authorized": {
+      "label": "AMC with OEM / Authorised Service Provider",
+      "value": -0.15,
+      "low_pct": 10.0,
+      "mid_pct": 15.0,
+      "high_pct": 20.0,
+      "direction": "discount",
+      "applies_to": [
+        "EEI"
+      ],
+      "rationale": "An active OEM or authorised-service-provider AMC with quarterly PMs is the most effective single risk mitigant in EEI. Cleaning, thermal paste refresh, firmware updates, and capacitor inspection catch degrading components before they fail.",
+      "notes": "Verify AMC includes quarterly preventive maintenance visits (not just annual). AMC must cover all equipment items on the schedule.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Insurance Institute of India IC-57; GIC Re EEI Rating Guidelines",
+        "url": "https://www.iii.org.in/content/ic-57-engineering-insurance",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "eei_new_equipment_under3yr": {
+      "label": "New Equipment (Age < 3 Years)",
+      "value": -0.15,
+      "low_pct": 10.0,
+      "mid_pct": 15.0,
+      "high_pct": 20.0,
+      "direction": "discount",
+      "applies_to": [
+        "EEI"
+      ],
+      "rationale": "Equipment within 3 years of manufacture operates within its designed MTBF envelope, is supported by full OEM parts availability and warranty, and has not yet experienced the capacitor-aging and thermal-fatigue that drive later-life failures.",
+      "notes": "Verify with original invoice/PO. Refurbished, ex-display, or grey-market equipment does not qualify regardless of purchase date.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Insurance Institute of India IC-57 Engineering Insurance",
+        "url": "https://www.iii.org.in/content/ic-57-engineering-insurance",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "eei_ups_surge_protection_installed": {
+      "label": "UPS and Surge / AVR Protection Installed",
+      "value": -0.1,
+      "low_pct": 5.0,
+      "mid_pct": 10.0,
+      "high_pct": 15.0,
+      "direction": "discount",
+      "applies_to": [
+        "EEI"
+      ],
+      "rationale": "A properly-sized online UPS with AVR eliminates power-surge and brownout exposure — the leading cause of EEI losses in India. Equivalent in EEI risk management to a fire suppression system in property insurance.",
+      "notes": "UPS must be rated for >= 120% of actual connected load. Verify battery replacement date (batteries degrade within 2-3 years in Indian climate conditions).",
+      "source": {
+        "type": "MARKET",
+        "citation": "Market Practitioner Surveys; BEE India Power Quality Programme",
+        "url": "https://beeindia.gov.in/en/programmes/energy-efficiency-industry",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "eei_server_room_env_controls": {
+      "label": "Server Room: AC + Humidity Controls (ASHRAE A1)",
+      "value": -0.1,
+      "low_pct": 5.0,
+      "mid_pct": 10.0,
+      "high_pct": 15.0,
+      "direction": "discount",
+      "applies_to": [
+        "EEI"
+      ],
+      "rationale": "Maintaining 18-22 C and 40-60% RH per ASHRAE TC 9.9 Class A1 envelope eliminates thermal failure (hotspot damage), electrostatic discharge events, and condensation damage — the three primary environment-driven EEI loss causes in Indian data centres.",
+      "notes": "Precision AC (CRAC/CRAH) preferred over split AC which cannot control humidity. Verify hot-aisle/cold-aisle containment and automatic alarm on temperature breach.",
+      "source": {
+        "type": "MARKET",
+        "citation": "ASHRAE TC 9.9 Data Centre Thermal Guidelines; Market Practice",
+        "url": "https://www.ashrae.org/technical-resources/bookstore/datacom-series",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "eei_cctv_burglar_alarm": {
+      "label": "24/7 CCTV + Electronic Burglar Alarm",
+      "value": -0.075,
+      "low_pct": 5.0,
+      "mid_pct": 7.5,
+      "high_pct": 10.0,
+      "direction": "discount",
+      "applies_to": [
+        "EEI"
+      ],
+      "rationale": "Active electronic surveillance and intruder detection reduce theft and vandalism of high-value electronic equipment. CCTV also aids loss investigation and supports repudiation of fraudulent claims.",
+      "notes": "Requires 24/7 recording with minimum 30-day retention. Off-site or cloud-backed storage preferred — avoid losing footage in the same incident that causes the equipment loss.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Market Practice; IRDAI Insurance Surveyor Guidelines",
+        "url": "",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "eei_claims_free_ncd": {
+      "label": "Claims-Free 3+ Years (No-Claims Discount)",
+      "value": -0.1,
+      "low_pct": 5.0,
+      "mid_pct": 10.0,
+      "high_pct": 15.0,
+      "direction": "discount",
+      "applies_to": [
+        "EEI"
+      ],
+      "rationale": "Three or more consecutive claim-free years demonstrates a stable, well-maintained equipment environment with low frequency. NCD rewards favourable loss experience and is forfeited on first claim, providing ongoing behavioural incentive for good risk management.",
+      "notes": "Obtain 3-year loss-run certificate from previous insurer. NCD is forfeited in full on first claim and takes 1 year of clean experience to rebuild.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Market Practice (EEI NCD Grids); GIC Re Engineering Insurance Guidelines",
+        "url": "",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "bi_long_indemnity_period": {
+      "label": "Long Indemnity Period (> 12 Months)",
+      "value": 0.225,
+      "low_pct": 10.0,
+      "mid_pct": 22.5,
+      "high_pct": 35.0,
+      "direction": "loading",
+      "applies_to": [
+        "BI"
+      ],
+      "rationale": "Indemnity period is the single largest driver of BI premium. A period beyond 12 months acknowledges a complex rebuild/recovery scenario and dramatically increases the maximum probable loss. Standard Indian manufacturing risks use 12 months; heavy industry and custom plant can justify 24-36 months.",
+      "notes": "Confirm indemnity period matches realistic reconstruction time for the specific risk. Over-insured indemnity periods attract underwriter scrutiny and potential moral hazard.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Insurance Institute of India IC-57 Engineering Insurance; GIC Re BI Underwriting Guidelines",
+        "url": "https://www.iii.org.in/content/ic-57-engineering-insurance",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "bi_single_location_operations": {
+      "label": "Single-Location Operations (No Geographic Spread)",
+      "value": 0.175,
+      "low_pct": 10.0,
+      "mid_pct": 17.5,
+      "high_pct": 25.0,
+      "direction": "loading",
+      "applies_to": [
+        "BI"
+      ],
+      "rationale": "All revenue generating from one facility means a single damage event (fire, flood, cyclone) triggers the full BI exposure. Multi-location operations can re-route production, capping the revenue loss period substantially.",
+      "notes": "Check if risk is in NDMA flood/cyclone zone — single-location coastal and riverine risks may attract additional loading.",
+      "source": {
+        "type": "MARKET",
+        "citation": "GIC Re Business Interruption Underwriting Guidelines; Market Practice",
+        "url": "",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "bi_no_bcp": {
+      "label": "No Business Continuity Plan (BCP) in Place",
+      "value": 0.15,
+      "low_pct": 7.5,
+      "mid_pct": 15.0,
+      "high_pct": 22.5,
+      "direction": "loading",
+      "applies_to": [
+        "BI"
+      ],
+      "rationale": "A documented and tested BCP materially reduces both the duration of interruption (faster recovery decision-making) and its severity (pre-arranged alternate suppliers, sub-contracting arrangements). Absence of BCP signals unplanned, reactive recovery that extends the loss period.",
+      "notes": "Ask for BCP document and last tabletop exercise date. A BCP on paper never tested is treated as partial credit only.",
+      "source": {
+        "type": "MARKET",
+        "citation": "BCI Good Practice Guidelines 2023; Market Practitioner View",
+        "url": "https://www.thebci.org/resource/bci-good-practice-guidelines.html",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "bi_supply_chain_concentration": {
+      "label": "Single-Supplier / Supply Chain Concentration",
+      "value": 0.2,
+      "low_pct": 10.0,
+      "mid_pct": 20.0,
+      "high_pct": 30.0,
+      "direction": "loading",
+      "applies_to": [
+        "BI"
+      ],
+      "rationale": "Heavy dependence on one or two suppliers for critical inputs creates a Contingent Business Interruption (CBI) exposure — the insured's revenue can be destroyed by a loss at the supplier's premises, even with no damage at the insured's own site. Post-COVID supply-chain concentration is a top BI underwriting concern.",
+      "notes": "Applies where a single supplier accounts for > 25% of critical raw material/component inputs. Standard BI wording may not cover CBI — check policy for supplier extension clause.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Swiss Re BI Sigma 2022; Market Practitioner View",
+        "url": "https://www.swissre.com/institute/research/sigma-research.html",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "bi_high_gross_profit_margin": {
+      "label": "High Gross Profit Margin (> 60%)",
+      "value": 0.15,
+      "low_pct": 7.5,
+      "mid_pct": 15.0,
+      "high_pct": 22.5,
+      "direction": "loading",
+      "applies_to": [
+        "BI"
+      ],
+      "rationale": "BI sum insured is based on the Gross Profit (GP) figure under the standard material damage / BI definition. A high GP margin means a higher proportion of revenue is at risk for every rupee of material damage, increasing the maximum BI exposure disproportionately to the property SI.",
+      "notes": "Verify GP is defined correctly per ICICI/GIC policy wording — typically Revenue minus Variable Costs. SaaS/IP-heavy businesses often have 70-85% GP margins and require careful BI limit calibration.",
+      "source": {
+        "type": "MARKET",
+        "citation": "GIC Re BI Underwriting Guidelines; Institute of Chartered Accountants of India GP definition",
+        "url": "",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "bi_seasonal_revenue_concentration": {
+      "label": "Seasonal Revenue Concentration",
+      "value": 0.15,
+      "low_pct": 7.5,
+      "mid_pct": 15.0,
+      "high_pct": 22.5,
+      "direction": "loading",
+      "applies_to": [
+        "BI"
+      ],
+      "rationale": "Businesses where > 50% of annual revenue falls in a single quarter (retail festive season, agricultural harvest, wedding season) face catastrophic BI exposure if a loss event coincides with the peak period. A 1-month interruption in peak season may equal 6 months of off-peak revenue.",
+      "notes": "Applies to e-commerce, retail, tourism, agri-processing, and wedding/events sectors. BI sum insured should reflect peak-period daily revenue, not annual average.",
+      "source": {
+        "type": "MARKET",
+        "citation": "GIC Re BI Underwriting Guidelines; Market Practice",
+        "url": "",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "bi_prior_claims_3yr": {
+      "label": "Prior BI Claims in Last 3 Years (Malus)",
+      "value": 0.4,
+      "low_pct": 20.0,
+      "mid_pct": 40.0,
+      "high_pct": 60.0,
+      "direction": "loading",
+      "applies_to": [
+        "BI"
+      ],
+      "rationale": "Prior BI claims reveal slow incident response, inadequate property protection, or systemic operational fragility. BI claims are typically 2-3× the value of the underlying property claim. Malus loading applied per standard market grid.",
+      "notes": "Obtain 3-year loss run from previous insurer. Distinguish between catastrophic external events (flood, earthquake) vs internal incidents when applying malus.",
+      "source": {
+        "type": "MARKET",
+        "citation": "GIC Re BI Underwriting Guidelines; Market Practice (BI Malus Grids)",
+        "url": "",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "bi_bcp_documented_tested": {
+      "label": "BCP Documented and Annually Tested",
+      "value": -0.125,
+      "low_pct": 7.5,
+      "mid_pct": 12.5,
+      "high_pct": 17.5,
+      "direction": "discount",
+      "applies_to": [
+        "BI"
+      ],
+      "rationale": "A documented BCP with an annual tabletop or live exercise significantly compresses recovery time after a loss event — the key BI cost driver. Pre-agreed alternate supplier arrangements and sub-contracting plans directly reduce the indemnity period in practice.",
+      "notes": "Require both the BCP document and evidence of last test (exercise report or board minutes). Untested plans attract only 50% of this discount.",
+      "source": {
+        "type": "MARKET",
+        "citation": "BCI Good Practice Guidelines 2023; Swiss Re BI Sigma 2022",
+        "url": "https://www.thebci.org/resource/bci-good-practice-guidelines.html",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "bi_diversified_supplier_base": {
+      "label": "Diversified Supplier Base (No Single Supplier > 20%)",
+      "value": -0.1,
+      "low_pct": 5.0,
+      "mid_pct": 10.0,
+      "high_pct": 15.0,
+      "direction": "discount",
+      "applies_to": [
+        "BI"
+      ],
+      "rationale": "A diversified supply chain eliminates Contingent BI (CBI) exposure and allows rapid substitution of inputs following a supplier loss event. This is a direct risk mitigant for supply-chain-triggered BI that is difficult to address with policy wording alone.",
+      "notes": "Verify supplier concentration via procurement data. Applies to critical-path inputs only — commodity suppliers are not considered concentrated.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Swiss Re BI Sigma 2022; Market Practitioner View",
+        "url": "https://www.swissre.com/institute/research/sigma-research.html",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "bi_multi_location_operations": {
+      "label": "Multiple Operating Locations (Geographic Spread)",
+      "value": -0.125,
+      "low_pct": 7.5,
+      "mid_pct": 12.5,
+      "high_pct": 17.5,
+      "direction": "discount",
+      "applies_to": [
+        "BI"
+      ],
+      "rationale": "Geographically distributed operations allow production re-routing following a location-specific loss event, directly compressing the indemnity period. A plant with an identical production line in another state can absorb partial output within days, not months.",
+      "notes": "Verify that alternate locations have genuine spare capacity and can legally and practically absorb the interrupted activity. Locations in the same flood/cyclone zone do not qualify.",
+      "source": {
+        "type": "MARKET",
+        "citation": "GIC Re BI Underwriting Guidelines; Market Practice",
+        "url": "",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "bi_short_indemnity_period": {
+      "label": "Short Indemnity Period (6 Months or Less)",
+      "value": -0.175,
+      "low_pct": 10.0,
+      "mid_pct": 17.5,
+      "high_pct": 25.0,
+      "direction": "discount",
+      "applies_to": [
+        "BI"
+      ],
+      "rationale": "Electing a 6-month or shorter indemnity period caps the maximum BI exposure significantly and signals the insured's confidence in rapid recovery capability (alternate facilities, modular assets, or service-based operations with low reconstruction timelines).",
+      "notes": "Ensure the elected period genuinely reflects recovery capacity — underinsurance at claim stage will be proportionately applied. SaaS and digital businesses can often justify 3-6 month periods.",
+      "source": {
+        "type": "MARKET",
+        "citation": "GIC Re BI Underwriting Guidelines; Market Practice",
+        "url": "",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "bi_claims_free_ncd": {
+      "label": "Claims-Free 3+ Years (No-Claims Discount)",
+      "value": -0.1,
+      "low_pct": 5.0,
+      "mid_pct": 10.0,
+      "high_pct": 15.0,
+      "direction": "discount",
+      "applies_to": [
+        "BI"
+      ],
+      "rationale": "Three or more consecutive claim-free years across BI and linked property lines indicates robust property protection and business resilience. NCD rewards this favourable experience and is forfeited on first claim.",
+      "notes": "NCD assessed jointly with the property policy loss record. A property loss without a linked BI claim (e.g., rapid recovery) may partially preserve BI NCD at underwriter discretion.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Market Practice (BI NCD Grids); GIC Re Engineering Insurance Guidelines",
+        "url": "",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "mb_no_preventive_maintenance": {
+      "label": "No Documented Preventive Maintenance Programme",
+      "value": 0.2,
+      "low_pct": 10.0,
+      "mid_pct": 20.0,
+      "high_pct": 30.0,
+      "direction": "loading",
+      "applies_to": [
+        "MB"
+      ],
+      "rationale": "A documented preventive maintenance (PM) schedule with logged service records is the #1 MB risk mitigant. Without scheduled inspection of lubrication, alignment, wear parts, seals, and electrical connections, machinery defects accumulate undetected until catastrophic failure.",
+      "notes": "Request maintenance logs for the last 12 months. Verbal PM claims without documentation are treated as no PM for underwriting purposes.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Insurance Institute of India IC-57 Engineering Insurance; GIC Re Machinery Breakdown Guidelines",
+        "url": "https://www.iii.org.in/content/ic-57-engineering-insurance",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "mb_equipment_age_over10yr": {
+      "label": "Machinery Age > 10 Years",
+      "value": 0.25,
+      "low_pct": 15.0,
+      "mid_pct": 25.0,
+      "high_pct": 35.0,
+      "direction": "loading",
+      "applies_to": [
+        "MB"
+      ],
+      "rationale": "Machinery beyond 10 years of service experiences significantly elevated breakdown frequency due to fatigue failure of rotating components, seal degradation, bearing wear, and increasingly unavailable OEM spare parts. Repair costs also rise as skilled technicians for older machines become scarce.",
+      "notes": "For vintage or obsolete machinery (> 20 years), an independent engineering survey may be required before acceptance. Check if OEM still manufactures or supports spare parts.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Insurance Institute of India IC-57; GIC Re MB Underwriting Guidelines",
+        "url": "https://www.iii.org.in/content/ic-57-engineering-insurance",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "mb_continuous_24x7_operation": {
+      "label": "24/7 Continuous Operation (No Planned Shutdown)",
+      "value": 0.175,
+      "low_pct": 10.0,
+      "mid_pct": 17.5,
+      "high_pct": 25.0,
+      "direction": "loading",
+      "applies_to": [
+        "MB"
+      ],
+      "rationale": "Continuous operation without planned maintenance shutdowns prevents scheduled inspection of critical wear components. Heat cycling is constant, lubrication degrades faster, and cumulative fatigue is not reset by planned rest periods — all increasing breakdown probability.",
+      "notes": "Common in chemical plants, data centres, steel mills, cold chains, and food processing. Verify if annual planned shutdown for overhaul is scheduled — if yes, apply at 50% loading.",
+      "source": {
+        "type": "MARKET",
+        "citation": "GIC Re Machinery Breakdown Guidelines; Insurance Institute of India IC-57",
+        "url": "https://www.iii.org.in/content/ic-57-engineering-insurance",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "mb_high_pressure_high_temp": {
+      "label": "High-Pressure / High-Temperature Process",
+      "value": 0.225,
+      "low_pct": 10.0,
+      "mid_pct": 22.5,
+      "high_pct": 35.0,
+      "direction": "loading",
+      "applies_to": [
+        "MB"
+      ],
+      "rationale": "High-pressure vessels, boilers, autoclaves, and high-temperature reactors operate under conditions where failure consequences are catastrophic — both in terms of machinery damage severity and potential third-party injury. These risks are subject to additional statutory inspection requirements under the Indian Boilers Act 1923 and PESO regulations.",
+      "notes": "Verify current IBR (Indian Boiler Regulations) certificate for all pressure vessels. PESO licence required for pressure vessels above threshold. Non-compliance = decline or refer.",
+      "source": {
+        "type": "STATUTE",
+        "citation": "Indian Boilers Act 1923; PESO Explosives Act 1884; GIC Re MB Guidelines",
+        "url": "https://peso.gov.in/",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "mb_imported_machinery_no_local_spares": {
+      "label": "Imported Machinery / No Local Spare Parts Availability",
+      "value": 0.2,
+      "low_pct": 10.0,
+      "mid_pct": 20.0,
+      "high_pct": 30.0,
+      "direction": "loading",
+      "applies_to": [
+        "MB"
+      ],
+      "rationale": "Imported machinery — especially from Europe, Japan, or specialised OEMs — requires spare parts to be ordered internationally, cleared through Indian customs, and installed by visiting technicians. A single part can take 4-12 weeks to arrive, dramatically extending the machinery downtime and the linked BI claim period.",
+      "notes": "Check if insured maintains a local critical-spares inventory. A documented spare-parts strategy (even partial) reduces this loading to 50%. Ask for critical-spares list from maintenance team.",
+      "source": {
+        "type": "MARKET",
+        "citation": "GIC Re MB Underwriting Guidelines; Market Practitioner View",
+        "url": "",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "mb_operating_beyond_rated_capacity": {
+      "label": "Operating Beyond Rated Capacity / Overloading",
+      "value": 0.3,
+      "low_pct": 15.0,
+      "mid_pct": 30.0,
+      "high_pct": 50.0,
+      "direction": "loading",
+      "applies_to": [
+        "MB"
+      ],
+      "rationale": "Machinery operated beyond its nameplate rated capacity experiences accelerated wear, heat buildup beyond design tolerances, and stress concentrations that can cause sudden catastrophic failure. This is a common cause of MB claims in Indian manufacturing where capacity pressures are high.",
+      "notes": "Verify production throughput logs vs machinery rated output. Overloading may also constitute a policy breach or warranty violation — confirm with underwriter.",
+      "source": {
+        "type": "MARKET",
+        "citation": "GIC Re MB Underwriting Guidelines; Market Practitioner View",
+        "url": "",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "mb_prior_claims_3yr": {
+      "label": "Prior MB Claims in Last 3 Years (Malus)",
+      "value": 0.4,
+      "low_pct": 20.0,
+      "mid_pct": 40.0,
+      "high_pct": 60.0,
+      "direction": "loading",
+      "applies_to": [
+        "MB"
+      ],
+      "rationale": "Prior MB claims are a strong indicator of systemic maintenance deficiency, operational overloading, or chronic equipment fatigue. Malus loading applied per standard market grid. Repeated claims on the same machine type may indicate a fundamental design mismatch with the application.",
+      "notes": "Obtain 3-year loss run. Distinguish between catastrophic isolated events and frequency losses (> 2 claims in 3 years triggers referral). Request root-cause analysis reports from previous claims.",
+      "source": {
+        "type": "MARKET",
+        "citation": "GIC Re MB Underwriting Guidelines; Market Practice (MB Malus Grids)",
+        "url": "",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "mb_oem_service_contract": {
+      "label": "OEM Service Contract with Periodic Overhaul",
+      "value": -0.15,
+      "low_pct": 10.0,
+      "mid_pct": 15.0,
+      "high_pct": 20.0,
+      "direction": "discount",
+      "applies_to": [
+        "MB"
+      ],
+      "rationale": "An OEM service contract with scheduled periodic overhaul (not just reactive breakdown support) is the most effective MB risk mitigant. OEM technicians have access to proprietary diagnostic tools, genuine parts, and manufacturer-specified torque/calibration settings unavailable to third-party maintainers.",
+      "notes": "Contract must include at minimum annual overhaul with replacement of wear parts per OEM schedule. Reactive-only breakdown contracts do not qualify.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Insurance Institute of India IC-57; GIC Re MB Underwriting Guidelines",
+        "url": "https://www.iii.org.in/content/ic-57-engineering-insurance",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "mb_new_machinery_under5yr": {
+      "label": "New Machinery (Age < 5 Years, Within OEM Support)",
+      "value": -0.15,
+      "low_pct": 10.0,
+      "mid_pct": 15.0,
+      "high_pct": 20.0,
+      "direction": "discount",
+      "applies_to": [
+        "MB"
+      ],
+      "rationale": "Machinery within the first 5 years of service operates within its designed reliability envelope, with all components well within fatigue life. Full OEM parts availability and warranty support reduce both breakdown frequency and repair duration.",
+      "notes": "Verify with original equipment invoice/PO. Reconditioned or rebuilt machinery does not qualify even if recently installed.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Insurance Institute of India IC-57 Engineering Insurance",
+        "url": "https://www.iii.org.in/content/ic-57-engineering-insurance",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "mb_statutory_inspections_current": {
+      "label": "All Statutory Inspections Current (IBR / PESO / Factory Act)",
+      "value": -0.1,
+      "low_pct": 5.0,
+      "mid_pct": 10.0,
+      "high_pct": 15.0,
+      "direction": "discount",
+      "applies_to": [
+        "MB"
+      ],
+      "rationale": "Current IBR (Indian Boiler Regulations) certificates, PESO licences, and factory inspector sign-offs demonstrate regulatory compliance and third-party-verified structural integrity of pressure systems and major plant. These inspections mandate minimum safety standards that directly reduce catastrophic failure risk.",
+      "notes": "Verify certificate currency for ALL pressure vessels on site — a single non-compliant vessel can void cover for the entire plant. IBR certificates are typically annual.",
+      "source": {
+        "type": "STATUTE",
+        "citation": "Indian Boilers Act 1923; Factories Act 1948 Section 31; PESO (Petroleum and Explosives Safety Organisation)",
+        "url": "https://peso.gov.in/",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "high",
+      "irdai_formalised": true,
+      "editable": true
+    },
+    "mb_standby_redundant_machinery": {
+      "label": "Standby / Redundant Machinery Available",
+      "value": -0.1,
+      "low_pct": 5.0,
+      "mid_pct": 10.0,
+      "high_pct": 15.0,
+      "direction": "discount",
+      "applies_to": [
+        "MB"
+      ],
+      "rationale": "Hot or cold standby machinery allows production continuity during repair of the primary unit, directly limiting the BI claim triggered by an MB event. This is the most effective operational mitigant for BI-linked MB exposure.",
+      "notes": "Verify that standby unit is in working order and regularly exercised. A standby machine that has not been started in 12+ months should be treated as non-functional.",
+      "source": {
+        "type": "MARKET",
+        "citation": "GIC Re MB Underwriting Guidelines; Market Practice",
+        "url": "",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "mb_iso9001_quality_system": {
+      "label": "ISO 9001 Quality Management System Certified",
+      "value": -0.075,
+      "low_pct": 5.0,
+      "mid_pct": 7.5,
+      "high_pct": 10.0,
+      "direction": "discount",
+      "applies_to": [
+        "MB"
+      ],
+      "rationale": "ISO 9001 certification mandates documented preventive maintenance procedures, calibration schedules, and non-conformance tracking — all of which directly reduce breakdown frequency. Third-party annual audit provides independent verification of maintenance discipline.",
+      "notes": "Require current ISO 9001 certificate from accredited certification body (e.g., TUV, Bureau Veritas, NABCB). Industry-specific variants (IATF 16949 for auto, AS9100 for aerospace) qualify at higher discount.",
+      "source": {
+        "type": "MARKET",
+        "citation": "ISO 9001:2015 Clause 7.1.3 (Infrastructure maintenance); Market Practice",
+        "url": "https://www.iso.org/iso-9001-quality-management.html",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "mb_critical_spares_inventory": {
+      "label": "Critical Spare Parts Inventory Maintained On-Site",
+      "value": -0.1,
+      "low_pct": 5.0,
+      "mid_pct": 10.0,
+      "high_pct": 15.0,
+      "direction": "discount",
+      "applies_to": [
+        "MB"
+      ],
+      "rationale": "An on-site inventory of OEM-specified critical wear parts (bearings, seals, belts, impellers, fuses) dramatically reduces mean time to repair (MTTR) following a breakdown — the key driver of BI loss severity. Plants with critical spares can restart in hours; those without can wait weeks for imported components.",
+      "notes": "Require a documented critical-spares list signed by the engineering team. Verify inventory is actually stocked (physical check or recent purchase records). Obsolete spares that no longer fit current machinery do not count.",
+      "source": {
+        "type": "MARKET",
+        "citation": "GIC Re MB Underwriting Guidelines; ISO 14224 Reliability Data; Market Practitioner View",
+        "url": "",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+    "mb_claims_free_ncd": {
+      "label": "Claims-Free 3+ Years (No-Claims Discount)",
+      "value": -0.1,
+      "low_pct": 5.0,
+      "mid_pct": 10.0,
+      "high_pct": 15.0,
+      "direction": "discount",
+      "applies_to": [
+        "MB"
+      ],
+      "rationale": "Three or more consecutive claim-free years on the MB line demonstrates sound maintenance discipline and reliable machinery. NCD rewards this experience and provides ongoing behavioural incentive. It is forfeited on first claim and takes one claim-free year to rebuild.",
+      "notes": "Obtain 3-year loss-run certificate from previous insurer. NCD is forfeited in full on first claim regardless of claim size.",
+      "source": {
+        "type": "MARKET",
+        "citation": "Market Practice (MB NCD Grids); GIC Re Engineering Insurance Guidelines",
+        "url": "",
+        "accessed": "2026-06-02",
+        "page": null
+      },
+      "confidence": "medium",
+      "irdai_formalised": false,
+      "editable": true
+    },
+
+    "mca_director_serial_resigner": {
+      "label": "MCA — director resigned from 3+ companies in 24 months",
+      "value": 0.15,
+      "low_pct": 10.0, "mid_pct": 15.0, "high_pct": 20.0,
+      "direction": "loading",
+      "applies_to": ["D_AND_O"],
+      "rationale": "Multiple director resignations in a short window signal governance instability — a leading indicator of subsequent shareholder and regulator action.",
+      "notes": "Pulled from MCA DIR-12 filings cross-referenced across DIN history. Threshold of 3 resignations / 24 months matches GIC Re D&O underwriting guidance.",
+      "source": {"type": "underwriting_guideline", "citation": "GIC Re D&O Guideline §4.3 (governance instability)", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "mca_filings", "field": "director_resignations_24mo", "operator": ">=", "value": 3, "auto_apply": true}
+    },
+    "mca_director_struck_off_association": {
+      "label": "MCA — director associated with 1+ struck-off company",
+      "value": 0.2,
+      "low_pct": 15.0, "mid_pct": 20.0, "high_pct": 30.0,
+      "direction": "loading",
+      "applies_to": ["D_AND_O", "CRIME_FIDELITY"],
+      "rationale": "DIN cross-reference against MCA struck-off registers. Prior association with struck-off entities is a strong negative governance and fraud signal.",
+      "notes": "Triggers underwriter referral if multiple directors share the flag.",
+      "source": {"type": "underwriting_guideline", "citation": "MCA Struck-Off Companies Registry; market D&O practice", "url": "https://www.mca.gov.in/", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "mca_filings", "field": "directors_associated_struck_off_count", "operator": ">=", "value": 1, "auto_apply": true}
+    },
+    "mca_independent_board_majority": {
+      "label": "MCA — independent directors form board majority",
+      "value": -0.1,
+      "low_pct": 5.0, "mid_pct": 10.0, "high_pct": 15.0,
+      "direction": "discount",
+      "applies_to": ["D_AND_O"],
+      "rationale": "Independent-director majority correlates with stronger internal controls and lower shareholder-litigation frequency.",
+      "notes": "Derived from MCA MGT-7 director list + designation field. Only counts true independents (not promoter-affiliated).",
+      "source": {"type": "underwriting_guideline", "citation": "GIC Re D&O Guideline; ipleaders D&O 2026 guide", "url": "https://blog.ipleaders.in/independent-director-liability-and-do-insurance-in-india-a-2026-guide/", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "mca_filings", "field": "independent_director_share", "operator": ">=", "value": 0.5, "auto_apply": true}
+    },
+    "mca_contingent_liability_high": {
+      "label": "MCA — contingent liability > 50% of revenue",
+      "value": 0.2,
+      "low_pct": 15.0, "mid_pct": 20.0, "high_pct": 30.0,
+      "direction": "loading",
+      "applies_to": ["D_AND_O", "PI_TECH_EO"],
+      "rationale": "Disclosed contingent liabilities (active litigation, disputed tax demands, pending claims) represent crystallising losses. High ratio relative to revenue signals real D&O / PI exposure already in motion.",
+      "notes": "Read from latest AOC-4 notes-to-accounts. Threshold: contingent / revenue > 0.5.",
+      "source": {"type": "MARKET", "citation": "AOC-4 notes-to-accounts; standard D&O underwriting practice", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "mca_filings", "field": "contingent_liability_to_revenue", "operator": ">=", "value": 0.5, "auto_apply": true}
+    },
+    "mca_charges_unsatisfied_3plus": {
+      "label": "MCA — 3+ unsatisfied charges on company assets",
+      "value": 0.15,
+      "low_pct": 10.0, "mid_pct": 15.0, "high_pct": 20.0,
+      "direction": "loading",
+      "applies_to": ["D_AND_O"],
+      "rationale": "Multiple unsatisfied lender charges indicate high financial leverage and complex creditor relationships, both correlated with D&O claim frequency.",
+      "notes": "Pulled from MCA CHG-1 / CHG-4 register. Unsatisfied = no CHG-4 filing for a created charge.",
+      "source": {"type": "underwriting_guideline", "citation": "MCA Charges Register (CHG-1/CHG-4)", "url": "https://www.mca.gov.in/", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "mca_filings", "field": "charges_unsatisfied_count", "operator": ">=", "value": 3, "auto_apply": true}
+    },
+    "mca_related_party_transactions_high": {
+      "label": "MCA — material related-party transactions disclosed",
+      "value": 0.12,
+      "low_pct": 8.0, "mid_pct": 12.0, "high_pct": 18.0,
+      "direction": "loading",
+      "applies_to": ["D_AND_O", "CRIME_FIDELITY"],
+      "rationale": "Related-party transactions disclosed in AOC-4 notes are a classic governance and crime exposure — loans to directors, sales to promoter entities, undisclosed conflicts.",
+      "notes": "Trigger fires when RPT value > 10% of revenue OR > 5 distinct RPT counterparties.",
+      "source": {"type": "MARKET", "citation": "AOC-4 notes-to-accounts; SEBI LODR Reg 23", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "mca_filings", "field": "rpt_share_of_revenue", "operator": ">=", "value": 0.1, "auto_apply": true}
+    },
+    "mca_auditor_qualified_opinion": {
+      "label": "MCA — auditor issued qualified opinion in last AOC-4",
+      "value": 0.25,
+      "low_pct": 15.0, "mid_pct": 25.0, "high_pct": 40.0,
+      "direction": "loading",
+      "applies_to": ["D_AND_O", "PI_TECH_EO"],
+      "rationale": "A qualified audit opinion is the strongest single financial-misstatement signal available pre-claim — it is the basis for most successful Side-C D&O claims in India.",
+      "notes": "Read from AOC-4 auditor's report. Modified opinions (qualification, adverse, disclaimer) all trigger this.",
+      "source": {"type": "regulator", "citation": "ICAI SA 705 (Modified Opinions); MCA AOC-4 audit report", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "high", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "mca_filings", "field": "auditor_opinion_modified", "operator": "==", "value": true, "auto_apply": true}
+    },
+    "mca_listed_company": {
+      "label": "MCA — listed entity (CIN prefix 'L', SEBI LODR exposure)",
+      "value": 0.2,
+      "low_pct": 15.0, "mid_pct": 20.0, "high_pct": 30.0,
+      "direction": "loading",
+      "applies_to": ["D_AND_O"],
+      "rationale": "Listed entities carry Side-C (entity securities) exposure under SEBI LODR. Class-action and regulatory exposure orders of magnitude higher than unlisted peers.",
+      "notes": "Auto-derived from CIN prefix 'L'. Mandatory referral for SI > ₹25Cr.",
+      "source": {"type": "regulator", "citation": "SEBI LODR 2015; Companies Act 2013 §245", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "high", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "mca_filings", "field": "company_type", "operator": "==", "value": "listed", "auto_apply": true}
+    },
+    "mca_negative_net_worth": {
+      "label": "MCA — negative net worth in latest AOC-4",
+      "value": 0.3,
+      "low_pct": 20.0, "mid_pct": 30.0, "high_pct": 50.0,
+      "direction": "loading",
+      "applies_to": ["D_AND_O", "BUSINESS_INTERRUPTION"],
+      "rationale": "Negative net worth is a distressed-balance-sheet signal that materially elevates D&O frequency (creditor & investor actions) and BI severity (going-concern risk).",
+      "notes": "Mandatory underwriter referral. Some carriers decline at this point.",
+      "source": {"type": "MARKET", "citation": "AOC-4 balance sheet; standard underwriting practice", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "high", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "mca_filings", "field": "net_worth_cr", "operator": "<", "value": 0, "auto_apply": true}
+    },
+    "mca_paid_up_capital_low_vs_revenue": {
+      "label": "MCA — paid-up capital < 5% of revenue",
+      "value": 0.1,
+      "low_pct": 5.0, "mid_pct": 10.0, "high_pct": 15.0,
+      "direction": "loading",
+      "applies_to": ["D_AND_O"],
+      "rationale": "Thin equity base relative to operating scale increases sensitivity to small losses and raises D&O frequency from creditors and minority shareholders.",
+      "notes": "Threshold: paid_up_capital_cr / revenue_cr < 0.05.",
+      "source": {"type": "MARKET", "citation": "AOC-4 / MGT-7 capital base; standard practice", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "low", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "mca_filings", "field": "paid_up_capital_to_revenue", "operator": "<", "value": 0.05, "auto_apply": true}
+    },
+    "mca_shareholder_concentration_low": {
+      "label": "MCA — top-3 shareholders hold < 50% (dispersed ownership)",
+      "value": 0.12,
+      "low_pct": 8.0, "mid_pct": 12.0, "high_pct": 18.0,
+      "direction": "loading",
+      "applies_to": ["D_AND_O"],
+      "rationale": "Dispersed ownership means more potentially adversarial parties able to sue directors — higher D&O claim frequency than founder-controlled companies.",
+      "notes": "MGT-7 top-3 shareholder share <50% triggers this.",
+      "source": {"type": "underwriting_guideline", "citation": "Empirical D&O frequency studies; market practice", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "low", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "mca_filings", "field": "shareholder_concentration_top3_pct", "operator": "<", "value": 50, "auto_apply": true}
+    },
+    "mca_director_overextended": {
+      "label": "MCA — any director sits on 6+ other boards",
+      "value": 0.1,
+      "low_pct": 5.0, "mid_pct": 10.0, "high_pct": 15.0,
+      "direction": "loading",
+      "applies_to": ["D_AND_O"],
+      "rationale": "Director overextension reduces effective oversight bandwidth per company — empirically correlated with weaker board attention and higher D&O frequency.",
+      "notes": "Counts directorships across all companies, including LLPs. SEBI LODR caps listed-co directorships at 8.",
+      "source": {"type": "regulator", "citation": "SEBI LODR Reg 17A; Companies Act §165", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "mca_filings", "field": "max_other_directorships", "operator": ">=", "value": 6, "auto_apply": true}
+    },
+
+    "gst_export_us_uk_present": {
+      "label": "GST — invoices to US/UK customers detected",
+      "value": 0.25,
+      "low_pct": 15.0, "mid_pct": 25.0, "high_pct": 40.0,
+      "direction": "loading",
+      "applies_to": ["PI_TECH_EO"],
+      "rationale": "US and UK courts award damages orders of magnitude higher than Indian courts, and worldwide PI jurisdiction extensions are expensive. Even a single US or UK client materially changes PI severity.",
+      "notes": "Detected from GSTR-1 export invoices with place-of-supply US or UK. Triggers worldwide-jurisdiction endorsement requirement.",
+      "source": {"type": "MARKET", "citation": "Standard PI underwriting; GIC Re professional indemnity guidance", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "high", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "gst_returns", "field": "has_us_uk_export", "operator": "==", "value": true, "auto_apply": true}
+    },
+    "gst_export_share_high": {
+      "label": "GST — export revenue > 30% of total",
+      "value": 0.15,
+      "low_pct": 10.0, "mid_pct": 15.0, "high_pct": 25.0,
+      "direction": "loading",
+      "applies_to": ["PI_TECH_EO", "BUSINESS_INTERRUPTION"],
+      "rationale": "High export share concentrates revenue in foreign jurisdictions with longer collection cycles and higher legal-cost exposure — affects both PI severity and BI exposure to client-specific outages.",
+      "notes": "Computed from GSTR-1 export invoice share.",
+      "source": {"type": "MARKET", "citation": "GSTR-1 export schedule analysis; standard PI/BI practice", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "gst_returns", "field": "export_share", "operator": ">=", "value": 0.3, "auto_apply": true}
+    },
+    "gst_b2b_top3_concentration_gt70": {
+      "label": "GST — top-3 B2B buyers > 70% of revenue",
+      "value": 0.15,
+      "low_pct": 10.0, "mid_pct": 15.0, "high_pct": 25.0,
+      "direction": "loading",
+      "applies_to": ["BUSINESS_INTERRUPTION", "PI_TECH_EO", "TRADE_CREDIT"],
+      "rationale": "Concentrated customer base means a single PI dispute or BI event can wipe out a large share of revenue. Trade credit exposure spikes from buyer-specific receivable risk.",
+      "notes": "Computed from GSTR-1 B2B invoices aggregated by buyer GSTIN.",
+      "source": {"type": "MARKET", "citation": "GSTR-1 B2B invoice analysis; BI severity practice", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "high", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "gst_returns", "field": "b2b_concentration_top3", "operator": ">=", "value": 0.7, "auto_apply": true}
+    },
+    "gst_state_presence_8plus": {
+      "label": "GST — registered in 8+ states (multi-state operations)",
+      "value": 0.12,
+      "low_pct": 8.0, "mid_pct": 12.0, "high_pct": 18.0,
+      "direction": "loading",
+      "applies_to": ["PUBLIC_LIABILITY", "CGL_I_ELITE"],
+      "rationale": "Each state of operation is a separate jurisdiction for liability claims and a separate compliance surface. Multi-state operations expand the territorial exposure of CGL/PL covers.",
+      "notes": "Counts active GSTINs across states. Excludes deactivated registrations.",
+      "source": {"type": "MARKET", "citation": "Standard CGL/PL territorial scoping practice", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "gst_returns", "field": "state_count", "operator": ">=", "value": 8, "auto_apply": true}
+    },
+    "gst_state_presence_single": {
+      "label": "GST — operations in single state only (concentration risk)",
+      "value": 0.12,
+      "low_pct": 8.0, "mid_pct": 12.0, "high_pct": 18.0,
+      "direction": "loading",
+      "applies_to": ["BUSINESS_INTERRUPTION"],
+      "rationale": "Single-state operations mean a state-wide event (natural catastrophe, regulatory action, civil unrest) can halt all operations. PML for BI = 100% of revenue.",
+      "notes": "Drives BI indemnity period recommendation toward 12 months for single-site operators.",
+      "source": {"type": "MARKET", "citation": "Standard BI PML calculation practice; IRDAI BI wording", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "gst_returns", "field": "state_count", "operator": "==", "value": 1, "auto_apply": true}
+    },
+    "gst_turnover_vs_pl_mismatch": {
+      "label": "GST — GSTR turnover vs P&L revenue mismatch > 10%",
+      "value": 0.15,
+      "low_pct": 10.0, "mid_pct": 15.0, "high_pct": 25.0,
+      "direction": "loading",
+      "applies_to": ["D_AND_O", "PI_TECH_EO"],
+      "rationale": "A material gap between GST turnover and P&L revenue is a financial misrepresentation signal — either GST is under-stated (tax fraud) or P&L is over-stated (investor fraud). Both elevate D&O / PI risk.",
+      "notes": "Triggers underwriter referral. Cross-check requires both GST and P&L extracted.",
+      "source": {"type": "underwriting_guideline", "citation": "GST-PL reconciliation; standard tax-fraud signals", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "gst_returns", "field": "gst_pl_mismatch_pct", "operator": ">=", "value": 0.1, "auto_apply": true}
+    },
+    "gst_filing_irregular": {
+      "label": "GST — late or missed filings in last 4 quarters",
+      "value": 0.1,
+      "low_pct": 5.0, "mid_pct": 10.0, "high_pct": 15.0,
+      "direction": "loading",
+      "applies_to": ["D_AND_O", "CGL_I_ELITE"],
+      "rationale": "Irregular GST filing is a compliance-discipline proxy. Companies that miss statutory filings tend to miss other regulatory obligations as well.",
+      "notes": "Late = filed after due date with penalty. 2+ late filings in 4 quarters triggers this.",
+      "source": {"type": "MARKET", "citation": "CGST Act §47; GST compliance scoring practice", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "low", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "gst_returns", "field": "late_filings_4q", "operator": ">=", "value": 2, "auto_apply": true}
+    },
+    "gst_hsn_sector_mismatch": {
+      "label": "GST — HSN/SAC codes inconsistent with declared sector",
+      "value": 0.12,
+      "low_pct": 8.0, "mid_pct": 12.0, "high_pct": 18.0,
+      "direction": "loading",
+      "applies_to": ["PROPERTY_FIRE", "CGL_I_ELITE", "PI_TECH_EO"],
+      "rationale": "Mismatch between declared sector (e.g., 'SaaS') and HSN/SAC codes filed (e.g., 'manufacturing' or 'product sales') reveals undisclosed sub-lines with different risk profiles — e.g., product liability exposure not previously captured.",
+      "notes": "Reviewer should reconcile self-declared sector vs actual SAC distribution.",
+      "source": {"type": "underwriting_guideline", "citation": "GSTR-1 HSN/SAC analysis; standard sector-classification practice", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "gst_returns", "field": "sector_mismatch_flag", "operator": "==", "value": true, "auto_apply": true}
+    },
+    "gst_b2c_share_high": {
+      "label": "GST — B2C revenue share > 60%",
+      "value": 0.1,
+      "low_pct": 5.0, "mid_pct": 10.0, "high_pct": 15.0,
+      "direction": "loading",
+      "applies_to": ["CGL_I_ELITE", "PUBLIC_LIABILITY"],
+      "rationale": "High consumer-direct revenue expands public liability and consumer-protection exposure. Each transaction is a potential claimant under the Consumer Protection Act 2019.",
+      "notes": "Computed as B2C invoice share from GSTR-1.",
+      "source": {"type": "regulator", "citation": "Consumer Protection Act 2019; standard CGL/PL practice", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "gst_returns", "field": "b2c_share", "operator": ">=", "value": 0.6, "auto_apply": true}
+    },
+    "gst_seasonal_revenue_high": {
+      "label": "GST — >40% revenue in single quarter (seasonality)",
+      "value": 0.1,
+      "low_pct": 5.0, "mid_pct": 10.0, "high_pct": 15.0,
+      "direction": "loading",
+      "applies_to": ["BUSINESS_INTERRUPTION"],
+      "rationale": "Highly seasonal revenue means a BI event timed to the peak quarter inflicts disproportionate loss. Indemnity period needs to be calibrated to peak-season exposure rather than annual average.",
+      "notes": "Threshold: top quarter > 40% of annual revenue.",
+      "source": {"type": "MARKET", "citation": "Standard BI seasonality scoping; GIC Re BI guideline", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "gst_returns", "field": "top_quarter_share", "operator": ">=", "value": 0.4, "auto_apply": true}
+    },
+
+    "policy_prior_cyber_claim_3yr": {
+      "label": "Prior policy — cyber claim in last 3 years",
+      "value": 0.5,
+      "low_pct": 30.0, "mid_pct": 50.0, "high_pct": 80.0,
+      "direction": "loading",
+      "applies_to": ["CYBER"],
+      "rationale": "Claims history is the single most predictive cyber underwriting signal. A prior breach indicates exploitable attack surface, weak controls, or attractive target — all of which persist beyond a single incident.",
+      "notes": "Read from prior policy claims schedule. Severity tier adjusts loading: >₹1Cr loss = high_pct, <₹25L = low_pct.",
+      "source": {"type": "MARKET", "citation": "Standard cyber claim-experience loading; carrier proposal forms", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "high", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "prior_policy", "field": "cyber_claims_3yr", "operator": ">=", "value": 1, "auto_apply": true}
+    },
+    "policy_prior_pi_claim_3yr": {
+      "label": "Prior policy — PI claim in last 3 years",
+      "value": 0.3,
+      "low_pct": 20.0, "mid_pct": 30.0, "high_pct": 50.0,
+      "direction": "loading",
+      "applies_to": ["PI_TECH_EO"],
+      "rationale": "PI claims signal service-delivery risk and/or contractual exposure that persists. Carriers commonly decline renewal after 2+ PI claims; first claim loads 25–50%.",
+      "notes": "Multiple claims trigger underwriter referral.",
+      "source": {"type": "carrier_brochure", "citation": "HDFC Ergo / ICICI Lombard PI proposal forms", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "high", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "prior_policy", "field": "pi_claims_3yr", "operator": ">=", "value": 1, "auto_apply": true}
+    },
+    "policy_prior_do_claim_3yr": {
+      "label": "Prior policy — D&O claim in last 3 years",
+      "value": 0.3,
+      "low_pct": 20.0, "mid_pct": 30.0, "high_pct": 50.0,
+      "direction": "loading",
+      "applies_to": ["D_AND_O"],
+      "rationale": "D&O claims demonstrate that governance issues have surfaced into litigation. Recurrence risk is high.",
+      "notes": "Identity of claimant (regulator vs shareholder vs employee) affects the severity tier.",
+      "source": {"type": "carrier_brochure", "citation": "HDFC ERGO D&O proposal — claim history loading", "url": "https://www.hdfcergo.com/commercial-insurance/liability-insurance/directors-officers-liability-insurance", "accessed": "2026-06-03", "page": null},
+      "confidence": "high", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "prior_policy", "field": "do_claims_3yr", "operator": ">=", "value": 1, "auto_apply": true}
+    },
+    "policy_prior_property_claim_3yr": {
+      "label": "Prior policy — property/fire claim in last 3 years",
+      "value": 0.2,
+      "low_pct": 15.0, "mid_pct": 20.0, "high_pct": 30.0,
+      "direction": "loading",
+      "applies_to": ["PROPERTY_FIRE", "PROPERTY_ALL_RISK", "BHARAT_SOOKSHMA", "BHARAT_LAGHU", "BHARAT_UDYAM"],
+      "rationale": "Property claim recurrence is driven by location, occupancy and protection class — all of which persist year to year.",
+      "notes": "Forfeits NCD entirely on first claim.",
+      "source": {"type": "MARKET", "citation": "GIC Re property loss-experience grids; IRDAI fire wording", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "high", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "prior_policy", "field": "property_claims_3yr", "operator": ">=", "value": 1, "auto_apply": true}
+    },
+    "policy_prior_crime_claim_3yr": {
+      "label": "Prior policy — crime/fidelity claim in last 3 years",
+      "value": 0.4,
+      "low_pct": 25.0, "mid_pct": 40.0, "high_pct": 60.0,
+      "direction": "loading",
+      "applies_to": ["CRIME_FIDELITY"],
+      "rationale": "Crime/fidelity claims reveal weak internal controls. Pattern is highly recurrent without significant control remediation between events.",
+      "notes": "Type of crime (employee theft vs social engineering) determines remediation requirements.",
+      "source": {"type": "MARKET", "citation": "Standard crime/fidelity claim-loading practice", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "high", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "prior_policy", "field": "crime_claims_3yr", "operator": ">=", "value": 1, "auto_apply": true}
+    },
+    "policy_prior_ec_claim_3yr": {
+      "label": "Prior policy — employees' compensation claim in last 3 years",
+      "value": 0.25,
+      "low_pct": 15.0, "mid_pct": 25.0, "high_pct": 40.0,
+      "direction": "loading",
+      "applies_to": ["EMPLOYERS_COMP"],
+      "rationale": "EC claims indicate workplace safety practices and/or occupational hazard exposure that persists across renewals.",
+      "notes": "Fatal claims trigger high_pct + mandatory underwriter referral.",
+      "source": {"type": "statute", "citation": "Employees' Compensation Act 1923; standard loading practice", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "high", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "prior_policy", "field": "ec_claims_3yr", "operator": ">=", "value": 1, "auto_apply": true}
+    },
+    "policy_prior_gh_loss_ratio_high": {
+      "label": "Prior policy — group health loss ratio > 80%",
+      "value": 0.2,
+      "low_pct": 15.0, "mid_pct": 20.0, "high_pct": 35.0,
+      "direction": "loading",
+      "applies_to": ["GROUP_HEALTH"],
+      "rationale": "Group health pricing is empirical — a high loss ratio in the prior year predicts the next year's claims with strong correlation. Standard practice to load at renewal.",
+      "notes": "Loss ratio = paid + IBNR ÷ earned premium. Above 80% triggers renewal loading; above 120% may trigger non-renewal.",
+      "source": {"type": "MARKET", "citation": "Standard GMC renewal pricing; IRDAI health insurance regulations", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "high", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "prior_policy", "field": "gh_loss_ratio", "operator": ">=", "value": 0.8, "auto_apply": true}
+    },
+    "policy_ncd_3yr_zero_claims_cyber": {
+      "label": "Prior policy — 3+ years claim-free (Cyber NCD)",
+      "value": -0.15,
+      "low_pct": 10.0, "mid_pct": 15.0, "high_pct": 20.0,
+      "direction": "discount",
+      "applies_to": ["CYBER"],
+      "rationale": "Sustained claim-free experience demonstrates effective cyber controls and lower attack surface. Standard NCD reward.",
+      "notes": "Loss-run certificate from prior insurer required. Forfeited entirely on first claim.",
+      "source": {"type": "MARKET", "citation": "Standard cyber NCD practice", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "high", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "prior_policy", "field": "cyber_ncd_years", "operator": ">=", "value": 3, "auto_apply": true}
+    },
+    "policy_ncd_3yr_zero_claims_pi": {
+      "label": "Prior policy — 3+ years claim-free (PI NCD)",
+      "value": -0.15,
+      "low_pct": 10.0, "mid_pct": 15.0, "high_pct": 20.0,
+      "direction": "discount",
+      "applies_to": ["PI_TECH_EO"],
+      "rationale": "Claim-free PI experience demonstrates service delivery discipline and contract management. Standard NCD.",
+      "notes": "Loss-run certificate required.",
+      "source": {"type": "MARKET", "citation": "Standard PI NCD practice", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "high", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "prior_policy", "field": "pi_ncd_years", "operator": ">=", "value": 3, "auto_apply": true}
+    },
+    "policy_ncd_3yr_zero_claims_do": {
+      "label": "Prior policy — 3+ years claim-free (D&O NCD)",
+      "value": -0.1,
+      "low_pct": 5.0, "mid_pct": 10.0, "high_pct": 15.0,
+      "direction": "discount",
+      "applies_to": ["D_AND_O"],
+      "rationale": "D&O NCD is modest because base rates are low and frequency is lumpy. Still meaningful at scale.",
+      "notes": "Loss-run + claims-free declaration required.",
+      "source": {"type": "MARKET", "citation": "Standard D&O NCD grids", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "prior_policy", "field": "do_ncd_years", "operator": ">=", "value": 3, "auto_apply": true}
+    },
+    "policy_ncd_3yr_zero_claims_property": {
+      "label": "Prior policy — 3+ years claim-free (Property NCD)",
+      "value": -0.1,
+      "low_pct": 5.0, "mid_pct": 10.0, "high_pct": 15.0,
+      "direction": "discount",
+      "applies_to": ["PROPERTY_FIRE", "PROPERTY_ALL_RISK", "BHARAT_SOOKSHMA", "BHARAT_LAGHU", "BHARAT_UDYAM"],
+      "rationale": "Standard fire/property NCD applies to MSME and Bharat product family alike.",
+      "notes": "Loss-run certificate required. Resets on first claim.",
+      "source": {"type": "MARKET", "citation": "IRDAI fire policy NCD grids", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "high", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "prior_policy", "field": "property_ncd_years", "operator": ">=", "value": 3, "auto_apply": true}
+    },
+    "policy_retroactive_lt_3yr": {
+      "label": "Prior policy — PI retroactive date < 3 years",
+      "value": 0.2,
+      "low_pct": 15.0, "mid_pct": 20.0, "high_pct": 30.0,
+      "direction": "loading",
+      "applies_to": ["PI_TECH_EO"],
+      "rationale": "Short retroactive date leaves a 'tail' of uncovered prior acts that surface in subsequent policy years. The new policy effectively covers a longer claim-discovery window than the retroactive coverage period.",
+      "notes": "Acceptable retroactive should match service-delivery commencement or 3 years, whichever is greater.",
+      "source": {"type": "MARKET", "citation": "Standard PI retroactive-date underwriting", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "prior_policy", "field": "pi_retroactive_years", "operator": "<", "value": 3, "auto_apply": true}
+    },
+
+    "contract_unlimited_liability": {
+      "label": "Client contract — unlimited liability clause (SI floor override)",
+      "value": 0.0,
+      "low_pct": 0.0, "mid_pct": 0.0, "high_pct": 0.0,
+      "direction": "si_floor",
+      "applies_to": ["PI_TECH_EO"],
+      "rationale": "Contracts with no liability cap mean theoretical PI exposure is unbounded. Standard underwriting response: enforce a minimum SI floor (typically ₹10Cr) regardless of revenue-based proxies.",
+      "notes": "Setting si_floor_inr to 10 Cr. This overrides revenue-based SI computation. Cannot be discounted away.",
+      "source": {"type": "MARKET", "citation": "Standard PI underwriting practice for unlimited-liability contracts", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "high", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "client_contract", "field": "unlimited_liability_flag", "operator": "==", "value": true, "auto_apply": true},
+      "si_floor_inr": 100000000
+    },
+    "contract_high_liability_cap": {
+      "label": "Client contract — liability cap > 3× annual revenue",
+      "value": 0.12,
+      "low_pct": 8.0, "mid_pct": 12.0, "high_pct": 18.0,
+      "direction": "loading",
+      "applies_to": ["PI_TECH_EO"],
+      "rationale": "A contractual liability cap that materially exceeds revenue creates exposure to claims significantly larger than the company can absorb. PI SI must be sized to the cap, not revenue.",
+      "notes": "Computed as contract.liability_cap_inr / revenue_inr > 3.",
+      "source": {"type": "MARKET", "citation": "PI SI sizing practice; contract-driven SI floors", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "client_contract", "field": "liability_cap_to_revenue", "operator": ">=", "value": 3.0, "auto_apply": true}
+    },
+    "contract_data_processor_dpdp": {
+      "label": "Client contract — vendor acts as DPDP data processor",
+      "value": 0.2,
+      "low_pct": 15.0, "mid_pct": 20.0, "high_pct": 30.0,
+      "direction": "loading",
+      "applies_to": ["CYBER", "PI_TECH_EO"],
+      "rationale": "Processing client PII as a data processor under DPDP Act 2023 transfers regulatory and contractual liability for breaches to the vendor. Cyber and PI exposure both expand to cover end-customer data.",
+      "notes": "Triggers if contract identifies vendor as 'data processor' or 'sub-processor' OR contains DPDP-style processing terms.",
+      "source": {"type": "statute", "citation": "Digital Personal Data Protection Act 2023 §10–11", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "high", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "client_contract", "field": "data_processor_role", "operator": "==", "value": true, "auto_apply": true}
+    },
+    "contract_sla_penalty_high": {
+      "label": "Client contract — SLA penalties > ₹5L/day",
+      "value": 0.15,
+      "low_pct": 10.0, "mid_pct": 15.0, "high_pct": 25.0,
+      "direction": "loading",
+      "applies_to": ["BUSINESS_INTERRUPTION", "PI_TECH_EO"],
+      "rationale": "High SLA penalty clauses amplify BI loss beyond lost gross profit — contractual liquidated damages compound rapidly during outages. Standard BI excludes contractual penalties without specific endorsement.",
+      "notes": "Triggers indemnity period extension recommendation + BI endorsement flag.",
+      "source": {"type": "MARKET", "citation": "Standard BI wording; SLA penalty endorsement practice", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "client_contract", "field": "sla_penalty_per_day_inr", "operator": ">=", "value": 500000, "auto_apply": true}
+    },
+    "contract_foreign_jurisdiction": {
+      "label": "Client contract — governing law is foreign (US/UK/Singapore/EU)",
+      "value": 0.25,
+      "low_pct": 15.0, "mid_pct": 25.0, "high_pct": 40.0,
+      "direction": "loading",
+      "applies_to": ["PI_TECH_EO", "D_AND_O"],
+      "rationale": "Foreign-law contracts subject the vendor to legal regimes with higher damages awards, more aggressive discovery, and expensive defence costs. India-only PI policies do not respond to foreign arbitration awards.",
+      "notes": "Triggers worldwide-jurisdiction PI endorsement requirement.",
+      "source": {"type": "MARKET", "citation": "Standard PI jurisdictional scoping; carrier worldwide-extension practice", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "high", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "client_contract", "field": "foreign_jurisdiction_flag", "operator": "==", "value": true, "auto_apply": true}
+    },
+    "contract_retroactive_required": {
+      "label": "Client contract — requires vendor to maintain retroactive cover",
+      "value": 0.15,
+      "low_pct": 10.0, "mid_pct": 15.0, "high_pct": 20.0,
+      "direction": "loading",
+      "applies_to": ["PI_TECH_EO"],
+      "rationale": "Client-mandated retroactive cover requires the vendor to maintain claims-made PI with a specific retroactive date, often back to contract inception. Adds premium for extended discovery period.",
+      "notes": "Premium loading scales with retroactive period length.",
+      "source": {"type": "MARKET", "citation": "Standard contractual-PI compliance practice", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "client_contract", "field": "retroactive_required", "operator": "==", "value": true, "auto_apply": true}
+    },
+    "contract_pii_high_volume": {
+      "label": "Client contract — processes > 1L (100k) PII records",
+      "value": 0.25,
+      "low_pct": 15.0, "mid_pct": 25.0, "high_pct": 40.0,
+      "direction": "loading",
+      "applies_to": ["CYBER"],
+      "rationale": "Cyber SI scales with PII volume because DPDP Act penalties (up to ₹250 Cr) and individual-notification costs scale with the number of data subjects affected.",
+      "notes": "Threshold: estimated PII records ≥ 100,000.",
+      "source": {"type": "statute", "citation": "DPDP Act 2023 penalty matrix", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "high", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "client_contract", "field": "pii_volume_est", "operator": ">=", "value": 100000, "auto_apply": true}
+    },
+    "contract_third_party_indemnify": {
+      "label": "Client contract — vendor must indemnify client's third parties",
+      "value": 0.12,
+      "low_pct": 8.0, "mid_pct": 12.0, "high_pct": 18.0,
+      "direction": "loading",
+      "applies_to": ["PI_TECH_EO", "CGL_I_ELITE"],
+      "rationale": "Third-party indemnity clauses extend vendor's liability beyond the contract counterparty to downstream customers, affiliates and partners — materially expanding the claimant pool.",
+      "notes": "Triggers a broader-jurisdiction PI scope and may require contractual-liability extension on CGL.",
+      "source": {"type": "MARKET", "citation": "Standard contractual indemnity practice", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "client_contract", "field": "third_party_indemnity_flag", "operator": "==", "value": true, "auto_apply": true}
+    },
+
+    "asset_register_age_gt5yr_electronic": {
+      "label": "Asset register — weighted-avg electronic equipment age > 5 yrs",
+      "value": 0.15,
+      "low_pct": 10.0, "mid_pct": 15.0, "high_pct": 20.0,
+      "direction": "loading",
+      "applies_to": ["ELECTRONIC_EQUIPMENT"],
+      "rationale": "Electronic equipment beyond 5 years has elevated breakdown frequency and manufacturer support is typically discontinued, increasing both EEI claim probability and repair cost.",
+      "notes": "Computed as cost-weighted average age across all electronic assets in the register.",
+      "source": {"type": "MARKET", "citation": "GIC Re EEI underwriting practice; OEM warranty lifecycle data", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "asset_register", "field": "weighted_avg_age_electronic", "operator": ">=", "value": 5, "auto_apply": true}
+    },
+    "asset_register_age_gt10yr_machinery": {
+      "label": "Asset register — weighted-avg machinery age > 10 yrs",
+      "value": 0.2,
+      "low_pct": 15.0, "mid_pct": 20.0, "high_pct": 30.0,
+      "direction": "loading",
+      "applies_to": ["MACHINERY_BREAKDOWN", "ENGINEERING_CAR_EAR_CPM_MBD_EEI"],
+      "rationale": "Machinery beyond 10 years suffers from metal fatigue, wear, and discontinued OEM support. MB claim frequency and severity both increase sharply past this threshold.",
+      "notes": "Boiler/pressure-vessel assets >15 years without IBR may trigger decline.",
+      "source": {"type": "MARKET", "citation": "GIC Re MB underwriting guidelines; ISO 14224 reliability data", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "asset_register", "field": "weighted_avg_age_machinery", "operator": ">=", "value": 10, "auto_apply": true}
+    },
+    "asset_register_imported_machinery": {
+      "label": "Asset register — imported machinery with no local OEM support",
+      "value": 0.2,
+      "low_pct": 15.0, "mid_pct": 20.0, "high_pct": 30.0,
+      "direction": "loading",
+      "applies_to": ["MACHINERY_BREAKDOWN", "ENGINEERING_CAR_EAR_CPM_MBD_EEI"],
+      "rationale": "Imported machinery without an Indian service agent has long replacement-part lead times (6–12 weeks). MB downtime translates directly into BI loss amplification.",
+      "notes": "Triggers extended BI indemnity period recommendation alongside the MB loading.",
+      "source": {"type": "MARKET", "citation": "Standard MB/BI joint underwriting practice for imported machinery", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "asset_register", "field": "imported_share", "operator": ">=", "value": 0.3, "auto_apply": true}
+    },
+    "asset_register_single_location": {
+      "label": "Asset register — operations at single physical location",
+      "value": 0.15,
+      "low_pct": 10.0, "mid_pct": 15.0, "high_pct": 20.0,
+      "direction": "loading",
+      "applies_to": ["BUSINESS_INTERRUPTION", "PROPERTY_FIRE", "PROPERTY_ALL_RISK", "BHARAT_SOOKSHMA", "BHARAT_LAGHU"],
+      "rationale": "Single-location operations carry 100% PML — a fire or catastrophe at that site halts the entire business. Multi-location operators benefit from natural risk diversification.",
+      "notes": "Drives BI indemnity period recommendation toward 12 months.",
+      "source": {"type": "MARKET", "citation": "Standard PML/BI assessment practice; GIC Re property guidelines", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "high", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "asset_register", "field": "location_count", "operator": "==", "value": 1, "auto_apply": true}
+    },
+    "asset_register_replacement_gt_book_30pct": {
+      "label": "Asset register — replacement value > book value by > 30% (underinsurance risk)",
+      "value": 0.15,
+      "low_pct": 10.0, "mid_pct": 15.0, "high_pct": 25.0,
+      "direction": "loading",
+      "applies_to": ["BHARAT_SOOKSHMA", "BHARAT_LAGHU", "BHARAT_UDYAM", "PROPERTY_FIRE", "PROPERTY_ALL_RISK"],
+      "rationale": "Indian fire policies use the reinstatement basis — claims are settled at replacement cost. If the SI (often book-value-based) is materially below replacement cost, the 'average clause' reduces claim payouts proportionately.",
+      "notes": "Mitigation: recommend SI be re-stated on reinstatement basis with current replacement values from the asset register.",
+      "source": {"type": "regulator", "citation": "IRDAI Standard Fire Policy wording; reinstatement basis & average clause", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "high", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "asset_register", "field": "replacement_vs_book_premium_pct", "operator": ">=", "value": 0.3, "auto_apply": true}
+    },
+    "asset_register_new_under_3yr": {
+      "label": "Asset register — average age < 3 years (new equipment)",
+      "value": -0.1,
+      "low_pct": 5.0, "mid_pct": 10.0, "high_pct": 15.0,
+      "direction": "discount",
+      "applies_to": ["ELECTRONIC_EQUIPMENT", "MACHINERY_BREAKDOWN"],
+      "rationale": "New equipment is typically under OEM warranty (covering manufacturing defects) and has the lowest breakdown frequency in its lifecycle.",
+      "notes": "Independent of NCD. Warranty coverage avoids double-counting with insurance.",
+      "source": {"type": "MARKET", "citation": "OEM warranty period; EEI/MB age-frequency curves", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "asset_register", "field": "weighted_avg_age_all", "operator": "<", "value": 3, "auto_apply": true}
+    },
+
+    "vapt_critical_unpatched_3plus": {
+      "label": "VAPT — 3+ unpatched critical (CVSS ≥ 9.0) vulnerabilities",
+      "value": 0.4,
+      "low_pct": 25.0, "mid_pct": 40.0, "high_pct": 60.0,
+      "direction": "loading",
+      "applies_to": ["CYBER"],
+      "rationale": "A VAPT report disclosing 3+ open critical vulnerabilities indicates near-certain exploitability by motivated attackers. Many carriers refer or require patching before policy inception.",
+      "notes": "Recommend conditional binding — patching evidence required before cover incepts.",
+      "source": {"type": "MARKET", "citation": "Standard cyber VAPT loading practice; NIST CVSS v3.1", "url": "https://www.first.org/cvss/", "accessed": "2026-06-03", "page": null},
+      "confidence": "high", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "vapt_report", "field": "critical_count", "operator": ">=", "value": 3, "auto_apply": true}
+    },
+    "vapt_iso27001_or_soc2": {
+      "label": "VAPT/Audit — ISO 27001 or SOC 2 Type II certified",
+      "value": -0.2,
+      "low_pct": 10.0, "mid_pct": 20.0, "high_pct": 30.0,
+      "direction": "discount",
+      "applies_to": ["CYBER", "PI_TECH_EO"],
+      "rationale": "Formal security certification with annual audits demonstrates mature ISMS, reducing breach frequency and improving defensibility in regulatory action.",
+      "notes": "Verify current certificate (not expired) and scope covers the production environment.",
+      "source": {"type": "MARKET", "citation": "TC SA cyber discount practice; Bajaj Allianz Cyber proposal", "url": "https://www.tcsa.in/frameworks/iso-27001/cost-guide", "accessed": "2026-06-03", "page": null},
+      "confidence": "high", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "vapt_report", "field": "iso27001_or_soc2_active", "operator": "==", "value": true, "auto_apply": true}
+    },
+    "vapt_no_mfa": {
+      "label": "VAPT — multi-factor authentication not enforced",
+      "value": 0.25,
+      "low_pct": 15.0, "mid_pct": 25.0, "high_pct": 40.0,
+      "direction": "loading",
+      "applies_to": ["CYBER"],
+      "rationale": "Absence of MFA on admin/privileged accounts is one of the strongest single predictors of credential-compromise breaches. Many carriers now mandate MFA for cyber cover.",
+      "notes": "May trigger conditional binding — MFA must be enforced before cover incepts.",
+      "source": {"type": "MARKET", "citation": "CERT-In 2022 directions; standard cyber underwriting requirement", "url": "https://www.cert-in.org.in/", "accessed": "2026-06-03", "page": null},
+      "confidence": "high", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "vapt_report", "field": "mfa_enabled", "operator": "==", "value": false, "auto_apply": true}
+    },
+    "vapt_backup_rto_gt_72h": {
+      "label": "VAPT — backup RTO > 72 hours (slow recovery)",
+      "value": 0.2,
+      "low_pct": 15.0, "mid_pct": 20.0, "high_pct": 30.0,
+      "direction": "loading",
+      "applies_to": ["CYBER", "BUSINESS_INTERRUPTION"],
+      "rationale": "Recovery time objective beyond 72 hours means ransomware or destructive-attack BI loss extends materially. The realistic RTO drives BI indemnity sizing.",
+      "notes": "Triggers BI indemnity extension recommendation.",
+      "source": {"type": "MARKET", "citation": "Cyber BI scoping practice; carrier ransomware loading", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "vapt_report", "field": "backup_rto_hours", "operator": ">=", "value": 72, "auto_apply": true}
+    },
+    "vapt_third_party_access_high": {
+      "label": "VAPT — 5+ third parties with admin/privileged access",
+      "value": 0.15,
+      "low_pct": 10.0, "mid_pct": 15.0, "high_pct": 20.0,
+      "direction": "loading",
+      "applies_to": ["CYBER", "CRIME_FIDELITY"],
+      "rationale": "Each third-party with privileged access is a potential supply-chain attack vector. High count increases both cyber and crime (social-engineering, vendor fraud) frequency.",
+      "notes": "Recommend vendor-risk management program for discount eligibility.",
+      "source": {"type": "MARKET", "citation": "Supply chain cyber/crime underwriting practice", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "vapt_report", "field": "third_party_access_count", "operator": ">=", "value": 5, "auto_apply": true}
+    },
+    "vapt_no_endpoint_protection": {
+      "label": "VAPT — endpoint protection (EDR/AV) not deployed",
+      "value": 0.2,
+      "low_pct": 15.0, "mid_pct": 20.0, "high_pct": 30.0,
+      "direction": "loading",
+      "applies_to": ["CYBER"],
+      "rationale": "Endpoint detection and response is now considered baseline. Its absence raises both initial compromise probability and lateral-movement scope.",
+      "notes": "Standard cyber control. May be a condition precedent for cover.",
+      "source": {"type": "MARKET", "citation": "Standard cyber control checklist; carrier proposal forms", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "vapt_report", "field": "endpoint_protection_deployed", "operator": "==", "value": false, "auto_apply": true}
+    },
+    "vapt_dpdp_compliance_audit": {
+      "label": "VAPT/Audit — DPDP Act compliance audit completed",
+      "value": -0.1,
+      "low_pct": 5.0, "mid_pct": 10.0, "high_pct": 15.0,
+      "direction": "discount",
+      "applies_to": ["CYBER", "PI_TECH_EO"],
+      "rationale": "A formal DPDP compliance audit demonstrates regulatory readiness and reduces regulatory-investigation-defence cost exposure.",
+      "notes": "Audit must be by independent assessor, dated within last 12 months.",
+      "source": {"type": "statute", "citation": "DPDP Act 2023; standard compliance-discount practice", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "medium", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "vapt_report", "field": "dpdp_audit_completed", "operator": "==", "value": true, "auto_apply": true}
+    },
+    "vapt_audit_stale_gt_18mo": {
+      "label": "VAPT — security audit older than 18 months",
+      "value": 0.1,
+      "low_pct": 5.0, "mid_pct": 10.0, "high_pct": 15.0,
+      "direction": "loading",
+      "applies_to": ["CYBER"],
+      "rationale": "Audits older than 18 months reflect a security posture that may have drifted significantly; underwriters discount stale evidence.",
+      "notes": "Recommend annual refresh.",
+      "source": {"type": "MARKET", "citation": "Standard cyber audit-currency practice", "url": "", "accessed": "2026-06-03", "page": null},
+      "confidence": "low", "irdai_formalised": false, "editable": true,
+      "trigger": {"source_doc": "vapt_report", "field": "audit_age_months", "operator": ">=", "value": 18, "auto_apply": true}
     }
   },
   "decision_thresholds": {

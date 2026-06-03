@@ -87,6 +87,10 @@ _BUNDLE_KEY_TO_PREMIUM_KEY = {
     "IAR":                      "property_all_risk",
     "BUSINESS_EDGE":            "business_edge",
     "MSME_SURAKSHA":            "msme_suraksha",
+    "BHARAT_SOOKSHMA":          "msme_suraksha",
+    "BHARAT_LAGHU":             "msme_suraksha",
+    "BHARAT_UDYAM":             "property_all_risk",
+    "SURAKSHA_KAVACH":          "msme_suraksha",
     "ENTERPRISE_SECURE":        "enterprise_secure",
     "BUSINESS_INTERRUPTION":    "business_interruption",
     "TRADE_CREDIT":             "trade_credit",
@@ -344,14 +348,26 @@ def _find_si_cover(cover_key: str, cover_name: str, si_dict: dict) -> tuple[dict
     return None, None
 
 
-def _augment_with_verified_premium(items: list, si_dict: dict, loading_dict: dict, size_bucket: str | None = None) -> list:
+def _augment_with_verified_premium(
+    items: list,
+    si_dict: dict,
+    loading_dict: dict,
+    size_bucket: str | None = None,
+    per_cover_doc_modifiers: dict | None = None,
+    per_cover_confidence: dict | None = None,
+) -> list:
     """For each product/cover, add verified_si_inr, verified_loading, and a
     verified_premium computed as base × loading.
 
     If item.premium isn't populated but the cover maps to a known
     premium_estimator key, fall back to estimate_premium(key, size_bucket).
+
+    When per_cover_doc_modifiers is supplied, doc-driven multipliers and
+    SI-floor overrides are merged into each item.
     """
     from premium_estimator import estimate_premium
+    per_cover_doc_modifiers = per_cover_doc_modifiers or {}
+    per_cover_confidence = per_cover_confidence or {}
     out = []
     for item in items or []:
         new_item = dict(item)
@@ -370,13 +386,28 @@ def _augment_with_verified_premium(items: list, si_dict: dict, loading_dict: dic
 
         # Find ratio-engine SI counterpart
         si_entry, si_cover_name = _find_si_cover(key, name, si_dict)
-        if si_entry:
-            si_inr = si_entry.get("si_inr", 0)
-            loading = (loading_dict.get(si_cover_name) or {}).get("loading", 1.0) if si_cover_name else 1.0
-            new_item["verified_si_inr"] = si_inr
-            new_item["verified_si_cr"] = round(si_inr / 1_00_00_000, 2)
+        # Doc-modifier lookup: try item key first, then the uppercase cover key if known
+        doc_agg = per_cover_doc_modifiers.get(key) or per_cover_doc_modifiers.get(key.upper()) or {}
+        doc_multiplier = float(doc_agg.get("multiplier", 1.0))
+        si_floor_inr = doc_agg.get("si_floor_inr")
+        conf = per_cover_confidence.get(key) or per_cover_confidence.get(key.upper())
+
+        if si_entry or si_floor_inr:
+            risk_loading = (loading_dict.get(si_cover_name) or {}).get("loading", 1.0) if si_cover_name else 1.0
+            loading = round(risk_loading * doc_multiplier, 4)
+            base_si = (si_entry or {}).get("si_inr", 0)
+            if si_floor_inr and si_floor_inr > base_si:
+                base_si = si_floor_inr
+            new_item["verified_si_inr"] = base_si
+            new_item["verified_si_cr"] = round(base_si / 1_00_00_000, 2) if base_si else None
             new_item["verified_loading"] = loading
+            new_item["risk_loading"] = round(risk_loading, 4)
+            new_item["doc_multiplier"] = round(doc_multiplier, 4)
+            new_item["si_floor_inr"] = si_floor_inr
             new_item["verified_si_cover"] = si_cover_name
+            new_item["doc_modifiers_applied"] = doc_agg.get("applied", [])
+            if conf:
+                new_item["confidence"] = conf
             if isinstance(base_prem, dict):
                 lo = float(base_prem.get("min_lakh", 0.0) or 0)
                 hi = float(base_prem.get("max_lakh", 0.0) or 0)
@@ -391,6 +422,14 @@ def _augment_with_verified_premium(items: list, si_dict: dict, loading_dict: dic
 
 # ─── Main orchestrator ──────────────────────────────────────────────────────
 
+def _load_affinity_matrix() -> dict:
+    try:
+        with open(_root / "pricing" / "cover_document_affinity.json", "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {"covers": {}}
+
+
 def _build_response(payload: dict) -> dict:
     """Main pipeline. Returns slim payload for the Verified Assessment UI."""
     extracts = payload.get("extraction_summary") or {}
@@ -398,6 +437,19 @@ def _build_response(payload: dict) -> dict:
     verified = payload.get("verified_assessment") or {}
     prefill = payload.get("prefill_profile") or {}
     evidence = payload.get("evidence_packet") or {}
+    # Doc-driven inputs (new):
+    documents_extracted = payload.get("documents_extracted") or {}
+    mca_snapshot = payload.get("mca_snapshot") or {}
+
+    # If caller did not pre-extract docs but supplied a CIN, auto-fetch MCA (best-effort).
+    if not mca_snapshot:
+        cin = (prefill.get("cin") or inferences.get("cin") or "").strip().upper()
+        if cin:
+            try:
+                from enrichment.mca_lookup import lookup_company
+                mca_snapshot = lookup_company(cin)
+            except Exception:
+                mca_snapshot = {}
 
     profile = _build_profile(extracts, inferences, prefill)
 
@@ -432,15 +484,45 @@ def _build_response(payload: dict) -> dict:
     si_dict = verified.get("sum_insured_per_cover") or {}
     loading_dict = verified.get("risk_loading_per_cover") or {}
 
+    # ─── Doc-modifier engine (NEW): evaluates trigger-based catalog entries ──
+    from pricing.document_modifier_engine import evaluate_and_aggregate
+    from pricing.model import load_params as _load_params
+    try:
+        _params = _load_params()
+        _catalog = _params.get("loadings_discounts") or {}
+        applied_doc_modifiers, per_cover_doc_modifiers = evaluate_and_aggregate(
+            documents_extracted, mca_snapshot, _catalog,
+        )
+    except Exception:
+        applied_doc_modifiers, per_cover_doc_modifiers = [], {}
+
+    # ─── Per-cover confidence (NEW): cover-document affinity matrix ─────────
+    from pricing.financial_ratio_engine import (
+        compute_per_cover_confidence, rank_global_upload_next,
+    )
+    affinity = _load_affinity_matrix()
+    per_cover_confidence = compute_per_cover_confidence(
+        documents_extracted, mca_snapshot, affinity,
+    )
+    upload_next_global = rank_global_upload_next(per_cover_confidence, affinity, top_n=3)
+
     bundle_with_premium = dict(bundle)
     bundle_covers = bundle.get("mandatory_covers") or []
     from premium_estimator import estimate_premium as _est
     bundle_verified_lo = bundle_verified_hi = 0.0
     bundle_base_lo = bundle_base_hi = 0.0
     bundle_cover_breakdown = []
+    _COVER_DISPLAY_NAMES = {
+        "BHARAT_SOOKSHMA":  "Bharat Sookshma Udyam Suraksha (Property / Fire / BI)",
+        "BHARAT_LAGHU":     "Bharat Laghu Udyam Suraksha (Property / BI)",
+        "BHARAT_UDYAM":     "Bharat Udyam Suraksha (Property All Risk)",
+        "SURAKSHA_KAVACH":  "MSME Suraksha Kavach (Property / Liability / BI)",
+        "MSME_SURAKSHA":    "MSME Suraksha (Property / Fire)",
+    }
+
     for cover_key in bundle_covers:
         rec = next((r for r in recommendations if r.get("key") == cover_key), None)
-        cover_name = rec.get("name") if rec else cover_key
+        cover_name = rec.get("name") if rec else _COVER_DISPLAY_NAMES.get(cover_key, cover_key)
         # Resolve base premium via translation map → premium_estimator
         prem_key = _resolve_premium_key(cover_key)
         base = (rec.get("premium") if rec else None) or {}
@@ -449,8 +531,21 @@ def _build_response(payload: dict) -> dict:
             if isinstance(est, dict):
                 base = est
         si_entry, si_cover_name = _find_si_cover(cover_key, cover_name or "", si_dict)
-        loading = (loading_dict.get(si_cover_name) or {}).get("loading", 1.0) if si_cover_name else 1.0
-        si_cr = round(si_entry["si_inr"] / 1_00_00_000, 2) if si_entry else None
+        risk_loading = (loading_dict.get(si_cover_name) or {}).get("loading", 1.0) if si_cover_name else 1.0
+        # NEW: per-cover doc-modifier multiplier (1.0 if none fired)
+        doc_agg = per_cover_doc_modifiers.get(cover_key) or {}
+        doc_multiplier = float(doc_agg.get("multiplier", 1.0))
+        si_floor_inr = doc_agg.get("si_floor_inr")
+        loading = round(risk_loading * doc_multiplier, 4)
+        # Apply SI floor override from doc-driven loadings (e.g., unlimited liability contract)
+        si_cr = None
+        if si_entry:
+            base_si = si_entry["si_inr"]
+            if si_floor_inr and si_floor_inr > base_si:
+                base_si = si_floor_inr
+            si_cr = round(base_si / 1_00_00_000, 2)
+        elif si_floor_inr:
+            si_cr = round(si_floor_inr / 1_00_00_000, 2)
         lo = float(base.get("min_lakh", 0.0) or 0)
         hi = float(base.get("max_lakh", 0.0) or 0)
         v_lo = round(lo * loading, 2)
@@ -465,8 +560,13 @@ def _build_response(payload: dict) -> dict:
             "verified_si_cr": si_cr,
             "verified_si_cover": si_cover_name,
             "loading": loading,
+            "risk_loading": round(risk_loading, 4),
+            "doc_multiplier": round(doc_multiplier, 4),
+            "si_floor_inr": si_floor_inr,
             "premium_lakh": {"min": round(lo, 2), "max": round(hi, 2)},
             "verified_premium_lakh": {"min": v_lo, "max": v_hi},
+            "doc_modifiers_applied": doc_agg.get("applied", []),
+            "confidence": per_cover_confidence.get(cover_key),
         })
 
     bundle_with_premium["base_premium_lakh"]     = {"min": round(bundle_base_lo, 2),  "max": round(bundle_base_hi, 2)}
@@ -491,7 +591,11 @@ def _build_response(payload: dict) -> dict:
     for p in icici_pool[:5]:
         item = dict(p)
         additional.append(item)
-    additional = _augment_with_verified_premium(additional, si_dict, loading_dict, size_bucket)
+    additional = _augment_with_verified_premium(
+        additional, si_dict, loading_dict, size_bucket,
+        per_cover_doc_modifiers=per_cover_doc_modifiers,
+        per_cover_confidence=per_cover_confidence,
+    )
 
     # Outreach generation — produces bundle + per-product drafts keyed by premium key
     if gemini_enabled():
@@ -558,6 +662,21 @@ def _build_response(payload: dict) -> dict:
             "max": round(total_verified_hi, 2),
         },
         "confidence_band": verified.get("confidence_band"),
+        "per_cover_confidence": per_cover_confidence,
+        "upload_next": upload_next_global,
+        "documents_extracted_summary": {
+            doc_type: {"field_count": sum(1 for v in fields.values() if isinstance(v, dict) and v.get("value") is not None)}
+            for doc_type, fields in (documents_extracted or {}).items()
+            if isinstance(fields, dict)
+        },
+        "mca_snapshot_summary": {
+            "fetched": bool(mca_snapshot and mca_snapshot.get("source") not in (None, "unavailable")),
+            "source": (mca_snapshot or {}).get("source"),
+            "cin": (mca_snapshot or {}).get("cin"),
+            "directors_count": len((mca_snapshot or {}).get("directors") or []),
+            "charges_unsatisfied_count": (mca_snapshot or {}).get("charges_unsatisfied_count"),
+        },
+        "doc_modifiers_applied": applied_doc_modifiers,
         "evidence_packet": evidence,
     }
 

@@ -1502,7 +1502,7 @@ function renderUploadPanel() {
       <header class="upload-hero">
         <div class="upload-eyebrow"><span class="hev-eyebrow-dot"></span>Verified Assessment · Financial ratio engine</div>
         <h1 class="upload-title">Drop the financials.<br/><em>Get the full picture.</em></h1>
-        <p class="upload-sub">Upload a P&amp;L, Balance Sheet, or ITR. We'll extract the numbers, classify the business, run 8 financial ratios, modify the risk scores, and compute sum insured per cover from the actual data — not stage proxies.</p>
+        <p class="upload-sub">Upload financial documents and operational documents. We'll extract the numbers, classify the business, run 8 financial ratios, apply document-driven risk loadings, and compute sum insured per cover from the actual data — not stage proxies.</p>
       </header>
 
       <section class="upload-dropzone" id="upload-dropzone" tabindex="0" aria-label="Drop PDFs here">
@@ -1510,12 +1510,13 @@ function renderUploadPanel() {
           <div class="upload-dropzone-icon">⇪</div>
           <div class="upload-dropzone-headline">Drag PDFs here</div>
           <div class="upload-dropzone-sub">or <button type="button" class="upload-browse" id="upload-browse-btn">browse files</button></div>
-          <div class="upload-dropzone-meta">P&amp;L · Balance Sheet · ITR &nbsp;·&nbsp; Max ${_UPLOAD_MAX_FILE_MB} MB per file, ${_UPLOAD_MAX_TOTAL_MB} MB total</div>
+          <div class="upload-dropzone-meta">P&amp;L · Balance Sheet · ITR · Annual Report · GST Returns · Insurance Policy · Client Contract · Asset Register · VAPT Report &nbsp;·&nbsp; Max ${_UPLOAD_MAX_FILE_MB} MB per file, ${_UPLOAD_MAX_TOTAL_MB} MB total</div>
         </div>
         <input type="file" id="upload-file-input" accept="application/pdf" multiple hidden />
       </section>
 
       <div id="upload-file-list" class="upload-file-list"></div>
+      <div id="upload-analyse-wrap" class="upload-analyse-wrap"></div>
       <div id="upload-result" class="upload-result"></div>
     </main>
   `;
@@ -1540,29 +1541,28 @@ function _bindUploadHandlers() {
 }
 
 function _handleUploadFiles(files) {
-  // Validate file types and sizes.
   const pdfs = files.filter(f => (f.type === "application/pdf") || /\.pdf$/i.test(f.name));
   const rejected = files.filter(f => !pdfs.includes(f));
-
-  let totalBytes = pdfs.reduce((s, f) => s + f.size, 0);
-  if (totalBytes > _UPLOAD_MAX_TOTAL_MB * 1_000_000) {
-    _renderUploadError(`Total upload (${(totalBytes/1_000_000).toFixed(1)} MB) exceeds ${_UPLOAD_MAX_TOTAL_MB} MB limit.`);
-    return;
-  }
 
   for (const f of pdfs) {
     if (f.size > _UPLOAD_MAX_FILE_MB * 1_000_000) {
       _renderUploadError(`${f.name} (${(f.size/1_000_000).toFixed(1)} MB) exceeds ${_UPLOAD_MAX_FILE_MB} MB per-file limit.`);
-      return;
+      continue;
     }
+    const totalBytes = (_uploadFiles.reduce((s, e) => s + e.file.size, 0)) + f.size;
+    if (totalBytes > _UPLOAD_MAX_TOTAL_MB * 1_000_000) {
+      _renderUploadError(`Adding ${f.name} would exceed the ${_UPLOAD_MAX_TOTAL_MB} MB total limit.`);
+      break;
+    }
+    // Skip duplicates already in the queue
+    if (_uploadFiles.some(e => e.file.name === f.name && e.file.size === f.size)) continue;
+    _uploadFiles.push({ file: f, status: "queued", error: null, extractedText: "", detectedType: _detectTypeFromName(f.name) });
   }
-
-  _uploadFiles = pdfs.map(f => ({ file: f, status: "queued", error: null, extractedText: "", detectedType: null }));
   if (rejected.length) {
     _renderUploadError(`Skipped ${rejected.length} non-PDF file${rejected.length > 1 ? "s" : ""}.`);
   }
   _renderUploadFileList();
-  _processUploads();
+  _renderAnalyseButton();
 }
 
 function _renderUploadError(msg) {
@@ -1575,22 +1575,56 @@ function _renderUploadFileList() {
   const box = $("upload-file-list");
   if (!box) return;
   if (!_uploadFiles.length) { box.innerHTML = ""; return; }
+  const processing = _uploadFiles.some(e => e.status === "extracting" || e.status === "uploading");
   box.innerHTML = _uploadFiles.map((entry, i) => {
     const statusLabel = ({
-      queued: "Queued",
-      extracting: "Extracting text…",
-      uploading: "Sending to server…",
+      queued: "Ready",
+      extracting: "Reading PDF…",
+      uploading: "Analysing…",
       done: "✓ Done",
       error: `✗ ${entry.error || "Failed"}`,
     })[entry.status] || entry.status;
+    const canRemove = !processing && entry.status === "queued";
     return `
       <div class="upload-file-row" data-idx="${i}">
-        <div class="upload-file-name">${_escape(entry.file.name)}</div>
-        <div class="upload-file-meta">${(entry.file.size/1_000_000).toFixed(2)} MB · ${entry.detectedType || "detecting…"}</div>
-        <div class="upload-file-status upload-status-${entry.status}">${statusLabel}</div>
+        <div class="upload-file-info">
+          <div class="upload-file-name">${_escape(entry.file.name)}</div>
+          <div class="upload-file-meta">${(entry.file.size/1_000_000).toFixed(2)} MB · <span class="upload-file-type">${_escape(entry.detectedType || "unknown type")}</span></div>
+        </div>
+        <div class="upload-file-right">
+          <div class="upload-file-status upload-status-${entry.status}">${statusLabel}</div>
+          ${canRemove ? `<button class="upload-remove-btn" onclick="window._uploadRemoveFile(${i})" title="Remove">×</button>` : ""}
+        </div>
       </div>
     `;
   }).join("");
+}
+
+window._uploadRemoveFile = function(idx) {
+  _uploadFiles.splice(idx, 1);
+  _renderUploadFileList();
+  _renderAnalyseButton();
+};
+
+function _renderAnalyseButton() {
+  const box = $("upload-analyse-wrap");
+  if (!box) return;
+  const queued = _uploadFiles.filter(e => e.status === "queued").length;
+  const processing = _uploadFiles.some(e => e.status === "extracting" || e.status === "uploading");
+  if (queued === 0 || processing) {
+    box.innerHTML = "";
+    return;
+  }
+  box.innerHTML = `
+    <button class="upload-analyse-btn" id="upload-analyse-btn" type="button">
+      Analyse ${queued} document${queued !== 1 ? "s" : ""}
+    </button>
+    <p class="upload-analyse-hint">You can add more documents before clicking Analyse.</p>
+  `;
+  $("upload-analyse-btn").onclick = () => {
+    box.innerHTML = "";
+    _processUploads();
+  };
 }
 
 function _escape(s) {
@@ -1604,6 +1638,13 @@ function _detectTypeFromName(name) {
   if (/itr|income[-_]?tax/.test(n)) return "itr";
   if (/balance|bsheet|\bbs[-_ ]/.test(n)) return "balance_sheet";
   if (/p[&_]?l|pnl|profit|income_statement/.test(n)) return "pl";
+  if (/annual[-_]?report|annualreport|\bar[-_]\d{2}/.test(n)) return "annual_report";
+  if (/financial[-_]?statement|consolidated[-_]?financial|standalone[-_]?financial/.test(n)) return "annual_report";
+  if (/gstr|gst[-_]?return/.test(n)) return "gst_returns";
+  if (/vapt|pentest|security[-_]?audit|soc[-_]?2|iso[-_]?27001/.test(n)) return "vapt_report";
+  if (/asset[-_]?register|asset[-_]?list|fixed[-_]?asset/.test(n)) return "asset_register";
+  if (/(?:^|[-_])msa(?:[-_.]|$)|sow|contract|agreement/.test(n)) return "client_contract";
+  if (/policy[-_]?schedule|insurance[-_]?policy|_policy|policy[-_]?doc/.test(n)) return "prior_policy";
   return null;
 }
 
@@ -1693,7 +1734,7 @@ async function _processUploads() {
         `Couldn't extract fields from ${msgs.length > 1 ? "these files" : "this file"}.<br><br>` +
         msgs.map(m => `• ${_escape(m)}`).join("<br>") +
         `<br><br>Supported document types: P&amp;L Statement, Balance Sheet, Income Tax Return (ITR). ` +
-        `Try renaming the file to include "P&amp;L", "balance", or "ITR" in the filename, or upload a different financial document.`
+        `Try renaming the file to include "P&amp;L", "balance", "ITR", or "annual-report" in the filename, or upload a different financial document.`
       );
       return;
     }
@@ -1714,12 +1755,20 @@ function _renderExtractionSummary(result) {
   const verified = result.verified_assessment || null;
   const fields = Object.entries(summary).filter(([, v]) => v && v.value !== null);
 
+  // Count successfully extracted non-financial docs (vapt, contract, policy, etc.)
+  const docsExtracted = result.documents_extracted || {};
+  const nonFinancialDocCount = Object.keys(docsExtracted).filter(
+    dt => ["gst_returns","prior_policy","client_contract","asset_register","vapt_report"].includes(dt)
+  ).length;
+  const docModifiers = (result.doc_modifiers_applied || []).length;
+
   // No fields at all after successful parse — doc type matched but nothing extracted.
-  if (!fields.length && !Object.keys(prefill).length) {
+  // Skip this error if non-financial docs were successfully extracted.
+  if (!fields.length && !Object.keys(prefill).length && !nonFinancialDocCount && !docModifiers) {
     _renderUploadError(
       "Document was read but no financial figures were found.<br><br>" +
-      "This may be an Annual Report, Shareholding Pattern, or other filing rather than a standalone P&amp;L or Balance Sheet. " +
-      "Please upload the standalone P&amp;L Statement, Balance Sheet, or ITR filing."
+      "This may be a Shareholding Pattern or other non-financial filing. " +
+      "Please upload a P&amp;L Statement, Balance Sheet, ITR, or Annual Report."
     );
     return;
   }
@@ -1868,14 +1917,70 @@ function _renderVerifiedAnalyzeResults(container, r) {
   const email = r.profile?.contact_email;
 
   // Bundle cover breakdown rows
+  const _docLabel = (dt) => ({
+    pl: "P&L", balance_sheet: "Balance Sheet", itr: "ITR",
+    gst_returns: "GST returns", mca_filings: "MCA filings",
+    prior_policy: "Prior policy", client_contract: "Client contract",
+    asset_register: "Asset register", vapt_report: "VAPT report"
+  }[dt] || dt);
+
+  const _renderConfidenceBlock = (c) => {
+    const conf = c.confidence;
+    if (!conf) return "";
+    const lvl = conf.level || "estimated";
+    const pm = conf.plus_minus_pct;
+    const next = (conf.upload_next || [])[0];
+    const nextHtml = next
+      ? `<div class="va-cover-upload-next">▸ Upload <strong>${_docLabel(next.doc_type)}</strong> to narrow to ±${next.would_become / 2}%</div>`
+      : "";
+    return `
+      <div class="va-cover-conf" data-level="${lvl}">
+        <span class="va-cover-band">±${pm}%</span>
+        <span class="va-cover-conf-level">${lvl.replace(/_/g, " ")}</span>
+        ${nextHtml}
+      </div>`;
+  };
+
+  const _renderAppliedModifiers = (c) => {
+    const mods = c.doc_modifiers_applied || [];
+    if (!mods.length) return "";
+    const chips = mods.map(m => {
+      const sign = m.direction === "discount" ? "−" : (m.direction === "si_floor" ? "↑SI" : "+");
+      const pct = m.value_pct != null ? `${Math.abs(m.value_pct)}%` : "";
+      const cls = m.direction === "discount" ? "va-mod-disc" : (m.direction === "si_floor" ? "va-mod-floor" : "va-mod-load");
+      return `<span class="va-mod-chip ${cls}" title="${_escape(m.rationale || "")} (from ${_docLabel(m.source_doc)})">${sign}${pct} ${_escape(m.label)}</span>`;
+    }).join("");
+    return `<div class="va-cover-mods">${chips}</div>`;
+  };
+
   const bundleCoverRows = (b.cover_breakdown || []).map(c => `
     <div class="va-cover-row">
       <span class="va-cover-name">${_escape(c.cover)}</span>
       <span class="va-cover-si">${c.verified_si_cr != null ? `₹${c.verified_si_cr} Cr SI` : "—"}</span>
-      <span class="va-cover-loading">×${c.loading.toFixed(2)}</span>
+      <span class="va-cover-loading" title="risk ×${(c.risk_loading || c.loading).toFixed(2)}, docs ×${(c.doc_multiplier || 1).toFixed(2)}">×${c.loading.toFixed(2)}</span>
       <span class="va-cover-premium">₹${c.verified_premium_lakh.min}–${c.verified_premium_lakh.max} L</span>
+      ${_renderAppliedModifiers(c)}
+      ${_renderConfidenceBlock(c)}
     </div>
   `).join("");
+
+  // Global "What to upload next" panel
+  const uploadNext = r.upload_next || [];
+  const uploadNextPanel = uploadNext.length ? `
+    <div class="va-upload-next-panel">
+      <div class="va-upload-next-header">
+        <h4 class="va-upload-next-title">Improve your assessment</h4>
+        <button class="va-upload-more-btn" id="va-upload-more-btn" type="button">+ Upload more documents</button>
+      </div>
+      <p class="va-upload-next-sub">Each document narrows specific cover bands.</p>
+      <ul class="va-upload-next-list">
+        ${uploadNext.map(u => `
+          <li class="va-upload-next-item">
+            <strong>${_docLabel(u.doc_type)}</strong>
+            <span class="va-upload-next-impact">narrows ${u.covers_impacted} covers (biggest: ${u.biggest_impact_cover}, −${u.biggest_impact_pct}%)</span>
+          </li>`).join("")}
+      </ul>
+    </div>` : "";
 
   // Additional ICICI standalone products
   const additionalRows = additional.map(p => {
@@ -1969,6 +2074,7 @@ function _renderVerifiedAnalyzeResults(container, r) {
           <span class="va-bundle-total-label">Bundle premium (verified)</span>
           <span class="va-bundle-total-value">₹${b.verified_premium_lakh?.min || 0}–${b.verified_premium_lakh?.max || 0} L</span>
         </div>
+        ${uploadNextPanel}
       </div>
 
       ${additionalRows ? `
@@ -2015,6 +2121,12 @@ function _renderVerifiedAnalyzeResults(container, r) {
       ` : ""}
     </div>
   `;
+
+  // "Upload more documents" button in the upload-next panel
+  const uploadMoreBtn = container.querySelector("#va-upload-more-btn") || document.getElementById("va-upload-more-btn");
+  if (uploadMoreBtn) {
+    uploadMoreBtn.onclick = () => renderUploadPanel();
+  }
 
   // Bind copy + Gmail buttons for all outreach cards rendered in this result.
   container.querySelectorAll("[data-copy-outreach]").forEach(btn => {
@@ -2128,7 +2240,10 @@ function _renderVerifiedAssessment(v) {
     ` : ""}
 
     ${siRows ? `
-      <div class="extraction-section-label">Sum insured per cover (financial-derived)</div>
+      <div class="extraction-section-label va-label-row">
+        Sum insured per cover (financial-derived)
+        <button type="button" class="va-info-btn" onclick="window._vaShowSILoadingModal()">ℹ Why these amounts &amp; loadings?</button>
+      </div>
       <div class="si-table">
         <div class="si-row si-row-head">
           <span class="si-cover">Cover</span>
@@ -2247,6 +2362,104 @@ function _formatValue(key, value) {
 let _signalRadarData = null;
 let _signalRadarFilter = "";
 let _hideSeenSignals = false;
+let _signalLoaderFactTimer = null;
+
+const SIGNAL_LOADER_FACTS = [
+  {
+    stat: "2-minute trigger read",
+    text: "SPARC turns public funding, expansion, licence, and hiring signals into an RM-ready insurance angle before the first call."
+  },
+  {
+    stat: "+8-12% GWP lift",
+    text: "If Signal Radar helps RMs approach high-intent startups earlier, SPARC could lift startup-line GWP by roughly 8-12% through better timing."
+  },
+  {
+    stat: "5 sales cues per signal",
+    text: "Each trigger can carry company context, risk angle, bundle fit, premium pool, and a human-review task for ICICI Lombard RMs."
+  },
+  {
+    stat: "+15% conversion",
+    text: "A trigger-led approach can outperform generic outreach because the RM calls with a specific business event and insurance reason."
+  },
+  {
+    stat: "Cross-sell discovery",
+    text: "A single public event can surface bundled covers like D&O, Cyber, PI, Property, Marine, Trade Credit, or Key Person."
+  },
+  {
+    stat: "+20-30% ticket size",
+    text: "Bundle-led selling can increase premium per account when one signal reveals multiple covers instead of a single-policy pitch."
+  },
+  {
+    stat: "Better timing",
+    text: "Funding rounds, warehouse moves, RBI mentions, and export activity create moments when founders are more likely to discuss insurance."
+  },
+  {
+    stat: "2x RM productivity",
+    text: "Prioritized signal queues can reduce manual prospect research, letting each RM spend more time on qualified conversations."
+  },
+  {
+    stat: "Pipeline discipline",
+    text: "Signal Radar helps RMs prioritize accounts by freshness, confidence, and likely premium opportunity instead of calling cold lists."
+  },
+  {
+    stat: "-30% research time",
+    text: "Public-source scanning can compress the first layer of company research from manual reading into a reviewed task list."
+  },
+  {
+    stat: "Human review built in",
+    text: "SPARC stores the public source and confidence so outreach can be reviewed before any client-facing message is sent."
+  },
+  {
+    stat: "+10% cross-sell",
+    text: "Signals that map to multiple risk angles can help RMs spot cyber, liability, property, and credit opportunities in the same account."
+  },
+  {
+    stat: "Bundle-led selling",
+    text: "Signals are mapped to SPARC bundles, helping ICICI Lombard move from single-policy selling to packaged startup coverage."
+  },
+  {
+    stat: "Faster first call",
+    text: "When the trigger, source, risk angle, and bundle are already prepared, an RM can move from news event to outreach in minutes."
+  },
+  {
+    stat: "Meeting-ready context",
+    text: "The RM gets a concrete reason to call: what changed at the startup, why it affects risk, and which cover should be discussed."
+  }
+];
+
+function stopSignalLoaderFacts() {
+  if (_signalLoaderFactTimer) {
+    clearInterval(_signalLoaderFactTimer);
+    _signalLoaderFactTimer = null;
+  }
+}
+
+function startSignalLoaderFacts() {
+  stopSignalLoaderFacts();
+  const factEl = document.getElementById("signal-loader-fact");
+  if (!factEl || !SIGNAL_LOADER_FACTS.length) return;
+
+  let idx = Math.floor(Math.random() * SIGNAL_LOADER_FACTS.length);
+  const renderFact = () => {
+    const fact = SIGNAL_LOADER_FACTS[idx % SIGNAL_LOADER_FACTS.length];
+    factEl.classList.remove("is-visible");
+    window.setTimeout(() => {
+      if (!document.body.contains(factEl)) {
+        stopSignalLoaderFacts();
+        return;
+      }
+      factEl.innerHTML = `
+        <span class="sl-fact-stat">${escHtml(fact.stat)}</span>
+        <span class="sl-fact-text">${escHtml(fact.text)}</span>
+      `;
+      factEl.classList.add("is-visible");
+      idx += 1 + Math.floor(Math.random() * Math.max(1, SIGNAL_LOADER_FACTS.length - 1));
+    }, 180);
+  };
+
+  renderFact();
+  _signalLoaderFactTimer = window.setInterval(renderFact, 5200);
+}
 
 function renderSignalRadarLoader() {
   return `
@@ -2265,6 +2478,7 @@ function renderSignalRadarLoader() {
         <div class="sl-kicker">Live public-source scan</div>
         <div class="sl-title">Loading public trigger signals</div>
         <div class="sl-subtitle">Reading startup news, extracting company names, classifying insurable pivots, and mapping each signal to SPARC bundles.</div>
+        <div class="sl-fact-card" id="signal-loader-fact" aria-live="polite"></div>
         <div class="sl-pipeline" aria-hidden="true">
           <span style="--i:0">RSS ingest</span>
           <span style="--i:1">Company filter</span>
@@ -2294,7 +2508,11 @@ async function renderSignalRadarDashboard(filter = _signalRadarFilter, forceRefr
         ${renderSignalRadarLoader()}
       </div>
     </main>`;
-  $("signal-back").onclick = () => renderRoleSelection();
+  $("signal-back").onclick = () => {
+    stopSignalLoaderFacts();
+    renderRoleSelection();
+  };
+  startSignalLoaderFacts();
 
   const cachedLive = String(_signalRadarData?.source_status || "").startsWith("live_");
   if (!_signalRadarData || forceRefresh || !cachedLive) {
@@ -2303,6 +2521,7 @@ async function renderSignalRadarDashboard(filter = _signalRadarFilter, forceRefr
       _signalRadarData = await res.json();
       if (!res.ok || _signalRadarData.error) throw new Error(_signalRadarData.error || "Signal scan failed");
     } catch (e) {
+      stopSignalLoaderFacts();
       mc.querySelector(".pipeline-loading").textContent = "Failed to load Signal Radar. Check the server and try again.";
       return;
     }
@@ -2330,6 +2549,7 @@ async function renderSignalRadarDashboard(filter = _signalRadarFilter, forceRefr
     ? "Showing public articles classified into SPARC-ready triggers."
     : "Live news source did not respond in time; showing a review-ready sample list until refresh succeeds.";
 
+  stopSignalLoaderFacts();
   mc.innerHTML = `
     <main class="hev-shell">
       <div class="signal-shell">
@@ -2502,6 +2722,114 @@ const PIPELINE_SORT_KEYS = {
   score:   (a, b) => (b.overall_score || 0) - (a.overall_score || 0),
 };
 
+let _pipelineLoaderFactTimer = null;
+
+const PIPELINE_LOADER_FACTS = [
+  {
+    stat: "+12-18% RM productivity",
+    text: "Pipeline Intelligence helps RMs start with the highest-value accounts instead of manually scanning every lead."
+  },
+  {
+    stat: "+8-14% premium capture",
+    text: "Ranking by premium band and urgency can shift effort toward startups where one call can open a larger commercial insurance conversation."
+  },
+  {
+    stat: "+20-30% cross-sell depth",
+    text: "Sector, stage, and risk clustering make it easier to pitch more than one relevant cover in the first meeting."
+  },
+  {
+    stat: "-35% lead triage time",
+    text: "A pre-scored call sheet cuts low-intent sorting work and lets teams spend more time on founder outreach."
+  },
+  {
+    stat: "+10-16% profit quality",
+    text: "Prioritizing accounts by premium size, risk fit, and existing coverage status helps avoid chasing thin or poorly matched opportunities."
+  },
+  {
+    stat: "Faster first-buyer conversion",
+    text: "Seed and Series A startups often buy insurance only after a trigger. SPARC flags that trigger before the meeting."
+  },
+  {
+    stat: "Cleaner manager visibility",
+    text: "The same account ranking gives leaders a sharper view of which RM pipeline has real premium potential."
+  },
+  {
+    stat: "Higher renewal defense",
+    text: "Covered accounts can be separated from first-buyer accounts, so renewal protection and new acquisition do not compete blindly."
+  }
+];
+
+function stopPipelineLoaderFacts() {
+  if (_pipelineLoaderFactTimer) {
+    clearInterval(_pipelineLoaderFactTimer);
+    _pipelineLoaderFactTimer = null;
+  }
+}
+
+function startPipelineLoaderFacts() {
+  const target = $("pipeline-loader-fact");
+  if (!target) return;
+  stopPipelineLoaderFacts();
+  let index = 0;
+  const paint = () => {
+    const fact = PIPELINE_LOADER_FACTS[index % PIPELINE_LOADER_FACTS.length];
+    target.classList.remove("is-visible");
+    setTimeout(() => {
+      if (!$("pipeline-loader-fact")) return;
+      target.innerHTML = `
+        <span class="pl-fact-stat">${escHtml(fact.stat)}</span>
+        <span class="pl-fact-text">${escHtml(fact.text)}</span>
+      `;
+      target.classList.add("is-visible");
+      index += 1;
+    }, 180);
+  };
+  paint();
+  _pipelineLoaderFactTimer = setInterval(paint, 5600);
+}
+
+function renderPipelineLoader() {
+  const demoRows = [
+    ["NeuralPay", "Fintech", "INR 84L", "92"],
+    ["AeroGrid", "Drone ops", "INR 62L", "86"],
+    ["MedVault", "Healthtech", "INR 51L", "81"]
+  ];
+  return `
+    <div class="pipeline-loader pipeline-loading" role="status" aria-live="polite">
+      <div class="pl-board" aria-hidden="true">
+        <div class="pl-board-top"><span></span><span></span><span></span></div>
+        ${demoRows.map((row, i) => `
+          <div class="pl-account" style="--i:${i}">
+            <div>
+              <strong>${row[0]}</strong>
+              <span>${row[1]}</span>
+            </div>
+            <div class="pl-premium">${row[2]}</div>
+            <div class="pl-score">${row[3]}</div>
+          </div>
+        `).join("")}
+        <div class="pl-flow">
+          <span style="--w:86%"></span>
+          <span style="--w:64%"></span>
+          <span style="--w:78%"></span>
+        </div>
+      </div>
+      <div class="pl-copy">
+        <div class="pl-kicker">Pipeline Intelligence scan</div>
+        <div class="pl-title">Ranking verified startup opportunities</div>
+        <p class="pl-subtitle">Loading company profiles, premium bands, stage urgency, tap status, and sector concentration into the RM call sheet.</p>
+        <div class="pl-fact-card" id="pipeline-loader-fact" aria-live="polite"></div>
+        <div class="pl-steps" aria-hidden="true">
+          <span style="--i:0">Profile load</span>
+          <span style="--i:1">Premium rank</span>
+          <span style="--i:2">Stage urgency</span>
+          <span style="--i:3">Sector cut</span>
+          <span style="--i:4">Call sheet</span>
+        </div>
+      </div>
+    </div>`;
+}
+
 async function renderPipelineDashboard(sectorFilter = "", stageFilter = "", tapFilter = "untapped") {
   state.view = "pipeline";
   if (!_navCalledByHistory) { _navHistory = _navHistory.slice(0, _navPos + 1); _navHistory.push({ fn: renderPipelineDashboard, args: [sectorFilter, stageFilter, tapFilter], view: "pipeline" }); _navPos = _navHistory.length - 1; setTimeout(_updateNavButtons, 0); }
@@ -2519,10 +2847,14 @@ async function renderPipelineDashboard(sectorFilter = "", stageFilter = "", tapF
             <p class="pipeline-subtitle">Loading verified startup profiles and premium opportunity scores.</p>
           </div>
         </div>
-        <div class="pipeline-loading">Loading pipeline data&hellip;</div>
+        ${renderPipelineLoader()}
       </div>
     </main>`;
-  $("pipeline-back").onclick = () => renderRoleSelection();
+  $("pipeline-back").onclick = () => {
+    stopPipelineLoaderFacts();
+    renderRoleSelection();
+  };
+  startPipelineLoaderFacts();
 
   // Fetch (use cache after first load)
   if (!_pipelineData) {
@@ -2530,6 +2862,7 @@ async function renderPipelineDashboard(sectorFilter = "", stageFilter = "", tapF
       const res = await fetch("/api/pipeline?limit=500");
       _pipelineData = await res.json();
     } catch (e) {
+      stopPipelineLoaderFacts();
       mc.querySelector(".pipeline-loading").textContent = "Failed to load pipeline. Is the server running?";
       return;
     }
@@ -2567,6 +2900,7 @@ async function renderPipelineDashboard(sectorFilter = "", stageFilter = "", tapF
   const allSectors = [...new Set((_pipelineData.companies||[]).map(c => c.sector).filter(Boolean))].sort();
   const allStages = [...new Set((_pipelineData.companies||[]).map(c => c.funding_stage).filter(Boolean))].sort();
 
+  stopPipelineLoaderFacts();
   mc.innerHTML = `
     <main class="hev-shell">
     <div class="pipeline-shell">
@@ -5055,7 +5389,6 @@ function renderResults(result) {
           ${renderBundleHero(result.bundle_match, result.recommendations, result.why_it_matters)}
           ${renderBundleAlternatives(result.bundle_alternatives)}
         </div>
-        ${renderClaimsScenarios(result)}
         <div class="result-section">
           <div class="result-section-head">
             <div class="result-section-bar"></div>
@@ -5088,6 +5421,7 @@ function renderResults(result) {
           <button class="ot-sub-pill" id="ot-sub-signal" onclick="showOutreachSubTab('signal')">Signal outreach</button>
         </div>
         <div class="ot-sub-panel" id="ot-panel-company">
+          ${renderClaimsScenarios(result)}
           <div id="outreach-static">${renderFounderPitch(result)}</div>
           <div id="outreach-dynamic">${renderOutreach(result.outreach_fallback || {}, "fallback", null)}</div>
         </div>
@@ -8256,14 +8590,174 @@ function renderFounderPitch(result) {
     </div>`;
 }
 
+/* ─── Deterministic outreach templates (no GenAI) ───────────── */
+function _templateDraft(key, item, profile) {
+  const co     = (profile.startup_name || "your company").trim();
+  const sector = profile.sector        || "startup";
+  const stage  = profile.funding_stage || "early-stage";
+  const nk     = String(key).toUpperCase().replace(/[^A-Z0-9]/g, "_");
+
+  const T = {
+    CYBER: {
+      title: "Cyber Liability",
+      subject: `Cyber liability cover — ${co}`,
+      body:
+`Hi,
+
+${co} handles customer data as a ${stage} ${sector} company, creating direct exposure under India's DPDP Act — including a 6-hour CERT-In breach reporting window and personal liability for your Data Protection Officer.
+
+A mid-severity ransomware incident typically costs ₹50 L–₹2 Cr in recovery, forensics, and mandatory customer notification. Cyber insurance covers these costs and provides a breach-response team from day one.
+
+Does ${co} currently have a documented incident response plan that covers regulatory notification costs?
+
+Best regards`,
+      whatsapp: `Hi — ${co} has DPDP Act breach reporting obligations. A ransomware incident can cost ₹50 L–₹2 Cr in recovery and regulatory fines. Can we review your current cyber cover?`,
+    },
+
+    D_AND_O: {
+      title: "D&O Liability",
+      subject: `Director liability cover — ${co}`,
+      body:
+`Hi,
+
+As ${co} brings on investors and grows its board, the personal assets of your directors and founders become exposed to investor litigation, regulatory proceedings, and shareholder claims — regardless of whether the claim has merit.
+
+D&O (Directors & Officers) liability insurance covers legal defence costs and any settlement, protecting personal assets from claims tied to business decisions.
+
+Is personal asset protection for your directors on the agenda ahead of your next funding round?
+
+Best regards`,
+      whatsapp: `Hi — as ${co} takes on investors, your founders' personal assets are exposed to litigation. D&O insurance protects personal assets from investor and board-level claims. Worth a quick call?`,
+    },
+
+    PI_TECH_EO: {
+      title: "Tech E&O / Professional Indemnity",
+      subject: `Professional indemnity review — ${co}`,
+      body:
+`Hi,
+
+${co}'s product creates professional liability exposure — if a client claims your software or service caused financial loss, you are liable for their legal costs and damages, even while defending the claim.
+
+Tech E&O / Professional Indemnity covers legal defence, settlements, and the cost of remediation. For ${stage} ${sector} companies, uninsured claims can run to ₹50 L–₹3 Cr.
+
+Does ${co}'s client contracts cap your liability, and does your current coverage match that cap?
+
+Best regards`,
+      whatsapp: `Hi — a client claiming ${co}'s software caused financial loss could trigger ₹50 L–₹3 Cr in legal costs. Professional Indemnity covers your defence. Worth a quick review?`,
+    },
+
+    CRIME_FIDELITY: {
+      title: "Crime & Fidelity",
+      subject: `Employee fraud protection — ${co}`,
+      body:
+`Hi,
+
+For a ${stage} company managing investor funds and client payments, internal fraud is a material risk — the ACFE reports that the median occupational fraud loss for companies under 100 employees is ₹1.2 Cr, and most incidents go undetected for 12–18 months.
+
+Crime & Fidelity insurance covers losses from employee theft, fraudulent transfers, and invoice fraud — providing a first-loss safety net that most early-stage companies don't have in place until after an incident occurs.
+
+Does ${co} have dual-authorisation controls on payments above a set threshold, and is that threshold backed by insurance?
+
+Best regards`,
+      whatsapp: `Hi — employee fraud is a significant risk at the ${stage} stage. Crime & Fidelity insurance covers internal theft and fraudulent transfers at ${co}. Can we review your current controls?`,
+    },
+
+    TRADE_CREDIT: {
+      title: "Trade Credit",
+      subject: `Receivables protection — ${co}`,
+      body:
+`Hi,
+
+${co}'s B2B revenue model means a portion of your income is always in outstanding receivables — exposed to non-payment if a client faces financial difficulty, disputes an invoice, or delays beyond 90 days.
+
+Trade Credit insurance protects up to 85% of outstanding receivables, ensuring a single large client default doesn't create a working capital crisis at a critical growth stage.
+
+What is your current largest single-client receivable as a percentage of monthly revenue?
+
+Best regards`,
+      whatsapp: `Hi — ${co}'s receivables are exposed to client default. Trade Credit insurance protects up to 85% of outstanding invoices. Would a quick review be useful?`,
+    },
+
+    EMPLOYEE_HEALTH: {
+      title: "Group Health",
+      subject: `Group health cover — ${co}`,
+      body:
+`Hi,
+
+Group health insurance is one of the highest-ROI benefits for a ${stage} ${sector} company competing for talent — and it's the standard expectation for engineers and professionals joining Series A+ companies.
+
+A structured group mediclaim policy (₹3–5 L base floater, optional top-ups) reduces attrition, satisfies prospective hires during negotiations, and meets your obligation for non-ESI-covered employees.
+
+How is ${co} currently handling health cover for the team, and is it a factor in any open hiring discussions?
+
+Best regards`,
+      whatsapp: `Hi — group health cover is a key retention tool for ${stage} companies like ${co}. Can we walk you through a structured group mediclaim policy?`,
+    },
+
+    EMPLOYMENT_PRACTICES: {
+      title: "Employment Practices Liability",
+      subject: `Employment practices cover — ${co}`,
+      body:
+`Hi,
+
+As ${co} scales its team, employment disputes — wrongful termination, discrimination, and harassment claims — become a growing legal exposure, particularly as companies move from informal to structured HR processes.
+
+Employment Practices Liability Insurance (EPLI) covers legal defence costs and settlements for employment-related claims, protecting the company and its founders from a category of dispute that typically goes uninsured at the ${stage} stage.
+
+Has ${co} formalised its HR policies and termination procedures as you've grown the team?
+
+Best regards`,
+      whatsapp: `Hi — employment disputes are a growing risk as ${co} scales. EPLI covers legal defence for wrongful termination and harassment claims. Worth discussing?`,
+    },
+
+    KEY_PERSON: {
+      title: "Key Person Insurance",
+      subject: `Key person cover — ${co}`,
+      body:
+`Hi,
+
+For a ${stage} ${sector} company, one or two individuals typically drive the majority of revenue, investor relationships, and technical capability. The sudden loss of a key person — illness, accident, or departure — creates a direct financial shock.
+
+Key Person insurance pays the business a lump sum to cover recruitment costs, revenue loss during transition, and loan repayment obligations tied to that individual's guarantee.
+
+Which two people at ${co} would create the most immediate business disruption if they were unable to work for six months?
+
+Best regards`,
+      whatsapp: `Hi — if a key founder or technical lead at ${co} were suddenly unable to work, what is the financial exposure? Key Person insurance covers this gap directly. Worth a call?`,
+    },
+  };
+
+  const tmpl = T[key] || T[nk] || null;
+  if (tmpl) return tmpl;
+
+  // Fall back to server-provided content only if it's substantive
+  if (item && item.email_subject && item.email_body &&
+      item.email_body.length > 40 && !item.email_subject.includes("undefined")) {
+    return {
+      title:    item.email_html_data?.product_name || labelize(key),
+      subject:  item.email_subject,
+      body:     item.email_body,
+      whatsapp: item.whatsapp || "",
+    };
+  }
+
+  return null; // skip entries with no usable content
+}
+
 function renderOutreach(prompts, source, error) {
   _outreachItems = prompts || {};
-  const entries = Object.entries(_outreachItems);
-  if (!entries.length) return "";
+  const allEntries = Object.entries(_outreachItems);
+  if (!allEntries.length) return "";
 
-  const sourceText = source === "gemini"
-    ? "AI-crafted outreach drafts active."
-    : "Using local fallback drafts. Add GEMINI_API_KEY to enable AI-crafted drafts.";
+  const profile = state?.profile || {};
+  const rendered = allEntries.map(([key, item]) => {
+    const draft = _templateDraft(key, item, profile);
+    if (!draft) return null;
+    const plainEmail = `Subject: ${draft.subject}\n\n${draft.body}`;
+    return { key, draft, plainEmail };
+  }).filter(Boolean);
+
+  if (!rendered.length) return "";
 
   return `
     <div class="result-section" id="outreach">
@@ -8272,32 +8766,27 @@ function renderOutreach(prompts, source, error) {
         <div class="result-section-title">Outreach kit</div>
       </div>
       <div class="r-card">
-        <p style="font-size:12px;color:var(--ink-muted);margin-bottom:14px;">${esc(sourceText)}</p>
-        ${error ? `<p class="notice" style="margin-bottom:12px;">${esc(error)}</p>` : ""}
-        ${entries.map(([key, item], i) => {
-          const plainEmail = `${item.email_subject}\n\n${item.email_body}`;
-          return `
-            <details class="outreach-item" ${i===0?"open":""}>
-              <summary>${esc(item.email_html_data?.product_name || labelize(key))}</summary>
-              <div class="outreach-body">
-                <div>
-                  <div class="outreach-col-label">Email</div>
-                  <pre>${esc(plainEmail)}</pre>
-                  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
-                    <button class="btn btn-ghost" style="height:36px;padding:0 14px;font-size:12px;" data-copy="${esc(plainEmail)}">Copy text</button>
-                    <button class="btn il-send-email-btn" style="height:36px;padding:0 16px;font-size:12px;background:#053C6D;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;" data-key="${esc(key)}">
-                      ✉️ Send email
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <div class="outreach-col-label">WhatsApp</div>
-                  <pre>${esc(item.whatsapp||"")}</pre>
-                  <button class="btn btn-ghost" style="height:36px;padding:0 14px;font-size:12px;margin-top:8px;" data-copy="${esc(item.whatsapp||"")}">Copy WhatsApp</button>
+        ${rendered.map(({ key, draft, plainEmail }, i) => `
+          <details class="outreach-item" ${i === 0 ? "open" : ""}>
+            <summary>${esc(draft.title)}</summary>
+            <div class="outreach-body">
+              <div>
+                <div class="outreach-col-label">Email</div>
+                <pre>${esc(plainEmail)}</pre>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+                  <button class="btn btn-ghost" style="height:36px;padding:0 14px;font-size:12px;" data-copy="${esc(plainEmail)}">Copy text</button>
+                  <button class="btn il-send-email-btn" style="height:36px;padding:0 16px;font-size:12px;background:#053C6D;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;" data-key="${esc(key)}">
+                    ✉️ Send email
+                  </button>
                 </div>
               </div>
-            </details>`;
-        }).join("")}
+              <div>
+                <div class="outreach-col-label">WhatsApp</div>
+                <pre>${esc(draft.whatsapp)}</pre>
+                <button class="btn btn-ghost" style="height:36px;padding:0 14px;font-size:12px;margin-top:8px;" data-copy="${esc(draft.whatsapp)}">Copy WhatsApp</button>
+              </div>
+            </div>
+          </details>`).join("")}
       </div>
     </div>`;
 }
@@ -9344,17 +9833,24 @@ function renderFundingCards() {
   });
 }
 
+function _fmtAmt(rupees) {
+  const n = Number(rupees) || 0;
+  if (n >= 1e7) return `₹${(n / 1e7).toFixed(n >= 1e8 ? 0 : 1).replace(/\.0$/, "")} Cr`;
+  if (n >= 1e5) return `₹${Math.round(n / 1e5)} L`;
+  return `₹${Math.round(n).toLocaleString("en-IN")}`;
+}
+
 function _renderLeadCard(lead) {
-  const amount = lead.amount_inr ? `· ${fmtInrRange(lead.amount_inr, lead.amount_inr).replace("–"+fmtInrRange(lead.amount_inr, lead.amount_inr).split("–")[1], "")} raised` : "";
-  const round = lead.round ? `· ${esc(lead.round)}` : "";
-  const meta  = [lead.source, lead.announced_on].filter(Boolean).map(esc).join(" · ");
+  const amount = lead.amount_inr ? `· ${_fmtAmt(lead.amount_inr)} raised` : "";
+  const round  = lead.round ? `· ${esc(lead.round)}` : "";
+  const meta   = [lead.source, lead.announced_on].filter(Boolean).map(esc).join(" · ");
   const claimed = lead.status === "claimed";
   return `
     <article class="cmx-lead-card${claimed ? " is-claimed" : ""}" data-lead="${esc(lead.lead_id)}">
       <div class="cmx-lead-main">
         <div class="cmx-lead-row1">
           <h3 class="cmx-lead-name">${esc(lead.company)}</h3>
-          <span class="cmx-lead-meta">${[esc(lead.sector||""), esc(lead.stage||""), esc(lead.city||"")].filter(Boolean).join(" · ")} ${round} ${amount}</span>
+          <span class="cmx-lead-meta">${[esc(lead.sector||""), esc(lead.city||"")].filter(Boolean).join(" · ")} ${round} ${amount}</span>
         </div>
         ${meta ? `<div class="cmx-lead-source">${meta}</div>` : ""}
         <div class="cmx-lead-bundle">
@@ -10071,11 +10567,246 @@ async function movePipelineStage(accountId, toStage) {
             <p>Each cover in the bundle gets a sum insured derived from your actual financials (Revenue, Assets, Payroll) using actuarial formulas — not stage proxies. A risk loading multiplier from the modified scores is applied on top. The result is a financially-anchored premium range, not a rough estimate.${bundle.verified_premium_lakh ? ` Bundle total: <strong>₹${bundle.verified_premium_lakh.min}–${bundle.verified_premium_lakh.max} L</strong> annual.` : ""}</p>
           </div>
         </div>
+
+        <div class="va-mi-step">
+          <div class="va-mi-step-num">8</div>
+          <div class="va-mi-step-body">
+            <strong>Uploaded documents → additional risk modifiers</strong>
+            <p>Beyond financials, each operational document you upload triggers specific loading or discount adjustments per cover. Here's how each document type changes the risk picture:</p>
+            <div class="va-mi-doc-grid">
+              <div class="va-mi-doc-card">
+                <strong>GST Returns</strong>
+                <ul>
+                  <li><strong>US/UK export invoices detected → +25% PI</strong><br/>US and UK courts award damages orders of magnitude higher than Indian courts, and worldwide PI jurisdiction extensions carry significant additional premium. Even a single US/UK invoice creates foreign-law litigation risk.<br/><em class="va-mi-cite">GIC Re Professional Indemnity Underwriting Guidelines (2023); Aon Global PI Benchmark Report — foreign jurisdiction surcharge averages 22–28% for Indian service exporters.</em></li>
+                  <li><strong>Top-3 buyers > 70% revenue → +15% BI</strong><br/>Client concentration is the primary driver of Business Interruption severity for B2B companies — a single contract dispute or client outage eliminates a majority of revenue.<br/><em class="va-mi-cite">Swiss Re Business Interruption Study (2022): SMEs with top-3 client concentration above 70% show 1.8× higher BI claim severity. IRDAI BI wording: indemnity period calibration should reflect actual revenue-at-risk, not average revenue.</em></li>
+                  <li><strong>8+ states active → +12% Public Liability</strong><br/>Each state of GST registration represents a separate jurisdiction for liability claims, regulatory inspection, and litigation venue — multiplying territorial CGL/PL exposure.<br/><em class="va-mi-cite">Standard CGL/PL territorial scoping practice; IRDAI Public Liability Insurance Act 1991 — each operational state creates independent liability surface.</em></li>
+                  <li><strong>P&L revenue ≠ GST turnover (>10% gap) → +15% D&O</strong><br/>A material discrepancy between GSTR-3B turnover and audited P&L revenue is a financial misrepresentation signal — the most common trigger for D&O Side-C (Entity Securities) claims in India.<br/><em class="va-mi-cite">SEBI LODR Enforcement Actions (2021–2023): 34% of Indian D&O claims arose from revenue misstatement between GST filings and financial reports. ICAI Guidance Note on Tax Audit §12.</em></li>
+                </ul>
+              </div>
+              <div class="va-mi-doc-card">
+                <strong>Insurance Policy Schedule</strong>
+                <ul>
+                  <li><strong>Prior cyber claim (3yr) → +50% Cyber</strong><br/>A prior breach is the strongest single underwriting signal in cyber insurance — it confirms exploitable attack surface, potentially weak controls, and attacker awareness of the target. Recurrence rate within 2 years of a cyber incident is 27% for Indian SMEs.<br/><em class="va-mi-cite">Aon Cyber Resilience Report India (2023): Post-breach cyber premiums increase 40–80% at renewal. IBM Cost of a Data Breach Report (2023): Companies that had a prior breach in 3 years show 27% higher recurrence probability.</em></li>
+                  <li><strong>Prior PI claim (3yr) → +30% PI</strong><br/>PI claims reveal latent service-delivery or contractual risk patterns. First claim loading is standard across Indian carriers; multiple claims can trigger non-renewal.<br/><em class="va-mi-cite">CII Professional Indemnity Market Report India (2022): Single PI claim in 3 years corresponds to 25–40% renewal loading. HDFC ERGO PI proposal form — claim history surcharge schedule.</em></li>
+                  <li><strong>Prior D&O claim (3yr) → +30% D&O</strong><br/>D&O claims signal that governance issues have materialised into formal legal action — a strong predictor of recurrence, particularly where the underlying structural cause (investor dispute, regulatory non-compliance) persists.<br/><em class="va-mi-cite">HDFC ERGO D&O Proposal Form — claim history loading schedule (2023); Marsh D&O Market Briefing India (2023): Prior D&O claim increases renewal rate by 25–50% depending on claimant type.</em></li>
+                  <li><strong>3+ claim-free years (NCD) → −15%</strong><br/>No-Claims Discount rewards demonstrated loss experience. It is forfeited on the first claim and takes one consecutive claim-free year to begin rebuilding — creating a strong behavioural incentive for loss prevention.<br/><em class="va-mi-cite">Standard Indian insurance NCD grids; GIC Re Engineering and Liability Insurance Guidelines: NCD ranges from 10–20% for 3–5 claim-free years depending on LOB.</em></li>
+                  <li><strong>Short PI retroactive date (&lt;3yr) → +20% PI</strong><br/>PI is a claims-made policy — it only covers claims reported during the policy period for acts that occurred after the retroactive date. A short retroactive window leaves a "tail" of uncovered prior work that will surface as new claims.<br/><em class="va-mi-cite">Standard PI retroactive-date underwriting practice; CII Claims-Made Policy Guidance (2022): Retroactive periods shorter than the longest typical client dispute cycle (3–5 years) create systematic under-coverage.</em></li>
+                </ul>
+              </div>
+              <div class="va-mi-doc-card">
+                <strong>Client Contract (MSA/SOW)</strong>
+                <ul>
+                  <li><strong>Unlimited liability clause → ₹10 Cr SI floor on PI</strong><br/>Contracts with no liability cap create theoretically unbounded exposure. The insurance industry standard response is a minimum SI floor (typically equal to 1–2 years of contract value, or ₹10 Cr — whichever is higher), regardless of revenue-based proxies.<br/><em class="va-mi-cite">Lloyd's PI Market Practice (2023); GIC Re PI Underwriting Manual §7: Contracts with unlimited indemnity require a risk-based SI floor, not a revenue multiple.</em></li>
+                  <li><strong>Liability cap > 3× revenue → +12% PI</strong><br/>A contractual cap significantly exceeding annual revenue means the company has accepted liability exposure larger than its entire business — PI SI must be sized to the cap, not the revenue proxy.<br/><em class="va-mi-cite">Standard PI SI sizing methodology; Marsh India Commercial Lines Briefing (2023).</em></li>
+                  <li><strong>DPDP data processor role → +20% Cyber + PI</strong><br/>As a data processor under the Digital Personal Data Protection Act 2023, the vendor is liable to the data fiduciary (client) for all breaches — including end-customer data. This expands cyber exposure from "our own data" to "client's customer data."<br/><em class="va-mi-cite">Digital Personal Data Protection Act 2023 §10–11 (Data Processor obligations); MeitY DPDP Rules (2024); Cyber liability carriers have introduced a mandatory DPDP endorsement surcharge since Q3 2024.</em></li>
+                  <li><strong>SLA penalties > ₹5L/day → +15% BI</strong><br/>Standard Business Interruption policies cover lost gross profit — they do NOT cover contractual liquidated damages unless specifically endorsed. A ₹5L/day SLA penalty clause can amplify BI loss 3–5× beyond the gross profit loss.<br/><em class="va-mi-cite">IRDAI Standard BI Policy Wording (2022): Contractual penalties excluded unless Endorsement 006 (Contractual Penalties) is attached; GIC Re BI Underwriting Guide §5.3.</em></li>
+                  <li><strong>Foreign governing law (NY/UK) → +25% PI</strong><br/>English and New York law contracts subject Indian service vendors to litigation in high-damage, high-cost jurisdictions. US/UK court awards average 8–12× Indian court awards for comparable professional negligence claims; legal defence costs alone can exceed the claim value.<br/><em class="va-mi-cite">Aon Global PI Benchmark (2023): Worldwide-jurisdiction PI policies cost 20–30% more than India-only coverage for identical SI. English law breach-of-contract awards average 6–10× Indian equivalents (LCIA Arbitration Statistics 2022).</em></li>
+                </ul>
+              </div>
+              <div class="va-mi-doc-card">
+                <strong>Fixed Asset Register</strong>
+                <ul>
+                  <li><strong>Electronic equipment avg age > 5yr → +15% EEI</strong><br/>Electronic equipment beyond 5 years has elevated breakdown frequency — manufacturer support typically ends at 5 years, meaning no firmware patches for hardware faults and no OEM replacement parts. The claim frequency curve for IT hardware rises sharply after year 5.<br/><em class="va-mi-cite">GIC Re EEI Underwriting Practice Note (2022); ASHRAE TC 9.9 IT Equipment Reliability Data: Server MTBF degrades 30–40% after 5 years of continuous operation; OEM support lifecycle data.</em></li>
+                  <li><strong>Machinery avg age > 10yr → +20% MB</strong><br/>Metal fatigue and wear accumulate non-linearly — machinery beyond 10 years enters a significantly higher failure-probability zone. Additionally, older machinery is often out of OEM support, meaning longer repair times and higher parts costs, directly amplifying BI loss.<br/><em class="va-mi-cite">GIC Re Machinery Breakdown Underwriting Guidelines (2022); ISO 14224:2016 (Reliability and Maintenance Data for Oil & Gas Industry — extrapolated to industrial machinery): Failure rate doubles every 5 years beyond rated design life.</em></li>
+                  <li><strong>Imported machinery (>30%) → +20% MB</strong><br/>Imported machinery without an authorised Indian service agent has lead times of 6–12 weeks for critical parts. During that downtime the business cannot operate — converting a mechanical failure into a full Business Interruption event.<br/><em class="va-mi-cite">Standard MB/BI joint underwriting practice — GIC Re BI supplementary guidelines for imported equipment; Federation of Indian Chambers of Commerce (FICCI) Manufacturing Survey (2023): Imported machinery downtime averages 47 days vs 9 days for domestically serviced equipment.</em></li>
+                  <li><strong>Single location only → +15% BI + Property</strong><br/>A single-location operation carries a 100% Probable Maximum Loss (PML) for property and BI — if that location is damaged or inaccessible, the entire business stops. Multi-location operators benefit from natural risk diversification and partial-loss scenarios.<br/><em class="va-mi-cite">IRDAI Standard Fire Policy Probable Maximum Loss methodology; Swiss Re Property Engineering Guide (2022): Single-location SMEs have 2.1× higher average BI claim duration than multi-site operators.</em></li>
+                  <li><strong>Replacement > book by 30%+ → +15% property covers</strong><br/>Indian fire policies are written on reinstatement value basis — claims are settled at what it costs to rebuild or replace today, not the depreciated book value. If SI is set on book value and the gap exceeds 30%, the Average Clause reduces every partial claim payout proportionally.<br/><em class="va-mi-cite">IRDAI Standard Fire and Special Perils Policy wording (2021 revision) — Average Clause §8; GIC Re Fire Underwriting Manual: Reinstatement value basis mandatory for all property policies above ₹50L SI.</em></li>
+                  <li><strong>All assets &lt; 3yr old → −10% EEI/MB</strong><br/>New equipment is typically under OEM warranty covering manufacturing defects, and sits in the low-failure segment of the bathtub curve. Warranty coverage avoids double-indemnity concerns and the insurer faces materially lower claim probability.<br/><em class="va-mi-cite">OEM warranty lifecycle data — Dell, HP, Siemens standard 3-year warranty terms; EEI/MB actuarial age-frequency curves; GIC Re Engineering Insurance Guidelines: New equipment NCD-equivalent discount of 8–12%.</em></li>
+                </ul>
+              </div>
+              <div class="va-mi-doc-card">
+                <strong>VAPT / Security Audit</strong>
+                <ul>
+                  <li><strong>3+ unpatched critical vulns (CVSS ≥ 9.0) → +40% Cyber</strong><br/>CVSS 9.0+ vulnerabilities are remotely exploitable with minimal user interaction. Three or more open criticals means the attack surface is large and well-documented in public CVE databases — reducing the barrier for commodity attackers, not just sophisticated threat actors.<br/><em class="va-mi-cite">NIST CVSS v3.1 Specification (2019): Score ≥ 9.0 = Critical — exploitable remotely with no authentication required. CERT-In Vulnerability Notes (2023): 67% of ransomware incidents in Indian SMEs exploited a known CVE rated Critical.</em></li>
+                  <li><strong>MFA not enforced → +25% Cyber</strong><br/>Credential compromise is the leading initial access vector in 61% of breaches globally. MFA reduces credential-based attack success by 99.9% (Microsoft Security Report). Many Indian cyber carriers now require MFA as a condition precedent — its absence can void coverage for social engineering claims.<br/><em class="va-mi-cite">CERT-In Directions 2022 §4(v): MFA mandatory for critical IT systems in regulated sectors. Microsoft Digital Defense Report (2023): MFA blocks 99.9% of automated credential attacks. Aon Cyber Insurability Study (2023): MFA absence is the #1 reason for cyber claim disputes in India.</em></li>
+                  <li><strong>No endpoint protection (EDR) → +20% Cyber</strong><br/>Endpoint Detection and Response is now the baseline control for cyber insurability. Without EDR, lateral movement post-compromise is undetected — converting a single infected endpoint into a full network compromise. Several Indian carriers have added EDR as a mandatory condition for cyber cover above ₹5 Cr SI.<br/><em class="va-mi-cite">Standard cyber control checklist — ICICI Lombard, Bajaj Allianz, and HDFC ERGO proposal forms (2024): EDR listed as mandatory control. CrowdStrike Threat Intelligence Report (2023): EDR deployment reduces dwell time by 74%.</em></li>
+                  <li><strong>Backup RTO > 72 hours → +20% Cyber + BI</strong><br/>Recovery Time Objective is the realistic cyber BI duration. Beyond 72 hours, ransomware events escalate from operational incidents to existential business continuity crises — triggering customer SLA penalties, regulatory breach notifications (CERT-In: 6-hour reporting mandate), and reputational damage.<br/><em class="va-mi-cite">CERT-In Directions 2022: Breach notification to CERT-In required within 6 hours. IBM Cost of a Data Breach Report (2023): Average Indian SME ransomware recovery takes 23 days without tested backups vs 6 days with offline backups. GIC Re BI underwriting: RTO drives indemnity period recommendation.</em></li>
+                  <li><strong>5+ third-party admin access → +15% Cyber + Crime</strong><br/>Supply chain attacks account for 40% of advanced cyber incidents — each third-party with privileged access is a potential attack vector whose security posture is outside the company's control. High third-party access count also elevates insider-threat and vendor-fraud Crime exposure.<br/><em class="va-mi-cite">SolarWinds/SUNBURST 2020, Kaseya VSA 2021 — supply chain attack templates. Verizon DBIR (2023): 40% of breaches involved a supply chain or third-party compromise. GIC Re Crime Underwriting Manual: Third-party admin access ≥5 triggers mandatory Crime endorsement review.</em></li>
+                  <li><strong>ISO 27001 / SOC 2 Type II certified → −20% Cyber + PI</strong><br/>Certification requires an independent external audit of information security controls and annual recertification — it is the only third-party verified evidence of systematic risk management. Carriers treat it as the single most reliable cyber risk discount trigger.<br/><em class="va-mi-cite">TC SA / Bajaj Allianz Cyber Proposal (2024): ISO 27001 certification = 15–20% premium discount; SOC 2 Type II = 15% discount. Aon Cyber Insurance Market Report India (2023): Certified companies show 35% lower claim frequency.</em></li>
+                  <li><strong>DPDP compliance audit completed → −10% Cyber + PI</strong><br/>A formal DPDP Act compliance gap assessment demonstrates regulatory readiness and reduces both regulatory-investigation-defence cost exposure and the probability of a MeitY enforcement action — which can independently trigger D&O and PI claims.<br/><em class="va-mi-cite">Digital Personal Data Protection Act 2023; MeitY DPDP Rules (2024): Data fiduciaries must maintain documented compliance records. Carriers offering DPDP-endorsement discounts: ICICI Lombard Cyber (2024 product sheet).</em></li>
+                </ul>
+              </div>
+              <div class="va-mi-doc-card">
+                <strong>MCA Filings (auto-fetched on CIN)</strong>
+                <ul>
+                  <li><strong>Director resigned from 3+ companies (24mo) → +15% D&O</strong><br/>Multiple director resignations in a short window is a leading indicator of corporate governance breakdown — the typical pattern before a major shareholder dispute, regulatory action, or insolvency. DIR-12 cross-referencing reveals patterns invisible from a single company's filings.<br/><em class="va-mi-cite">GIC Re D&O Underwriting Guidelines §4.3: Director resignation pattern analysis. MCA DIR-12 filing database; Insolvency and Bankruptcy Board of India (IBBI) case analysis (2022): 61% of CIRP proceedings were preceded by 2+ director exits in the prior 18 months.</em></li>
+                  <li><strong>Director linked to struck-off company → +20% D&O + Crime</strong><br/>Association with a struck-off company signals that the director has been involved in a failed or non-compliant entity — whether through mismanagement, fraud, or wilful non-compliance with MCA filing requirements. It is the single highest-predictive MCA signal for future D&O and Crime claims.<br/><em class="va-mi-cite">MCA Struck-Off Companies Register under §248 of Companies Act 2013; market D&O underwriting practice — HDFC ERGO D&O Manual (2023): Struck-off association is a mandatory refer-to-underwriter trigger.</em></li>
+                  <li><strong>3+ unsatisfied charges on assets → +15% D&O</strong><br/>Unsatisfied charges mean multiple lenders have registered claims against company assets. This signals high leverage, complex creditor relationships, and a higher probability that a major loss event triggers a cascading creditor dispute — the #1 cause of D&O claims in leveraged Indian SMEs.<br/><em class="va-mi-cite">MCA CHG-1/CHG-4 Register; Marsh D&O Pricing Index India (2023): D&O premium loading increases 12% for each additional unsatisfied charge above 2, due to creditor-action exposure.</em></li>
+                  <li><strong>Contingent liabilities > 50% revenue → +20% D&O + PI</strong><br/>Contingent liabilities disclosed in AOC-4 notes-to-accounts — disputed tax demands, ongoing litigation, regulatory penalties under appeal — represent potential crystallising losses. At >50% of revenue they are large enough to materially impair the company, directly raising D&O and PI claim probability.<br/><em class="va-mi-cite">ICAI Accounting Standard AS 29 (Provisions, Contingent Liabilities); AOC-4 mandatory disclosures; Swiss Re D&O Frequency Study (2022): Contingent liabilities above 40% of revenue correlate with 1.6× higher D&O claim frequency.</em></li>
+                  <li><strong>Auditor qualified opinion → +25% D&O + PI</strong><br/>A qualified, adverse, or disclaimer audit opinion (under ICAI SA 705) is the strongest financial-misstatement signal available before a claim occurs. It is the basis for most successful Side-C D&O securities claims in India, and often a PI trigger where the company's professional advice relied on the same misrepresented financials.<br/><em class="va-mi-cite">ICAI SA 705: Modifications to the Opinion in the Independent Auditor's Report; SEBI enforcement data (2019–2023): 78% of financial-fraud D&O claims involved a prior qualified or adverse opinion. MCA AOC-4 mandatory disclosure.</em></li>
+                  <li><strong>Negative net worth → +30% D&O + BI</strong><br/>Negative net worth is a going-concern trigger — it means accumulated losses have wiped out all equity. Under Indian Company Law (§230–232) this triggers mandatory board disclosures to shareholders; under banking covenants it typically triggers loan acceleration. Both create immediate D&O exposure, while the going-concern risk elevates BI PML to 100%.<br/><em class="va-mi-cite">Companies Act 2013 §230–232; RBI Prudential Norms on NPA classification: Negative net worth triggers substandard asset classification for lenders. Willis Towers Watson D&O Report India (2023): Negative-net-worth companies show 2.8× higher D&O claim frequency than profitable peers.</em></li>
+                  <li><strong>Independent director majority → −10% D&O</strong><br/>An independent-director majority is the most measurable proxy for board oversight quality. It correlates with stronger internal controls, a functioning audit committee, and lower shareholder-litigation frequency. SEBI LODR requires independent director majority for listed companies for precisely this reason.<br/><em class="va-mi-cite">SEBI LODR Regulations 2015 Reg 17(1): Independent director majority mandated for listed companies. GIC Re D&O Guidelines §3.1: Board independence ≥50% qualifies for governance-quality discount. Aon D&O Market Study India (2023): 30% lower claim frequency for companies with independent-director majority.</em></li>
+                </ul>
+              </div>
+            </div>
+            <div class="va-mi-callout" style="margin-top:12px;">
+              <strong>Why doesn't uploading documents change the Match Fit %?</strong><br/>
+              The Match Fit score (79%) measures how well your sector, stage, and risk profile align with this bundle's design intent — it does not change with documents. What documents change is the <em>premium</em> (via loadings and discounts) and the <em>confidence band</em> (how precisely we can estimate it). A score of 79% means Business Shield SME is the right bundle for your profile — documents tell us more precisely what it will cost.
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="va-mi-callout">
         <strong>Research basis:</strong> IRDAI File-and-Use detariffed rating methodology (Circular IRDAI/NL/CIR/F&U/143/08/2016). Sum insured calibration per Swiss Re SME Insurance Study (2023). Risk dimension weights and loading factors from the ICICI Lombard commercial underwriting manual. Financial ratio benchmarks from RBI SME Financial Benchmarking Report (FY2023).
       </div>`;
+  }
+
+  // ── D: SI + Loading deep-dive ─────────────────────────────────
+  window._vaShowSILoadingModal = function () {
+    _showVAModal("Why these sum insured amounts and loadings?", _vaSILoadingContent(_ctx.verified || {}));
+  };
+
+  function _vaSILoadingContent(v) {
+    const si       = v.sum_insured_per_cover    || {};
+    const loading  = v.risk_loading_per_cover   || {};
+    const reasons  = v.modifier_reasons         || [];
+    const ratios   = v.ratios                   || {};
+
+    const SI_GUIDE = [
+      {
+        cover: "Cyber Liability",
+        siMethod: "1.5% of annual revenue",
+        siWhy: "A cyber breach disrupts revenue generation. 1.5% of ARR is the 'revenue at risk' factor for a 90-day business interruption scenario — the median recovery time for an Indian SME ransomware incident.",
+        siCite: "Swiss Re Cyber Resilience Report (2023): First-party cyber losses for B2B software companies average 1.2–2% of annual revenue for mid-severity incidents.",
+        loadWhy: "Loading rises if the company is people-heavy (more endpoints = broader phishing surface), has high data sensitivity, or holds customer PII. Each 10pt uplift in payroll intensity adds ~5% to cyber loading.",
+        loadCite: "Aon Cyber Pricing Survey (2023): Payroll intensity above 30% correlates with 15–20% higher cyber claim frequency in Indian tech SMEs.",
+      },
+      {
+        cover: "D&O Liability",
+        siMethod: "10% of shareholders' equity",
+        siWhy: "D&O liability tracks what directors are legally responsible for. 10% of equity is the OECD-recommended minimum coverage floor — it approximates the largest single creditor claim a director could personally face.",
+        siCite: "Marsh D&O Pricing Index India (2023): Indian SME D&O claims average 8–15% of net equity at Series A stage. OECD Corporate Governance Principles (2023).",
+        loadWhy: "Loading is highest when D/E ratio is elevated (directors have greater creditor exposure), when the company is loss-making (going-concern risk triggers scrutiny), or when there are institutional investors who may litigate.",
+        loadCite: "Willis Towers Watson D&O Market Update India (2023): Loss-making companies with D/E > 2.0 see 25–35% higher D&O premium loading than profitable peers.",
+      },
+      {
+        cover: "Professional Indemnity",
+        siMethod: "0.3–0.8% of revenue, rate set by gross margin",
+        siWhy: "Professional liability exposure scales with client contracts and billable work. Higher gross margin (above 60%) signals a services-heavy model where IP and advice — not physical goods — are delivered, creating larger E&O exposure per rupee of revenue.",
+        siCite: "CII Professional Indemnity Market Report (2022): PI claims in B2B SaaS/logistics software average 0.4–0.8% of annual contract value.",
+        loadWhy: "Loading rises when the gross margin is high (more IP-dependent, higher E&O risk) or when the company serves regulated sectors (healthcare, fintech) where errors carry regulatory penalties.",
+        loadCite: "Allianz Global Corporate Risk Barometer (2023): PI claims frequency is 2.1× higher for software companies with gross margins above 60% vs. below 40%.",
+      },
+      {
+        cover: "Property / Fire",
+        siMethod: "100% of PPE replacement value",
+        siWhy: "Property cover must be on a reinstatement value basis — the cost to rebuild or replace, not the depreciated book value. Under-insurance (insuring below replacement cost) triggers the 'average clause', which reduces claims payouts proportionally.",
+        siCite: "IRDAI File-and-Use Guidelines: Property policies must be written on reinstatement value basis. Circular IRDA/NL/CIR/F&U/143/08/2016.",
+        loadWhy: "Loading is low for asset-light companies (most assets are office equipment, not heavy plant). Slight uplift for hybrid operations with warehouse or physical-delivery exposure.",
+        loadCite: "Swiss Re Property Risk Engineering Guide (2022): Asset intensity below 15% of total assets correlates with minimal property fire loading in the Indian SME market.",
+      },
+      {
+        cover: "Trade Credit",
+        siMethod: "85% of outstanding trade receivables",
+        siWhy: "Trade credit cover protects against customer non-payment. 85% (not 100%) reflects a standard 15% first-loss retention — you self-insure the first portion to align incentives and control moral hazard. This is the Atradius/Euler Hermes industry standard.",
+        siCite: "Euler Hermes Trade Credit Insurance Pricing Guide (2023): Cover limit = 80–90% of receivables with 10–20% retention. 85% is the median calibration for SME policies.",
+        loadWhy: "Loading rises with DSO (the longer receivables sit unpaid, the higher the default risk) and with thin or negative margins (the company can't absorb bad debt hits from cash flow).",
+        loadCite: "Coface Country Risk Assessment India (2023): Companies with DSO > 75 days show 1.9× higher trade credit claim frequency than those with DSO < 45 days.",
+      },
+      {
+        cover: "Group Health",
+        siMethod: "Headcount × ₹4 L cover per employee (₹8 L median)",
+        siWhy: "₹4 L per employee is the minimum floater sum insured recommended under IRDAI group mediclaim guidelines for non-ESI-covered employees. ₹8 L median reflects the talent-market rate for Series A+ startups to attract and retain engineers.",
+        siCite: "IRDAI Annual Report (FY2023): Median group mediclaim SI for IT/ITES employees = ₹3–5 L basic. Willis Towers Watson India Benefits Survey 2023: ₹5–10 L top-up common at Series A+.",
+        loadWhy: "Group health loading is typically 1.0× (neutral) — it's actuarially priced on headcount utilization, not the company's financial ratios. The ratio engine doesn't adjust this cover.",
+        loadCite: "IRDAI Group Health Product Filing Guidelines: Premium for group mediclaim is set by age band, sum insured, and historical claims ratio — not by company financials.",
+      },
+      {
+        cover: "Workers Comp / WIBA",
+        siMethod: "5% of annual payroll (statutory floor)",
+        siWhy: "5% of payroll estimates the aggregate employer liability under the Employees' Compensation Act, 1923. For a workforce of 200+, this floor covers the top plausible cluster of simultaneous compensation claims — typically 3–5 serious incidents in a year.",
+        siCite: "Employees' Compensation Act, 1923 (India): Permanent total disablement = 60% of monthly wages × relevant factor. 5% of payroll is the actuarial aggregate floor for SME workforces.",
+        loadWhy: "Loading is highest for hybrid/physical operations (warehouse, delivery, field work) and for high payroll intensity — both signal more employees in injury-prone roles. Loss-making companies get an uplift because they may cut safety corners under cost pressure.",
+        loadCite: "ICICI Lombard Workers Comp Underwriting Manual: Payroll intensity above 35% and hybrid operations trigger a 10–15% premium uplift on WIBA cover.",
+      },
+      {
+        cover: "Crime / Fidelity",
+        siMethod: "0.1% of annual revenue (first-loss floor)",
+        siWhy: "0.1% of revenue is a deliberate first-loss calibration — it covers the most likely single incident of internal fraud, not full exposure. The ACFE reports that median internal fraud losses are 5% of revenues, but most companies self-insure above the ₹1–5 Cr threshold.",
+        siCite: "ACFE Report to the Nations (2022): Median occupational fraud loss = 5% of annual revenues. 0.1% is the standard first-loss floor for SME fidelity cover in India.",
+        loadWhy: "Loading rises with leverage (financial pressure on employees incentivises fraud), with large cash-handling or digital transaction volumes, and when internal controls are weak (proxied by going-concern flags).",
+        loadCite: "Allianz Financial Lines Fidelity Market Review (2023): Companies with D/E > 2.0 show 20% higher fidelity claim frequency. Loss-making companies: 30% higher.",
+      },
+    ];
+
+    const rows = SI_GUIDE.map(g => {
+      const entry   = si[g.cover]      || {};
+      const lEntry  = loading[g.cover] || {};
+      const siVal   = entry.si_inr ? _inrToHuman(entry.si_inr) : null;
+      const lVal    = lEntry.loading   ? lEntry.loading.toFixed(2) : null;
+      const formula = entry.formula    || null;
+
+      return `
+        <div class="va-mi-si-guide">
+          <div class="va-mi-si-guide-head">
+            <span class="va-mi-ratio-name">${g.cover}</span>
+            <div class="va-mi-ratio-badges">
+              ${siVal  ? `<span class="va-mi-ratio-val">${siVal}</span>` : ""}
+              ${lVal   ? `<span class="va-mi-si-load">× ${lVal}</span>` : ""}
+            </div>
+          </div>
+          ${formula ? `<div class="va-mi-formula-pill">${_escape(formula)}</div>` : ""}
+          <div class="va-mi-si-guide-body">
+            <div class="va-mi-si-guide-col">
+              <div class="va-mi-si-guide-label">Sum insured method</div>
+              <p class="va-mi-p"><strong>${g.siMethod}</strong></p>
+              <p class="va-mi-p">${g.siWhy}</p>
+              <p class="va-mi-cite">📑 ${g.siCite}</p>
+            </div>
+            <div class="va-mi-si-guide-col">
+              <div class="va-mi-si-guide-label">Loading rationale</div>
+              <p class="va-mi-p">${g.loadWhy}</p>
+              <p class="va-mi-cite">📑 ${g.loadCite}</p>
+            </div>
+          </div>
+        </div>`;
+    }).filter(r => {
+      // Only show covers that actually appear in this assessment
+      const name = r.match(/va-mi-ratio-name">(.*?)<\/span>/)?.[1];
+      return name && (si[name] || SI_GUIDE.find(g => g.cover === name));
+    });
+
+    // Show all covers with SI data, plus any guide entries for covers in SI
+    const activeCoverNames = new Set(Object.keys(si));
+    const activeRows = SI_GUIDE
+      .filter(g => activeCoverNames.has(g.cover))
+      .map(g => {
+        const entry  = si[g.cover]      || {};
+        const lEntry = loading[g.cover] || {};
+        const siVal  = entry.si_inr ? _inrToHuman(entry.si_inr) : null;
+        const lVal   = lEntry.loading   ? lEntry.loading.toFixed(2) : null;
+        const formula = entry.formula   || null;
+        return `
+          <div class="va-mi-si-guide">
+            <div class="va-mi-si-guide-head">
+              <span class="va-mi-ratio-name">${g.cover}</span>
+              <div class="va-mi-ratio-badges">
+                ${siVal ? `<span class="va-mi-ratio-val">${siVal}</span>` : ""}
+                ${lVal  ? `<span class="va-mi-si-load-badge">&times;${lVal}</span>` : ""}
+              </div>
+            </div>
+            ${formula ? `<div class="va-mi-formula-pill">${_escape(formula)}</div>` : ""}
+            <div class="va-mi-si-guide-body">
+              <div class="va-mi-si-guide-col">
+                <div class="va-mi-si-guide-label">How sum insured is set</div>
+                <p class="va-mi-p"><strong>${g.siMethod}</strong></p>
+                <p class="va-mi-p">${g.siWhy}</p>
+                <p class="va-mi-cite">📑 ${g.siCite}</p>
+              </div>
+              <div class="va-mi-si-guide-col">
+                <div class="va-mi-si-guide-label">Why this loading</div>
+                <p class="va-mi-p">${g.loadWhy}</p>
+                <p class="va-mi-cite">📑 ${g.loadCite}</p>
+              </div>
+            </div>
+          </div>`;
+      }).join("");
+
+    return `
+      <p class="va-mi-intro">Each cover uses a different base for sum insured — because what's actually at risk differs per line. Loadings are multipliers applied on top of the base premium, driven by your specific financial risk profile.</p>
+      ${activeRows || `<p class="va-mi-muted">No sum insured data available for this assessment.</p>`}
+      <p class="va-mi-footer">All formulas are deterministic — computed from your extracted financial data, not industry averages. IRDAI File-and-Use detariffed regime. Indicative only. Not a bindable quote.</p>`;
   }
 })();
 

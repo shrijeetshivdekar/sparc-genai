@@ -4366,7 +4366,7 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self):
-        if self.path not in ("/api/analyze", "/api/policy/compare", "/api/autofill", "/api/autofill-advanced", "/api/extract-documents", "/api/verified-analyze", "/api/outreach", "/api/pricing", "/api/signals", "/api/commerce/funding", "/api/commerce/proposal", "/api/commerce/metrics", "/api/commerce/alerts", "/api/commerce/pipeline"):
+        if self.path not in ("/api/analyze", "/api/policy/compare", "/api/autofill", "/api/autofill-advanced", "/api/extract-documents", "/api/verified-analyze", "/api/outreach", "/api/pricing", "/api/mca-lookup", "/api/signals", "/api/commerce/funding", "/api/commerce/proposal", "/api/commerce/metrics", "/api/commerce/alerts", "/api/commerce/pipeline"):
             self.send_json(404, {"error": "Not found"})
             return
         try:
@@ -4404,6 +4404,14 @@ class Handler(SimpleHTTPRequestHandler):
             elif self.path == "/api/verified-analyze":
                 from api.verified_analyze import _build_response as _va_build
                 self.send_json(200, _va_build(payload))
+            elif self.path == "/api/mca-lookup":
+                from enrichment.mca_lookup import lookup_company
+                cin = (payload.get("cin") or "").strip().upper()
+                if not cin:
+                    self.send_json(400, {"error": "cin required"})
+                    return
+                snap = lookup_company(cin, force_refresh=bool(payload.get("force_refresh")))
+                self.send_json(200, snap)
             elif self.path == "/api/outreach":
                 profile = payload.get("profile") or {}
                 scores = payload.get("scores") or {}

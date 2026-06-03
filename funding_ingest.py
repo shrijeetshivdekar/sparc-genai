@@ -80,20 +80,41 @@ def _profile_from_row(row: dict) -> dict:
     return profile
 
 
+_FALLBACK_COVERS = ("Cyber", "D&O", "Group Health")
+
+
 def _extract_covers(result: dict) -> list[str]:
-    """Pull the list of recommended cover keys from an analyse() result."""
+    """Pull the list of recommended cover keys from an analyse() result.
+
+    analyse() returns covers inside bundle_match.mandatory_covers /
+    optional_covers. A legacy top-level 'recommendations' key is also
+    checked for backwards-compat.
+    """
     if not isinstance(result, dict):
         return []
-    recs = result.get("recommendations")
+
     covers: list[str] = []
-    if isinstance(recs, list):
-        for rec in recs:
-            if isinstance(rec, str):
-                covers.append(rec)
-            elif isinstance(rec, dict):
-                key = rec.get("product_key") or rec.get("key") or rec.get("name")
-                if isinstance(key, str):
-                    covers.append(key)
+
+    # Primary path: bundle_match (current analyze() output shape)
+    bm = result.get("bundle_match") or {}
+    if isinstance(bm, dict):
+        for key in ("mandatory_covers", "optional_covers"):
+            for c in (bm.get(key) or []):
+                if isinstance(c, str) and c.strip():
+                    covers.append(c.strip())
+
+    # Legacy path: top-level recommendations list
+    if not covers:
+        recs = result.get("recommendations")
+        if isinstance(recs, list):
+            for rec in recs:
+                if isinstance(rec, str) and rec.strip():
+                    covers.append(rec.strip())
+                elif isinstance(rec, dict):
+                    key = rec.get("product_key") or rec.get("key") or rec.get("name")
+                    if isinstance(key, str) and key.strip():
+                        covers.append(key.strip())
+
     return covers
 
 
@@ -153,7 +174,7 @@ def ingest_csv(
                     result = analyze(profile)
                 except Exception as exc:  # don't poison the whole import on one bad row
                     result = {"_analyze_error": str(exc)}
-                covers = _extract_covers(result)
+                covers = _extract_covers(result) or list(_FALLBACK_COVERS)
                 gwp = gwp_estimator.estimate_gwp(profile, covers=covers)
                 bundle_name = _extract_bundle_name(result)
 

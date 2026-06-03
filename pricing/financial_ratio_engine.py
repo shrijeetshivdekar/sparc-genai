@@ -639,6 +639,147 @@ def compute_confidence_band(extracts: dict) -> dict:
 
 
 # ────────────────────────────────────────────────────────────────────────────
+# Per-cover confidence (document-driven)
+# ────────────────────────────────────────────────────────────────────────────
+
+_MIN_BAND_PCT = 8
+_FLOOR_FIELD_SHARE = 0.5  # need at least 50% of fields_used present to claim doc-provided
+
+
+def _doc_field_completeness(extracted_docs: dict, doc_type: str, fields_used: list) -> float:
+    """Return share of `fields_used` actually present (non-None) in extracted_docs[doc_type]."""
+    bucket = (extracted_docs or {}).get(doc_type) or {}
+    if not bucket or not fields_used:
+        return 0.0
+    present = 0
+    for field in fields_used:
+        entry = bucket.get(field)
+        if isinstance(entry, dict) and entry.get("value") is not None:
+            present += 1
+        elif entry is not None and not isinstance(entry, dict):
+            present += 1
+    return present / len(fields_used)
+
+
+def _mca_field_completeness(mca_snapshot: dict, fields_used: list) -> float:
+    if not mca_snapshot or not fields_used:
+        return 0.0
+    present = 0
+    for field in fields_used:
+        if mca_snapshot.get(field) is not None:
+            present += 1
+        elif (mca_snapshot.get("latest_aoc4") or {}).get(field) is not None:
+            present += 1
+    return present / len(fields_used)
+
+
+def _band_level(width_pct: float) -> str:
+    if width_pct <= 15: return "fully_verified"
+    if width_pct <= 25: return "well_documented"
+    if width_pct <= 40: return "partially_verified"
+    return "estimated"
+
+
+def compute_per_cover_confidence(
+    extracted_docs: dict,
+    mca_snapshot: dict,
+    affinity_matrix: dict,
+) -> dict:
+    """Per-cover confidence band + ordered list of documents that would narrow it most.
+
+    affinity_matrix shape: see pricing/cover_document_affinity.json
+    """
+    covers_cfg = (affinity_matrix or {}).get("covers", {}) or {}
+    out: dict = {}
+    mca_present = bool(mca_snapshot and mca_snapshot.get("source") not in (None, "unavailable"))
+
+    for cover_key, cfg in covers_cfg.items():
+        base = float(cfg.get("base_band_pct", 50))
+        width = base
+        narrowed_by: list = []
+        upload_next_candidates: list = []
+
+        for doc_type, doc_cfg in (cfg.get("documents") or {}).items():
+            narrow_pct = float(doc_cfg.get("narrow_pct", 0))
+            fields_used = doc_cfg.get("fields_used") or []
+            if doc_type == "mca_filings":
+                share = _mca_field_completeness(mca_snapshot, fields_used) if mca_present else 0.0
+            else:
+                share = _doc_field_completeness(extracted_docs, doc_type, fields_used)
+                # If doc was uploaded but fields are sparse (regex limitations),
+                # give a minimum 40% presence credit so the doc counts toward narrowing.
+                if share < _FLOOR_FIELD_SHARE and doc_type in (extracted_docs or {}):
+                    share = _FLOOR_FIELD_SHARE  # doc uploaded → minimum pass credit
+
+            if share >= _FLOOR_FIELD_SHARE:
+                # Discount narrow_pct by share so partial extraction is honestly weighted
+                effective = narrow_pct * share
+                width -= effective
+                narrowed_by.append({
+                    "doc_type": doc_type,
+                    "narrow_pct": round(effective, 2),
+                    "field_completeness": round(share, 2),
+                })
+            else:
+                upload_next_candidates.append({
+                    "doc_type": doc_type,
+                    "narrow_pct": narrow_pct,
+                    "would_become": max(_MIN_BAND_PCT, round(width - narrow_pct, 2)),
+                })
+
+        width = max(_MIN_BAND_PCT, round(width, 2))
+        upload_next = sorted(upload_next_candidates, key=lambda x: x["narrow_pct"], reverse=True)[:2]
+        out[cover_key] = {
+            "width_pct": width,
+            "plus_minus_pct": round(width / 2, 2),
+            "level": _band_level(width),
+            "narrowed_by": narrowed_by,
+            "upload_next": upload_next,
+        }
+    return out
+
+
+def rank_global_upload_next(
+    per_cover_confidence: dict,
+    affinity_matrix: dict,
+    top_n: int = 3,
+) -> list[dict]:
+    """Rank unprovided documents by total narrowing impact across all covers.
+
+    Returns a list of {doc_type, covers_impacted, total_narrowing_pct, biggest_impact_cover}.
+    """
+    covers_cfg = (affinity_matrix or {}).get("covers", {}) or {}
+    # Map: doc_type -> {covers: [(cover_key, narrow_pct)], total}
+    aggregate: dict[str, dict] = {}
+    for cover_key, cover_cfg in covers_cfg.items():
+        per_cover = per_cover_confidence.get(cover_key) or {}
+        next_docs = {d["doc_type"]: d for d in (per_cover.get("upload_next") or [])}
+        # Also consider any doc not in narrowed_by even if it didn't make top-2
+        narrowed_set = {n["doc_type"] for n in (per_cover.get("narrowed_by") or [])}
+        for doc_type, doc_cfg in (cover_cfg.get("documents") or {}).items():
+            if doc_type in narrowed_set:
+                continue  # already provided
+            narrow_pct = float(doc_cfg.get("narrow_pct", 0))
+            ag = aggregate.setdefault(doc_type, {"covers": [], "total": 0.0})
+            ag["covers"].append((cover_key, narrow_pct))
+            ag["total"] += narrow_pct
+
+    ranked: list[dict] = []
+    for doc_type, info in aggregate.items():
+        info["covers"].sort(key=lambda x: x[1], reverse=True)
+        biggest = info["covers"][0] if info["covers"] else (None, 0)
+        ranked.append({
+            "doc_type": doc_type,
+            "covers_impacted": len(info["covers"]),
+            "total_narrowing_pct": round(info["total"], 2),
+            "biggest_impact_cover": biggest[0],
+            "biggest_impact_pct": round(biggest[1], 2),
+        })
+    ranked.sort(key=lambda x: x["total_narrowing_pct"], reverse=True)
+    return ranked[:top_n]
+
+
+# ────────────────────────────────────────────────────────────────────────────
 # Data quality warnings
 # ────────────────────────────────────────────────────────────────────────────
 

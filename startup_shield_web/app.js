@@ -1566,6 +1566,7 @@ function _handleUploadFiles(files) {
 }
 
 function _renderUploadError(msg) {
+  _stopUploadLoaderFacts();
   const box = $("upload-result");
   if (!box) return;
   box.innerHTML = `<div class="upload-error">${msg}</div>`;
@@ -1668,7 +1669,111 @@ async function _extractTextFromPdf(file) {
   return pages.join("\n");
 }
 
+let _uploadLoaderFactTimer = null;
+
+const UPLOAD_LOADER_FACTS = [
+  {
+    stat: "Documents replace guesswork",
+    text: "Verified Assessment moves SPARC from stage-based assumptions to actual revenue, debt, receivables, assets, payroll, tax, contracts, and security evidence."
+  },
+  {
+    stat: "8 ratios become underwriting signals",
+    text: "Margins, leverage, liquidity, DSO, asset intensity, payroll intensity, and tax efficiency each explain a different part of startup risk."
+  },
+  {
+    stat: "Better sum insured calibration",
+    text: "Cyber, D&O, PI, property, trade credit, group health, and WIBA limits can be tied to the financial base that actually drives each exposure."
+  },
+  {
+    stat: "Premium bands get narrower",
+    text: "More verified documents reduce uncertainty, so the RM can walk into the meeting with a sharper indicative premium range."
+  },
+  {
+    stat: "Operational documents matter",
+    text: "A client contract, prior policy, asset register, GST summary, or VAPT report can change risk loadings beyond what P&L numbers reveal."
+  },
+  {
+    stat: "Faster underwriting handoff",
+    text: "The same extracted evidence can support RM discovery, underwriting review, and bundle recommendation without re-reading each PDF manually."
+  },
+  {
+    stat: "Less underinsurance risk",
+    text: "Asset and receivable schedules help SPARC flag when property or trade credit limits are too low for the company's real exposure."
+  },
+  {
+    stat: "Cleaner bundle recommendation",
+    text: "Financial health plus operating evidence tells SPARC whether the strongest pitch is Cyber, D&O, PI, Property, Trade Credit, or a bundled cover."
+  }
+];
+
+function _stopUploadLoaderFacts() {
+  if (_uploadLoaderFactTimer) {
+    clearInterval(_uploadLoaderFactTimer);
+    _uploadLoaderFactTimer = null;
+  }
+}
+
+function _renderUploadAnalysisLoader(fileCount) {
+  const box = $("upload-result");
+  if (!box) return;
+  box.innerHTML = `
+    <section class="upload-processing-loader" role="status" aria-live="polite">
+      <div class="upl-visual" aria-hidden="true">
+        <div class="upl-doc-stack">
+          <span class="upl-doc upl-doc-a"></span>
+          <span class="upl-doc upl-doc-b"></span>
+          <span class="upl-doc upl-doc-c"></span>
+        </div>
+        <div class="upl-ratio-grid">
+          <span style="--i:0"></span><span style="--i:1"></span><span style="--i:2"></span><span style="--i:3"></span>
+          <span style="--i:4"></span><span style="--i:5"></span><span style="--i:6"></span><span style="--i:7"></span>
+        </div>
+      </div>
+      <div class="upl-copy">
+        <div class="upl-kicker">Verified Assessment engine</div>
+        <h2 class="upl-title">Reading ${fileCount} document${fileCount === 1 ? "" : "s"} and building the insurance view</h2>
+        <p class="upl-subtitle">Extracting text, classifying documents, calculating ratios, applying risk loadings, and preparing ICICI Lombard bundle recommendations.</p>
+        <div class="upl-fact-card" id="upload-loader-fact"></div>
+        <div class="upl-steps" aria-hidden="true">
+          <span style="--i:0">PDF text</span>
+          <span style="--i:1">Document type</span>
+          <span style="--i:2">Financial ratios</span>
+          <span style="--i:3">Risk loadings</span>
+          <span style="--i:4">Sum insured</span>
+          <span style="--i:5">Bundle fit</span>
+        </div>
+      </div>
+    </section>`;
+}
+
+function _startUploadLoaderFacts() {
+  const factEl = $("upload-loader-fact");
+  if (!factEl) return;
+  _stopUploadLoaderFacts();
+  let index = Math.floor(Math.random() * UPLOAD_LOADER_FACTS.length);
+  const paint = () => {
+    const fact = UPLOAD_LOADER_FACTS[index % UPLOAD_LOADER_FACTS.length];
+    factEl.classList.remove("is-visible");
+    setTimeout(() => {
+      if (!$("upload-loader-fact")) {
+        _stopUploadLoaderFacts();
+        return;
+      }
+      factEl.innerHTML = `
+        <span class="upl-fact-stat">${_escape(fact.stat)}</span>
+        <span class="upl-fact-text">${_escape(fact.text)}</span>
+      `;
+      factEl.classList.add("is-visible");
+      index += 1;
+    }, 180);
+  };
+  paint();
+  _uploadLoaderFactTimer = setInterval(paint, 5600);
+}
+
 async function _processUploads() {
+  _renderUploadAnalysisLoader(_uploadFiles.length);
+  _startUploadLoaderFacts();
   for (const entry of _uploadFiles) {
     entry.detectedType = _detectTypeFromName(entry.file.name);
     entry.status = "extracting";
@@ -1740,6 +1845,7 @@ async function _processUploads() {
     }
 
     _uploadResult = json;
+    _stopUploadLoaderFacts();
     _renderExtractionSummary(json);
   } catch (err) {
     _renderUploadError(`Network error: ${err.message}`);
@@ -1894,8 +2000,88 @@ function _renderExtractionSummary(result) {
           <span>Matching the financial profile against ICICI Lombard products, calculating premium, and drafting outreach.</span>
         </div>
       </div>`;
+    container.innerHTML = _renderVerifiedAnalyzeLoader();
+    _startVerifiedAnalyzeFacts();
     _fireVerifiedAnalyze(result);
   };
+}
+
+let _verifiedAnalyzeFactTimer = null;
+
+const VERIFIED_ANALYZE_FACTS = [
+  { stat: "From ratios to revenue", text: "This step turns extracted financial evidence into a ranked ICICI Lombard bundle, premium band, and RM-ready sales story." },
+  { stat: "Bundle fit beats product lists", text: "Instead of showing every policy, SPARC narrows the conversation to the covers that match the startup's sector, stage, finances, and operations." },
+  { stat: "Premium with a reason", text: "The model links premium movement to concrete signals like DSO, leverage, payroll intensity, asset base, VAPT evidence, and contract exposure." },
+  { stat: "Faster RM preparation", text: "The RM gets the likely bundle, top standalone products, pricing range, and outreach draft without rebuilding the case manually." },
+  { stat: "Better cross-sell discovery", text: "One verified profile can surface Cyber, D&O, PI, Property, Trade Credit, Group Health, or WIBA opportunities in the same account." },
+  { stat: "Cleaner underwriting handoff", text: "Because the recommendation is tied to extracted documents, underwriting can review the evidence trail instead of only a narrative pitch." },
+  { stat: "Founder-ready explanation", text: "The final output explains why a cover is recommended in business language, helping the RM sound specific rather than generic." },
+  { stat: "Less missed premium", text: "Document-backed bundle matching helps prevent under-selling a startup that has hidden exposure in receivables, assets, contracts, or data risk." }
+];
+
+function _stopVerifiedAnalyzeFacts() {
+  if (_verifiedAnalyzeFactTimer) {
+    clearInterval(_verifiedAnalyzeFactTimer);
+    _verifiedAnalyzeFactTimer = null;
+  }
+}
+
+function _renderVerifiedAnalyzeLoader() {
+  return `
+    <section class="va-reco-loader" role="status" aria-live="polite">
+      <div class="var-engine" aria-hidden="true">
+        <div class="var-core">
+          <span class="var-ring var-ring-a"></span>
+          <span class="var-ring var-ring-b"></span>
+          <span class="var-ring var-ring-c"></span>
+          <span class="var-core-dot"></span>
+        </div>
+        <div class="var-path var-path-a"></div>
+        <div class="var-path var-path-b"></div>
+        <div class="var-path var-path-c"></div>
+        <div class="var-product-card var-card-a"><strong>Cyber</strong><span>fit 92</span></div>
+        <div class="var-product-card var-card-b"><strong>D&O</strong><span>fit 86</span></div>
+        <div class="var-product-card var-card-c"><strong>PI</strong><span>fit 81</span></div>
+      </div>
+      <div class="var-copy">
+        <div class="var-kicker">SPARC recommendation engine</div>
+        <h2 class="var-title">Running full risk + insurance bundle analysis</h2>
+        <p class="var-subtitle">Matching the financial profile against ICICI Lombard products, calculating premium, and drafting outreach.</p>
+        <div class="var-fact-card" id="verified-analyze-fact"></div>
+        <div class="var-steps" aria-hidden="true">
+          <span style="--i:0">Risk dimensions</span>
+          <span style="--i:1">Cover fit</span>
+          <span style="--i:2">SI logic</span>
+          <span style="--i:3">Premium band</span>
+          <span style="--i:4">Outreach draft</span>
+        </div>
+      </div>
+    </section>`;
+}
+
+function _startVerifiedAnalyzeFacts() {
+  const factEl = $("verified-analyze-fact");
+  if (!factEl) return;
+  _stopVerifiedAnalyzeFacts();
+  let index = Math.floor(Math.random() * VERIFIED_ANALYZE_FACTS.length);
+  const paint = () => {
+    const fact = VERIFIED_ANALYZE_FACTS[index % VERIFIED_ANALYZE_FACTS.length];
+    factEl.classList.remove("is-visible");
+    setTimeout(() => {
+      if (!$("verified-analyze-fact")) {
+        _stopVerifiedAnalyzeFacts();
+        return;
+      }
+      factEl.innerHTML = `
+        <span class="var-fact-stat">${_escape(fact.stat)}</span>
+        <span class="var-fact-text">${_escape(fact.text)}</span>
+      `;
+      factEl.classList.add("is-visible");
+      index += 1;
+    }, 180);
+  };
+  paint();
+  _verifiedAnalyzeFactTimer = setInterval(paint, 5600);
 }
 
 async function _fireVerifiedAnalyze(extractResult) {
@@ -1909,12 +2095,15 @@ async function _fireVerifiedAnalyze(extractResult) {
     });
     const json = await res.json();
     if (!res.ok || !json.ok) {
+      _stopVerifiedAnalyzeFacts();
       const msg = json.error || (json.decline ? `Hard decline: ${json.decline}` : "Analysis failed");
       container.innerHTML = `<div class="upload-error">${_escape(msg)}</div>`;
       return;
     }
+    _stopVerifiedAnalyzeFacts();
     _renderVerifiedAnalyzeResults(container, json);
   } catch (err) {
+    _stopVerifiedAnalyzeFacts();
     container.innerHTML = `<div class="upload-error">Network error during analysis: ${_escape(err.message)}</div>`;
   }
 }

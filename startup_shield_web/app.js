@@ -2046,7 +2046,7 @@ function _renderVerifiedAnalyzeResults(container, r) {
           <h2>Recommended Insurance Bundle</h2>
         </div>
         <button type="button" class="va-info-btn" onclick="window._vaShowBundlePathModal()">ℹ How did we get here?</button>
-        ${r.ai_recommendation ? `<button type="button" class="va-gemini-btn" onclick="window._vaShowGeminiReasonModal()">✦ Why Gemini picked this</button>` : ""}
+        ${r.ai_recommendation ? `<button type="button" class="va-gemini-btn" onclick="window._vaShowGeminiReasonModal()">✦ Why this Bundle?</button>` : ""}
       </header>
 
       <div class="va-bundle-card">
@@ -10823,7 +10823,7 @@ async function movePipelineStage(accountId, toStage) {
     const titleEl = document.getElementById("va-modal-title");
     const bodyEl  = document.getElementById("va-modal-body");
 
-    titleEl.textContent = "How Gemini reasoned about this";
+    titleEl.textContent = "Why this bundle was recommended";
     bodyEl.innerHTML = `<div id="vag-stage-container" class="vag-loader"></div>`;
     overlay.classList.add("is-open");
 
@@ -10883,7 +10883,14 @@ async function movePipelineStage(accountId, toStage) {
       {
         icon: "📦",
         label: "Scoring bundles",
-        detail: `Selected <strong>${_escape(bundle.name || "bundle")}</strong> · ${bundle.fit_pct || "—"}% fit · preferred over property-inclusive bundles given digital-only / low-PPE profile`,
+        detail: (() => {
+          const priorSignal = (ai.bundle || {}).why || "";
+          const ruleMatch = priorSignal.match(/Rule\s*\d/i);
+          const ruleTag = ruleMatch
+            ? `<span class="vag-tag vag-tag-info">${ruleMatch[0]} applied</span> `
+            : "";
+          return `${ruleTag}Selected <strong>${_escape(bundle.name || "bundle")}</strong> · ${bundle.fit_pct || "—"}% fit`;
+        })(),
         dur: 900,
       },
       {

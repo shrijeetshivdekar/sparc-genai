@@ -86,8 +86,10 @@ def _infer_prior_bundle(prior: dict) -> str:
         return "enterprise_secure"
     if "CAR" in pnum or "CONTRACTOR" in lob:
         return "contractor_all_risk"
-    # Generic fire/property lob with no clear bundle name — do NOT infer;
-    # let sector archetype (Rule 2) decide the right bundle.
+    if "PKG" in pnum or "PACKAGE" in lob:
+        # Multi-line package policy — defer to sector archetype (Rule 2)
+        return ""
+    # Generic or unrecognised lob — let sector archetype (Rule 2) decide
     return ""
 
 

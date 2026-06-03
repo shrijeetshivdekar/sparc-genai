@@ -499,22 +499,29 @@ def _build_response(payload: dict) -> dict:
         ai_bundle_def = BUNDLE_CATALOG.get(ai_bundle_key)
         if ai_bundle_def and ai_bundle_key != "group_safeguard":
             target_name = ai_bundle_def.get("name")
-            # Find the bundle's already-computed entry in [bundle] + alternatives
             pool = [bundle] + list(bundle_alternatives)
             picked = next(
                 (b for b in pool if (b or {}).get("name") == target_name),
                 None,
             )
-            if picked is not None and picked is not bundle:
-                # Move current bundle into alternatives, promote AI pick
+            if picked is None:
+                # AI recommended a bundle the deterministic engine didn't score
+                # (e.g. sector mismatch in eligibility gates). Build it from the
+                # catalog directly so the AI override still takes effect.
+                from bundle_catalog import _bundle_result as _br
+                try:
+                    picked = _br(ai_bundle_def, 80, 80, 1, profile.get("sector", ""), None)
+                except Exception:
+                    picked = dict(ai_bundle_def)
+                    picked.setdefault("fit_pct", 80)
+            if picked is not bundle:
                 new_alternatives = [b for b in pool if b is not picked]
                 bundle = dict(picked)
                 bundle_alternatives = new_alternatives
-                # Reattach Group Safeguard as companion to the new primary
                 bundle, bundle_alternatives, _ = attach_group_safeguard_companion(
                     bundle, bundle_alternatives,
                 )
-            # Overlay AI-provided fit + reasoning (more grounded than legacy fit_pct)
+            # Overlay AI fit % and reasoning
             try:
                 bundle["fit_pct"] = int(ai_reco["bundle"].get("fit_pct") or bundle.get("fit_pct", 0))
             except (TypeError, ValueError):

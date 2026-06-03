@@ -1869,12 +1869,14 @@ function _renderExtractionSummary(result) {
     </div>
 
     <div id="verified-analyze-container">
-      <div class="va-loading">
-        <div class="va-loading-spinner"></div>
-        <div class="va-loading-text">
-          <strong>Running full risk + insurance bundle analysis…</strong>
-          <span>Matching the financial profile against ICICI Lombard products, calculating premium, and drafting outreach.</span>
+      <div class="va-analyze-cta">
+        <div class="va-analyze-cta-text">
+          <strong>Ready to recommend your insurance bundle</strong>
+          <span>Click below to match this profile against ICICI Lombard products, calculate verified premiums, and draft outreach.</span>
         </div>
+        <button class="btn btn-primary btn-lg" type="button" id="va-run-analyze-btn">
+          Get insurance recommendations →
+        </button>
       </div>
     </div>
   `;
@@ -1882,8 +1884,18 @@ function _renderExtractionSummary(result) {
   $("upload-restart").onclick = () => renderUploadPanel();
   $("upload-open-form").onclick = () => _applyExtractionAndOpenForm(result);
 
-  // Auto-fire full analysis. Render results below extraction summary card.
-  _fireVerifiedAnalyze(result);
+  $("va-run-analyze-btn").onclick = () => {
+    const container = $("verified-analyze-container");
+    container.innerHTML = `
+      <div class="va-loading">
+        <div class="va-loading-spinner"></div>
+        <div class="va-loading-text">
+          <strong>Running full risk + insurance bundle analysis…</strong>
+          <span>Matching the financial profile against ICICI Lombard products, calculating premium, and drafting outreach.</span>
+        </div>
+      </div>`;
+    _fireVerifiedAnalyze(result);
+  };
 }
 
 async function _fireVerifiedAnalyze(extractResult) {

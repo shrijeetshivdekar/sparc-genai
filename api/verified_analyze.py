@@ -505,15 +505,9 @@ def _build_response(payload: dict) -> dict:
                 None,
             )
             if picked is None:
-                # AI recommended a bundle the deterministic engine didn't score
-                # (e.g. sector mismatch in eligibility gates). Build it from the
-                # catalog directly so the AI override still takes effect.
-                from bundle_catalog import _bundle_result as _br
-                try:
-                    picked = _br(ai_bundle_def, 80, 80, 1, profile.get("sector", ""), None)
-                except Exception:
-                    picked = dict(ai_bundle_def)
-                    picked.setdefault("fit_pct", 80)
+                # AI picked a bundle the deterministic engine excluded —
+                # keep the deterministic result unchanged.
+                picked = bundle
             if picked is not bundle:
                 new_alternatives = [b for b in pool if b is not picked]
                 bundle = dict(picked)

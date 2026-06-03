@@ -12588,6 +12588,196 @@ body.pc-explain-open { overflow: hidden; }
 .va-info-btn:hover { background: rgba(173,30,35,0.14); }
 .va-info-btn:active { background: rgba(173,30,35,0.20); }
 
+/* Gemini reasoning button */
+.va-gemini-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);
+  color: #fff;
+  font: 600 11px/1 "DM Sans", system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(79,70,229,0.35);
+  transition: box-shadow 150ms, transform 150ms;
+}
+.va-gemini-btn:hover { box-shadow: 0 4px 16px rgba(79,70,229,0.50); transform: translateY(-1px); }
+.va-gemini-btn:active { transform: translateY(0); }
+
+/* ─── VA GEMINI REASONING MODAL ─────────────────────────────── */
+/* Loader stages */
+.vag-loader {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 180px;
+  padding: 8px 0;
+}
+.vag-stage {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 350ms ease, transform 350ms ease;
+  padding: 10px 0 10px 0;
+  border-bottom: 1px solid #F1F1EF;
+}
+.vag-stage:last-child { border-bottom: none; }
+.vag-stage-visible { opacity: 1; transform: translateY(0); }
+.vag-stage-final { padding-bottom: 0; }
+.vag-stage-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.vag-stage-icon { font-size: 16px; flex-shrink: 0; }
+.vag-stage-label {
+  font: 600 13px/1.4 "DM Sans", system-ui, sans-serif;
+  color: #1E293B;
+  flex: 1;
+}
+.vag-stage-spin {
+  width: 14px; height: 14px;
+  border: 2px solid #E2E8F0;
+  border-top-color: #4F46E5;
+  border-radius: 50%;
+  animation: vag-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes vag-spin { to { transform: rotate(360deg); } }
+.vag-stage-detail {
+  margin-top: 6px;
+  margin-left: 26px;
+  font: 400 12px/1.6 "DM Sans", system-ui, sans-serif;
+  color: #64748B;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.vag-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #F1F5F9;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 500;
+}
+.vag-tag-warn { background: #FEF3C7; color: #92400E; }
+.vag-tag-info { background: #EFF6FF; color: #1D4ED8; }
+
+/* Result card */
+.vag-result { display: flex; flex-direction: column; gap: 20px; padding: 4px 0; }
+.vag-section { display: flex; flex-direction: column; gap: 10px; }
+.vag-section-head {
+  font: 700 10px/1 "DM Sans", system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94A3B8;
+}
+.vag-bundle-name {
+  font: 700 18px/1.2 "DM Sans", system-ui, sans-serif;
+  color: #1E293B;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.vag-fit-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #ECFDF5;
+  color: #065F46;
+  font: 600 11px/1 "DM Sans", system-ui, sans-serif;
+}
+.vag-why-text {
+  font: 400 13px/1.7 "DM Sans", system-ui, sans-serif;
+  color: #475569;
+  margin: 0;
+  padding: 12px 14px;
+  background: #F8FAFC;
+  border-left: 3px solid #4F46E5;
+  border-radius: 0 6px 6px 0;
+}
+
+/* Additional products list */
+.vag-picks { display: flex; flex-direction: column; gap: 8px; }
+.vag-pick {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  background: #F8FAFC;
+  border-radius: 8px;
+}
+.vag-pick-rank {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: #EEF2FF;
+  color: #4F46E5;
+  font: 700 11px/20px "DM Sans", system-ui, sans-serif;
+  text-align: center;
+  flex-shrink: 0;
+}
+.vag-pick-name {
+  font: 600 13px/1.4 "DM Sans", system-ui, sans-serif;
+  color: #1E293B;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.vag-pick-urgency {
+  font: 600 10px/1 "DM Sans", system-ui, sans-serif;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.vag-u-critical { background: #FEE2E2; color: #991B1B; }
+.vag-u-high     { background: #FEF3C7; color: #92400E; }
+.vag-u-medium   { background: #F0FDF4; color: #166534; }
+.vag-pick-why {
+  font: 400 12px/1.6 "DM Sans", system-ui, sans-serif;
+  color: #64748B;
+  margin-top: 2px;
+}
+
+/* Gaps */
+.vag-gaps { display: flex; flex-direction: column; gap: 6px; }
+.vag-gap {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font: 400 12px/1.6 "DM Sans", system-ui, sans-serif;
+  color: #475569;
+}
+.vag-gap-badge {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font: 600 10px/1.4 "DM Sans", system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.vag-gap-lapsed      { background: #FEE2E2; color: #991B1B; }
+.vag-gap-underinsured{ background: #FEF3C7; color: #92400E; }
+.vag-gap-uninsured   { background: #FFF7ED; color: #C2410C; }
+
+/* Cost footnote */
+.vag-cost {
+  font: 400 11px/1.5 "DM Sans", system-ui, sans-serif;
+  color: #CBD5E1;
+  text-align: right;
+  padding-top: 4px;
+  border-top: 1px solid #F1F5F9;
+  margin-top: 4px;
+}
+
 /* ─── VA MODAL ─────────────────────────────────────────────── */
 .va-modal-overlay {
   display: none;

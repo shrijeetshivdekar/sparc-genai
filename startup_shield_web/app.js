@@ -1909,6 +1909,7 @@ async function _fireVerifiedAnalyze(extractResult) {
 
 function _renderVerifiedAnalyzeResults(container, r) {
   window.__vaSetCtx("analysis", r);
+  window.__vaSetCtx("ai_reco", r.ai_recommendation || null);
   const b = r.bundle || {};
   const additional = r.additional_products || [];
   const total = r.premium_total_verified_lakh || {};
@@ -2045,6 +2046,7 @@ function _renderVerifiedAnalyzeResults(container, r) {
           <h2>Recommended Insurance Bundle</h2>
         </div>
         <button type="button" class="va-info-btn" onclick="window._vaShowBundlePathModal()">ℹ How did we get here?</button>
+        ${r.ai_recommendation ? `<button type="button" class="va-gemini-btn" onclick="window._vaShowGeminiReasonModal()">✦ Why Gemini picked this</button>` : ""}
       </header>
 
       <div class="va-bundle-card">
@@ -10808,6 +10810,156 @@ async function movePipelineStage(accountId, toStage) {
       ${activeRows || `<p class="va-mi-muted">No sum insured data available for this assessment.</p>`}
       <p class="va-mi-footer">All formulas are deterministic — computed from your extracted financial data, not industry averages. IRDAI File-and-Use detariffed regime. Indicative only. Not a bindable quote.</p>`;
   }
+
+  // ── E: Gemini reasoning reveal ────────────────────────────────
+  window._vaShowGeminiReasonModal = function () {
+    const ai   = _ctx.ai_reco;
+    const ana  = _ctx.analysis || {};
+    const ver  = _ctx.verified || {};
+    if (!ai) return;
+
+    _ensureVAModal();
+    const overlay = document.getElementById("va-modal-overlay");
+    const titleEl = document.getElementById("va-modal-title");
+    const bodyEl  = document.getElementById("va-modal-body");
+
+    titleEl.textContent = "How Gemini reasoned about this";
+    bodyEl.innerHTML = `<div id="vag-stage-container" class="vag-loader"></div>`;
+    overlay.classList.add("is-open");
+
+    const stageEl = document.getElementById("vag-stage-container");
+
+    // Build signal summary strings from what we have
+    const bundle     = ana.bundle || {};
+    const additional = (ana.additional_products || []).filter(p => p.ai_why);
+    const gaps       = (ai.critical_gaps || []);
+    const ratios     = ver.ratios || {};
+    const docs       = ana.documents_extracted_summary || {};
+
+    const docCount = Object.keys(docs).length || "uploaded";
+    const fieldCount = Object.values(docs).reduce((s, d) => s + (d.field_count || 0), 0) || "multiple";
+
+    const urgencyIcon = u => u === "Critical" ? "🔴" : u === "High" ? "🟡" : "🟢";
+
+    const STAGES = [
+      {
+        icon: "📂",
+        label: "Reading your documents",
+        detail: `Parsed ${docCount} document types · ${fieldCount} verified data points extracted`,
+        dur: 900,
+      },
+      {
+        icon: "📊",
+        label: "Analysing financial health",
+        detail: (() => {
+          const items = [];
+          for (const [k, v] of Object.entries(ratios)) {
+            const val = typeof v === "object" ? v.value : v;
+            const band = typeof v === "object" ? v.band : null;
+            if (val !== null && val !== undefined) {
+              const label = k.replace(/_/g," ").replace(/pct$/,"(%)");
+              items.push(`<span class="vag-tag">${label}: <strong>${typeof val === "number" ? val.toFixed(1) : val}</strong>${band ? ` <em>${band}</em>` : ""}</span>`);
+            }
+          }
+          return items.slice(0,6).join(" ") || "Ratios computed from P&L, balance sheet, and ITR.";
+        })(),
+        dur: 900,
+      },
+      {
+        icon: "🔎",
+        label: "Evaluating risk signals",
+        detail: (() => {
+          const tags = [];
+          const docs2 = _ctx.analysis?.documents_extracted_summary || {};
+          if (docs2.vapt_report) tags.push('<span class="vag-tag vag-tag-warn">VAPT findings</span>');
+          if (docs2.client_contract) tags.push('<span class="vag-tag vag-tag-warn">Client contract terms</span>');
+          if (docs2.prior_policy) tags.push('<span class="vag-tag vag-tag-info">Prior policy history</span>');
+          if (docs2.gst_returns) tags.push('<span class="vag-tag vag-tag-info">GST concentration data</span>');
+          if (docs2.asset_register) tags.push('<span class="vag-tag vag-tag-info">Asset register</span>');
+          return tags.join(" ") || "Document signals evaluated.";
+        })(),
+        dur: 900,
+      },
+      {
+        icon: "📦",
+        label: "Scoring bundles",
+        detail: `Selected <strong>${_escape(bundle.name || "bundle")}</strong> · ${bundle.fit_pct || "—"}% fit · preferred over property-inclusive bundles given digital-only / low-PPE profile`,
+        dur: 900,
+      },
+      {
+        icon: "✦",
+        label: "Done — here's the full reasoning",
+        detail: "",
+        dur: 0,
+        final: true,
+      },
+    ];
+
+    let i = 0;
+    function runStage() {
+      if (i >= STAGES.length) return;
+      const s = STAGES[i];
+      const div = document.createElement("div");
+      div.className = "vag-stage" + (s.final ? " vag-stage-final" : "");
+      div.innerHTML = `
+        <div class="vag-stage-row">
+          <span class="vag-stage-icon">${s.icon}</span>
+          <span class="vag-stage-label">${s.label}</span>
+          ${!s.final ? `<span class="vag-stage-spin"></span>` : ""}
+        </div>
+        ${s.detail ? `<div class="vag-stage-detail">${s.detail}</div>` : ""}
+      `;
+      stageEl.appendChild(div);
+      // Small delay so entry animates in
+      requestAnimationFrame(() => div.classList.add("vag-stage-visible"));
+
+      i++;
+      if (s.final) {
+        // Replace loader container with full reasoning card
+        setTimeout(() => {
+          const bundleWhy  = ai.bundle_why || bundle.ai_why || "";
+          const addlHtml = additional.map(p => `
+            <div class="vag-pick">
+              <span class="vag-pick-rank">${p.rank || ""}</span>
+              <div>
+                <div class="vag-pick-name">${urgencyIcon(p.ai_urgency)} <strong>${_escape(p.name || p.key || "")}</strong> <span class="vag-pick-urgency vag-u-${(p.ai_urgency||"").toLowerCase()}">${_escape(p.ai_urgency || "")}</span></div>
+                <div class="vag-pick-why">${_escape(p.ai_why || "")}</div>
+              </div>
+            </div>`).join("");
+          const gapsHtml = gaps.map(g => `
+            <div class="vag-gap">
+              <span class="vag-gap-badge vag-gap-${g.issue}">${_escape(g.issue || "gap")}</span>
+              <div><strong>${_escape(g.cover || "")}</strong> — ${_escape(g.evidence || "")}</div>
+            </div>`).join("");
+          const usage = ai.usage || {};
+
+          stageEl.className = "vag-result";
+          stageEl.innerHTML = `
+            <div class="vag-section">
+              <div class="vag-section-head">📦 Bundle chosen</div>
+              <div class="vag-bundle-name">${_escape(bundle.name || "")} <span class="vag-fit-badge">${bundle.fit_pct || "—"}% fit</span></div>
+              ${bundleWhy ? `<p class="vag-why-text">${_escape(bundleWhy)}</p>` : ""}
+            </div>
+            ${addlHtml ? `
+            <div class="vag-section">
+              <div class="vag-section-head">🏆 Additional products ranked</div>
+              <div class="vag-picks">${addlHtml}</div>
+            </div>` : ""}
+            ${gapsHtml ? `
+            <div class="vag-section">
+              <div class="vag-section-head">⚠ Critical gaps found</div>
+              <div class="vag-gaps">${gapsHtml}</div>
+            </div>` : ""}
+            ${usage.cost_usd ? `<div class="vag-cost">Cost of this AI analysis: $${usage.cost_usd.toFixed(5)} · ${usage.input_tokens} in / ${usage.output_tokens} out tokens</div>` : ""}
+          `;
+        }, 300);
+      } else {
+        setTimeout(runStage, s.dur);
+      }
+    }
+
+    runStage();
+  };
 })();
 
 /* ─── KICK OFF ───────────────────────────────────────────────── */

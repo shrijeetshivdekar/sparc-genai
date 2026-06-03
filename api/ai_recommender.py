@@ -86,9 +86,8 @@ def _infer_prior_bundle(prior: dict) -> str:
         return "enterprise_secure"
     if "CAR" in pnum or "CONTRACTOR" in lob:
         return "contractor_all_risk"
-    if "FIRE" in lob or "PROPERTY" in lob:
-        # Fire/Property could be IAR or MSME — use asset value to decide
-        return "property_fire_generic"  # signal only, not a real bundle key
+    # Generic fire/property lob with no clear bundle name — do NOT infer;
+    # let sector archetype (Rule 2) decide the right bundle.
     return ""
 
 
@@ -177,7 +176,7 @@ If prior_bundle_inferred is empty, use this:
   - Manufacturing / Hardware OEM + Physical-only        → industrial_all_risk
   - Manufacturing / Hardware OEM + Hybrid               → corporate_cover_ii
   - Fintech / SaaS / Deeptech + Digital-only            → business_shield_sme
-  - D2C / Consumer Brands + Hybrid or Physical-only     → corporate_cover_ii
+  - D2C / Consumer Brands + Hybrid or Physical-only     → corporate_cover_ii (ALWAYS — has property + liability + BI; never msme)
   - Logistics / Supply Chain + any                      → corporate_cover_ii
   - Healthtech + any                                    → business_shield_sme or corporate_cover_ii
   - Pure service company (no physical assets, ppe<1 Cr) → i_select_liability or business_shield_sme
@@ -189,11 +188,11 @@ If prior_bundle_inferred is empty, use this:
   - ppe_cr < 5 Cr   → financial-lines bundle acceptable (business_shield_sme)
   - NEVER pick msme_suraksha_kavach if ppe_cr > 5 Cr or revenue > 10 Cr
 
-## Rule 4: Do NOT pick these if criteria not met
-  - msme_suraksha_kavach: only for micro/small businesses (revenue < 8 Cr OR ppe < 3 Cr)
+## Rule 4: HARD exclusions — violating these is always wrong
+  - msme_suraksha_kavach: FORBIDDEN if revenue_cr > 8 OR ppe_cr > 3 OR team_size > 20. This is a micro-shop bundle only. A D2C brand with ₹30 Cr revenue must NEVER get this.
   - contractor_all_risk: only for active construction / infra projects
   - entertainment_production: only for events / media companies
-  - i_select_liability: only for pure service firms with no physical assets
+  - i_select_liability: only for pure service firms with no physical assets and revenue < 20 Cr
 
 # ADDITIONAL PRODUCTS — mandatory cover rules by sector
 

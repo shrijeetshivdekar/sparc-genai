@@ -646,14 +646,36 @@ def _build_response(payload: dict) -> dict:
 
     # Additional standalone products: top 5 ICICI products from `recommendations`
     # (NOT from global_products — that's the competitor benchmark list).
-    # Exclude covers that are already in the bundle.
+    # Exclude:
+    #   1. Covers already in the bundle's mandatory covers
+    #   2. The bundle itself (some bundles exist as standalone product keys too)
+    #   3. Other bundle-level products that are packages, not standalone covers
     bundle_premium_keys = set()
     for bc in bundle_covers:
         pk = _resolve_premium_key(bc)
         if pk:
             bundle_premium_keys.add(pk)
+
+    # Bundle-level product keys that should never appear as standalone additional
+    _BUNDLE_PRODUCT_KEYS = {
+        "business_edge", "msme_suraksha", "enterprise_secure",
+        "bharat_sookshma", "bharat_laghu", "bharat_udyam",
+        "suraksha_kavach", "corporate_cover", "industrial_all_risk",
+        "group_safeguard",
+    }
+    # Also exclude the active bundle's own key if it appears in recommendations
+    bundle_name_slug = (bundle.get("name") or "").lower().replace(" ", "_").replace("/","_")
+
+    def _is_excluded(r):
+        key = r.get("key") or ""
+        return (
+            key in bundle_premium_keys
+            or key in _BUNDLE_PRODUCT_KEYS
+            or bundle_name_slug.startswith(key[:10])
+        )
+
     # AI picks (if any) come first in rank order; remaining sorted by score desc.
-    eligible = [r for r in recommendations if r.get("key") and r.get("key") not in bundle_premium_keys]
+    eligible = [r for r in recommendations if r.get("key") and not _is_excluded(r)]
     icici_pool = sorted(
         eligible,
         key=lambda r: (0, 0) if r.get("ai_urgency") else (1, -float(r.get("score") or 0)),

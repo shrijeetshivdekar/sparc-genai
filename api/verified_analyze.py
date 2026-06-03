@@ -475,10 +475,77 @@ def _build_response(payload: dict) -> dict:
         }
 
     bundle = analysis.get("bundle_match") or {}
+    bundle_alternatives = analysis.get("bundle_alternatives") or []
     recommendations = analysis.get("recommendations") or []
     global_products = analysis.get("global_products") or []
     size_bucket = analysis.get("size_bucket")
     scores = analysis.get("scores") or {}
+
+    # ─── AI override: bundle pick + top-5 ranking ──────────────────────────
+    # Calls Gemini with all extracted document signals. On any failure, the
+    # existing engine output is kept unchanged.
+    ai_reco = None
+    try:
+        from api.ai_recommender import recommend as _ai_recommend
+        ai_reco = _ai_recommend(extracts, inferences, verified, documents_extracted)
+    except Exception:
+        ai_reco = None
+
+    if ai_reco and isinstance(ai_reco.get("bundle"), dict):
+        from bundle_catalog import BUNDLE_CATALOG
+        from startup_shield_web.server import attach_group_safeguard_companion
+
+        ai_bundle_key = ai_reco["bundle"].get("key")
+        ai_bundle_def = BUNDLE_CATALOG.get(ai_bundle_key)
+        if ai_bundle_def and ai_bundle_key != "group_safeguard":
+            target_name = ai_bundle_def.get("name")
+            # Find the bundle's already-computed entry in [bundle] + alternatives
+            pool = [bundle] + list(bundle_alternatives)
+            picked = next(
+                (b for b in pool if (b or {}).get("name") == target_name),
+                None,
+            )
+            if picked is not None and picked is not bundle:
+                # Move current bundle into alternatives, promote AI pick
+                new_alternatives = [b for b in pool if b is not picked]
+                bundle = dict(picked)
+                bundle_alternatives = new_alternatives
+                # Reattach Group Safeguard as companion to the new primary
+                bundle, bundle_alternatives, _ = attach_group_safeguard_companion(
+                    bundle, bundle_alternatives,
+                )
+            # Overlay AI-provided fit + reasoning (more grounded than legacy fit_pct)
+            try:
+                bundle["fit_pct"] = int(ai_reco["bundle"].get("fit_pct") or bundle.get("fit_pct", 0))
+            except (TypeError, ValueError):
+                pass
+            why = ai_reco["bundle"].get("why")
+            if why:
+                bundle["ai_why"] = why
+
+        # Reorder recommendations so AI's top-5 picks come first (preserving
+        # the engine's full list — premium overlay code below still works).
+        ai_picks = ai_reco.get("additional") or []
+        ai_order = [p.get("product") for p in ai_picks if isinstance(p, dict) and p.get("product")]
+        if ai_order:
+            ai_why_by_key = {p["product"]: p.get("why") for p in ai_picks if p.get("product")}
+            ai_urgency_by_key = {p["product"]: p.get("urgency") for p in ai_picks if p.get("product")}
+            rec_by_key = {r.get("key"): r for r in recommendations if r.get("key")}
+            reordered, used = [], set()
+            for key in ai_order:
+                rec = rec_by_key.get(key)
+                if rec and key not in used:
+                    r = dict(rec)
+                    if ai_why_by_key.get(key):
+                        r["ai_why"] = ai_why_by_key[key]
+                    if ai_urgency_by_key.get(key):
+                        r["ai_urgency"] = ai_urgency_by_key[key]
+                    reordered.append(r)
+                    used.add(key)
+            for rec in recommendations:
+                if rec.get("key") not in used:
+                    reordered.append(rec)
+            recommendations = reordered
 
     # Premium overlay with financial-derived SI × loading
     si_dict = verified.get("sum_insured_per_cover") or {}
@@ -581,11 +648,11 @@ def _build_response(payload: dict) -> dict:
         pk = _resolve_premium_key(bc)
         if pk:
             bundle_premium_keys.add(pk)
-    # Sort by score desc; ranked already, but enforce.
+    # AI picks (if any) come first in rank order; remaining sorted by score desc.
+    eligible = [r for r in recommendations if r.get("key") and r.get("key") not in bundle_premium_keys]
     icici_pool = sorted(
-        [r for r in recommendations if r.get("key") and r.get("key") not in bundle_premium_keys],
-        key=lambda r: float(r.get("score") or 0),
-        reverse=True,
+        eligible,
+        key=lambda r: (0, 0) if r.get("ai_urgency") else (1, -float(r.get("score") or 0)),
     )
     additional = []
     for p in icici_pool[:5]:
@@ -650,6 +717,8 @@ def _build_response(payload: dict) -> dict:
             "base_premium_lakh": bundle_with_premium.get("base_premium_lakh"),
             "verified_premium_lakh": bundle_with_premium.get("verified_premium_lakh"),
             "cover_breakdown": bundle_with_premium.get("cover_breakdown", []),
+            "ai_why": bundle_with_premium.get("ai_why"),
+            "companion_bundle": bundle_with_premium.get("companion_bundle"),
         },
         "additional_products": additional,
         "outreach": {
@@ -678,6 +747,14 @@ def _build_response(payload: dict) -> dict:
         },
         "doc_modifiers_applied": applied_doc_modifiers,
         "evidence_packet": evidence,
+        "ai_recommendation": (
+            {
+                "bundle_why": (ai_reco.get("bundle") or {}).get("why") if ai_reco else None,
+                "critical_gaps": (ai_reco.get("critical_gaps") or []) if ai_reco else [],
+                "usage": (ai_reco.get("_usage") or {}) if ai_reco else {},
+            }
+            if ai_reco else None
+        ),
     }
 
 

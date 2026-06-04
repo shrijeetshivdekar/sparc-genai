@@ -2442,40 +2442,107 @@ function _renderVerifiedAssessment(v) {
     const drivers = (cs.drivers || []).map(d =>
       `<span class="va-score-driver-pill">${_dimLabel(d)}</span>`).join("");
 
-    const docs = sb.documents_extracted_keys || [];
+    const docs = cs.documents_extracted_keys || [];
     const missingDocs = Object.keys(_UNCERTAINTY_DOCS).filter(k => !docs.includes(k));
-    const uncertaintyLine = cs.uncertainty_pts === 0
-      ? `<span class="va-score-evidenced">✓ Fully evidenced</span>`
-      : `<span class="va-score-uncertainty">±${cs.uncertainty_pts} pts — upload
-          ${missingDocs.map(_docLabel).join(", ")} to narrow</span>`;
+    const modifierTotal = t1Mods.length + t2Mods.length;
+    const missingDocText = missingDocs.length ? missingDocs.map(_docLabel).join(", ") : "no additional documents";
+    const uncertaintyDetail = cs.uncertainty_pts === 0
+      ? `<span class="va-score-evidenced">Fully evidenced</span>`
+      : `<span class="va-score-uncertainty">+/-${cs.uncertainty_pts} pts</span>
+         <span class="va-score-uncertainty-copy">Upload ${missingDocText} to narrow the band.</span>`;
 
     scoreCardHtml = `
-      <div class="va-score-card">
-        <div class="va-score-donut">
+      <div class="va-score-card" style="--va-score-color:${colour}">
+        <div class="va-score-donut" aria-label="Composite risk score ${cs.value} out of 100, ${cs.label}">
           ${_svgDonut(cs.value, colour)}
           <div class="va-score-centre">
-            <span class="va-score-num" style="color:${colour}">${cs.value}</span>
-            <span class="va-score-label" style="color:${colour}">${cs.label.toUpperCase()}</span>
+            <span class="va-score-num">${cs.value}</span>
+            <span class="va-score-label">${cs.label.toUpperCase()}</span>
           </div>
         </div>
         <div class="va-score-meta">
-          <div class="va-score-title">Risk Score <span class="va-score-denom">/100</span></div>
-          <div class="va-score-drivers">${drivers}</div>
-          <div class="va-score-basis">
-            Based on ${t1Mods.length} financial + ${t2Mods.length} document modifier${t1Mods.length + t2Mods.length !== 1 ? "s" : ""}
+          <div class="va-score-head">
+            <div>
+              <div class="va-score-kicker">Verified assessment</div>
+              <div class="va-score-title">Risk Score <span class="va-score-denom">/100</span></div>
+            </div>
+            <button class="va-score-explain-btn" type="button"
+              onclick="window._vaShowScoreModal()" >
+              <span>Methodology</span>
+              <strong>View calculation</strong>
+            </button>
           </div>
-          <div class="va-score-uncertainty-row">${uncertaintyLine}</div>
-          <button class="va-score-explain-btn" type="button"
-            onclick="window._vaShowScoreModal()" >
-            How was this score calculated? →
-          </button>
+          <div class="va-score-facts">
+            <div class="va-score-fact">
+              <span>Evidence base</span>
+              <strong>${t1Mods.length} financial</strong>
+            </div>
+            <div class="va-score-fact">
+              <span>Document signals</span>
+              <strong>${t2Mods.length}</strong>
+            </div>
+            <div class="va-score-fact va-score-fact-status">
+              <span>Risk band</span>
+              <strong>${cs.label}</strong>
+            </div>
+          </div>
+          <div class="va-score-driver-block">
+            <span class="va-score-driver-label">Primary drivers</span>
+            <div class="va-score-drivers">${drivers || `<span class="va-score-driver-pill">No dominant driver</span>`}</div>
+          </div>
+          <div class="va-score-uncertainty-row">
+            <span class="va-score-uncertainty-label">${modifierTotal} modifier${modifierTotal !== 1 ? "s" : ""} applied</span>
+            <span class="va-score-uncertainty-text">${uncertaintyDetail}</span>
+          </div>
         </div>
       </div>`;
   }
 
   // ── Score explanation modal trigger
-  window._vaShowScoreModal = () => {
+  let _rationaleCache = null;
+
+  const _defBadge = d => ({
+    strong:   `<span class="vsm-def vsm-def-strong">Strong</span>`,
+    moderate: `<span class="vsm-def vsm-def-moderate">Moderate</span>`,
+    weak:     `<span class="vsm-def vsm-def-weak">Weak</span>`,
+  }[d] || "");
+
+  const _citationBlock = (entry, id) => {
+    if (!entry) return "";
+    const sources = (entry.sources || []).filter(Boolean);
+    const calNeeded = entry.calibration_needed || "";
+    return `
+      <div class="vsm-cite" id="vsm-cite-${id}" hidden>
+        <div class="vsm-cite-rationale">${_escape(entry.rationale || "")}</div>
+        ${sources.length ? `<div class="vsm-cite-sources">
+          ${sources.map(s => `<span class="vsm-cite-chip">${_escape(s)}</span>`).join("")}
+        </div>` : ""}
+        ${calNeeded ? `<div class="vsm-cite-cal"><strong>To upgrade defensibility:</strong> ${_escape(calNeeded)}</div>` : ""}
+      </div>`;
+  };
+
+  const _citeBtn = (id, def) => def
+    ? `<button class="vsm-cite-btn" type="button"
+         onclick="(function(el){el.hidden=!el.hidden})(document.getElementById('vsm-cite-${id}'))">
+         ${_defBadge(def)} cite
+       </button>`
+    : "";
+
+  window._vaShowScoreModal = async () => {
     if (document.getElementById("va-score-modal")) return;
+
+    // Fetch rationale once and cache
+    if (!_rationaleCache) {
+      try {
+        const r = await fetch("/api/rationale");
+        _rationaleCache = r.ok ? await r.json() : {};
+      } catch { _rationaleCache = {}; }
+    }
+    const rat = _rationaleCache;
+    const ratW   = rat.weights || {};
+    const ratM   = rat.modifiers || {};
+    const ratU   = rat.uncertainty_docs || {};
+
     const dimLabels = {
       cyber_technical:"Cyber Technical",data_privacy:"Data Privacy",
       liability:"Liability",governance_fraud:"Governance & Fraud",
@@ -2495,61 +2562,101 @@ function _renderVerifiedAssessment(v) {
     const baseScores = (cs && cs.base_scores) || {};
     const drivers3 = new Set(cs && cs.drivers || []);
 
+    // Step 1
     const step1Rows = Object.entries(dimLabels).map(([k,lbl]) => {
       const b = baseScores[k] ?? "—";
+      const wEntry = ratW[k];
+      const cid = `w1-${k}`;
       return `<div class="vsm-row${drivers3.has(k) ? " vsm-driver" : ""}">
-        <span>${lbl}</span><span>${b}</span></div>`;
+        <span>${lbl}</span><span>${b}</span>
+        <span>${_citeBtn(cid, wEntry?.defensibility)}</span>
+        ${_citationBlock(wEntry, cid)}
+      </div>`;
     }).join("");
 
-    const _modList = mods => mods.length
-      ? mods.map(m => `<div class="vsm-mod-row">
-          <span class="vsm-mod-delta mod-${m.delta>0?"up":"down"}">${m.delta>0?"+":""}${m.delta}</span>
-          <span class="vsm-mod-dim">${dimLabels[m.dim]||m.dim}</span>
-          <span class="vsm-mod-why">${_escape(m.explanation)}</span>
-          <span class="vsm-mod-src">${_escape(m.source_field||"")}</span>
-        </div>`).join("")
+    // Step 2 & 3 — modifier rows with citation
+    const _modList = (mods, prefix) => mods.length
+      ? mods.map((m, i) => {
+          const isT1 = m.band !== undefined;
+          const mKey = isT1
+            ? `${m.source_field}.${m.band}.${m.dim}`
+            : m.source_field;  // for T2 use doc type key into uncertainty_docs
+          const entry = isT1 ? ratM[mKey] : ratU[m.source_field];
+          const cid = `${prefix}-${i}`;
+          return `<div class="vsm-mod-block">
+            <div class="vsm-mod-row">
+              <span class="vsm-mod-delta mod-${m.delta>0?"up":"down"}">${m.delta>0?"+":""}${m.delta}</span>
+              <span class="vsm-mod-dim">${dimLabels[m.dim]||m.dim}</span>
+              <span class="vsm-mod-why">${_escape(m.explanation)}</span>
+              <span class="vsm-mod-src-wrap">
+                <span class="vsm-mod-src">${_escape(m.source_field||"")}</span>
+                ${_citeBtn(cid, entry?.defensibility)}
+              </span>
+            </div>
+            ${_citationBlock(entry, cid)}
+          </div>`;
+        }).join("")
       : `<div class="vsm-empty">None</div>`;
 
+    // Step 4 — weighted composite with defensibility per row
     const contribs = Object.entries(weights).map(([k,w]) => {
       const s = dimScores[k] ?? 0;
       return {k, w, s, c: w * s};
     }).sort((a,b) => b.c - a.c);
-    const step4Rows = contribs.map(({k,w,s,c}) => `
-      <div class="vsm-row${drivers3.has(k)?" vsm-driver":""}">
+    const step4Rows = contribs.map(({k,w,s,c}) => {
+      const wEntry = ratW[k];
+      const cid = `w4-${k}`;
+      return `<div class="vsm-row${drivers3.has(k)?" vsm-driver":""}">
         <span>${dimLabels[k]||k}</span>
         <span>${s.toFixed(1)}</span>
-        <span>${(w*100).toFixed(0)}%</span>
+        <span>${(w*100).toFixed(0)}% ${_citeBtn(cid, wEntry?.defensibility)}</span>
         <span>${c.toFixed(1)}</span>
-      </div>`).join("");
+        ${_citationBlock(wEntry, cid)}
+      </div>`;
+    }).join("");
 
+    // Step 5 — evidence gaps with doc rationale
     const missingDocs2 = Object.entries(_UNCERTAINTY_DOCS)
-      .filter(([k]) => !(sb.documents_extracted_keys||[]).includes(k));
+      .filter(([k]) => !(cs.documents_extracted_keys||[]).includes(k));
     const step5Body = cs && cs.uncertainty_pts === 0
       ? `<p class="vsm-ok">All standard document types uploaded. Score is fully evidenced.</p>`
-      : missingDocs2.map(([k,pts]) => `<div class="vsm-gap-row">
-          <span class="vsm-gap-doc">${_docLabel(k)}</span>
-          <span class="vsm-gap-pts">up to +${pts} pts</span>
-        </div>`).join("");
+      : missingDocs2.map(([k,pts], i) => {
+          const uEntry = ratU[k];
+          const cid = `u5-${i}`;
+          return `<div class="vsm-gap-block">
+            <div class="vsm-gap-row">
+              <span class="vsm-gap-doc">${_docLabel(k)}</span>
+              <span class="vsm-gap-pts-wrap">
+                <span class="vsm-gap-pts">up to +${pts} pts</span>
+                ${_citeBtn(cid, uEntry?.defensibility)}
+              </span>
+            </div>
+            ${_citationBlock(uEntry, cid)}
+          </div>`;
+        }).join("");
 
     const steps = [
       {n:"1",title:"Base scores — sector + stage",body:`
         <p class="vsm-desc">Baseline risk assigned by sector and funding stage before any documents are analysed.</p>
-        <div class="vsm-table vsm-2col"><div class="vsm-row vsm-head"><span>Dimension</span><span>Base score</span></div>${step1Rows}</div>`},
+        <div class="vsm-table vsm-3col-cite">
+          <div class="vsm-row vsm-head"><span>Dimension</span><span>Base score</span><span>Source</span></div>
+          ${step1Rows}
+        </div>`},
       {n:"2",title:"Tier 1 adjustments — financial documents",body:`
-        <p class="vsm-desc">Modifiers from P&amp;L, balance sheet, and ITR ratios.</p>
-        ${t1Mods.length ? `<div class="vsm-mod-list">${_modList(t1Mods)}</div>` : `<div class="vsm-empty">No financial documents uploaded.</div>`}`},
+        <p class="vsm-desc">Modifiers from P&amp;L, balance sheet, and ITR ratios. Click <em>cite</em> on any row to see the research basis and defensibility rating.</p>
+        ${t1Mods.length ? `<div class="vsm-mod-list">${_modList(t1Mods,"t1")}</div>` : `<div class="vsm-empty">No financial documents uploaded.</div>`}`},
       {n:"3",title:"Tier 2 adjustments — uploaded documents",body:`
         <p class="vsm-desc">Modifiers from VAPT, contracts, asset register, MCA, and GST returns.</p>
-        ${t2Mods.length ? `<div class="vsm-mod-list">${_modList(t2Mods)}</div>` : `<div class="vsm-empty">No additional documents uploaded.</div>`}`},
+        ${t2Mods.length ? `<div class="vsm-mod-list">${_modList(t2Mods,"t2")}</div>` : `<div class="vsm-empty">No additional documents uploaded.</div>`}`},
       {n:"4",title:"Weighted composite",body:`
-        <p class="vsm-desc">Cyber, Data Privacy, Liability, and Governance together account for 51% of the score. Dimensions sort by contribution.</p>
-        <div class="vsm-table vsm-4col">
+        <p class="vsm-desc">Cyber, Data Privacy, Liability, and Governance together account for 51% of the score. Click <em>cite</em> to see each weight's research basis.</p>
+        <div class="vsm-table vsm-4col-cite">
           <div class="vsm-row vsm-head"><span>Dimension</span><span>Score</span><span>Weight</span><span>Contribution</span></div>
           ${step4Rows}
           <div class="vsm-row vsm-total"><span>Composite</span><span>—</span><span>100%</span><span><strong>${cs?cs.value:"—"}/100</strong></span></div>
         </div>`},
       {n:"5",title:`Evidence gaps — ±${cs?cs.uncertainty_pts:0} pts`,body:`
-        <p class="vsm-desc">Uploading these documents would refine the score by the amounts shown.</p>
+        <p class="vsm-desc">Uploading these documents would refine the score. Click <em>cite</em> to see why each document matters.</p>
         ${step5Body}`},
     ];
 

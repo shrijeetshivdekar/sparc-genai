@@ -2691,6 +2691,14 @@ def _legacy_score(raw):
     inp = make_startup_input(profile)
     scores = compute_risk_scores(inp)
     scores = apply_dropdown_boosts(scores, profile["data_handled"], profile["regulatory"])
+
+    # If document-adjusted scores are provided (from verified_assessment.modified_scores),
+    # use them instead of base scores — VAPT, asset register, GST, and prior policy
+    # signals should drive coverage_fit in bundle ranking, not just the form inputs.
+    doc_scores = raw.get("document_modified_scores") if isinstance(raw, dict) else None
+    if doc_scores and isinstance(doc_scores, dict) and len(doc_scores) >= len(scores):
+        scores = {k: float(doc_scores.get(k, v)) for k, v in scores.items()}
+
     recommendations = recommend_products(
         scores,
         profile["sector"],
@@ -4351,6 +4359,13 @@ class Handler(SimpleHTTPRequestHandler):
             from api.commerce_pipeline import handle_get_request as _cpl_get
             status, body = _cpl_get(params)
             self.send_json(status, body)
+            return
+        if path == "/api/rationale":
+            rationale_path = PROJECT_ROOT / "pricing" / "rationale.json"
+            try:
+                self.send_json(200, json.loads(rationale_path.read_text(encoding="utf-8")))
+            except Exception as exc:
+                self.send_json(500, {"error": f"Could not load rationale.json: {exc}"})
             return
         if path == "/api/signals":
             limit = clean_int((params.get("limit") or ["30"])[0], 30)

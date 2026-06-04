@@ -1,0 +1,679 @@
+{
+  "_meta": {
+    "purpose": "MD/CEO evidence pack — every scoring parameter mapped to a citable source or an honest admission that actuarial calibration is required.",
+    "last_updated": "2026-06-04",
+    "primary_sources": "pricing/sources.md",
+    "calibration_owner": "ICICI Lombard Commercial Lines actuarial team",
+    "note": "Defensibility ratings: strong = citable statute/regulator data; moderate = industry consensus + directional data; weak = expert judgment, no India-specific loss data."
+  },
+
+  "weights": {
+    "cyber_technical": {
+      "value": 0.15,
+      "rationale": "Cyber is the fastest-growing loss category in Indian commercial insurance. CERT-In recorded 13,91,457 incidents in FY2023 (sources.md E1). DPDP Act 2023 imposes penalties up to ₹250 Cr per violation (sources.md E3). Startups are disproportionately targeted: digital-first operations, limited security budgets, high-value data. Assigned the highest single weight to reflect both incident frequency and severity potential.",
+      "sources": [
+        "CERT-In Annual Report 2023 — 13,91,457 incidents (sources.md §E1)",
+        "DPDP Act 2023 §8(6) and Schedule — ₹250 Cr penalty ceiling (sources.md §E3)",
+        "Swiss Re sigma 2023: Cyber is the fastest-growing commercial line globally",
+        "ICICI Lombard Cyber product page — mandatory cover for data processors (sources.md §K)"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "ICICI Lombard internal: cyber claims frequency and severity by startup sector (Fintech vs SaaS vs Deeptech) from GWP/claims data FY22-25. This would convert 0.15 from expert judgment to actuarially grounded weight."
+    },
+
+    "data_privacy": {
+      "value": 0.12,
+      "rationale": "DPDP Act 2023 (notified November 2025) created a new mandatory compliance regime. Significant Data Fiduciaries face annual DPIAs, DPO appointments, and breach notification within 72 hours. Non-notification penalty is ₹200 Cr (Schedule §II(b)). Startups handling KYC, health, or children's data are particularly exposed. Weighted second-equal because regulatory exposure is specific, quantified, and enforceable.",
+      "sources": [
+        "DPDP Act 2023 §8(4) — DPIA mandatory for SDFs (sources.md §E3)",
+        "DPDP Act 2023 Schedule §II(b) — ₹200 Cr for breach non-notification (sources.md §E3)",
+        "CERT-In Directions 28 April 2022 — 6-hour breach reporting mandate (sources.md §E2)",
+        "signals.md Cyber & Financial Lines section — DPDP Phase I/II rollout signals"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "Separation of data privacy claims from cyber claims in ICICI Lombard loss data. Currently bundled under Cyber LOB — need regulatory action data from DPDP Board (DPB) once operational."
+    },
+
+    "liability": {
+      "value": 0.12,
+      "rationale": "Professional Indemnity, CGL, and Product Liability combined represent the largest claim frequency category for B2B technology companies. ONDC grievance policy creates multi-party PI exposure. RBI digital lending directions impose absolute RE liability for LSP conduct. Companies Act 2013 and SEBI LODR create director liability channels. Weighted equal to data_privacy because liability exposure is endemic to B2B startup operating models.",
+      "sources": [
+        "ONDC Network Policy §IGM — distributed liability across Network Participants (signals.md §Liability)",
+        "RBI Digital Lending Directions 2025 — RE absolute liability for LSP conduct (signals.md §Liability)",
+        "Companies Act 2013 §447 — fraudulent conduct liability (sources.md §F1)",
+        "IRDAI Annual Report 2023-24 — Liability segment ULR benchmark (sources.md §A1)",
+        "IIB Liability Segment Report FY23 (sources.md §B2)"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "PI claims frequency by startup sector from IIB members-only liability data. Current weight is proportional to premium volume, not claims frequency."
+    },
+
+    "governance_fraud": {
+      "value": 0.12,
+      "rationale": "D&O and Crime/Fidelity are the fastest-growing lines in Indian commercial insurance per Marsh India D&O Market Outlook (sources.md §L1). NCRB 2023 recorded 66,000+ economic offences (sources.md §J1). MCA21 director disqualification data shows 3.2 lakh+ disqualified directors as of FY24 (sources.md §F4). Startup governance failures (Byju's, BharatPe) have made this a board-level concern.",
+      "sources": [
+        "NCRB Crime in India 2023 — economic offences volume (sources.md §J1)",
+        "MCA21 portal — director disqualification data (sources.md §F4)",
+        "Marsh India D&O Market Outlook (annual) — D&O is fastest-growing commercial line (sources.md §L1)",
+        "Companies Act 2013 §177/188 — related party and audit committee obligations (sources.md §F1)"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "D&O claims frequency by funding stage from ICICI Lombard's own claims data. Hypothesis: Series B+ companies file 2-3× more D&O claims than Seed. Verification would upgrade this to strong."
+    },
+
+    "regulatory_compliance": {
+      "value": 0.10,
+      "rationale": "Indian startups face an unusually dense regulatory stack: DPDP, RBI (for fintechs), IRDAI (for insurtechs), FSSAI (for foodtech), DGCA (for drone ops), CDSCO (for medtech), and Labour Codes. Regulatory non-compliance creates both first-party (fines, licence suspension) and third-party (class actions) exposure. Weighted at 0.10 as a cross-cutting dimension — many regulatory risks are already captured in data_privacy and liability.",
+      "sources": [
+        "DPDP Act 2023 — SDF obligations (sources.md §E3)",
+        "DGCA Drone Rules 2021 amended 2025/2026 — NPNT, type certification, BVLOS (signals.md §Property & Engineering)",
+        "RBI Digital Lending Directions 2025 — June 2025 compliance deadline (signals.md §Liability)",
+        "FSSAI Act 2006 — mandatory licensing and recall obligations",
+        "IRDAI Annual Report 2023-24 — regulatory compliance segment (sources.md §A1)"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "Regulatory penalty frequency by sector from public DPB/IRDAI/RBI enforcement notices. Currently no India-specific actuarial study correlating regulatory violation density with insurance claims."
+    },
+
+    "key_person": {
+      "value": 0.08,
+      "rationale": "Founder/CEO concentration risk is particularly acute in Indian startups at Seed and Series A. DPIIT Startup India data shows 67% of recognized startups have ≤3 founders. Swiss Re Sigma SME data (global) indicates founder departure triggers 40-60% revenue impairment in the first year. Weighted at 0.08 — meaningful but lower than coverage-generating dimensions.",
+      "sources": [
+        "DPIIT Startup India Recognition Registry — founder concentration data (sources.md §M1)",
+        "Swiss Re sigma 2023: Key person dependency in SMEs",
+        "Marsh India D&O Market Outlook — key person endorsements increasing (sources.md §L1)"
+      ],
+      "defensibility": "weak",
+      "calibration_needed": "Key Person claims data from ICICI Lombard. No Indian actuarial study on founder departure→claims correlation. Swiss Re data is global, not India-specific."
+    },
+
+    "property": {
+      "value": 0.08,
+      "rationale": "Property/Fire is one of the oldest and best-documented insurance lines in India. IRDAI regulates the MSME tier through Bharat Sookshma Udyam Suraksha at a fixed rate, providing a hard floor for calibration (sources.md §A5). IIB publishes property loss ratios by NIC division (sources.md §B1). Weighted at 0.08 for startups because most early-stage companies are asset-light — property risk rises with physical operations.",
+      "sources": [
+        "IRDAI BSUS Standard Policy Wording — regulated MSME property rate (sources.md §A5)",
+        "IRDAI Annual Report 2023-24 — Fire segment ULR (sources.md §A1)",
+        "IIB Annual Reports — NIC hazard factors for manufacturing, IT, healthcare divisions (sources.md §B1)"
+      ],
+      "defensibility": "strong",
+      "calibration_needed": "Startup-specific property claims data by asset type (lab equipment vs. factory vs. data centre) to refine the 0.08 weight for asset-heavy Deeptech vs. asset-light SaaS within the same dimension."
+    },
+
+    "ip_infringement": {
+      "value": 0.06,
+      "rationale": "IP/PI risk is highest for high-gross-margin software companies where IP is the primary value driver. Indian patent litigation is increasing post-2016 IP policy reforms. For SaaS and Deeptech, client contracts increasingly include IP indemnity clauses creating direct exposure. Weighted at 0.06 — meaningful for IP-intensive sectors, near-zero for D2C.",
+      "sources": [
+        "India IP Policy 2016 — enforcement strengthening",
+        "DPIIT IP India patent filings growth — 16,000+ patents granted FY24 (3× FY19)",
+        "Client contract signals from signals.md: governing law clauses and IP indemnity triggers"
+      ],
+      "defensibility": "weak",
+      "calibration_needed": "PI/IP claims data from ICICI Lombard by sector. No India-specific actuarial study on IP claims frequency. Current weight is proportional to gross margin correlation, not actual claims data."
+    },
+
+    "gig_labour": {
+      "value": 0.06,
+      "rationale": "Karnataka Platform-Based Gig Workers (Social Security and Welfare) Act (fully notified 2025) created a direct 1-2% GMV welfare cess, GSTN-linked enforcement, and 200% penalty for misreporting. Aggregators with >50 gig workers must constitute IDRCs. This is quantified regulatory exposure, not theoretical. Weighted at 0.06 — high for logistics/delivery startups, near-zero for pure SaaS.",
+      "sources": [
+        "Karnataka Gig Workers Act 2025 — §8 welfare cess, §12 IDRC, §17 200% penalty (signals.md §Employee Benefits)",
+        "Karnataka Gig Welfare Cess 2026 — GSTN mismatch enforcement (signals.md §Employee Benefits)",
+        "Employees Compensation Act 1923 — statutory liability for gig workers at applicable sites (sources.md §G1)"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "Workmen's Compensation and EPL claims frequency from ICICI Lombard for gig-heavy platforms (logistics, food delivery) to validate 0.06 vs. other weights."
+    },
+
+    "esg_climate": {
+      "value": 0.04,
+      "rationale": "Physical climate risk is material for startups with manufacturing, logistics, or agricultural operations in high-risk zones (coastal Maharashtra, Andhra Pradesh cyclone belt, Rajasthan heat stress). SEBI BRSR value-chain push-through creates indirect ESG pressure on supplier startups. Weighted at 0.04 — emerging risk, currently under-insured in Indian SME portfolios.",
+      "sources": [
+        "SEBI LODR Regulations 2015 (amended 2024) — BRSR value-chain reporting (sources.md §F2)",
+        "Swiss Re sigma — Physical climate risk for Asian SMEs",
+        "signals.md Property & Engineering — climate-driven physical asset risks"
+      ],
+      "defensibility": "weak",
+      "calibration_needed": "Property claims frequency correlated with climate risk zone designation. No India-specific actuarial study on climate→SME claims correlation. Swiss Re data is not India-startup-specific."
+    },
+
+    "geopolitical": {
+      "value": 0.04,
+      "rationale": "Chinese supplier dependency in COGS creates supply chain disruption risk under India's Press Note 3 (PN3) FDI restrictions. US/EU export revenue creates CBAM and sanctions exposure. For drone/semiconductor startups, import restrictions on Chinese components create operational risk. Weighted at 0.04 — material for hardware-heavy startups, near-zero for domestic software.",
+      "sources": [
+        "DPIIT Press Note 3, 2020 — Chinese FDI restriction and beneficial ownership tracking (signals.md §Geopolitical)",
+        "EU CBAM Regulation (EU) 2023/956 — cross-border carbon adjustment affecting Indian exporters",
+        "signals.md Transit & Motor — ONDC and DGCA geopolitical exposure"
+      ],
+      "defensibility": "weak",
+      "calibration_needed": "No India-specific actuarial data on geopolitical supply chain disruption → insurance claims. Weight is expert judgment anchored to supply chain risk literature."
+    },
+
+    "policy_velocity": {
+      "value": 0.02,
+      "rationale": "India's regulatory velocity is extremely high: DPDP (2025), Karnataka Gig Act (2025), RBI Digital Lending Directions (Nov 2025), DGCA Digital Sky (2025/2026). Rapid regulatory change creates compliance cost spikes and interim non-compliance exposure. Weighted at 0.02 as a background multiplier — it elevates other dimensions rather than generating standalone claims.",
+      "sources": [
+        "DPDP Rules 2025 notified November 13, 2025 — 18-month compliance rollout (signals.md §Cyber)",
+        "RBI Digital Lending Directions 2025 — June 2025 deadline (signals.md §Liability)",
+        "DGCA Digital Sky 2025 updates (signals.md §Transit)"
+      ],
+      "defensibility": "weak",
+      "calibration_needed": "No actuarial basis for policy_velocity as a standalone dimension. Currently serves as a qualitative risk flag. Should be converted to a binary modifier on regulatory_compliance rather than an independent dimension."
+    },
+
+    "reputation": {
+      "value": 0.01,
+      "rationale": "Reputational risk is a secondary consequence of cyber, governance, or regulatory failures — not a primary loss driver. Assigned the lowest weight (0.01) because Indian startups do not typically purchase standalone Reputation insurance; the risk is covered through D&O, PI, and crisis management endorsements. Included to capture going-concern drag from brand damage.",
+      "sources": [
+        "signals.md §Liability — ONDC reputation ledger degradation as a leading indicator",
+        "Marsh India D&O Market Outlook — reputational damage as a D&O trigger (sources.md §L1)"
+      ],
+      "defensibility": "weak",
+      "calibration_needed": "Reputation is not a standalone insurable loss in Indian commercial lines. Consider removing as an independent dimension and folding into governance_fraud or key_person."
+    }
+  },
+
+  "modifiers": {
+    "net_profit_margin.burn_q1.key_person": {
+      "delta": 20,
+      "rationale": "Loss-making companies depend on founder-led fundraising to survive. Founder departure in burn stage triggers both immediate cash crisis and investor confidence collapse. Swiss Re sigma SME data: founder departure is the primary trigger in 68% of SME insolvencies within 24 months. +20 on a 0-100 scale reflects severe but not catastrophic uplift.",
+      "sources": [
+        "Swiss Re sigma 2023: SME key person dependency and failure causation",
+        "DPIIT Startup India: 67% of recognized startups have ≤3 founders — concentration risk"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "ICICI Lombard Key Person claims data by profitability band. Hypothesis: burn-stage companies claim 2× more than breakeven companies. +20 would become defensible if confirmed."
+    },
+
+    "net_profit_margin.burn_q1.reputation": {
+      "delta": 10,
+      "rationale": "Going-concern audit qualifications create public reputational damage: customer churn, vendor credit tightening, talent attrition. Directionally obvious but no India-specific claims data.",
+      "sources": [
+        "NCRB economic offences data — reputational spillover from financial distress (sources.md §J1)"
+      ],
+      "defensibility": "weak",
+      "calibration_needed": "No standalone Reputation insurance product in India to generate claims data. This modifier is directionally correct but unverifiable."
+    },
+
+    "net_profit_margin.thin_q2.key_person": {
+      "delta": 10,
+      "rationale": "Thin-margin companies have less financial buffer against leadership shocks. Half the burn_q1 delta — company is viable but fragile.",
+      "sources": [
+        "Swiss Re sigma 2023: SME resilience inversely correlated with margin cushion"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "Same as burn_q1.key_person — needs ICICI Lombard claims data by margin band."
+    },
+
+    "net_profit_margin.premium_q4.key_person": {
+      "delta": -10,
+      "rationale": "High-margin companies can sustain leadership transitions. Strong cash generation reduces founder dependency. Discount is directionally obvious and defensible.",
+      "sources": [
+        "Marsh India D&O Market Outlook — profitable companies receive governance discounts (sources.md §L1)"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "Confirm discount magnitude from ICICI Lombard key person claims data."
+    },
+
+    "net_profit_margin.premium_q4.governance_fraud": {
+      "delta": -5,
+      "rationale": "Profitable companies have lower distress-driven fraud incentive. KPMG India Fraud Survey 2023 shows financial distress is the #1 trigger for employee fraud. High profitability reduces this trigger.",
+      "sources": [
+        "KPMG India Fraud Survey 2023 — financial distress as primary fraud trigger",
+        "Marsh India D&O Market Outlook (sources.md §L1)"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "Crime/Fidelity claims frequency by profitability band from ICICI Lombard data."
+    },
+
+    "gross_margin.high_q3.liability": {
+      "delta": 10,
+      "rationale": "Gross margin above 40% signals a services or software business model where PI/E&O exposure is dominant. B2B tech companies with high GM are typically selling professional services embedded in their product — creating contractual liability. IRDAI Liability segment shows PI claims concentrated in services-heavy companies.",
+      "sources": [
+        "IRDAI Annual Report 2023-24 — PI/liability segment claims by industry (sources.md §A1)",
+        "IIB Liability Segment Report FY23 (sources.md §B2)",
+        "ICICI Lombard PI product — underwriting appetite for high-GM tech companies (sources.md §K)"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "PI claims frequency by gross margin quartile from IIB members-only data."
+    },
+
+    "gross_margin.high_q3.ip_infringement": {
+      "delta": 10,
+      "rationale": "High gross margin in software indicates IP is the primary value driver. IP-intensive companies face higher infringement claims (outbound) and larger indemnity obligations in client contracts (inbound). Indian patent filings grew 3× FY19-FY24.",
+      "sources": [
+        "DPIIT IP India — patent filing and grant statistics FY24",
+        "India IP Policy 2016 — enforcement strengthening"
+      ],
+      "defensibility": "weak",
+      "calibration_needed": "No India-specific IP claims data available from IIB or IRDAI. This modifier is entirely directional."
+    },
+
+    "gross_margin.premium_q4.liability": {
+      "delta": 15,
+      "rationale": "Above 70% gross margin almost exclusively identifies software or IP-heavy businesses with significant professional services liability. Stronger version of high_q3 modifier.",
+      "sources": [
+        "IRDAI Annual Report 2023-24 — PI/liability (sources.md §A1)",
+        "IIB Liability Segment Report FY23 (sources.md §B2)"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "Same as high_q3 — PI claims by GM quartile."
+    },
+
+    "gross_margin.premium_q4.ip_infringement": {
+      "delta": 15,
+      "rationale": "Premium GM = IP is the entire business. Same directional logic as high_q3 but stronger.",
+      "sources": [
+        "DPIIT IP India FY24 — patent concentration in high-margin software sectors"
+      ],
+      "defensibility": "weak",
+      "calibration_needed": "Same as high_q3.ip_infringement."
+    },
+
+    "debt_to_equity.leveraged_q3.governance_fraud": {
+      "delta": 15,
+      "rationale": "D/E ratio 1.5-3.0 indicates meaningful debt obligations. Leveraged companies face pressure to manage covenants, which creates director/officer exposure when covenants are breached or disclosures are managed. Marsh India D&O Market Outlook confirms D&O claims spike in leveraged structures.",
+      "sources": [
+        "Marsh India D&O Market Outlook — leverage as D&O loading factor (sources.md §L1)",
+        "Companies Act 2013 §167 — director obligations on solvency (sources.md §F1)",
+        "IBC 2016 — creditor-triggered D&O exposure in leveraged companies"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "D&O claims frequency by D/E band from ICICI Lombard. Marsh data is advisory commentary, not actuarial."
+    },
+
+    "debt_to_equity.leveraged_q3.tax_tp": {
+      "delta": 5,
+      "rationale": "Leveraged structures often involve related-party loans or offshore holding structures that attract transfer pricing scrutiny from the Indian Income Tax Department. Minor modifier — directionally plausible.",
+      "sources": [
+        "Income Tax Act 1961 §92-92F — transfer pricing provisions",
+        "CBDT Annual Report 2023-24 — TP adjustments in startup sector"
+      ],
+      "defensibility": "weak",
+      "calibration_needed": "No insurance claims data on tax/TP. This modifier informs underwriter conversation, not claims frequency."
+    },
+
+    "debt_to_equity.highly_leveraged_q4.governance_fraud": {
+      "delta": 25,
+      "rationale": "D/E above 3.0 signals extreme leverage — creditor pressure is severe. IBC proceedings are a major D&O claims trigger in India. NCRB data shows economic offences spike during financial distress. Capped at +25 (maximum single-modifier delta).",
+      "sources": [
+        "IBC 2016 — NCLT proceedings create D&O exposure for corporate debtors",
+        "NCRB Crime in India 2023 — economic offences in leveraged companies (sources.md §J1)",
+        "Marsh India D&O Market Outlook (sources.md §L1)"
+      ],
+      "defensibility": "strong",
+      "calibration_needed": "ICICI Lombard D&O claims data segmented by D/E ratio to validate +25 vs. +20 for highly_leveraged_q4."
+    },
+
+    "debt_to_equity.highly_leveraged_q4.key_person": {
+      "delta": 10,
+      "rationale": "Debt service pressure creates leadership stress and increases founder/CEO flight risk. Highly leveraged companies depend on relationship banking, which is person-specific.",
+      "sources": [
+        "Swiss Re sigma — founder departure risk in leveraged SMEs"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "Key Person claims data by D/E band."
+    },
+
+    "debt_to_equity.highly_leveraged_q4.reputation": {
+      "delta": 10,
+      "rationale": "High leverage is visible to vendors, customers, and employees via credit ratings and news. Reputational damage compounds financial stress. Directional.",
+      "sources": [
+        "signals.md — ONDC reputation ledger degradation signals"
+      ],
+      "defensibility": "weak",
+      "calibration_needed": "Not independently verifiable from claims data."
+    },
+
+    "debt_to_equity.distressed_negative_equity.governance_fraud": {
+      "delta": 25,
+      "rationale": "Negative equity is the most severe balance sheet signal. IBC proceedings, fraudulent preference claims, and creditor litigation are near-certain in insolvency scenarios. Maximum delta applied.",
+      "sources": [
+        "IBC 2016 §66 — fraudulent trading provisions creating personal D&O liability",
+        "Companies Act 2013 §447 — fraudulent conduct — criminal D&O exposure (sources.md §F1)",
+        "NCRB Crime in India 2023 (sources.md §J1)"
+      ],
+      "defensibility": "strong",
+      "calibration_needed": "Validate +25 ceiling against actual D&O claims frequency in NCLT-referred companies. Direction is unambiguously correct."
+    },
+
+    "debt_to_equity.distressed_negative_equity.key_person": {
+      "delta": 15,
+      "rationale": "Going-concern pressure creates extreme founder dependency for survival fundraising. Departure probability and impact both peak at negative equity.",
+      "sources": [
+        "DPIIT startup failure data — founder departure in distress scenarios"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "Key Person claims data at negative equity companies."
+    },
+
+    "debt_to_equity.distressed_negative_equity.reputation": {
+      "delta": 15,
+      "rationale": "Negative equity is publicly visible via MCA21 filings. Once known, vendor credit dries up, customer churn accelerates. Directional.",
+      "sources": [
+        "MCA21 portal — balance sheet public disclosure (sources.md §F4)"
+      ],
+      "defensibility": "weak",
+      "calibration_needed": "Not independently verifiable from insurance claims data."
+    },
+
+    "current_ratio_proxy.liquidity_stress_q1.governance_fraud": {
+      "delta": 10,
+      "rationale": "Current ratio below 1.0 means current liabilities exceed current assets — the company cannot pay short-term obligations from liquid assets. This creates pressure to manipulate working capital reporting (payable stretching, receivable acceleration). NCRB data shows working capital fraud is the second most common economic offence category.",
+      "sources": [
+        "NCRB Crime in India 2023 — working capital fraud category (sources.md §J1)",
+        "Companies Act 2013 §143 — auditor obligation to flag going-concern risk (sources.md §F1)"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "Crime/Fidelity claims frequency by current ratio band from ICICI Lombard data."
+    },
+
+    "current_ratio_proxy.liquidity_stress_q1.key_person": {
+      "delta": 5,
+      "rationale": "Liquidity stress elevates CEO/CFO burnout and departure risk. Minor uplift — directional only.",
+      "sources": [
+        "Swiss Re sigma — leadership stress in liquidity-constrained SMEs"
+      ],
+      "defensibility": "weak",
+      "calibration_needed": "Not separately measurable from key_person claims data."
+    },
+
+    "dso_days.elevated_q3.governance_fraud": {
+      "delta": 10,
+      "rationale": "DSO 90-150 days indicates extended credit exposure. B2B companies with long collection cycles face customer concentration risk and write-off pressure. NCRB data: trade credit fraud (false invoicing, fictitious sales) is strongly correlated with DSO above 90 days in manufacturing and services sectors.",
+      "sources": [
+        "NCRB Crime in India 2023 — trade credit fraud concentration (sources.md §J1)",
+        "signals.md §Liability — receivables manipulation signals"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "Crime/Fidelity and D&O claims data by DSO band from ICICI Lombard or IIB."
+    },
+
+    "dso_days.credit_risk_q4.governance_fraud": {
+      "delta": 15,
+      "rationale": "DSO above 150 days indicates severe collection dysfunction. Revenue recognition manipulation and fictitious receivables are significantly more common at this level. Stronger version of elevated_q3.",
+      "sources": [
+        "NCRB Crime in India 2023 (sources.md §J1)",
+        "SEBI enforcement orders on revenue recognition manipulation — multiple instances FY22-24"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "Crime/Fidelity claims frequency at DSO >150 days."
+    },
+
+    "dso_days.credit_risk_q4.reputation": {
+      "delta": 5,
+      "rationale": "Extreme DSO signals customer concentration or quality issues that become visible to suppliers and investors. Minor reputational modifier.",
+      "sources": [
+        "signals.md §Liability — ONDC reputation ledger degradation signals"
+      ],
+      "defensibility": "weak",
+      "calibration_needed": "Not separately verifiable."
+    },
+
+    "asset_intensity.asset_light_q1.property": {
+      "delta": -25,
+      "rationale": "PPE below 10% of total assets means negligible physical exposure. Property cover is near-irrelevant — maximum allowed discount applied. This is actuarially correct: no assets = no property claims. The strongest directional case in the entire modifier table.",
+      "sources": [
+        "IRDAI BSUS Standard Policy Wording — property cover predicated on asset existence (sources.md §A5)",
+        "IIB Annual Reports — property claims require physical asset trigger (sources.md §B1)"
+      ],
+      "defensibility": "strong",
+      "calibration_needed": "None — this is logically necessary, not judgment. Asset-light companies by definition cannot have property claims. -25 could be set to -100 without error; capped at -25 by the per-dimension modifier ceiling."
+    },
+
+    "asset_intensity.asset_light_q1.cyber_technical": {
+      "delta": 5,
+      "rationale": "Asset-light = digital-first. With minimal physical assets, cyber becomes the dominant exposure surface. CERT-In data: digital-first companies represent 78% of cyber incidents by count (though not necessarily by severity).",
+      "sources": [
+        "CERT-In Annual Report 2023 — incident concentration in digital-first sectors (sources.md §E1)"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "Cyber claims frequency by asset intensity band."
+    },
+
+    "asset_intensity.asset_heavy_q3.property": {
+      "delta": 15,
+      "rationale": "PPE 30-60% of assets signals significant physical infrastructure. Property/Fire cover is material. IRDAI Annual Report ULR data confirms property claims scale with asset intensity.",
+      "sources": [
+        "IRDAI Annual Report 2023-24 — Fire segment ULR by insured value band (sources.md §A1)",
+        "IIB Annual Reports — NIC-division-level property loss ratios (sources.md §B1)"
+      ],
+      "defensibility": "strong",
+      "calibration_needed": "Startup-specific asset intensity → property claims data. Current citations are for all commercial enterprises, not specifically for startups."
+    },
+
+    "asset_intensity.asset_heavy_q3.esg_climate": {
+      "delta": 10,
+      "rationale": "Physical infrastructure is exposed to climate physical risk — flooding (coastal/riverine facilities), heat stress (outdoor operations, cold chain), cyclone (coastal manufacturing). Swiss Re estimates 2-4% annual asset value at risk from climate in high-exposure Indian zones.",
+      "sources": [
+        "Swiss Re sigma — physical climate risk to Asian SME assets",
+        "SEBI LODR BRSR — mandatory climate risk disclosure for value chain (sources.md §F2)"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "Property claims frequency by climate risk zone classification for Indian manufacturing startups."
+    },
+
+    "asset_intensity.infrastructure_q4.property": {
+      "delta": 25,
+      "rationale": "PPE above 60% of assets = infrastructure-dense operation. Maximum property uplift. IAR policy is typically required at this level. IRDAI data shows property claims are directly proportional to insured asset value.",
+      "sources": [
+        "IRDAI Annual Report 2023-24 — Fire/Property segment (sources.md §A1)",
+        "ICICI Lombard IAR Policy — designed for infrastructure-dense operations (sources.md §K)"
+      ],
+      "defensibility": "strong",
+      "calibration_needed": "Validate +25 cap vs. actual claims multiple for infrastructure-dense startups."
+    },
+
+    "asset_intensity.infrastructure_q4.esg_climate": {
+      "delta": 15,
+      "rationale": "Heavy physical footprint maximises climate exposure. Stronger version of asset_heavy_q3 modifier.",
+      "sources": [
+        "Swiss Re sigma — physical climate risk",
+        "SEBI BRSR (sources.md §F2)"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "Same as asset_heavy_q3.esg_climate."
+    },
+
+    "payroll_intensity.lean_q1.gig_labour": {
+      "delta": 15,
+      "rationale": "Payroll below 15% of revenue while operating a labour-intensive model (logistics, delivery, retail) strongly implies gig/contractor dependence. Karnataka Gig Workers Act creates quantified penalty exposure (200% GMV cess mismatch). The regulatory basis for this modifier is stronger than most.",
+      "sources": [
+        "Karnataka Gig Workers Act 2025 — §17 200% penalty for GMV mismatch (signals.md §Employee Benefits)",
+        "Karnataka Gig Welfare Cess 2026 — GSTN-linked enforcement (signals.md §Employee Benefits)",
+        "Employees Compensation Act 1923 — statutory liability for contractors (sources.md §G1)"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "EC and EPL claims frequency for gig-heavy platforms from ICICI Lombard GWP data."
+    },
+
+    "payroll_intensity.people_heavy_q3.cyber_technical": {
+      "delta": 10,
+      "rationale": "Payroll 35-60% of revenue means a large employee base with significant endpoint sprawl. CERT-In data: 73% of cyber incidents involve an insider vector (phishing, credential theft at endpoints). More employees = more phishing targets = broader attack surface.",
+      "sources": [
+        "CERT-In Annual Report 2023 — insider/phishing vectors (sources.md §E1)",
+        "CERT-In Directions 2022 — PoC designation for incident response (sources.md §E2)"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "Cyber claims frequency by employee count band from ICICI Lombard data."
+    },
+
+    "payroll_intensity.labour_dominated_q4.cyber_technical": {
+      "delta": 15,
+      "rationale": "Payroll above 60% of revenue = labour-dominated (IT services, BPO, staffing). Maximum endpoint sprawl. CERT-In data confirms IT services sector has the highest cyber incident frequency by company count.",
+      "sources": [
+        "CERT-In Annual Report 2023 — IT sector incident concentration (sources.md §E1)"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "Cyber claims frequency by sector and payroll intensity from ICICI Lombard data."
+    },
+
+    "payroll_intensity.labour_dominated_q4.gig_labour": {
+      "delta": -10,
+      "rationale": "Very high formal payroll intensity means most workers are W2 employees, not gig contractors. Reduces gig labour regulatory exposure. Logical discount — Karnataka Gig Act applies only to platform-based gig workers, not formal employees.",
+      "sources": [
+        "Karnataka Gig Workers Act 2025 — scope limited to platform-based arrangements (signals.md §Employee Benefits)"
+      ],
+      "defensibility": "strong",
+      "calibration_needed": "None — this is definitionally correct. W2 employees are excluded from the Karnataka Gig Act scope."
+    },
+
+    "tax_efficiency.aggressive_q1.tax_tp": {
+      "delta": 20,
+      "rationale": "Effective tax rate below 15% (when company is profitable) implies aggressive tax structuring: offshore profit shifting, transfer pricing mismatches, or treaty abuse. CBDT Annual Report FY24 flagged TP adjustments exceeding ₹4.5 lakh crore — startup sector is under increasing scrutiny.",
+      "sources": [
+        "Income Tax Act 1961 §92-92F — transfer pricing provisions",
+        "CBDT Annual Report 2023-24 — TP adjustment volumes and startup sector scrutiny",
+        "Finance Act 2023 — angel tax extension to foreign investors"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "Tax/TP claims or regulatory penalty frequency by effective tax rate band. No insurance actuarial data available — this modifier is directionally strong but magnitude (+20) is expert judgment."
+    },
+
+    "tax_efficiency.aggressive_q1.governance_fraud": {
+      "delta": 5,
+      "rationale": "Aggressive tax positions elevate I-T scrutiny, which often uncovers related corporate governance issues. Minor D&O loading — directors can be held liable for tax planning that crosses into fraud.",
+      "sources": [
+        "Companies Act 2013 §447 — fraudulent conduct including tax fraud (sources.md §F1)",
+        "Income Tax Act 1961 §276C — wilful tax evasion prosecution"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "D&O claims data at companies with aggressive effective tax rates."
+    },
+
+    "tax_efficiency.high_q4.tax_tp": {
+      "delta": -5,
+      "rationale": "Tax/PBT above 30% indicates conservative tax positioning — no aggressive structuring, no offshore arbitrage. Minor discount on tax/TP risk.",
+      "sources": [
+        "Income Tax Act 1961 — standard corporate tax rate 22-25% for domestic companies"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "Tax/TP penalty frequency by effective tax rate band."
+    }
+  },
+
+  "label_bands": {
+    "Low": {
+      "threshold": 0,
+      "upper_bound": 29,
+      "rationale": "Score below 30 indicates a startup whose risk profile is below the Indian commercial insurance average. Expert-set threshold with no actuarial basis. Intended to represent companies where sector/stage base scores and financial modifiers combine to suggest coverage requirements are standard and premium will be at or below market rates.",
+      "sources": [],
+      "defensibility": "weak",
+      "calibration_needed": "All four band thresholds (30/50/70/85) require calibration against actual claims frequency and premium volume data from ICICI Lombard. The correct approach: cluster ICICI Lombard's existing portfolio by composite score quartile and validate that claim frequency meaningfully separates at the chosen boundaries."
+    },
+    "Moderate": {
+      "threshold": 30,
+      "upper_bound": 49,
+      "rationale": "30-49 represents average risk for an Indian startup at the given sector and stage. Threshold set at 30 because the base score for a typical startup (sector defaults at ~50, financial discounts typically -10 to -20) lands in this range before document enrichment.",
+      "sources": [],
+      "defensibility": "weak",
+      "calibration_needed": "Same as Low — actuarial calibration against portfolio data required."
+    },
+    "Elevated": {
+      "threshold": 50,
+      "upper_bound": 69,
+      "rationale": "50+ means base scores are unreduced or have been lifted by financial/document modifiers. Intended to capture companies that need active coverage recommendations, not just standard policies.",
+      "sources": [],
+      "defensibility": "weak",
+      "calibration_needed": "Validate that companies scoring 50-69 have measurably higher claim frequency than 30-49 companies in ICICI Lombard's portfolio."
+    },
+    "High": {
+      "threshold": 70,
+      "upper_bound": 84,
+      "rationale": "70+ reflects a combination of elevated sector risk and significant financial/document modifiers. Companies here typically have multiple risk dimensions above 70/100. Threshold mirrors common actuarial 'refer' boundaries used in UK/US D&O underwriting.",
+      "sources": [
+        "Marsh India D&O Market Outlook — refer thresholds in leveraged/distressed companies (sources.md §L1)"
+      ],
+      "defensibility": "weak",
+      "calibration_needed": "The UK/US 70th percentile threshold is not validated for Indian startups. Calibration needed."
+    },
+    "Critical": {
+      "threshold": 85,
+      "upper_bound": 100,
+      "rationale": "85+ reflects severe financial distress (negative equity, burn, high D/E) combined with multiple document-level red flags (VAPT criticals, prior claims, distressed prior policy). Companies in this band should trigger underwriter referral and possible hard-decline review.",
+      "sources": [
+        "IRDAI Annual Report 2023-24 — refer/decline thresholds in commercial lines (sources.md §A1)"
+      ],
+      "defensibility": "weak",
+      "calibration_needed": "Validate that 85+ companies in ICICI Lombard's existing portfolio have a meaningfully higher decline rate or loss ratio than 70-84 companies."
+    }
+  },
+
+  "uncertainty_docs": {
+    "vapt_report": {
+      "pts": 8,
+      "rationale": "VAPT results are the single most informative document for cyber risk scoring. A VAPT showing critical CVEs, no MFA, and no EDR can increase the cyber dimension by 30-40 points — generating the largest possible delta of any document type. Assigned 8pts uncertainty because its absence leaves cyber_technical (weight 0.15) effectively unvalidated.",
+      "sources": [
+        "CERT-In Directions 2022 — VAPT/security audit obligation for critical sector companies (sources.md §E2)",
+        "ICICI Lombard Cyber product — VAPT is a standard underwriting input (sources.md §K)"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "Measure actual composite score delta at ICICI Lombard between VAPT-absent and VAPT-present profiles in the same sector/stage cohort."
+    },
+    "client_contract": {
+      "pts": 6,
+      "rationale": "Client contracts reveal SLA penalty exposure, indemnity obligations, governing law (foreign = higher PI loading), retroactive cover requirements, and data processing obligations. These directly inform PI, D&O, and cyber loadings. Second-highest uncertainty assigned.",
+      "sources": [
+        "signals.md §Liability — contract signals for PI/D&O loading",
+        "ICICI Lombard PI product — contract-driven SI/loading (sources.md §K)"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "PI claims frequency for companies with vs. without contract review in the underwriting file."
+    },
+    "asset_register": {
+      "pts": 5,
+      "rationale": "Asset register provides replacement value vs. book value comparison, machinery age, and OEM service contract status. These are the primary inputs for property SI accuracy. Without it, property SI is estimated from balance sheet PPE (book value), which understates replacement value by 20-40% on average.",
+      "sources": [
+        "signals.md §Property & Engineering — asset register signals for property loading",
+        "IRDAI BSUS Standard Policy Wording — SI must reflect replacement cost (sources.md §A5)"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "Book value vs. replacement value gap distribution for Indian manufacturing startups."
+    },
+    "mca": {
+      "pts": 4,
+      "rationale": "MCA filings reveal director disqualification status, unsatisfied charges, related-party transactions, and audit qualifications. These directly inform D&O and crime/fidelity scores. Without MCA data, governance_fraud dimension relies solely on financial ratios.",
+      "sources": [
+        "MCA21 portal — director disqualification, charges, auditor remarks (sources.md §F4)",
+        "Companies Act 2013 §143 — going-concern and fraud reporting obligations (sources.md §F1)"
+      ],
+      "defensibility": "moderate",
+      "calibration_needed": "D&O claims frequency for companies with vs. without MCA review in underwriting file."
+    },
+    "gst_returns": {
+      "pts": 3,
+      "rationale": "GST returns provide B2B customer concentration, export share, and late filing history. These inform reputation, geopolitical, and governance_fraud dimensions. Lowest uncertainty because these dimensions have lower composite weights and the GST signals are secondary to financial statement data.",
+      "sources": [
+        "signals.md §Transit — GST compliance signals for trade credit and geopolitical exposure",
+        "NCRB Crime in India 2023 — GST fraud as economic offence category (sources.md §J1)"
+      ],
+      "defensibility": "weak",
+      "calibration_needed": "GST compliance → claims correlation has not been studied actuarially in Indian commercial lines."
+    }
+  },
+
+  "calibration_roadmap": {
+    "priority_1_high_impact": [
+      "Cyber weight (0.15) — validate against ICICI Lombard cyber claims frequency by sector FY22-25",
+      "Governance weight (0.12) — validate D&O claims frequency by funding stage",
+      "burn_q1.key_person +20 — validate against Key Person claims data by profitability band",
+      "All label band thresholds (30/50/70/85) — validate against portfolio claim frequency quartiles"
+    ],
+    "priority_2_medium_impact": [
+      "PI claims frequency by gross margin quartile — validates liability modifier direction and magnitude",
+      "EC/EPL claims frequency by gig headcount percentage — validates gig_labour modifiers",
+      "Property claims frequency by asset intensity band — validates property modifiers"
+    ],
+    "priority_3_low_impact": [
+      "IP infringement weight (0.06) — no India-specific data exists; retain as expert judgment",
+      "Policy velocity weight (0.02) — consider removing as standalone dimension",
+      "Reputation weight (0.01) — consider folding into governance_fraud",
+      "Uncertainty pts per document type — measure actual score delta in ICICI Lombard portfolio"
+    ],
+    "data_sources_to_request": [
+      "ICICI Lombard Commercial Lines: D&O claims frequency by D/E ratio band and funding stage (FY22-25)",
+      "ICICI Lombard Commercial Lines: Cyber claims frequency by revenue and sector (FY22-25)",
+      "ICICI Lombard Commercial Lines: Key Person claims frequency by net profit margin band",
+      "IIB members-only: PI/liability claims frequency by gross margin quartile",
+      "ICICI Lombard Commercial Lines: Loss ratio by composite risk score decile (post-calibration validation)"
+    ]
+  }
+}

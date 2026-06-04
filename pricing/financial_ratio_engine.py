@@ -1216,11 +1216,13 @@ def _composite_risk_score(
     Returns None for value when modified_scores is empty — never defaults to 50.
     """
     internal = _normalise_scores_to_internal(modified_scores or {})
+    _doc_keys = list((documents_extracted or {}).keys())
     if not internal:
         return {
             "value": None, "label": None, "drivers": [],
             "dimension_scores": {}, "base_scores": {},
             "uncertainty_pts": _uncertainty_pts(documents_extracted),
+            "documents_extracted_keys": _doc_keys,
         }
 
     weighted_sum = 0.0
@@ -1251,6 +1253,7 @@ def _composite_risk_score(
         "dimension_scores": internal,
         "base_scores": internal_base,
         "uncertainty_pts": _uncertainty_pts(documents_extracted),
+        "documents_extracted_keys": _doc_keys,
     }
 
 
@@ -1326,6 +1329,7 @@ def _tier1_modifiers_list(
                 "delta": delta,
                 "explanation": template.format(value=value, pct_value=pct_value),
                 "source_field": ratio_name,
+                "band": band,
                 "confidence": ratio_confidence,
             })
 

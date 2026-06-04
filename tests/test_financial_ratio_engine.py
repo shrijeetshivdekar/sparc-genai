@@ -15,6 +15,10 @@ from pricing.financial_ratio_engine import (
     compute_confidence_band,
     detect_data_quality_warnings,
     verified_assessment,
+    score,
+    _composite_risk_score,
+    _WEIGHTS,
+    _uncertainty_pts,
 )
 
 
@@ -421,3 +425,175 @@ def test_e2e_tcs_profile_produces_sensible_output():
 
     # Sanity: tax_tp not modified (no tax data) → stays at base
     assert result["modified_scores"]["tax_tp"] == 50
+
+
+# ─── score() two-tier API ────────────────────────────────────────────────────
+
+def test_score_empty_extracts_returns_zero_confidence_no_error():
+    result = score({}, sector="SaaS / Enterprise Software", funding_stage="Series A")
+    assert result["tier1_confidence"] == 0.0
+    assert result["tier1_modifiers"] == []
+    assert result["tier2_modifiers"] == []
+    assert result["combined_modifiers"] == []
+    assert len(result["data_gaps"]) > 0  # all ratios should be reported as missing
+    for ratio_data in result["ratios"].values():
+        assert ratio_data["value"] is None
+
+
+def test_score_missing_single_field_skips_only_that_ratio():
+    # Provide everything except payroll_cr → payroll_intensity skipped, others compute
+    extracts = _merge(
+        _e("revenue_cr", 100), _e("net_profit_cr", -5),   # net_profit_margin → burn_q1
+        _e("total_assets_cr", 100), _e("fixed_assets_cr", 5),  # asset_intensity → asset_light_q1
+    )
+    result = score(extracts, sector="SaaS / Enterprise Software", funding_stage="Seed")
+
+    # payroll_intensity should be in data_gaps
+    assert any("payroll_intensity" in g for g in result["data_gaps"])
+    # gross_margin should be in data_gaps (cogs_cr missing)
+    assert any("gross_margin" in g for g in result["data_gaps"])
+
+    # net_profit_margin fired → key_person modifier present
+    assert any(m["dim"] == "key_person" for m in result["tier1_modifiers"])
+    # asset_intensity fired → property modifier present
+    assert any(m["dim"] == "property" for m in result["tier1_modifiers"])
+
+    # tier1_confidence is partial (2 of 8 ratios computable)
+    assert 0.0 < result["tier1_confidence"] < 1.0
+
+
+def test_score_tier1_confidence_full_when_all_ratios_computable():
+    extracts = _merge(
+        _e("revenue_cr", 100), _e("net_profit_cr", 10), _e("cogs_cr", 60),
+        _e("equity_cr", 50), _e("debt_cr", 20),
+        _e("current_assets_cr", 80), _e("total_liabilities_cr", 40),
+        _e("receivables_cr", 25), _e("total_assets_cr", 120), _e("fixed_assets_cr", 30),
+        _e("payroll_cr", 35), _e("tax_paid_cr", 3),
+    )
+    result = score(extracts, sector="SaaS / Enterprise Software", funding_stage="Series A")
+    assert result["tier1_confidence"] == 1.0
+    assert result["data_gaps"] == []
+
+
+def test_score_vapt_only_tier2_fires_tier1_empty():
+    docs = {
+        "vapt_report": {
+            "critical_count": {"value": 5, "confidence": "extracted"},
+            "mfa_enabled": {"value": False, "confidence": "extracted"},
+        }
+    }
+    result = score({}, sector="Fintech", funding_stage="Series A", documents_extracted=docs)
+    assert result["tier1_modifiers"] == []
+    assert result["tier1_confidence"] == 0.0
+    # Tier 2 should fire for critical CVEs and no MFA
+    assert any(m["dim"] == "cyber_technical" for m in result["tier2_modifiers"])
+    assert result["tier2_confidence"] > 0.0
+
+
+def test_score_both_tiers_combined_is_union_no_duplicates():
+    extracts = _merge(_e("revenue_cr", 100), _e("net_profit_cr", -10))
+    docs = {
+        "vapt_report": {
+            "critical_count": {"value": 2, "confidence": "extracted"},
+        }
+    }
+    result = score(extracts, sector="Fintech", funding_stage="Seed", documents_extracted=docs)
+
+    # combined = tier1 + tier2
+    assert len(result["combined_modifiers"]) == len(result["tier1_modifiers"]) + len(result["tier2_modifiers"])
+
+    # source_field distinguishes tier: ratio names for t1, doc names for t2
+    t1_sources = {m["source_field"] for m in result["tier1_modifiers"]}
+    t2_sources = {m["source_field"] for m in result["tier2_modifiers"]}
+    assert t1_sources.isdisjoint(t2_sources)
+
+
+def test_score_each_modifier_has_required_keys():
+    extracts = _merge(_e("revenue_cr", 100), _e("net_profit_cr", -5))
+    docs = {"vapt_report": {"mfa_enabled": {"value": False, "confidence": "extracted"}}}
+    result = score(extracts, sector="Fintech", funding_stage="Seed", documents_extracted=docs)
+    for m in result["combined_modifiers"]:
+        assert "dim" in m
+        assert "delta" in m
+        assert "explanation" in m
+        assert "source_field" in m
+        assert "confidence" in m
+
+
+# ─── _composite_risk_score() ─────────────────────────────────────────────────
+
+def _all_scores(value=50):
+    return {d: float(value) for d in _WEIGHTS}
+
+
+def test_weights_sum_to_one():
+    assert abs(sum(_WEIGHTS.values()) - 1.0) < 1e-9
+
+
+def test_composite_score_band_boundaries():
+    for val, expected in [(0,"Low"),(29,"Low"),(30,"Moderate"),(49,"Moderate"),
+                          (50,"Elevated"),(69,"Elevated"),(70,"High"),(84,"High"),
+                          (85,"Critical"),(100,"Critical")]:
+        scores = _all_scores(val)
+        r = _composite_risk_score(scores)
+        assert r["label"] == expected, f"score {val} → expected {expected}, got {r['label']}"
+
+
+def test_composite_score_null_when_no_scores():
+    r = _composite_risk_score({})
+    assert r["value"] is None
+    assert r["label"] is None
+
+
+def test_uncertainty_zero_when_all_docs_present():
+    docs = {k: {"some": "data"} for k in ("vapt_report","client_contract","asset_register","mca","gst_returns")}
+    assert _uncertainty_pts(docs) == 0
+
+
+def test_uncertainty_accumulates_correctly():
+    # only vapt_report supplied → missing: client_contract(6)+asset_register(5)+mca(4)+gst_returns(3) = 18
+    docs = {"vapt_report": {"x": 1}}
+    assert _uncertainty_pts(docs) == 18
+
+
+def test_uncertainty_capped_at_25():
+    assert _uncertainty_pts({}) == min(25, 8+6+5+4+3)
+
+
+def test_composite_drivers_are_top3_by_contribution():
+    # Set cyber_technical=100, all others=0 → cyber must be top driver
+    scores = _all_scores(0)
+    scores["cyber_technical"] = 100.0
+    r = _composite_risk_score(scores)
+    assert r["drivers"][0] == "cyber_technical"
+    assert len(r["drivers"]) == 3
+
+
+def test_composite_score_clipped_to_100():
+    r = _composite_risk_score(_all_scores(100))
+    assert r["value"] == 100
+
+
+def test_composite_score_returns_base_scores():
+    base = _all_scores(40)
+    modified = _all_scores(60)
+    r = _composite_risk_score(modified, base_scores=base)
+    assert r["base_scores"]["cyber_technical"] == 40.0
+    assert r["dimension_scores"]["cyber_technical"] == 60.0
+
+
+def test_verified_assessment_includes_composite_score():
+    extracts = _merge(_e("revenue_cr", 100), _e("net_profit_cr", -5))
+    base = {d: 50 for d in _WEIGHTS}
+    result = verified_assessment(extracts, base, inferred_sector="Fintech")
+    # score_breakdown still present
+    assert "score_breakdown" in result
+    assert "tier1_modifiers" in result["score_breakdown"]
+    # composite_score present and valid
+    assert "composite_score" in result
+    cs = result["composite_score"]
+    assert cs["value"] is not None
+    assert cs["label"] in ("Low", "Moderate", "Elevated", "High", "Critical")
+    assert len(cs["drivers"]) == 3
+    assert "uncertainty_pts" in cs
+    assert "base_scores" in cs

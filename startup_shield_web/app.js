@@ -2379,7 +2379,215 @@ function _renderVerifiedAssessment(v) {
   const si = v.sum_insured_per_cover || {};
   const loading = v.risk_loading_per_cover || {};
   const band = v.confidence_band || {};
-  const reasons = v.modifier_reasons || [];
+  const sb = v.score_breakdown || {};
+  const t1Mods = sb.tier1_modifiers || [];
+  const t2Mods = sb.tier2_modifiers || [];
+  const dataGaps = sb.data_gaps || [];
+  const cs = v.composite_score || null;
+
+  // ── Composite score card
+  const _scoreColour = label => ({
+    "Low":      "#16A34A",
+    "Moderate": "#0369A1",
+    "Elevated": "#D97706",
+    "High":     "#DC2626",
+    "Critical": "#7C3AED",
+  }[label] || "#64748B");
+
+  const _dimLabel = k => ({
+    cyber_technical: "Cyber", data_privacy: "Data Privacy",
+    liability: "Liability", governance_fraud: "Governance",
+    regulatory_compliance: "Regulatory", key_person: "Key Person",
+    property: "Property", ip_infringement: "IP", gig_labour: "Gig Labour",
+    esg_climate: "ESG / Climate", geopolitical: "Geopolitical",
+    policy_velocity: "Policy Velocity", reputation: "Reputation",
+  }[k] || k.replace(/_/g, " "));
+
+  const _docLabel = k => ({
+    vapt_report: "VAPT report", client_contract: "client contracts",
+    asset_register: "asset register", mca: "MCA filings",
+    gst_returns: "GST returns",
+  }[k] || k);
+
+  const _UNCERTAINTY_DOCS = {vapt_report:8, client_contract:6, asset_register:5, mca:4, gst_returns:3};
+
+  const _svgDonut = (value, colour) => {
+    const r = 44, cx = 60, cy = 60, stroke = 10;
+    const circ = 2 * Math.PI * r;
+    const fill = circ * (value / 100);
+    return `<svg width="120" height="120" viewBox="0 0 120 120">
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none"
+        stroke="#E2E8F0" stroke-width="${stroke}"/>
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none"
+        stroke="${colour}" stroke-width="${stroke}"
+        stroke-dasharray="${fill} ${circ}"
+        stroke-dashoffset="${circ / 4}"
+        stroke-linecap="round"
+        style="transition:stroke-dasharray .7s ease"/>
+    </svg>`;
+  };
+
+  let scoreCardHtml;
+  if (!cs || cs.value === null) {
+    scoreCardHtml = `
+      <div class="va-score-card va-score-empty">
+        <div class="va-score-empty-icon">◎</div>
+        <div class="va-score-empty-msg">
+          <strong>Score unavailable</strong>
+          <span>Upload P&L or balance sheet to compute a risk score</span>
+        </div>
+      </div>`;
+  } else {
+    const colour = _scoreColour(cs.label);
+    const drivers = (cs.drivers || []).map(d =>
+      `<span class="va-score-driver-pill">${_dimLabel(d)}</span>`).join("");
+
+    const docs = sb.documents_extracted_keys || [];
+    const missingDocs = Object.keys(_UNCERTAINTY_DOCS).filter(k => !docs.includes(k));
+    const uncertaintyLine = cs.uncertainty_pts === 0
+      ? `<span class="va-score-evidenced">✓ Fully evidenced</span>`
+      : `<span class="va-score-uncertainty">±${cs.uncertainty_pts} pts — upload
+          ${missingDocs.map(_docLabel).join(", ")} to narrow</span>`;
+
+    scoreCardHtml = `
+      <div class="va-score-card">
+        <div class="va-score-donut">
+          ${_svgDonut(cs.value, colour)}
+          <div class="va-score-centre">
+            <span class="va-score-num" style="color:${colour}">${cs.value}</span>
+            <span class="va-score-label" style="color:${colour}">${cs.label.toUpperCase()}</span>
+          </div>
+        </div>
+        <div class="va-score-meta">
+          <div class="va-score-title">Risk Score <span class="va-score-denom">/100</span></div>
+          <div class="va-score-drivers">${drivers}</div>
+          <div class="va-score-basis">
+            Based on ${t1Mods.length} financial + ${t2Mods.length} document modifier${t1Mods.length + t2Mods.length !== 1 ? "s" : ""}
+          </div>
+          <div class="va-score-uncertainty-row">${uncertaintyLine}</div>
+          <button class="va-score-explain-btn" type="button"
+            onclick="window._vaShowScoreModal()" >
+            How was this score calculated? →
+          </button>
+        </div>
+      </div>`;
+  }
+
+  // ── Score explanation modal trigger
+  window._vaShowScoreModal = () => {
+    if (document.getElementById("va-score-modal")) return;
+    const dimLabels = {
+      cyber_technical:"Cyber Technical",data_privacy:"Data Privacy",
+      liability:"Liability",governance_fraud:"Governance & Fraud",
+      regulatory_compliance:"Regulatory Compliance",key_person:"Key Person",
+      property:"Property",ip_infringement:"IP Infringement",
+      gig_labour:"Gig & Labour",esg_climate:"ESG & Climate",
+      geopolitical:"Geopolitical",policy_velocity:"Policy Velocity",
+      reputation:"Reputation",
+    };
+    const weights = {
+      cyber_technical:0.15,data_privacy:0.12,liability:0.12,
+      governance_fraud:0.12,regulatory_compliance:0.10,key_person:0.08,
+      property:0.08,ip_infringement:0.06,gig_labour:0.06,
+      esg_climate:0.04,geopolitical:0.04,policy_velocity:0.02,reputation:0.01,
+    };
+    const dimScores = (cs && cs.dimension_scores) || {};
+    const baseScores = (cs && cs.base_scores) || {};
+    const drivers3 = new Set(cs && cs.drivers || []);
+
+    const step1Rows = Object.entries(dimLabels).map(([k,lbl]) => {
+      const b = baseScores[k] ?? "—";
+      return `<div class="vsm-row${drivers3.has(k) ? " vsm-driver" : ""}">
+        <span>${lbl}</span><span>${b}</span></div>`;
+    }).join("");
+
+    const _modList = mods => mods.length
+      ? mods.map(m => `<div class="vsm-mod-row">
+          <span class="vsm-mod-delta mod-${m.delta>0?"up":"down"}">${m.delta>0?"+":""}${m.delta}</span>
+          <span class="vsm-mod-dim">${dimLabels[m.dim]||m.dim}</span>
+          <span class="vsm-mod-why">${_escape(m.explanation)}</span>
+          <span class="vsm-mod-src">${_escape(m.source_field||"")}</span>
+        </div>`).join("")
+      : `<div class="vsm-empty">None</div>`;
+
+    const contribs = Object.entries(weights).map(([k,w]) => {
+      const s = dimScores[k] ?? 0;
+      return {k, w, s, c: w * s};
+    }).sort((a,b) => b.c - a.c);
+    const step4Rows = contribs.map(({k,w,s,c}) => `
+      <div class="vsm-row${drivers3.has(k)?" vsm-driver":""}">
+        <span>${dimLabels[k]||k}</span>
+        <span>${s.toFixed(1)}</span>
+        <span>${(w*100).toFixed(0)}%</span>
+        <span>${c.toFixed(1)}</span>
+      </div>`).join("");
+
+    const missingDocs2 = Object.entries(_UNCERTAINTY_DOCS)
+      .filter(([k]) => !(sb.documents_extracted_keys||[]).includes(k));
+    const step5Body = cs && cs.uncertainty_pts === 0
+      ? `<p class="vsm-ok">All standard document types uploaded. Score is fully evidenced.</p>`
+      : missingDocs2.map(([k,pts]) => `<div class="vsm-gap-row">
+          <span class="vsm-gap-doc">${_docLabel(k)}</span>
+          <span class="vsm-gap-pts">up to +${pts} pts</span>
+        </div>`).join("");
+
+    const steps = [
+      {n:"1",title:"Base scores — sector + stage",body:`
+        <p class="vsm-desc">Baseline risk assigned by sector and funding stage before any documents are analysed.</p>
+        <div class="vsm-table vsm-2col"><div class="vsm-row vsm-head"><span>Dimension</span><span>Base score</span></div>${step1Rows}</div>`},
+      {n:"2",title:"Tier 1 adjustments — financial documents",body:`
+        <p class="vsm-desc">Modifiers from P&amp;L, balance sheet, and ITR ratios.</p>
+        ${t1Mods.length ? `<div class="vsm-mod-list">${_modList(t1Mods)}</div>` : `<div class="vsm-empty">No financial documents uploaded.</div>`}`},
+      {n:"3",title:"Tier 2 adjustments — uploaded documents",body:`
+        <p class="vsm-desc">Modifiers from VAPT, contracts, asset register, MCA, and GST returns.</p>
+        ${t2Mods.length ? `<div class="vsm-mod-list">${_modList(t2Mods)}</div>` : `<div class="vsm-empty">No additional documents uploaded.</div>`}`},
+      {n:"4",title:"Weighted composite",body:`
+        <p class="vsm-desc">Cyber, Data Privacy, Liability, and Governance together account for 51% of the score. Dimensions sort by contribution.</p>
+        <div class="vsm-table vsm-4col">
+          <div class="vsm-row vsm-head"><span>Dimension</span><span>Score</span><span>Weight</span><span>Contribution</span></div>
+          ${step4Rows}
+          <div class="vsm-row vsm-total"><span>Composite</span><span>—</span><span>100%</span><span><strong>${cs?cs.value:"—"}/100</strong></span></div>
+        </div>`},
+      {n:"5",title:`Evidence gaps — ±${cs?cs.uncertainty_pts:0} pts`,body:`
+        <p class="vsm-desc">Uploading these documents would refine the score by the amounts shown.</p>
+        ${step5Body}`},
+    ];
+
+    const stepsHtml = steps.map(s => `
+      <div class="vsm-step">
+        <div class="vsm-step-header" onclick="this.parentElement.classList.toggle('vsm-collapsed')">
+          <span class="vsm-step-num">${s.n}</span>
+          <span class="vsm-step-title">${s.title}</span>
+          <span class="vsm-step-chevron">▾</span>
+        </div>
+        <div class="vsm-step-body">${s.body}</div>
+      </div>`).join("");
+
+    const modal = document.createElement("div");
+    modal.id = "va-score-modal";
+    modal.className = "vsm-overlay";
+    modal.innerHTML = `
+      <div class="vsm-panel" role="dialog" aria-modal="true">
+        <div class="vsm-panel-header">
+          <h2>How was this score calculated?</h2>
+          <button class="vsm-close" onclick="document.getElementById('va-score-modal').remove()">×</button>
+        </div>
+        <div class="vsm-steps">${stepsHtml}</div>
+      </div>`;
+    modal.addEventListener("click", e => { if (e.target === modal) modal.remove(); });
+    document.addEventListener("keydown", function esc(e) {
+      if (e.key === "Escape") { modal.remove(); document.removeEventListener("keydown", esc); }
+    });
+    document.body.appendChild(modal);
+  };
+
+  // ── Data gaps
+  const gapsHtml = dataGaps.length ? `
+    <div class="sb-gaps">
+      <span class="sb-gaps-label">Missing inputs</span>
+      ${dataGaps.map(g => `<div class="sb-gap-row">⚠ ${_escape(g)}</div>`).join("")}
+    </div>
+  ` : "";
 
   // ── Financial ratios table
   const ratioOrder = [
@@ -2398,6 +2606,32 @@ function _renderVerifiedAssessment(v) {
       </div>
     `).join("");
 
+  // ── Tier 1 modifiers (financial ratios → risk score deltas)
+  const _modRows = mods => mods.map(m => `
+    <div class="mod-row mod-${m.delta > 0 ? "up" : "down"}">
+      <span class="mod-delta">${m.delta > 0 ? "+" : ""}${m.delta}</span>
+      <span class="mod-dim">${_humaniseField(m.dim)}</span>
+      <span class="mod-why">${_escape(m.explanation)}</span>
+      <span class="mod-src">${_escape(m.source_field || "")}</span>
+    </div>
+  `).join("");
+
+  const t1ModsHtml = t1Mods.length ? `
+    <div class="extraction-section-label va-label-row">
+      Tier 1 · Financial ratio modifiers
+      <span class="sb-tier-badge sb-t1">${t1Mods.length} applied</span>
+    </div>
+    <div class="mods-list">${_modRows(t1Mods)}</div>
+  ` : "";
+
+  const t2ModsHtml = t2Mods.length ? `
+    <div class="extraction-section-label va-label-row">
+      Tier 2 · Document modifiers
+      <span class="sb-tier-badge sb-t2">${t2Mods.length} applied</span>
+    </div>
+    <div class="mods-list">${_modRows(t2Mods)}</div>
+  ` : "";
+
   // ── Sum Insured per cover (financial-derived)
   const siRows = Object.entries(si).map(([cover, c]) => `
     <div class="si-row">
@@ -2408,15 +2642,6 @@ function _renderVerifiedAssessment(v) {
     </div>
   `).join("");
 
-  // ── Score modifiers (only show actual changes)
-  const reasonRows = reasons.length ? reasons.map(r => `
-    <div class="mod-row mod-${r.modifier > 0 ? "up" : "down"}">
-      <span class="mod-delta">${r.modifier > 0 ? "+" : ""}${r.modifier}</span>
-      <span class="mod-dim">${_humaniseField(r.dim)}</span>
-      <span class="mod-why">${_escape(r.explanation)}</span>
-    </div>
-  `).join("") : "";
-
   // ── Confidence band
   const bandLabel = ({
     fully_verified: "Fully verified",
@@ -2426,6 +2651,9 @@ function _renderVerifiedAssessment(v) {
   })[band.verification_level] || band.verification_level || "Unknown";
 
   return `
+    ${scoreCardHtml}
+    ${gapsHtml}
+
     ${ratioRows ? `
       <div class="extraction-section-label va-label-row">
         Financial ratios
@@ -2434,13 +2662,8 @@ function _renderVerifiedAssessment(v) {
       <div class="ratios-table">${ratioRows}</div>
     ` : ""}
 
-    ${reasonRows ? `
-      <div class="extraction-section-label va-label-row">
-        Risk score modifiers applied
-        <button type="button" class="va-info-btn" onclick="window._vaShowModifiersModal()">ℹ How do these affect risk &amp; cover?</button>
-      </div>
-      <div class="mods-list">${reasonRows}</div>
-    ` : ""}
+    ${t1ModsHtml}
+    ${t2ModsHtml}
 
     ${siRows ? `
       <div class="extraction-section-label va-label-row">
@@ -10703,6 +10926,202 @@ async function movePipelineStage(accountId, toStage) {
     const bundle = a.bundle || {};
     const reasons = v.modifier_reasons || [];
     const classification = v.classification || {};
+    const docs = a.documents_extracted_summary || a.documents_extracted || v.documents_extracted || {};
+    const docNames = Object.keys(docs).length
+      ? Object.keys(docs).map(k => _escape(String(k).replace(/_/g, " "))).join(", ")
+      : "financial and operational documents";
+    const scoreNote = v.modified_scores
+      ? "Yes. Document-adjusted scores were used for bundle matching."
+      : "If document modifiers are present, they are passed into the analysis profile before bundle matching.";
+    const ratios = v.ratios || {};
+    const si = v.sum_insured_per_cover || {};
+    const loading = v.risk_loading_per_cover || {};
+    const coverRows = bundle.cover_breakdown || [];
+    const additionalProducts = a.additional_products || [];
+    const ratioOrder = [
+      "net_profit_margin", "gross_margin", "debt_to_equity", "current_ratio_proxy",
+      "dso_days", "asset_intensity", "payroll_intensity", "tax_efficiency",
+    ];
+    const ratioImpactHtml = ratioOrder
+      .map(k => [k, ratios[k]])
+      .filter(([, r]) => r && (r.value !== null || r.band || r.formula))
+      .map(([k, r]) => `
+        <div class="va-mi-path-sub">
+          <strong>${_humaniseRatio(k)}:</strong>
+          ${_escape(_formatRatioValue(k, r.value))}
+          ${r.band ? `(${_escape(_humaniseBand(r.band))})` : ""}
+          ${r.formula ? `<br/>Formula: ${_escape(r.formula)}` : ""}
+        </div>`)
+      .join("");
+    const modifierImpactHtml = reasons.length
+      ? reasons.map(r => `
+          <div class="va-mi-path-sub">
+            <strong>${r.modifier > 0 ? "+" : ""}${_escape(String(r.modifier || 0))} ${_escape(_humaniseField(r.dim || ""))}</strong>
+            ${r.explanation ? ` - ${_escape(r.explanation)}` : ""}
+          </div>`)
+        .join("")
+      : `<div class="va-mi-path-sub">No ratio or document modifier changed the base risk scores for this run.</div>`;
+    const siImpactHtml = Object.keys(si).length
+      ? Object.entries(si).map(([cover, entry]) => {
+          const loadEntry = loading[cover] || {};
+          const siText = entry?.si_inr ? _inrToHuman(entry.si_inr) : "SI not available";
+          const loadText = loadEntry.loading ? `x${Number(loadEntry.loading).toFixed(2)}` : "loading not available";
+          return `
+            <div class="va-mi-path-sub">
+              <strong>${_escape(cover)}:</strong> ${_escape(siText)} at ${_escape(loadText)}
+              ${entry?.formula ? `<br/>Why: ${_escape(entry.formula)}` : ""}
+            </div>`;
+        }).join("")
+      : `<div class="va-mi-path-sub">No cover-level sum insured data was available in this run.</div>`;
+    const bundleCoverHtml = coverRows.length
+      ? coverRows.map(c => {
+          const prem = c.verified_premium_lakh
+            ? `INR ${c.verified_premium_lakh.min}-${c.verified_premium_lakh.max} L`
+            : "premium not available";
+          const mods = (c.doc_modifiers_applied || []).map(m =>
+            `${m.direction === "discount" ? "-" : "+"}${Math.abs(m.value_pct || 0)}% ${m.label || ""}`.trim()
+          ).filter(Boolean).join("; ");
+          return `
+            <div class="va-mi-path-sub">
+              <strong>${_escape(c.cover || "Cover")}:</strong>
+              ${c.verified_si_cr != null ? `SI INR ${_escape(String(c.verified_si_cr))} Cr, ` : ""}
+              loading x${_escape(String(Number(c.loading || 1).toFixed(2)))}, premium ${_escape(prem)}.
+              ${mods ? `<br/>Document effects: ${_escape(mods)}` : ""}
+              ${c.confidence ? `<br/>Confidence: ${_escape(c.confidence.level || "estimated")} +/-${_escape(String(c.confidence.plus_minus_pct || ""))}%` : ""}
+            </div>`;
+        }).join("")
+      : `<div class="va-mi-path-sub">The selected bundle did not return a detailed cover breakdown.</div>`;
+    const additionalHtml = additionalProducts.length
+      ? additionalProducts.slice(0, 5).map(p => `
+          <div class="va-mi-path-sub">
+            <strong>${_escape(p.name || p.key || "Product")}:</strong>
+            ${_escape(String(p.fit_pct || p.fit || 0))}% fit.
+            ${p.verified_si_cr != null ? ` SI INR ${_escape(String(p.verified_si_cr))} Cr.` : ""}
+            ${p.verified_premium ? ` Premium INR ${_escape(String(p.verified_premium.min))}-${_escape(String(p.verified_premium.max))} L.` : ""}
+            ${p.loading ? ` Loading x${_escape(String(Number(p.loading).toFixed(2)))}.` : ""}
+          </div>`)
+        .join("")
+      : `<div class="va-mi-path-sub">No standalone product list was returned for this run.</div>`;
+
+    return `
+      <p class="va-mi-intro">This button explains how SPARC moved from uploaded documents to the recommended insurance bundle. In simple terms: documents create evidence, evidence changes risk scores, risk scores decide cover fit, and cover fit produces the bundle.</p>
+
+      <div class="va-mi-callout">
+        <strong>Final output:</strong>
+        ${bundle.name ? `SPARC selected <strong>${_escape(bundle.name)}</strong>${bundle.fit_pct ? ` with <strong>${bundle.fit_pct}% match fit</strong>` : ""}.` : "SPARC selected the highest-fit ICICI Lombard bundle available for this profile."}
+        ${bundle.verified_premium_lakh ? ` The verified premium band is <strong>INR ${bundle.verified_premium_lakh.min}-${bundle.verified_premium_lakh.max} L</strong>.` : ""}
+      </div>
+
+      <div class="va-mi-steps">
+        <div class="va-mi-step">
+          <div class="va-mi-step-num">1</div>
+          <div class="va-mi-step-body">
+            <strong>Read the uploaded evidence</strong>
+            <p>SPARC first reads the uploaded documents and separates financial files from operating evidence. In this run, it used: <strong>${docNames}</strong>.</p>
+            <p class="va-mi-cite">Research backing: Underwriting practice starts with source evidence. Audited financial statements, tax filings, policy schedules, contracts, asset registers, and security reports are standard evidence classes for commercial insurance review.</p>
+          </div>
+        </div>
+
+        <div class="va-mi-step">
+          <div class="va-mi-step-num">2</div>
+          <div class="va-mi-step-body">
+            <strong>Classify the business before scoring risk</strong>
+            <p>Gemini reads the document context to infer the sector, operating model, data sensitivity, and regulatory flags. This matters because the same ratio means different things for SaaS, manufacturing, fintech, logistics, or healthcare.</p>
+            <p>${classification.sector ? `This profile was classified as <strong>${_escape(classification.sector)}</strong>${classification.operating_model ? `, <strong>${_escape(classification.operating_model)}</strong>` : ""}${classification.data_sensitivity ? `, with <strong>${_escape(classification.data_sensitivity)}</strong> data sensitivity` : ""}.` : "The classification is passed into the risk engine before bundle matching."}</p>
+            <p class="va-mi-cite">Research backing: Sector and operating model are core rating factors because frequency and severity differ by activity. Manufacturing raises property, climate, liability, labour, and governance exposure; digital businesses raise cyber, data, and PI exposure.</p>
+          </div>
+        </div>
+
+        <div class="va-mi-step">
+          <div class="va-mi-step-num">3</div>
+          <div class="va-mi-step-body">
+            <strong>Convert financials into 8 risk ratios</strong>
+            <p>The financial ratio engine converts extracted numbers into underwriting signals: net profit margin, gross margin, debt/equity, current ratio proxy, DSO, asset intensity, payroll intensity, and tax/PBT.</p>
+            <p>Simple meaning: profitability shows financial cushion, leverage shows creditor pressure, liquidity shows short-term stress, receivables show collection risk, assets show property exposure, payroll shows employee exposure, and tax consistency supports governance confidence.</p>
+            ${ratioImpactHtml ? `<div class="va-mi-callout"><strong>Ratios used in this run:</strong>${ratioImpactHtml}</div>` : ""}
+            <p class="va-mi-cite">Research backing: RBI SME benchmarking, ICAI financial statement analysis, and standard commercial underwriting use profitability, liquidity, leverage, receivables, payroll, and asset base as early indicators of default, BI, D&O, trade credit, and property severity.</p>
+          </div>
+        </div>
+
+        <div class="va-mi-step">
+          <div class="va-mi-step-num">4</div>
+          <div class="va-mi-step-body">
+            <strong>Apply sector guards so ratios are not misread</strong>
+            <p>SPARC does not blindly apply every ratio to every company. For example, in manufacturing, high gross margin should not automatically increase software liability or IP risk, so the sector guard blocks liability and IP-infringement modifiers from gross margin.</p>
+            <p class="va-mi-cite">Research backing: Risk rating must be exposure-specific. The same ratio can indicate software E&O risk in SaaS, but operating leverage or product mix in manufacturing. This follows line-of-business underwriting logic: rate the exposure actually present.</p>
+          </div>
+        </div>
+
+        <div class="va-mi-step">
+          <div class="va-mi-step-num">5</div>
+          <div class="va-mi-step-body">
+            <strong>Use operating documents to adjust risk</strong>
+            <p>SPARC then applies document-specific modifiers. Examples: VAPT findings affect cyber risk, prior claims affect renewal loading, GST exports can raise marine or foreign-jurisdiction exposure, a client contract can raise PI exposure, and an asset register can raise property sum insured.</p>
+            <p>${reasons.length ? `<strong>${reasons.length}</strong> modifier${reasons.length !== 1 ? "s" : ""} were available from the verified assessment.` : "If the uploaded documents contain such signals, they are converted into cover-specific risk changes."}</p>
+            <div class="va-mi-callout"><strong>Modifiers applied in this run:</strong>${modifierImpactHtml}</div>
+            <p class="va-mi-cite">Research backing: NIST CVSS/CERT-In guidance supports severity treatment for cyber vulnerabilities. IRDAI policy wording and property reinstatement principles support replacement-value SI. Trade credit and marine underwriting use GST/export evidence. PI/D&O underwriting uses contracts, claims history, and governance evidence.</p>
+          </div>
+        </div>
+
+        <div class="va-mi-step">
+          <div class="va-mi-step-num">6</div>
+          <div class="va-mi-step-body">
+            <strong>Compute cover limits from real exposure</strong>
+            <p>SPARC calculates sum insured cover by cover, instead of using only startup stage proxies. Property uses the highest of PPE, asset-register replacement value, and prior-policy SI. Cyber can receive a VAPT-driven floor. Workers Comp can use payroll more heavily for manufacturing. Marine can use GST export evidence.</p>
+            <div class="va-mi-callout"><strong>SI and loading inputs in this run:</strong>${siImpactHtml}</div>
+            <p class="va-mi-cite">Research backing: Property insurance is based on reinstatement/replacement value to avoid average-clause underinsurance. Cyber SI uses minimum floors when security posture or data exposure is material. Workers compensation follows payroll exposure. Marine cargo and export exposure are evidenced through GST/export records.</p>
+          </div>
+        </div>
+
+        <div class="va-mi-step">
+          <div class="va-mi-step-num">7</div>
+          <div class="va-mi-step-body">
+            <strong>Turn adjusted scores into premium loadings</strong>
+            <p>The modified scores become cover-level loading multipliers. A weak VAPT report can raise cyber loading; prior property claims can raise property loading; strong security certification can reduce cyber or PI loading.</p>
+            <p class="va-mi-cite">Research backing: Commercial insurance pricing commonly applies loadings and discounts for claims history, security controls, occupancy, asset values, contract terms, jurisdiction, and governance. IRDAI's detariffed File-and-Use regime allows insurer-specific risk rating subject to filed methodology.</p>
+          </div>
+        </div>
+
+        <div class="va-mi-step">
+          <div class="va-mi-step-num">8</div>
+          <div class="va-mi-step-body">
+            <strong>Feed document-adjusted scores back into bundle matching</strong>
+            <p>The important loop is closed here: verified_assessment.modified_scores are injected into the profile as document_modified_scores before the main analysis runs. That means bundle coverage_fit is driven by document-adjusted risk, not only by the base company profile.</p>
+            <p><strong>${_escape(scoreNote)}</strong></p>
+            <p class="va-mi-cite">Research backing: A recommendation system should rank covers using the latest available evidence. If VAPT, claims, GST, asset, or contract documents change risk, the bundle recommendation must use those changed scores.</p>
+          </div>
+        </div>
+
+        <div class="va-mi-step">
+          <div class="va-mi-step-num">9</div>
+          <div class="va-mi-step-body">
+            <strong>Rank ICICI Lombard bundles and standalone products</strong>
+            <p>SPARC compares the final 13-dimension risk profile against the ICICI Lombard product and bundle library. The recommended bundle is the one whose mandatory and optional covers best match the startup's adjusted risks and financial exposure.</p>
+            <div class="va-mi-callout"><strong>Selected bundle cover logic:</strong>${bundleCoverHtml}</div>
+            <div class="va-mi-callout"><strong>Standalone products also ranked:</strong>${additionalHtml}</div>
+            <p class="va-mi-cite">Research backing: Bundle fit follows coverage-gap logic used in advisory and underwriting: match the client's risk drivers to covers, then prioritize covers where both probability and severity are material.</p>
+          </div>
+        </div>
+
+        <div class="va-mi-step">
+          <div class="va-mi-step-num">10</div>
+          <div class="va-mi-step-body">
+            <strong>Generate the RM-ready explanation and outreach</strong>
+            <p>Finally, Gemini helps convert the evidence, bundle fit, premiums, and coverage gaps into plain-language reasoning and outreach drafts. The AI explains the recommendation; the scoring, SI, loading, and bundle ranking are driven by the structured SPARC logic.</p>
+            <p class="va-mi-cite">Research backing: Human-readable advice improves sales and underwriting handoff, but the decision trail should remain evidence-backed. SPARC keeps the chain from document to ratio to modifier to cover to bundle visible in this modal.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="va-mi-callout">
+        <strong>Implementation references used:</strong>
+        <br/>api/extract_documents.py builds extracted document evidence and audit age.
+        <br/>enrichment/profile_mapper.py maps classifications into the startup profile.
+        <br/>research_config.json adds manufacturing sector multipliers.
+        <br/>pricing/financial_ratio_engine.py computes ratios, document modifiers, SI, and loadings.
+        <br/>api/verified_analyze.py injects modified_scores into the profile so bundle matching uses document-adjusted scores.
+        <br/>startup_shield_web/server.py uses document_modified_scores in the legacy scoring path when present.
+      </div>`;
 
     const modSample = reasons.slice(0, 3).map(r =>
       `<div class="va-mi-path-sub">${r.modifier > 0 ? "↑" : "↓"} <strong>${_humaniseField(r.dim)}:</strong> ${_escape(r.explanation)}</div>`

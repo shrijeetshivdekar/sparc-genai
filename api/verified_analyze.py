@@ -69,7 +69,10 @@ _BUNDLE_KEY_TO_PREMIUM_KEY = {
     "HEALTHCARE_PI":            "healthcare_pi",
     "FINANCIAL_SERVICES_PI":    "financial_services_pi",
     "CGL":                      "comprehensive_general_liability",
+    "CGL_I_ELITE":              "comprehensive_general_liability",
+    "CGL_ELITE":                "comprehensive_general_liability",
     "COMMERCIAL_GENERAL_LIABILITY": "comprehensive_general_liability",
+    "COMPREHENSIVE_GENERAL_LIABILITY": "comprehensive_general_liability",
     "PUBLIC_LIABILITY":         "public_liability",
     "PRODUCT_LIABILITY":        "product_liability",
     "CRIME_FIDELITY":           "crime_fidelity",
@@ -99,6 +102,7 @@ _BUNDLE_KEY_TO_PREMIUM_KEY = {
     "KEY_PERSON":               "key_person",
     "GROUP_PA":                 "group_pa",
     "PAYMENT_PROTECTION":       "payment_protection",
+    "EMPLOYERS_COMP":           "employees_comp",
     "PRODUCT_RECALL":           "product_recall",
     "DRONE_INSURANCE":          "drone_insurance",
     "MONEY_INSURANCE":          "money_insurance",
@@ -122,6 +126,9 @@ _COVER_TO_SI_NAME = {
     "professional_indemnity":  "Professional Indemnity",
     "healthcare_pi":           "Professional Indemnity",
     "financial_services_pi":   "Professional Indemnity",
+    "comprehensive_general_liability": "Public Liability",
+    "public_liability":         "Public Liability",
+    "product_liability":        "Professional Indemnity",
     "property_fire":           "Property / Fire",
     "property_all_risk":       "Property / Fire",
     "business_edge":           "Property / Fire",
@@ -210,11 +217,19 @@ def _build_profile(extracts: dict, inferences: dict, prefill: dict) -> dict:
     if reg:
         profile["regulatory"] = reg
 
-    # Physical assets — derive from operations + sector
-    assets = list(_ASSETS_BY_OPERATIONS.get(profile["operations"], []))
-    if profile.get("sector") == "Manufacturing" and "Manufacturing plant / factory" not in assets:
-        assets.append("Manufacturing plant / factory")
-    profile["physical_assets"] = assets
+    # Physical assets — use prefill if computed (profile_mapper derives from financials+sector),
+    # otherwise fall back to operations-based defaults.
+    if (pa := prefill.get("physical_assets")) and pa.get("value"):
+        profile["physical_assets"] = list(pa["value"])
+    else:
+        assets = list(_ASSETS_BY_OPERATIONS.get(profile["operations"], []))
+        if profile.get("sector") == "Manufacturing" and "Manufacturing plant / factory" not in assets:
+            assets.append("Manufacturing plant / factory")
+        profile["physical_assets"] = assets
+
+    # Hardware/software split — use prefill if computed from PPE/Assets ratio
+    if (hw := prefill.get("hardware_software_split")) and hw.get("value") is not None:
+        profile["hardware_software_split"] = float(hw["value"])
 
     # Financial fields the engine consumes
     rev_cr = _v(extracts, "revenue_cr") or _v(extracts, "itr_revenue_cr")
@@ -325,6 +340,30 @@ def _resolve_premium_key(bundle_key: str) -> str | None:
     return None
 
 
+def _estimate_cover_premium(bundle_key: str, size_bucket: str | None) -> dict:
+    """Return a non-empty benchmark premium for a bundle cover when available."""
+    from premium_estimator import estimate_premium
+
+    prem_key = _resolve_premium_key(bundle_key)
+    if not prem_key:
+        return {}
+
+    buckets = []
+    if size_bucket:
+        buckets.append(str(size_bucket))
+    buckets.extend(["small", "micro", "growth"])
+
+    seen = set()
+    for bucket in buckets:
+        if bucket in seen:
+            continue
+        seen.add(bucket)
+        est = estimate_premium(prem_key, bucket)
+        if isinstance(est, dict) and (est.get("min_lakh") or est.get("max_lakh")):
+            return est
+    return {}
+
+
 def _find_si_cover(cover_key: str, cover_name: str, si_dict: dict) -> tuple[dict | None, str | None]:
     """Match an engine cover to one of the ratio-engine SI covers.
 
@@ -368,7 +407,6 @@ def _augment_with_verified_premium(
     When per_cover_doc_modifiers is supplied, doc-driven multipliers and
     SI-floor overrides are merged into each item.
     """
-    from premium_estimator import estimate_premium
     per_cover_doc_modifiers = per_cover_doc_modifiers or {}
     per_cover_confidence = per_cover_confidence or {}
     out = []
@@ -380,12 +418,10 @@ def _augment_with_verified_premium(
         # Resolve / fetch base premium
         base_prem = item.get("premium")
         if not isinstance(base_prem, dict) or not (base_prem.get("min_lakh") or base_prem.get("max_lakh")):
-            prem_key = _resolve_premium_key(key)
-            if prem_key and size_bucket:
-                est = estimate_premium(prem_key, size_bucket)
-                if isinstance(est, dict):
-                    base_prem = est
-                    new_item["premium"] = est
+            est = _estimate_cover_premium(key, size_bucket)
+            if est:
+                base_prem = est
+                new_item["premium"] = est
 
         # Find ratio-engine SI counterpart
         si_entry, si_cover_name = _find_si_cover(key, name, si_dict)
@@ -465,6 +501,13 @@ def _build_response(payload: dict) -> dict:
     if ctx.get("biggest_fear"):
         profile["biggest_fear"] = ctx["biggest_fear"]
 
+    # Inject document-adjusted risk scores so bundle ranking uses them.
+    # verified_assessment.modified_scores reflect VAPT, asset register, GST,
+    # and prior policy signals — these must drive coverage_fit in rank_v2().
+    modified_scores = verified.get("modified_scores")
+    if modified_scores and isinstance(modified_scores, dict):
+        profile["document_modified_scores"] = modified_scores
+
     # Run the existing analysis pipeline.
     from startup_shield_web.server import (
         analyze, outreach_prompts, fallback_outreach_prompts, gemini_enabled,
@@ -495,37 +538,11 @@ def _build_response(payload: dict) -> dict:
         ai_reco = None
 
     if ai_reco and isinstance(ai_reco.get("bundle"), dict):
-        from bundle_catalog import BUNDLE_CATALOG
-        from startup_shield_web.server import attach_group_safeguard_companion
-
-        ai_bundle_key = ai_reco["bundle"].get("key")
-        ai_bundle_def = BUNDLE_CATALOG.get(ai_bundle_key)
-        if ai_bundle_def and ai_bundle_key != "group_safeguard":
-            target_name = ai_bundle_def.get("name")
-            pool = [bundle] + list(bundle_alternatives)
-            picked = next(
-                (b for b in pool if (b or {}).get("name") == target_name),
-                None,
-            )
-            if picked is None:
-                # AI picked a bundle the deterministic engine excluded —
-                # keep the deterministic result unchanged.
-                picked = bundle
-            if picked is not bundle:
-                new_alternatives = [b for b in pool if b is not picked]
-                bundle = dict(picked)
-                bundle_alternatives = new_alternatives
-                bundle, bundle_alternatives, _ = attach_group_safeguard_companion(
-                    bundle, bundle_alternatives,
-                )
-            # Overlay AI fit % and reasoning
-            try:
-                bundle["fit_pct"] = int(ai_reco["bundle"].get("fit_pct") or bundle.get("fit_pct", 0))
-            except (TypeError, ValueError):
-                pass
-            why = ai_reco["bundle"].get("why")
-            if why:
-                bundle["ai_why"] = why
+        # Bundle displayed is always the deterministic engine result.
+        # AI may only annotate it with reasoning copy, not change which bundle is shown.
+        why = ai_reco["bundle"].get("why")
+        if why:
+            bundle["ai_why"] = why
 
         # Reorder recommendations so AI's top-5 picks come first (preserving
         # the engine's full list — premium overlay code below still works).
@@ -579,7 +596,6 @@ def _build_response(payload: dict) -> dict:
 
     bundle_with_premium = dict(bundle)
     bundle_covers = bundle.get("mandatory_covers") or []
-    from premium_estimator import estimate_premium as _est
     bundle_verified_lo = bundle_verified_hi = 0.0
     bundle_base_lo = bundle_base_hi = 0.0
     bundle_cover_breakdown = []
@@ -597,9 +613,11 @@ def _build_response(payload: dict) -> dict:
         # Resolve base premium via translation map → premium_estimator
         prem_key = _resolve_premium_key(cover_key)
         base = (rec.get("premium") if rec else None) or {}
-        if (not base.get("min_lakh") and not base.get("max_lakh")) and prem_key and size_bucket:
-            est = _est(prem_key, size_bucket)
-            if isinstance(est, dict):
+        if not isinstance(base, dict):
+            base = {}
+        if not (base.get("min_lakh") or base.get("max_lakh")):
+            est = _estimate_cover_premium(cover_key, size_bucket)
+            if est:
                 base = est
         si_entry, si_cover_name = _find_si_cover(cover_key, cover_name or "", si_dict)
         risk_loading = (loading_dict.get(si_cover_name) or {}).get("loading", 1.0) if si_cover_name else 1.0
@@ -735,6 +753,8 @@ def _build_response(payload: dict) -> dict:
             "max": round(total_verified_hi, 2),
         },
         "confidence_band": verified.get("confidence_band"),
+        "composite_score": verified.get("composite_score"),
+        "score_breakdown": verified.get("score_breakdown"),
         "per_cover_confidence": per_cover_confidence,
         "upload_next": upload_next_global,
         "documents_extracted_summary": {

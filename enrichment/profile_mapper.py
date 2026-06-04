@@ -48,14 +48,20 @@ def payroll_to_team_size(payroll_cr: Optional[float]) -> Optional[int]:
     return max(1, int(round(headcount)))
 
 
-def map_extracts_to_profile(extraction_summary: Dict[str, dict]) -> Dict[str, dict]:
+def map_extracts_to_profile(
+    extraction_summary: Dict[str, dict],
+    inferences: Optional[Dict] = None,
+) -> Dict[str, dict]:
     """Convert extracted fields → form prefill hints.
 
     Returns a dict where each key is a StartupInput field name and each value
     is {"value": X, "source": "explanation", "confidence": "extracted"|...}.
     Caller decides whether to apply each hint.
+
+    inferences: categorical_inferences dict from Gemini (sector, operations, etc.)
     """
     prefill: Dict[str, dict] = {}
+    inferences = inferences or {}
 
     def _get(field: str) -> tuple[Optional[float], Optional[str]]:
         entry = extraction_summary.get(field) or {}
@@ -84,6 +90,38 @@ def map_extracts_to_profile(extraction_summary: Dict[str, dict]) -> Dict[str, di
             "confidence": "calculated",
             "source": f"Estimated from P&L employee cost ₹{payroll_cr} Cr "
                       f"@ ₹{_cost_per_head_inr(payroll_cr) // 100000}L median per head",
+        }
+
+    # Infer physical_assets and hardware_software_split from operations + sector + financials.
+    # This is critical for _asset_band() in bundle_recommender_v2 to correctly classify
+    # manufacturing companies as "fab_or_plant" (enabling IAR eligibility).
+    ops = str(inferences.get("operations") or "")
+    sector_val = str(inferences.get("sector") or "")
+    ppe_cr, _ = _get("fixed_assets_cr")
+    total_assets_cr, _ = _get("total_assets_cr")
+
+    _MANUFACTURING_SECTORS = ("Manufacturing", "Cleantech / Climatetech", "Deeptech")
+    is_physical_mfg = ops in ("Physical-only", "Hybrid") and any(s in sector_val for s in _MANUFACTURING_SECTORS)
+
+    if is_physical_mfg:
+        prefill["physical_assets"] = {
+            "value": ["Manufacturing plant / factory"],
+            "confidence": "calculated",
+            "source": f"Inferred from Physical-only operations + {sector_val} sector",
+        }
+        if ppe_cr and total_assets_cr and float(total_assets_cr) > 0:
+            split = round(min(0.90, float(ppe_cr) / float(total_assets_cr)), 2)
+            prefill["hardware_software_split"] = {
+                "value": split,
+                "confidence": "calculated",
+                "source": f"Estimated from PPE/Assets ratio ({ppe_cr:.1f}/{total_assets_cr:.1f})",
+            }
+    elif ops == "Physical-only" and not is_physical_mfg:
+        # Non-manufacturing physical ops (logistics, D2C, etc.) — set warehouse/fleet
+        prefill["physical_assets"] = {
+            "value": ["Warehouse / fulfilment centre"],
+            "confidence": "calculated",
+            "source": f"Inferred from Physical-only operations ({sector_val})",
         }
 
     return prefill

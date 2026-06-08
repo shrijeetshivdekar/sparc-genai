@@ -4250,6 +4250,278 @@ function showEmailDraftModal(result) {
   };
 }
 
+function renderLiabilityIntelligence() {
+  state.view = "liability_intelligence";
+  if (!_navCalledByHistory) { _navHistory = _navHistory.slice(0, _navPos + 1); _navHistory.push({ fn: renderLiabilityIntelligence, args: [], view: "liability_intelligence" }); _navPos = _navHistory.length - 1; setTimeout(_updateNavButtons, 0); }
+
+  const mc = $("main-content");
+
+  // Load liability intelligence data
+  fetch("/startup_shield_web/liability_intelligence_registry.json")
+    .then(r => r.json())
+    .then(data => {
+      const { portfolio_snapshot, locations, verticals, action_summary, red_flags } = data;
+
+      const fmt = (v) => {
+        if (typeof v === "number") return v.toLocaleString("en-IN", {maximumFractionDigits: 2});
+        return String(v);
+      };
+
+      const riskColor = (level) => {
+        const colors = {
+          "LOW": "#10b981",
+          "MEDIUM": "#f59e0b",
+          "MEDIUM_HIGH": "#f97316",
+          "HIGH": "#ef4444",
+          "CRITICAL": "#991b1b"
+        };
+        return colors[level] || "#6b7280";
+      };
+
+      const locationCards = locations.map(loc => `
+        <div class="liability-branch-card" style="border-left: 4px solid ${riskColor(loc.risk_level)}">
+          <div class="branch-header">
+            <div class="branch-name">${esc(loc.branch)} <span class="branch-code">${esc(loc.code)}</span></div>
+            <div class="branch-class">${esc(loc.classification)}</div>
+          </div>
+          <div class="branch-metrics">
+            <div class="metric-pair">
+              <span class="metric-label">FY26 GWP</span>
+              <span class="metric-val">${fmt(loc.fy26.gwp)}</span>
+            </div>
+            <div class="metric-pair">
+              <span class="metric-label">FY26 COR</span>
+              <span class="metric-val" style="color: ${loc.fy26.combined_ratio > 50 ? '#ef4444' : '#10b981'}">${fmt(loc.fy26.combined_ratio)}%</span>
+            </div>
+            <div class="metric-pair">
+              <span class="metric-label">UW Result</span>
+              <span class="metric-val" style="color: ${loc.fy26.underwriting_result < 0 ? '#ef4444' : '#10b981'}">${fmt(loc.fy26.underwriting_result)}</span>
+            </div>
+            <div class="metric-pair">
+              <span class="metric-label">GWP Growth</span>
+              <span class="metric-val">${fmt(loc.deltas.gwp_pct)}%</span>
+            </div>
+          </div>
+          <p class="branch-insight">${esc(loc.key_metrics)}</p>
+          <div class="branch-rec" style="background: ${riskColor(loc.risk_level)}20">
+            <strong>Action:</strong> ${esc(loc.recommendation)}
+          </div>
+        </div>
+      `).join("");
+
+      const verticalCards = verticals.map(vert => `
+        <div class="liability-branch-card" style="border-left: 4px solid ${riskColor(vert.risk_level)}">
+          <div class="branch-header">
+            <div class="branch-name">${esc(vert.vertical)}</div>
+            <div class="branch-class">${esc(vert.classification)}</div>
+          </div>
+          <div class="branch-metrics">
+            <div class="metric-pair">
+              <span class="metric-label">FY26 GWP</span>
+              <span class="metric-val">${fmt(vert.fy26.gwp)}</span>
+            </div>
+            <div class="metric-pair">
+              <span class="metric-label">FY26 COR</span>
+              <span class="metric-val" style="color: ${vert.fy26.combined_ratio > 50 ? '#ef4444' : '#10b981'}">${fmt(vert.fy26.combined_ratio)}%</span>
+            </div>
+            <div class="metric-pair">
+              <span class="metric-label">Portfolio %</span>
+              <span class="metric-val">${vert.portfolio_contribution || 'N/A'}</span>
+            </div>
+            <div class="metric-pair">
+              <span class="metric-label">GWP Growth</span>
+              <span class="metric-val">${fmt(vert.deltas.gwp_pct)}%</span>
+            </div>
+          </div>
+          <p class="branch-insight">${esc(vert.key_metrics)}</p>
+          <div class="branch-rec" style="background: ${riskColor(vert.risk_level)}20">
+            <strong>Action:</strong> ${esc(vert.recommendation)}
+          </div>
+        </div>
+      `).join("");
+
+      const criticalActions = (action_summary.critical_actions || []).map(act => `
+        <div class="action-item critical">
+          <div class="action-head" style="color: #991b1b">🔴 ${esc(act)}</div>
+        </div>
+      `).join("");
+
+      const redFlags = (red_flags || []).map(flag => `
+        <div class="flag-item" style="border-left: 4px solid ${riskColor(flag.severity)}">
+          <strong>${esc(flag.flag)}</strong>
+          <div class="flag-metric">${esc(flag.metric)}</div>
+          <div class="flag-implication">${esc(flag.implication)}</div>
+        </div>
+      `).join("");
+
+      mc.innerHTML = `
+        <div class="liability-shell">
+          <div class="liability-header">
+            <button class="btn btn-ghost liability-back-btn" onclick="renderRoleSelection()">&larr; Back</button>
+            <div class="liability-header-copy">
+              <span class="liability-eyebrow">Portfolio Intelligence · UW &amp; RM</span>
+              <h1 class="liability-title">i-Select Liability Insurance</h1>
+              <p class="liability-subtitle">FY26 Underwriting &amp; Risk Management Analysis</p>
+            </div>
+          </div>
+
+          <div class="liability-container">
+            <!-- Portfolio Snapshot -->
+            <section class="liability-section">
+              <h2 class="section-title">Portfolio Snapshot</h2>
+              <div class="snapshot-grid">
+                <div class="snapshot-item">
+                  <span class="snap-label">Overall Assessment</span>
+                  <span class="snap-value" style="color: #ef4444;">${esc(portfolio_snapshot.overall_assessment)}</span>
+                </div>
+                <div class="snapshot-item">
+                  <span class="snap-label">GWP Growth</span>
+                  <span class="snap-value">${fmt(portfolio_snapshot.deltas.gwp.value)} (+${fmt(portfolio_snapshot.deltas.gwp.pct)}%)</span>
+                </div>
+                <div class="snapshot-item">
+                  <span class="snap-label">COR Deterioration</span>
+                  <span class="snap-value" style="color: #ef4444;">+${fmt(portfolio_snapshot.deltas.combined_ratio.pct_pts)}pts to ${fmt(portfolio_snapshot.fy26.combined_ratio)}%</span>
+                </div>
+                <div class="snapshot-item">
+                  <span class="snap-label">UW Margin Compression</span>
+                  <span class="snap-value" style="color: #ef4444;">-${fmt(portfolio_snapshot.fy26.underwriting_result / portfolio_snapshot.fy26.nep * 100) - portfolio_snapshot.fy25.underwriting_result / portfolio_snapshot.fy25.nep * 100}pts</span>
+                </div>
+              </div>
+              <p class="section-summary">${esc(portfolio_snapshot.summary)}</p>
+            </section>
+
+            <!-- Critical Actions -->
+            <section class="liability-section">
+              <h2 class="section-title critical">🚨 Critical Actions Required</h2>
+              <div class="actions-list">
+                ${criticalActions}
+              </div>
+            </section>
+
+            <!-- Red Flags -->
+            <section class="liability-section">
+              <h2 class="section-title">Red Flags &amp; Risks</h2>
+              <div class="flags-list">
+                ${redFlags}
+              </div>
+            </section>
+
+            <!-- Location Analysis -->
+            <section class="liability-section">
+              <h2 class="section-title">Location-wise Analysis</h2>
+              <div class="branch-grid">
+                ${locationCards}
+              </div>
+            </section>
+
+            <!-- Vertical Analysis -->
+            <section class="liability-section">
+              <h2 class="section-title">Vertical-wise Analysis</h2>
+              <div class="branch-grid">
+                ${verticalCards}
+              </div>
+            </section>
+
+            <!-- Summary -->
+            <section class="liability-section">
+              <h2 class="section-title">Summary &amp; Recommendations</h2>
+              <div class="summary-box">
+                <h3>Scale Aggressively</h3>
+                <ul>
+                  ${(action_summary.scaling_opportunities || []).slice(0, 4).map(opp => `<li>${esc(opp.entity)} (${esc(opp.type)})</li>`).join("")}
+                </ul>
+
+                <h3 style="margin-top: 20px;">Growth Priorities</h3>
+                <div class="growth-matrix">
+                  <div><strong>Aggressive:</strong> ${(action_summary.growth_priorities?.aggressive || []).join(", ")}</div>
+                  <div><strong>Selective:</strong> ${(action_summary.growth_priorities?.selective || []).join(", ")}</div>
+                  <div><strong>Hold/Monitor:</strong> ${(action_summary.growth_priorities?.hold_monitor || []).join(", ")}</div>
+                  <div><strong>De-risk/Tighten:</strong> ${(action_summary.growth_priorities?.derisk_tighten || []).join(", ")}</div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <style>
+          .liability-shell { padding: 0; min-height: 100vh; background: #f9fafb; }
+          .liability-header { background: linear-gradient(135deg, #1f2937 0%, #374151 100%); color: white; padding: 40px; margin-bottom: 0; }
+          .liability-header .btn { margin-bottom: 16px; }
+          .liability-header-copy { margin-top: 16px; }
+          .liability-eyebrow { font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.8; display: block; margin-bottom: 8px; }
+          .liability-title { font-size: 32px; font-weight: 800; margin: 0 0 8px 0; }
+          .liability-subtitle { font-size: 16px; opacity: 0.9; margin: 0; }
+          .liability-back-btn { color: white; border-color: rgba(255,255,255,0.3); }
+          .liability-back-btn:hover { background: rgba(255,255,255,0.1); }
+
+          .liability-container { max-width: 1200px; margin: 0 auto; padding: 40px 20px; }
+          .liability-section { background: white; border-radius: 12px; padding: 32px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+          .section-title { font-size: 20px; font-weight: 700; margin: 0 0 20px 0; color: #1f2937; }
+          .section-title.critical { color: #991b1b; }
+
+          .snapshot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 16px; }
+          .snapshot-item { background: #f3f4f6; padding: 16px; border-radius: 8px; border-left: 3px solid #d1d5db; }
+          .snap-label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; margin-bottom: 4px; }
+          .snap-value { display: block; font-size: 18px; font-weight: 700; color: #1f2937; }
+          .section-summary { font-size: 14px; color: #4b5563; line-height: 1.6; margin: 0; }
+
+          .branch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+          .liability-branch-card { background: #f9fafb; border-radius: 8px; padding: 16px; border: 1px solid #e5e7eb; transition: all 0.2s; }
+          .liability-branch-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+          .branch-header { margin-bottom: 12px; }
+          .branch-name { font-weight: 700; font-size: 16px; color: #1f2937; }
+          .branch-code { font-size: 12px; color: #6b7280; margin-left: 8px; }
+          .branch-class { font-size: 12px; color: #0891b2; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px; }
+          .branch-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
+          .metric-pair { background: white; padding: 8px; border-radius: 4px; }
+          .metric-label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af; margin-bottom: 2px; }
+          .metric-val { display: block; font-size: 14px; font-weight: 700; color: #1f2937; }
+          .branch-insight { font-size: 12px; color: #4b5563; line-height: 1.5; margin: 8px 0; }
+          .branch-rec { font-size: 12px; padding: 8px; border-radius: 4px; margin-top: 8px; }
+
+          .actions-list { display: flex; flex-direction: column; gap: 12px; }
+          .action-item { padding: 12px; background: #fef2f2; border-radius: 6px; border-left: 3px solid #ef4444; }
+          .action-item.critical { border-left-color: #991b1b; }
+          .action-head { font-weight: 700; margin-bottom: 4px; }
+
+          .flags-list { display: flex; flex-direction: column; gap: 12px; }
+          .flag-item { padding: 12px; background: #f9fafb; border-radius: 6px; }
+          .flag-metric { font-size: 13px; color: #4b5563; font-family: monospace; margin: 4px 0; background: white; padding: 6px; border-radius: 4px; }
+          .flag-implication { font-size: 12px; color: #6b7280; margin-top: 4px; }
+
+          .summary-box { background: #f0f9ff; padding: 20px; border-radius: 8px; border-left: 4px solid #0891b2; }
+          .summary-box h3 { font-size: 14px; font-weight: 700; color: #1f2937; margin: 0 0 8px 0; }
+          .summary-box ul { margin: 0; padding: 0 0 0 20px; font-size: 13px; color: #4b5563; }
+          .summary-box li { margin: 4px 0; }
+          .growth-matrix { display: grid; gap: 8px; font-size: 13px; }
+          .growth-matrix div { padding: 8px; background: white; border-radius: 4px; }
+
+          .btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; border: 1px solid; cursor: pointer; }
+          .btn-ghost { background: transparent; border-color: #d1d5db; color: #1f2937; }
+          .btn-ghost:hover { background: #f3f4f6; }
+        </style>
+      `;
+    })
+    .catch(err => {
+      mc.innerHTML = `
+        <div class="liability-shell">
+          <div class="liability-header">
+            <button class="btn btn-ghost" onclick="renderRoleSelection()">&larr; Back</button>
+            <div style="margin-top: 16px;">
+              <h1 class="liability-title">Error Loading Intelligence</h1>
+            </div>
+          </div>
+          <div class="liability-container">
+            <div class="liability-section" style="background: #fef2f2; border-left: 4px solid #ef4444;">
+              <p style="color: #991b1b; margin: 0;">Could not load liability intelligence data. Please check that the data file exists and is accessible.</p>
+              <p style="color: #6b7280; margin: 8px 0 0 0; font-size: 12px;">Error: ${esc(err.message)}</p>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+}
+
 function renderForm() {
   state.view = "underwriter";
   if (!_navCalledByHistory) { _navHistory = _navHistory.slice(0, _navPos + 1); _navHistory.push({ fn: renderForm, args: [], view: "underwriter" }); _navPos = _navHistory.length - 1; setTimeout(_updateNavButtons, 0); }

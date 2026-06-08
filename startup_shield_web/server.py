@@ -6,6 +6,7 @@ import sqlite3
 import sys
 import tempfile
 import time
+import csv
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -791,7 +792,9 @@ def call_gemini_json(prompt):
     }
     data = json.dumps(payload).encode("utf-8")
     body = None
-    for attempt in range(2):
+    _RETRY_CODES = {429, 503}
+    _BACKOFF = [2, 6]  # seconds between retries (exponential)
+    for attempt in range(3):
         try:
             req_copy = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
             with urllib.request.urlopen(req_copy, timeout=GEMINI_TIMEOUT_SECONDS) as response:
@@ -802,9 +805,10 @@ def call_gemini_json(prompt):
                 detail = exc.read().decode("utf-8")[:500]
             except Exception:
                 detail = str(exc)
-            if exc.code == 503 and attempt == 0:
-                import time as _time
-                _time.sleep(2)
+            if exc.code in _RETRY_CODES and attempt < 2:
+                wait = _BACKOFF[attempt]
+                print(f"[gemini] HTTP {exc.code} on attempt {attempt+1}; retrying in {wait}s", flush=True)
+                time.sleep(wait)
                 continue
             return None, f"Gemini HTTP {exc.code}: {detail}"
         except urllib.error.URLError as exc:
@@ -830,61 +834,6 @@ def call_gemini_json(prompt):
     return parsed, None
 
 
-def call_gemini_grounded(prompt, model=None):
-    """Call Gemini with Google Search grounding. Returns (parsed_dict_or_None, error_str_or_None)."""
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        return None, "GEMINI_API_KEY is not configured."
-
-    _model = model or GEMINI_MODEL
-    url = (
-        f"https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{_model}:generateContent?key={api_key}"
-    )
-    payload = {
-        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "tools": [{"google_search": {}}],
-        "generationConfig": {
-            "temperature": 0.1,
-            "maxOutputTokens": 8192,  # grounded call needs more room than standard calls
-        },
-    }
-    data = json.dumps(payload).encode("utf-8")
-    try:
-        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
-        with urllib.request.urlopen(req, timeout=GEMINI_TIMEOUT_SECONDS) as response:
-            body = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        try:
-            detail = exc.read().decode("utf-8")[:500]
-        except Exception:
-            detail = str(exc)
-        return None, f"HTTP {exc.code}: {detail}"
-    except urllib.error.URLError as exc:
-        return None, f"Network error: {exc.reason}"
-    except TimeoutError:
-        return None, "Request timed out."
-    except json.JSONDecodeError:
-        return None, "Non-JSON response from API."
-
-    candidate = body.get("candidates", [{}])[0]
-    finish_reason = candidate.get("finishReason", "")
-    parts = candidate.get("content", {}).get("parts", [])
-    text = "".join(part.get("text", "") for part in parts)
-    usage = body.get("usageMetadata", {})
-    print(
-        f"[gemini_grounded] tokens — input: {usage.get('promptTokenCount', '?')}, "
-        f"output: {usage.get('candidatesTokenCount', '?')}, "
-        f"total: {usage.get('totalTokenCount', '?')}",
-        flush=True,
-    )
-    if finish_reason == "MAX_TOKENS":
-        return None, f"Gemini response truncated (MAX_TOKENS={GEMINI_MAX_TOKENS})."
-    parsed = extract_json_object(text)
-    if not isinstance(parsed, dict):
-        print(f"[gemini_grounded] Could not parse JSON; finishReason={finish_reason!r}; raw: {text[:500]!r}", flush=True)
-        return None, "Gemini grounded response did not contain a valid JSON object."
-    return parsed, None
 
 
 _ADV_RANGE_TO_VALUE = {
@@ -1006,7 +955,7 @@ Return this JSON object filled in for {company_name}:
   "physical_assets": <array, zero or more from exactly: ["Office / coworking space", "Warehouse / fulfilment centre", "Manufacturing plant / factory", "Lab / R&D equipment", "Medical devices / diagnostic equipment", "Vehicles / delivery fleet", "Drones / UAV equipment", "Kitchen / food processing", "Cold chain / refrigeration", "Solar / clean energy infrastructure", "Retail stores / kiosks", "Data centre / server room", "None - fully cloud"]>,
   "ai_in_product": <true or false>,
   "has_investors": <"Yes" or "No">,
-  "annual_revenue_cr": <number — annual revenue in INR crores, best estimate from public sources, 0 if unknown>,
+  "annual_revenue_cr": <number — annual revenue in INR crores, best estimate, 0 if unknown>,
   "healthcare_operations": <true or false>,
   "payment_or_card_program": <true or false>,
   "contact_email": <best available public email — try in order: (1) founder/CEO email if publicly listed, (2) official contact like contact@, info@, hello@ + company domain, (3) construct from known pattern e.g. firstname@domain.com — return null only if nothing can be reasonably inferred>,
@@ -1065,38 +1014,22 @@ def _persist_verified_profile(profile: dict) -> None:
 _CAPACITY_ERRORS = ("503", "429", "unavailable", "UNAVAILABLE", "high demand", "quota", "rate", "timed out", "timeout")
 
 def autofill_and_analyze(company_name):
+    local_profile = get_company_profile(company_name)
+    if local_profile:
+        profile_data = {**DEFAULT_PROFILE, **local_profile}
+        result = analyze(profile_data)
+        result["autofilled_fields"] = list(local_profile.keys())
+        result["autofill_warning"] = "Pre-filled from SPARC's local verified profile library. No Gemini call was used."
+        result["autofill_source"] = "local_profile_library"
+        return result
+
     if not gemini_enabled():
         return {"error": "Gemini API key not configured. Cannot auto-profile."}
 
     prompt = _build_autofill_prompt(company_name)
 
-    # On Vercel, serverless functions have a 10s hard limit on the hobby plan.
-    # Google Search grounding adds 8-15s of latency, blowing the budget.
-    # Skip grounding on Vercel and go straight to the fast ungrounded call.
-    on_vercel = bool(os.environ.get("VERCEL"))
-
-    autofilled, err = None, None
-    if not on_vercel:
-        models_to_try = [GEMINI_MODEL] + GEMINI_FALLBACK_MODELS
-        for i, model in enumerate(models_to_try):
-            autofilled, err = call_gemini_grounded(prompt, model=model)
-            if autofilled is not None:
-                if i > 0:
-                    print(f"[autofill] Succeeded with fallback model '{model}' after primary was busy.", flush=True)
-                break
-            is_capacity_error = err and any(kw in err for kw in _CAPACITY_ERRORS)
-            if not is_capacity_error:
-                break  # hard error (auth, parse, network) — fallbacks won't help
-            if i < len(models_to_try) - 1:
-                print(f"[autofill] '{model}' busy ({err[:80]}…); trying '{models_to_try[i+1]}'.", flush=True)
-
+    autofilled, err = call_gemini_json(prompt)
     if not isinstance(autofilled, dict):
-        source = "ungrounded (Vercel fast-path)" if on_vercel else f"ungrounded fallback (grounded err: {err})"
-        print(f"[autofill] Using {source}.", flush=True)
-        autofilled, err = call_gemini_json(prompt)
-        if isinstance(autofilled, dict):
-            print("[autofill] Ungrounded inference succeeded.", flush=True)
-        else:
             return {"error": err or "Auto-profile failed — all models unavailable."}
 
     profile_data = {**DEFAULT_PROFILE, **{k: v for k, v in autofilled.items() if v is not None}}
@@ -1119,7 +1052,8 @@ def autofill_and_analyze(company_name):
 
     result = analyze(profile_data)
     result["autofilled_fields"] = list(autofilled.keys())
-    result["autofill_warning"] = "Pre-filled from public sources via Gemini + Google Search. Verify before underwriting."
+    result["autofill_warning"] = "Pre-filled by ungrounded Gemini inference from the company name. Verify before underwriting."
+    result["autofill_source"] = "gemini"
     return result
 
 
@@ -3701,6 +3635,102 @@ def _within_signal_window(value: str, window_days: int) -> bool:
     return dt >= (datetime.now(timezone.utc) - timedelta(days=window_days))
 
 
+_SIGNAL_CITY_ALIASES = {
+    "bengaluru": "Bengaluru",
+    "bangalore": "Bengaluru",
+    "mumbai": "Mumbai",
+    "delhi": "Delhi",
+    "new delhi": "Delhi",
+    "gurugram": "Gurugram",
+    "gurgaon": "Gurugram",
+    "noida": "Noida",
+    "hyderabad": "Hyderabad",
+    "pune": "Pune",
+    "chennai": "Chennai",
+    "ahmedabad": "Ahmedabad",
+    "kolkata": "Kolkata",
+    "jaipur": "Jaipur",
+    "indore": "Indore",
+    "kochi": "Kochi",
+    "coimbatore": "Coimbatore",
+    "surat": "Surat",
+    "lucknow": "Lucknow",
+    "chandigarh": "Chandigarh",
+}
+
+
+def _infer_signal_city(article: dict, profile: dict | None) -> str:
+    footprint = (profile or {}).get("state_footprint") or []
+    if isinstance(footprint, list) and footprint:
+        first = str(footprint[0] or "").strip()
+        if first:
+            return first
+    text = " ".join(str(article.get(k) or "") for k in ("title", "description", "source")).lower()
+    for alias, city in sorted(_SIGNAL_CITY_ALIASES.items(), key=lambda item: len(item[0]), reverse=True):
+        if re.search(rf"(?<![a-z]){re.escape(alias)}(?![a-z])", text):
+            return city
+    return "India"
+
+
+def _signal_announced_on(article: dict) -> str:
+    raw = str(article.get("seendate") or "").strip()
+    if not raw:
+        return ""
+    dt = _rss_item_datetime(raw)
+    if dt is not None:
+        return dt.date().isoformat()
+    for fmt in ("%Y%m%dT%H%M%SZ", "%Y%m%d%H%M%S"):
+        try:
+            return datetime.strptime(raw, fmt).date().isoformat()
+        except Exception:
+            continue
+    return raw[:10]
+
+
+def _infer_signal_round(article: dict, profile: dict | None) -> str:
+    text = " ".join(str(article.get(k) or "") for k in ("title", "description")).lower()
+    for pattern, label in (
+        (r"\bpre[- ]?seed\b", "Pre-seed"),
+        (r"\bseed\b", "Seed"),
+        (r"\bseries\s+a\b", "Series A"),
+        (r"\bseries\s+b\b", "Series B"),
+        (r"\bseries\s+c\b", "Series C"),
+        (r"\bseries\s+d\b", "Series D"),
+        (r"\bipo\b|\bdrhp\b|\bpre[- ]?ipo\b", "Pre-IPO"),
+    ):
+        if re.search(pattern, text):
+            return label
+    return str((profile or {}).get("funding_stage") or "").strip()
+
+
+def _infer_signal_amount_inr(article: dict) -> int:
+    text = " ".join(str(article.get(k) or "") for k in ("title", "description"))
+    amount_patterns = [
+        (r"(?:₹|rs\.?|inr)\s*([0-9]+(?:\.[0-9]+)?)\s*(cr|crore|crores|lakh|lakhs|mn|million|m|bn|billion)\b", "inr"),
+        (r"\$\s*([0-9]+(?:\.[0-9]+)?)\s*(mn|million|m|bn|billion)\b", "usd"),
+        (r"([0-9]+(?:\.[0-9]+)?)\s*(mn|million|m|bn|billion)\s*(?:usd|dollars)\b", "usd"),
+    ]
+    usd_inr = 83
+    for pattern, currency in amount_patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if not match:
+            continue
+        value = float(match.group(1))
+        unit = match.group(2).lower()
+        if currency == "usd":
+            mult = 1_000_000 if unit in ("mn", "million", "m") else 1_000_000_000
+            return int(value * mult * usd_inr)
+        if unit in ("cr", "crore", "crores"):
+            return int(value * 10_000_000)
+        if unit in ("lakh", "lakhs"):
+            return int(value * 100_000)
+        if unit in ("mn", "million", "m"):
+            return int(value * 1_000_000)
+        if unit in ("bn", "billion"):
+            return int(value * 1_000_000_000)
+    return 0
+
+
 def _merge_signal_profile(company: str, base: dict | None, rule: dict) -> dict:
     profile = DEFAULT_PROFILE.copy()
     if base:
@@ -3961,6 +3991,10 @@ def _signal_task_from_article(article: dict, profiles: dict) -> dict | None:
     parsed_domain = urllib.parse.urlparse(source_url).netloc.replace("www.", "") if source_url else ""
     source_domain = article.get("source", "") if parsed_domain == "news.google.com" else (parsed_domain or article.get("source", ""))
     contact = _contact_status_for_signal(base_profile)
+    city = _infer_signal_city(article, profile)
+    announced_on = _signal_announced_on(article)
+    funding_round = _infer_signal_round(article, profile)
+    amount_inr = _infer_signal_amount_inr(article)
     _delta_seen = set()
     profile_delta = []
     for key in sorted((rule.get("profile") or {}).keys()):
@@ -3986,6 +4020,10 @@ def _signal_task_from_article(article: dict, profiles: dict) -> dict | None:
         "source_url": source_url,
         "source": source_domain or "Public source",
         "seen_at": article.get("seendate") or "",
+        "city": city,
+        "amount_inr": amount_inr,
+        "round": funding_round,
+        "announced_on": announced_on,
         "confidence": rule.get("confidence", 50),
         "regulation_tag": rule.get("regulation", ""),
         "review_status": "Needs RM review",
@@ -4360,12 +4398,30 @@ class Handler(SimpleHTTPRequestHandler):
             status, body = _cpl_get(params)
             self.send_json(status, body)
             return
+        if path == "/api/iib/rm-dashboard":
+            from api.iib_rm_dashboard import handle_get_request as _iib_get
+            status, body = _iib_get(params)
+            self.send_json(status, body)
+            return
         if path == "/api/rationale":
             rationale_path = PROJECT_ROOT / "pricing" / "rationale.json"
             try:
                 self.send_json(200, json.loads(rationale_path.read_text(encoding="utf-8")))
             except Exception as exc:
                 self.send_json(500, {"error": f"Could not load rationale.json: {exc}"})
+            return
+        if path == "/api/signal-inventory":
+            inventory_path = PROJECT_ROOT / "signals_inventory.csv"
+            try:
+                with inventory_path.open("r", encoding="utf-8-sig", newline="") as fh:
+                    rows = list(csv.DictReader(fh))
+                self.send_json(200, {
+                    "source": "signals_inventory.csv",
+                    "count": len(rows),
+                    "signals": rows,
+                })
+            except Exception as exc:
+                self.send_json(500, {"error": f"Could not load signals_inventory.csv: {exc}"})
             return
         if path == "/api/signals":
             limit = clean_int((params.get("limit") or ["30"])[0], 30)
@@ -4377,6 +4433,9 @@ class Handler(SimpleHTTPRequestHandler):
                 live=live,
                 window_days=max(1, min(days, 30)),
             ))
+            return
+        if path.startswith("/api/"):
+            self.send_json(404, {"error": f"Unknown API route: {path}"})
             return
         return super().do_GET()
 

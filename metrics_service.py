@@ -205,26 +205,54 @@ def rm_leaderboard(
     since: str | None = None,
     db_path: Path | str | None = None,
 ) -> list[dict]:
-    """Per-RM event counts + pipeline GWP (high snapshot at event time).
+    """Per-RM activity counts + pipeline GWP.
 
     Always returns one row per RM in ``rms`` (even at zero activity) so the
     leaderboard is stable across weeks.
+
+    Stage counts use current ``accounts.stage`` as the source of truth because
+    the pipeline UI writes stage changes to ``pipeline_events``. Older proposal
+    and claim actions still write rows to ``events``, so we retain those where
+    they are the better activity signal.
     """
     since_sql, since_params = _since_clause(since)
+    account_since_sql = " AND a.updated_at >= :since" if since else ""
     sql = (
         "SELECT r.rm_email, r.name, r.city, "
-        "  SUM(CASE WHEN e.kind='analysed'           THEN 1 ELSE 0 END) AS analysed, "
-        "  SUM(CASE WHEN e.kind='quoted'             THEN 1 ELSE 0 END) AS quoted, "
-        "  SUM(CASE WHEN e.kind='proposal_generated' THEN 1 ELSE 0 END) AS proposals, "
-        "  SUM(CASE WHEN e.kind='lead_claimed'       THEN 1 ELSE 0 END) AS claimed, "
-        "  SUM(CASE WHEN e.kind='converted'          THEN 1 ELSE 0 END) AS converted, "
-        "  COALESCE(SUM(CASE WHEN e.kind IN ('quoted','proposal_generated','converted') "
-        "       THEN e.gwp_low_inr END), 0)  AS pipeline_gwp_low, "
-        "  COALESCE(SUM(CASE WHEN e.kind IN ('quoted','proposal_generated','converted') "
-        "       THEN e.gwp_high_inr END), 0) AS pipeline_gwp_high "
+        "  COALESCE(a.analysed, 0) AS analysed, "
+        "  COALESCE(a.quoted, 0) AS quoted, "
+        "  MAX(COALESCE(ev.proposals, 0), COALESCE(a.proposals, 0)) AS proposals, "
+        "  COALESCE(ev.claimed, 0) AS claimed, "
+        "  COALESCE(a.converted, 0) AS converted, "
+        "  COALESCE(g.pipeline_gwp_low, 0) AS pipeline_gwp_low, "
+        "  COALESCE(g.pipeline_gwp_high, 0) AS pipeline_gwp_high "
         "FROM rms r "
-        "LEFT JOIN events e ON e.rm_email = r.rm_email" + since_sql + " "
-        "GROUP BY r.rm_email, r.name, r.city "
+        "LEFT JOIN ("
+        "  SELECT rm_email, "
+        "    SUM(CASE WHEN stage IN ('analysed','quoted','proposal','converted') THEN 1 ELSE 0 END) AS analysed, "
+        "    SUM(CASE WHEN stage IN ('quoted','proposal','converted') THEN 1 ELSE 0 END) AS quoted, "
+        "    SUM(CASE WHEN stage IN ('proposal','converted') THEN 1 ELSE 0 END) AS proposals, "
+        "    SUM(CASE WHEN stage = 'converted' THEN 1 ELSE 0 END) AS converted "
+        "  FROM accounts a WHERE rm_email IS NOT NULL" + account_since_sql + " GROUP BY rm_email"
+        ") a ON a.rm_email = r.rm_email "
+        "LEFT JOIN ("
+        "  SELECT rm_email, "
+        "    SUM(CASE WHEN kind='proposal_generated' THEN 1 ELSE 0 END) AS proposals, "
+        "    SUM(CASE WHEN kind='lead_claimed' THEN 1 ELSE 0 END) AS claimed "
+        "  FROM events e WHERE 1=1" + since_sql + " GROUP BY rm_email"
+        ") ev ON ev.rm_email = r.rm_email "
+        "LEFT JOIN ("
+        "  SELECT a.rm_email, "
+        "    COALESCE(SUM(g.gwp_low_inr), 0) AS pipeline_gwp_low, "
+        "    COALESCE(SUM(g.gwp_high_inr), 0) AS pipeline_gwp_high "
+        "  FROM accounts a "
+        "  LEFT JOIN gwp_estimates g ON g.estimate_id = ("
+        "    SELECT estimate_id FROM gwp_estimates WHERE account_id = a.account_id "
+        "    ORDER BY created_at DESC LIMIT 1"
+        "  ) "
+        "  WHERE a.rm_email IS NOT NULL AND a.stage IN ('quoted','proposal','converted')" + account_since_sql +
+        "  GROUP BY a.rm_email"
+        ") g ON g.rm_email = r.rm_email "
         "ORDER BY pipeline_gwp_high DESC, proposals DESC, claimed DESC, r.name ASC"
     )
     conn = db.get_conn(db_path)
@@ -244,14 +272,14 @@ def conversion_by_sector(
     since: str | None = None,
     db_path: Path | str | None = None,
 ) -> list[dict]:
-    since_sql, since_params = _since_clause(since)
+    since_params = {"since": since} if since else {}
+    since_sql = " AND updated_at >= :since" if since else ""
     sql = (
         "SELECT a.sector AS sector, "
-        "  SUM(CASE WHEN e.kind='quoted'    THEN 1 ELSE 0 END) AS quoted, "
-        "  SUM(CASE WHEN e.kind='converted' THEN 1 ELSE 0 END) AS converted "
+        "  SUM(CASE WHEN a.stage IN ('quoted','proposal','converted') THEN 1 ELSE 0 END) AS quoted, "
+        "  SUM(CASE WHEN a.stage = 'converted' THEN 1 ELSE 0 END) AS converted "
         "FROM accounts a "
-        "LEFT JOIN events e ON e.account_id = a.account_id" + since_sql + " "
-        "WHERE a.sector IS NOT NULL "
+        "WHERE a.sector IS NOT NULL" + since_sql + " "
         "GROUP BY a.sector "
         "ORDER BY converted DESC, quoted DESC, a.sector ASC"
     )
@@ -312,10 +340,20 @@ def speed_metrics(
             continue
         by_acct.setdefault(r["account_id"], []).append((r["to_stage"], ts))
     for events in by_acct.values():
+        first_seen: dict[str, float] = {}
+        for stage, ts in events:
+            first_seen.setdefault(stage, ts)
         for (s1, t1), (s2, t2) in zip(events, events[1:]):
             key = pair_to_key.get((s1, s2))
             if key:
                 transitions[key].append(t2 - t1)
+        if (
+            "quoted" in first_seen
+            and "converted" in first_seen
+            and first_seen["converted"] >= first_seen["quoted"]
+            and not any(pair_to_key.get((s1, s2)) == "quoted_to_converted" for (s1, _), (s2, __) in zip(events, events[1:]))
+        ):
+            transitions["quoted_to_converted"].append(first_seen["converted"] - first_seen["quoted"])
 
     def _median(xs: list[float]) -> float | None:
         if not xs:

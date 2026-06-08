@@ -1,0 +1,896 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SPARC — Company Intake</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800&display=swap" rel="stylesheet">
+<style>
+/* ── Design tokens ─────────────────────────────────────── */
+:root {
+  --bg:       #FAFAF8;
+  --surface:  #F1F1EE;
+  --surface2: #E8E8E4;
+  --fg:       #0F172A;
+  --ink2:     #1E293B;
+  --muted:    #64748B;
+  --faint:    #94A3B8;
+  --ghost:    #CBD5E1;
+  --border:   #E2E2DC;
+  --white:    #FFFFFF;
+  --red:      #AD1E23;
+  --red-d:    #8A1519;
+  --red-m:    #C9282E;
+  --green:    #059669;
+  --amber:    #D97706;
+  --blue:     #3B82F6;
+  --fd: 'Space Grotesk','DM Sans',ui-sans-serif,system-ui,sans-serif;
+  --fb: 'DM Sans','Inter',ui-sans-serif,system-ui,sans-serif;
+  --shadow: 0 1px 2px rgba(15,23,42,.04),0 4px 12px rgba(15,23,42,.06),0 12px 32px rgba(15,23,42,.05);
+  --shadow-h: 0 2px 4px rgba(15,23,42,.04),0 16px 48px rgba(15,23,42,.13),inset 0 1px 0 rgba(255,255,255,.9);
+  --r-sm:9px; --r-md:14px; --r-lg:20px;
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-font-smoothing:antialiased;font-size:15px}
+body{background:var(--bg);color:var(--fg);font-family:var(--fb);line-height:1.65;min-height:100vh}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+
+/* ── Topbar ─────────────────────────────────────────────── */
+.topbar{
+  position:fixed;inset:0 0 auto 0;height:60px;z-index:100;
+  display:flex;align-items:center;gap:14px;padding:0 28px;
+  background:rgba(250,250,248,.92);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+}
+.brand-mark{
+  width:34px;height:34px;border-radius:9px;
+  background:var(--red);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--fd);font-size:13px;font-weight:800;
+  color:#fff;letter-spacing:-0.01em;flex-shrink:0;
+}
+.topbar-name{font-family:var(--fd);font-size:17px;font-weight:700;letter-spacing:-0.02em;color:var(--fg)}
+.topbar-sep{width:1px;height:18px;background:var(--border)}
+.topbar-sub{font-size:13px;color:var(--muted);font-weight:500}
+.topbar-spacer{flex:1}
+.save-badge{
+  font-size:12px;color:var(--green);font-weight:600;
+  opacity:0;transition:opacity .3s;
+}
+.save-badge.on{opacity:1}
+
+/* ── Role screen ─────────────────────────────────────────── */
+.role-screen{
+  min-height:100vh;padding-top:60px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding-left:24px;padding-right:24px;padding-bottom:40px;
+  text-align:center;
+}
+.role-eyebrow{
+  display:inline-block;
+  font-family:var(--fd);font-size:11px;font-weight:800;
+  letter-spacing:.12em;text-transform:uppercase;
+  color:var(--red);background:rgba(173,30,35,.07);
+  border:1px solid rgba(173,30,35,.18);
+  padding:5px 14px;border-radius:999px;margin-bottom:22px;
+}
+.role-title{
+  font-family:var(--fd);font-size:clamp(26px,4vw,42px);
+  font-weight:800;letter-spacing:-0.03em;line-height:1.05;
+  color:var(--fg);max-width:540px;margin-bottom:14px;
+}
+.role-body{font-size:15px;color:var(--muted);max-width:460px;margin:0 auto 40px;line-height:1.65}
+.role-cards{display:grid;grid-template-columns:repeat(2,minmax(0,300px));gap:16px;width:100%;max-width:640px}
+
+.role-card{
+  background:rgba(255,255,255,.72);backdrop-filter:blur(14px);
+  border:1.5px solid var(--border);border-radius:var(--r-lg);
+  padding:28px 22px;text-align:left;
+  box-shadow:var(--shadow);
+  transition:border-color .18s,box-shadow .18s,transform .12s;
+}
+.role-card:hover{border-color:rgba(173,30,35,.3);box-shadow:var(--shadow-h);transform:translateY(-2px)}
+.role-card:active{transform:scale(.97)}
+.role-card.primary{border-color:rgba(173,30,35,.25)}
+.rc-kicker{
+  display:block;font-family:var(--fd);font-size:11px;font-weight:800;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--red);margin-bottom:10px;
+}
+.rc-title{
+  display:block;font-family:var(--fd);font-size:18px;font-weight:700;
+  letter-spacing:-0.025em;color:var(--fg);margin-bottom:8px;line-height:1.2;
+}
+.rc-desc{font-size:13px;color:var(--muted);line-height:1.55}
+
+/* ── Form layout ─────────────────────────────────────────── */
+.form-screen{
+  display:none;padding-top:80px;padding-bottom:80px;
+  max-width:1100px;margin:0 auto;padding-left:24px;padding-right:24px;
+}
+.form-screen.on{display:grid;grid-template-columns:200px 1fr;gap:0}
+.form-main{min-width:0}
+
+/* ── Sidebar ─────────────────────────────────────────────── */
+.sidebar{padding-right:28px;position:sticky;top:80px;height:fit-content;align-self:start}
+.sidebar-back{
+  display:flex;align-items:center;gap:6px;
+  font-size:13px;color:var(--muted);font-weight:500;
+  margin-bottom:22px;padding:0;
+  transition:color .15s;
+}
+.sidebar-back:hover{color:var(--fg)}
+.steps{display:flex;flex-direction:column;gap:3px}
+.step{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 11px;border-radius:10px;width:100%;
+  transition:background .15s;
+}
+.step:hover{background:var(--surface)}
+.step.active{background:rgba(173,30,35,.06);border:1px solid rgba(173,30,35,.2)}
+.step.done .snum{background:var(--green);color:#fff;border-color:var(--green)}
+.snum{
+  width:24px;height:24px;border-radius:50%;
+  border:1.5px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;font-family:var(--fd);
+  flex-shrink:0;transition:background .2s,color .2s,border-color .2s;
+}
+.step.active .snum{background:var(--red);color:#fff;border-color:var(--red)}
+.slabel{font-size:13px;font-weight:600;color:var(--muted);font-family:var(--fd);letter-spacing:-0.01em}
+.step.active .slabel{color:var(--red)}
+.step.done .slabel{color:var(--fg)}
+.scount{margin-left:auto;font-size:11px;color:var(--faint)}
+.step.active .scount{color:var(--muted)}
+.sidebar-cta{
+  margin-top:24px;padding-top:20px;
+  border-top:1px solid var(--border);
+}
+.sidebar-cta-note{font-size:12px;color:var(--faint);margin-bottom:12px;line-height:1.5}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  padding:0 24px;height:48px;border-radius:var(--r-sm);
+  font-family:var(--fd);font-size:14px;font-weight:700;
+  letter-spacing:-0.01em;cursor:pointer;border:none;white-space:nowrap;
+  transition:background .18s,box-shadow .18s,transform .1s;
+}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--red);color:#fff;box-shadow:0 2px 8px rgba(173,30,35,.3)}
+.btn-primary:hover{background:var(--red-d);box-shadow:0 4px 16px rgba(173,30,35,.4)}
+.btn-ghost{background:var(--white);color:var(--muted);border:1.5px solid var(--ghost)}
+.btn-ghost:hover{color:var(--fg);border-color:var(--muted)}
+.btn-lg{height:56px;padding:0 28px;border-radius:var(--r-md);font-size:15px;width:100%}
+
+@keyframes pulse-ring{
+  0%,100%{box-shadow:0 2px 8px rgba(173,30,35,.3),0 0 0 0 rgba(173,30,35,.35)}
+  50%{box-shadow:0 2px 8px rgba(173,30,35,.3),0 0 0 10px rgba(173,30,35,0)}
+}
+.btn-analyse.ready{animation:pulse-ring 2s cubic-bezier(.4,0,.6,1) infinite}
+
+/* ── Progress strip ──────────────────────────────────────── */
+.prog-strip{height:3px;background:var(--border);border-radius:999px;margin-bottom:28px;overflow:hidden}
+.prog-fill{height:100%;background:var(--red);border-radius:999px;transition:width .4s cubic-bezier(.4,0,.2,1)}
+
+/* ── Section panel ───────────────────────────────────────── */
+.section-panel{display:none}
+.section-panel.on{display:block}
+.sec-eyebrow{
+  font-family:var(--fd);font-size:11px;font-weight:800;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--red);margin-bottom:6px;
+}
+.sec-title{
+  font-family:var(--fd);font-size:24px;font-weight:700;
+  letter-spacing:-0.03em;color:var(--fg);line-height:1.12;margin-bottom:6px;
+}
+.sec-desc{font-size:14px;color:var(--muted);line-height:1.6;margin-bottom:28px}
+
+/* ── Company lookup ──────────────────────────────────────── */
+.lookup-wrap{
+  background:var(--white);border:1px solid var(--border);
+  border-radius:var(--r-md);padding:16px 18px;margin-bottom:28px;
+  box-shadow:var(--shadow);
+}
+.lookup-label{
+  font-size:11px;font-weight:800;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--faint);font-family:var(--fd);
+  margin-bottom:10px;
+}
+.lookup-row{display:flex;gap:8px}
+.lookup-row .f-input{flex:1}
+.lookup-dropdown{
+  position:relative;margin-top:8px;
+  background:var(--white);border:1.5px solid var(--border);
+  border-radius:var(--r-md);box-shadow:var(--shadow-h);
+  overflow:hidden;display:none;
+}
+.lookup-dropdown.on{display:block}
+.lookup-item{
+  display:flex;align-items:center;gap:12px;
+  padding:10px 14px;cursor:pointer;
+  transition:background .12s;border-bottom:1px solid var(--border);
+}
+.lookup-item:last-child{border-bottom:none}
+.lookup-item:hover{background:var(--surface)}
+.li-name{font-size:13px;font-weight:600;color:var(--fg);font-family:var(--fd);letter-spacing:-0.01em}
+.li-meta{font-size:11px;color:var(--faint)}
+
+/* ── Form fields ─────────────────────────────────────────── */
+.field-group{margin-bottom:22px}
+.field-group label{
+  display:block;font-size:13px;font-weight:700;
+  font-family:var(--fd);color:var(--fg);letter-spacing:-0.01em;margin-bottom:8px;
+}
+.opt{font-weight:400;color:var(--faint);font-family:var(--fb)}
+.f-input,.f-select,.f-textarea{
+  width:100%;background:var(--bg);border:1.5px solid var(--border);
+  border-radius:var(--r-sm);padding:10px 14px;
+  font-family:var(--fb);font-size:14px;color:var(--fg);outline:none;
+  transition:border-color .18s,box-shadow .18s;appearance:none;
+}
+.f-input:focus,.f-select:focus,.f-textarea:focus{
+  border-color:var(--red);box-shadow:0 0 0 3.5px rgba(173,30,35,.07);
+}
+.f-input::placeholder,.f-textarea::placeholder{color:var(--faint)}
+.f-textarea{resize:vertical;min-height:84px;line-height:1.6}
+.f-select{
+  background-image:url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='%2364748b' d='M8 10.5l-4.5-5h9z'/%3e%3c/svg%3e");
+  background-repeat:no-repeat;background-position:right 12px center;background-size:16px;padding-right:36px;cursor:pointer;
+}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:22px}
+.field-row .field-group{margin-bottom:0}
+.field-help{font-size:12px;color:var(--faint);margin-top:5px;line-height:1.4}
+
+/* ── Range ───────────────────────────────────────────────── */
+.range-row{display:flex;align-items:center;gap:12px}
+.range-row input[type="range"]{flex:1;accent-color:var(--red);height:4px;cursor:pointer}
+.range-val{
+  font-size:16px;font-weight:700;font-family:var(--fd);
+  color:var(--fg);min-width:44px;text-align:right;
+}
+
+/* ── Chips / pills ───────────────────────────────────────── */
+.chip-grid{display:flex;flex-wrap:wrap;gap:7px}
+.chip{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:7px 13px;border-radius:999px;
+  border:1.5px solid var(--border);background:var(--white);
+  font-size:13px;font-weight:600;font-family:var(--fd);
+  color:var(--muted);cursor:pointer;letter-spacing:-0.01em;
+  transition:border-color .15s,color .15s,background .15s;user-select:none;
+}
+.chip:hover{border-color:var(--ghost);color:var(--fg)}
+.chip.on{background:rgba(173,30,35,.07);border-color:var(--red);color:var(--red)}
+.chip:active{transform:scale(.96)}
+
+.pill-divider{
+  display:block;width:100%;font-size:11px;font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--faint);
+  font-family:var(--fd);margin-top:10px;margin-bottom:2px;
+}
+.pill-divider:first-child{margin-top:0}
+
+/* ── Choice cards ────────────────────────────────────────── */
+.choice-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:9px}
+.choice-card{
+  background:var(--white);border:1.5px solid var(--border);
+  border-radius:var(--r-md);padding:14px 12px;
+  text-align:center;cursor:pointer;
+  box-shadow:var(--shadow);
+  transition:border-color .15s,box-shadow .15s,transform .12s;
+}
+.choice-card:hover{border-color:var(--ghost);box-shadow:var(--shadow-h)}
+.choice-card.on{border-color:var(--red);background:rgba(173,30,35,.04)}
+.choice-card:active{transform:scale(.97)}
+.cc-icon{font-size:20px;margin-bottom:6px;line-height:1}
+.cc-label{font-size:12px;font-weight:700;font-family:var(--fd);color:var(--fg);letter-spacing:-0.01em;line-height:1.3}
+.choice-card.on .cc-label{color:var(--red)}
+
+/* ── Toggle pair ─────────────────────────────────────────── */
+.toggle-row{display:flex;gap:7px}
+.toggle-btn{
+  flex:1;padding:9px 0;border:1.5px solid var(--border);border-radius:var(--r-sm);
+  background:var(--white);font-size:13px;font-weight:600;font-family:var(--fd);
+  color:var(--muted);cursor:pointer;transition:all .15s;
+}
+.toggle-btn.on{background:rgba(173,30,35,.07);border-color:var(--red);color:var(--red)}
+.toggle-btn:active{transform:scale(.97)}
+
+/* ── Advanced cards ──────────────────────────────────────── */
+.adv-card{
+  background:var(--white);border:1px solid var(--border);
+  border-radius:var(--r-md);padding:18px 20px;margin-bottom:14px;
+  box-shadow:var(--shadow);
+}
+.adv-card-title{
+  font-family:var(--fd);font-size:13px;font-weight:700;
+  color:var(--fg);letter-spacing:-0.01em;margin-bottom:14px;
+}
+.adv-check-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.adv-check{
+  display:flex;align-items:center;gap:8px;
+  font-size:13px;color:var(--fg);cursor:pointer;line-height:1.4;
+}
+.adv-check input[type="checkbox"]{accent-color:var(--red);width:15px;height:15px;flex-shrink:0}
+
+/* ── Section nav ─────────────────────────────────────────── */
+.section-nav{
+  display:flex;justify-content:space-between;align-items:center;
+  margin-top:32px;padding-top:24px;border-top:1px solid var(--border);
+}
+
+/* ── Mobile ──────────────────────────────────────────────── */
+@media(max-width:760px){
+  .form-screen.on{grid-template-columns:1fr}
+  .sidebar{position:static;padding-right:0;padding-bottom:20px}
+  .steps{flex-direction:row;overflow-x:auto;gap:7px;padding-bottom:4px}
+  .step{flex-direction:column;align-items:center;padding:9px 10px;min-width:72px;text-align:center;gap:5px}
+  .scount,.sidebar-cta{display:none}
+  .choice-grid{grid-template-columns:repeat(auto-fill,minmax(100px,1fr))}
+  .field-row,.adv-check-grid{grid-template-columns:1fr}
+  .role-cards{grid-template-columns:1fr}
+  .btn-lg{font-size:14px}
+}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="brand-mark">SP</div>
+  <span class="topbar-name">SPARC</span>
+  <div class="topbar-sep"></div>
+  <span class="topbar-sub">ICICI Lombard · Startup Risk Intelligence</span>
+  <div class="topbar-spacer"></div>
+  <span class="save-badge" id="save-badge">Saved ✓</span>
+</header>
+
+<!-- ═══ SCREEN A: ROLE SELECTION ═══════════════════════════ -->
+<div class="role-screen" id="role-screen">
+  <div class="role-eyebrow">SPARC · Startup Protection &amp; Risk Coverage</div>
+  <h1 class="role-title">Which intake experience fits your role?</h1>
+  <p class="role-body">The customer route takes under two minutes. The underwriter route runs the full 21-step actuarial model and generates a pricing report.</p>
+  <div class="role-cards">
+    <button class="role-card primary" onclick="enterMode('customer')">
+      <span class="rc-kicker">Founder · Quick entry</span>
+      <span class="rc-title">Quick recommendation</span>
+      <span class="rc-desc">Five business-friendly questions. We translate them into the SPARC risk model and keep the output concise.</span>
+    </button>
+    <button class="role-card" onclick="enterMode('underwriter')">
+      <span class="rc-kicker">RM · Full analysis</span>
+      <span class="rc-title">Full underwriting intake</span>
+      <span class="rc-desc">Complete 4-section profile, 13-category risk model, bundle recommendation, and premium estimate. Designed for sales meetings.</span>
+    </button>
+  </div>
+</div>
+
+<!-- ═══ SCREEN B: UNDERWRITER FORM ═════════════════════════ -->
+<div class="form-screen" id="form-screen">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <button class="sidebar-back" onclick="backToRole()">← Back</button>
+    <nav class="steps" id="steps">
+      <button class="step active" onclick="go(0)" id="step-0">
+        <span class="snum">1</span>
+        <span class="slabel">Identity</span>
+        <span class="scount" id="c0">0/5</span>
+      </button>
+      <button class="step" onclick="go(1)" id="step-1">
+        <span class="snum">2</span>
+        <span class="slabel">Shape</span>
+        <span class="scount" id="c1">0/5</span>
+      </button>
+      <button class="step" onclick="go(2)" id="step-2">
+        <span class="snum">3</span>
+        <span class="slabel">Exposure</span>
+        <span class="scount" id="c2">0/3</span>
+      </button>
+      <button class="step" onclick="go(3)" id="step-3">
+        <span class="snum">4</span>
+        <span class="slabel">Advanced</span>
+        <span class="scount" id="c3">optional</span>
+      </button>
+    </nav>
+    <div class="sidebar-cta">
+      <p class="sidebar-cta-note">Complete Identity + Shape to enable analysis. Advanced fields improve pricing accuracy.</p>
+      <button class="btn btn-primary btn-lg btn-analyse" id="analyse-side" onclick="analyse()">Analyse risk →</button>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="form-main">
+
+    <!-- Company lookup -->
+    <div class="lookup-wrap">
+      <div class="lookup-label">Pre-fill from database</div>
+      <div class="lookup-row">
+        <input class="f-input" id="lookup-input" type="text" placeholder="Search by company name — e.g. Razorpay, Zepto, Practo…" autocomplete="off" oninput="lookupSearch(this.value)">
+        <button class="btn btn-ghost" style="height:44px;padding:0 16px;font-size:13px" onclick="go(0)">Manual entry</button>
+      </div>
+      <div class="lookup-dropdown" id="lookup-dd"></div>
+    </div>
+
+    <!-- ── SECTION 0: Identity ─────────────────────────────── -->
+    <div class="section-panel on" id="sec-0">
+      <div class="prog-strip"><div class="prog-fill" id="p0" style="width:0%"></div></div>
+      <div class="sec-eyebrow">01 — Identity</div>
+      <h2 class="sec-title">Who is this startup?</h2>
+      <p class="sec-desc">Core fields. These drive sector weighting, regulatory flags, and bundle eligibility.</p>
+
+      <div class="field-group">
+        <label>Startup name</label>
+        <input class="f-input" type="text" id="f-name" placeholder="e.g. PayNova Technologies" oninput="set('startup_name',this.value)">
+      </div>
+
+      <div class="field-group">
+        <label>Sector</label>
+        <div class="choice-grid" id="sector-grid"></div>
+      </div>
+
+      <div class="field-group">
+        <label>Funding stage</label>
+        <div class="chip-grid" id="stage-chips">
+          <button class="chip" data-key="funding_stage" data-val="Pre-seed" onclick="pick1(this)">Pre-seed</button>
+          <button class="chip" data-key="funding_stage" data-val="Seed" onclick="pick1(this)">Seed</button>
+          <button class="chip" data-key="funding_stage" data-val="Series A" onclick="pick1(this)">Series A</button>
+          <button class="chip" data-key="funding_stage" data-val="Series B+" onclick="pick1(this)">Series B+</button>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field-group">
+          <label>Team size (FTEs)</label>
+          <div class="range-row">
+            <input type="range" min="1" max="500" step="1" value="20"
+              oninput="set('team_size',+this.value); document.getElementById('team-val').textContent=this.value">
+            <span class="range-val" id="team-val">20</span>
+          </div>
+        </div>
+        <div class="field-group">
+          <label>Institutional investors?</label>
+          <div class="toggle-row" id="investor-toggle">
+            <button class="toggle-btn" data-key="has_investors" data-val="Yes" onclick="togglePair(this)">Yes</button>
+            <button class="toggle-btn on" data-key="has_investors" data-val="No" onclick="togglePair(this)">No</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-nav">
+        <span></span>
+        <button class="btn btn-primary" onclick="go(1)">Continue to Shape →</button>
+      </div>
+    </div>
+
+    <!-- ── SECTION 1: Shape ────────────────────────────────── -->
+    <div class="section-panel" id="sec-1">
+      <div class="prog-strip"><div class="prog-fill" id="p1" style="width:0%"></div></div>
+      <div class="sec-eyebrow">02 — Shape</div>
+      <h2 class="sec-title">How does the business operate?</h2>
+      <p class="sec-desc">Operating model, data posture, and financial parameters that determine premium sizing and multipliers.</p>
+
+      <div class="field-group">
+        <label>Operating model</label>
+        <div class="choice-grid" id="ops-grid">
+          <button class="choice-card" data-key="operations" data-val="Digital-only" onclick="pickCard(this)"><div class="cc-icon">🌐</div><div class="cc-label">Digital only</div></button>
+          <button class="choice-card" data-key="operations" data-val="Hybrid" onclick="pickCard(this)"><div class="cc-icon">⟳</div><div class="cc-label">Hybrid</div></button>
+          <button class="choice-card" data-key="operations" data-val="Physical-only" onclick="pickCard(this)"><div class="cc-icon">🏢</div><div class="cc-label">Physical only</div></button>
+          <button class="choice-card" data-key="operations" data-val="Hardware / IoT" onclick="pickCard(this)"><div class="cc-icon">📦</div><div class="cc-label">Hardware / IoT</div></button>
+          <button class="choice-card" data-key="operations" data-val="Marketplace" onclick="pickCard(this)"><div class="cc-icon">🔀</div><div class="cc-label">Marketplace</div></button>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field-group">
+          <label>Data sensitivity</label>
+          <div class="chip-grid">
+            <button class="chip" data-key="data_sensitivity" data-val="Low" onclick="pick1(this)">Low</button>
+            <button class="chip" data-key="data_sensitivity" data-val="Medium" onclick="pick1(this)">Medium</button>
+            <button class="chip" data-key="data_sensitivity" data-val="High" onclick="pick1(this)">High</button>
+          </div>
+        </div>
+        <div class="field-group">
+          <label>AI / ML in core product?</label>
+          <div class="toggle-row">
+            <button class="toggle-btn" data-key="ai_in_product" data-val="true" onclick="togglePair(this)">Yes</button>
+            <button class="toggle-btn on" data-key="ai_in_product" data-val="false" onclick="togglePair(this)">No</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Customer type <span class="opt">(select all that apply)</span></label>
+        <div class="chip-grid">
+          <button class="chip" data-key="customer_type" data-val="B2B Enterprise" onclick="pickN(this)">B2B Enterprise</button>
+          <button class="chip" data-key="customer_type" data-val="B2B SMB" onclick="pickN(this)">B2B SMB</button>
+          <button class="chip" data-key="customer_type" data-val="B2C Consumers" onclick="pickN(this)">B2C Consumers</button>
+          <button class="chip" data-key="customer_type" data-val="Government / PSU" onclick="pickN(this)">Government / PSU</button>
+          <button class="chip" data-key="customer_type" data-val="D2C" onclick="pickN(this)">D2C</button>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field-group">
+          <label>Annual revenue / ARR (INR Cr)</label>
+          <input class="f-input" type="number" min="0" step="0.1" placeholder="0" oninput="set('annual_revenue_cr',+this.value)">
+          <div class="field-help">Used for premium sizing. Enter 0 to skip.</div>
+        </div>
+        <div class="field-group">
+          <label>Insurable asset value (INR Cr)</label>
+          <input class="f-input" type="number" min="0" step="0.1" placeholder="0" oninput="set('total_insurable_asset_value_cr',+this.value)">
+          <div class="field-help">Office, equipment, inventory. Enter 0 to skip.</div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Product description <span class="opt">(optional — shown to RM)</span></label>
+        <textarea class="f-textarea" placeholder="e.g. We build a UPI payment gateway for SMBs across India, processing ₹200 Cr/month…" oninput="set('product_description',this.value)"></textarea>
+      </div>
+
+      <div class="section-nav">
+        <button class="btn btn-ghost" onclick="go(0)">← Back</button>
+        <button class="btn btn-primary" onclick="go(2)">Continue to Exposure →</button>
+      </div>
+    </div>
+
+    <!-- ── SECTION 2: Exposure ─────────────────────────────── -->
+    <div class="section-panel" id="sec-2">
+      <div class="prog-strip"><div class="prog-fill" id="p2" style="width:0%"></div></div>
+      <div class="sec-eyebrow">03 — Exposure</div>
+      <h2 class="sec-title">What are you exposed to?</h2>
+      <p class="sec-desc">Data types, regulatory obligations, and physical assets — each drives a specific risk category score.</p>
+
+      <div class="field-group">
+        <label>Sensitive data handled <span class="opt">(select all)</span></label>
+        <div class="chip-grid">
+          <span class="pill-divider">Personal &amp; financial</span>
+          <button class="chip" data-key="data_handled" data-val="Payments / financial transactions" onclick="pickN(this)">Payments / financial transactions</button>
+          <button class="chip" data-key="data_handled" data-val="Personal identity data (KYC / Aadhaar)" onclick="pickN(this)">Personal identity (KYC / Aadhaar)</button>
+          <button class="chip" data-key="data_handled" data-val="Health / medical records" onclick="pickN(this)">Health / medical records</button>
+          <button class="chip" data-key="data_handled" data-val="Sensitive personal data (DPDP Act)" onclick="pickN(this)">Sensitive personal data (DPDP Act)</button>
+          <span class="pill-divider">Business &amp; IP</span>
+          <button class="chip" data-key="data_handled" data-val="Employee / HR data (payroll, biometrics)" onclick="pickN(this)">Employee / HR data</button>
+          <button class="chip" data-key="data_handled" data-val="Customer behavioural / usage data" onclick="pickN(this)">Customer behavioural data</button>
+          <button class="chip" data-key="data_handled" data-val="Intellectual property / source code" onclick="pickN(this)">IP / source code</button>
+          <span class="pill-divider">None</span>
+          <button class="chip" data-key="data_handled" data-val="None / minimal" onclick="pickN(this)">None / minimal</button>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Regulatory exposure <span class="opt">(select all)</span></label>
+        <div class="chip-grid">
+          <span class="pill-divider">Financial &amp; data</span>
+          <button class="chip" data-key="regulatory" data-val="RBI / SEBI / IRDAI licensed" onclick="pickN(this)">RBI / SEBI / IRDAI licensed</button>
+          <button class="chip" data-key="regulatory" data-val="DPDP Act obligations" onclick="pickN(this)">DPDP Act obligations</button>
+          <button class="chip" data-key="regulatory" data-val="IT Act / CERT-In obligations" onclick="pickN(this)">IT Act / CERT-In obligations</button>
+          <span class="pill-divider">Health &amp; operations</span>
+          <button class="chip" data-key="regulatory" data-val="FSSAI / food safety" onclick="pickN(this)">FSSAI / food safety</button>
+          <button class="chip" data-key="regulatory" data-val="CDSCO / medical devices" onclick="pickN(this)">CDSCO / medical devices</button>
+          <button class="chip" data-key="regulatory" data-val="MV Act / transport regulations" onclick="pickN(this)">MV Act / transport</button>
+          <button class="chip" data-key="regulatory" data-val="Labour Codes / gig worker regulations" onclick="pickN(this)">Labour Codes / gig workers</button>
+          <span class="pill-divider">None</span>
+          <button class="chip" data-key="regulatory" data-val="None / minimal" onclick="pickN(this)">None / minimal</button>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Physical assets <span class="opt">(select all)</span></label>
+        <div class="chip-grid">
+          <button class="chip" data-key="physical_assets" data-val="Office / coworking space" onclick="pickN(this)">Office / coworking</button>
+          <button class="chip" data-key="physical_assets" data-val="Warehouse / fulfilment centre" onclick="pickN(this)">Warehouse / fulfilment</button>
+          <button class="chip" data-key="physical_assets" data-val="Manufacturing plant / factory" onclick="pickN(this)">Manufacturing plant</button>
+          <button class="chip" data-key="physical_assets" data-val="Vehicles / delivery fleet" onclick="pickN(this)">Vehicles / fleet</button>
+          <button class="chip" data-key="physical_assets" data-val="Lab / R&D equipment" onclick="pickN(this)">Lab / R&amp;D equipment</button>
+          <button class="chip" data-key="physical_assets" data-val="Medical devices / diagnostic equipment" onclick="pickN(this)">Medical devices</button>
+          <button class="chip" data-key="physical_assets" data-val="Data centre / server room" onclick="pickN(this)">Data centre</button>
+          <button class="chip" data-key="physical_assets" data-val="None - fully cloud" onclick="pickN(this)">None — fully cloud</button>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Biggest risk concern <span class="opt">(optional — shown to RM)</span></label>
+        <textarea class="f-textarea" placeholder="e.g. A data breach that triggers DPDP Act penalties and damages customer trust…" oninput="set('biggest_fear',this.value)"></textarea>
+      </div>
+
+      <div class="section-nav">
+        <button class="btn btn-ghost" onclick="go(1)">← Back</button>
+        <button class="btn btn-primary" onclick="go(3)">Continue to Advanced →</button>
+      </div>
+    </div>
+
+    <!-- ── SECTION 3: Advanced ─────────────────────────────── -->
+    <div class="section-panel" id="sec-3">
+      <div class="prog-strip"><div class="prog-fill" id="p3" style="width:100%;background:var(--green)"></div></div>
+      <div class="sec-eyebrow">04 — Advanced</div>
+      <h2 class="sec-title">Fine-tune the risk model</h2>
+      <p class="sec-desc">Optional. Every field here improves premium accuracy and unlocks sector-specific flags. Fill what you know — leave the rest.</p>
+
+      <div class="adv-card">
+        <div class="adv-card-title">Governance &amp; structure</div>
+        <div class="adv-check-grid">
+          <label class="adv-check"><input type="checkbox" onchange="set('has_independent_directors',this.checked)"> Independent directors on board</label>
+          <label class="adv-check"><input type="checkbox" onchange="set('dpiit_recognition',this.checked)"> DPIIT recognition</label>
+          <label class="adv-check"><input type="checkbox" onchange="set('posh_ic_constituted',this.checked)"> POSH IC constituted</label>
+          <label class="adv-check"><input type="checkbox" onchange="set('sdf_likely',this.checked)"> DPDP Act SDF designation likely</label>
+          <label class="adv-check"><input type="checkbox" onchange="set('cert_in_poc_designated',this.checked)"> CERT-In PoC designated</label>
+          <label class="adv-check"><input type="checkbox" onchange="set('listed_customer_brsr_dependency',this.checked)"> Listed customers with BRSR dependency</label>
+        </div>
+      </div>
+
+      <div class="adv-card">
+        <div class="adv-card-title">Financial parameters</div>
+        <div class="field-row" style="margin-bottom:0">
+          <div class="field-group" style="margin-bottom:0">
+            <label>Cumulative fundraising (INR Cr)</label>
+            <input class="f-input" type="number" min="0" placeholder="0" oninput="set('cumulative_fundraising_inr_cr',+this.value)">
+          </div>
+          <div class="field-group" style="margin-bottom:0">
+            <label>Founder equity held (%)</label>
+            <input class="f-input" type="number" min="0" max="100" placeholder="50" oninput="set('founder_equity_pct',+this.value/100)">
+          </div>
+        </div>
+      </div>
+
+      <div class="adv-card">
+        <div class="adv-card-title">Corporate structure</div>
+        <div class="field-row" style="margin-bottom:12px">
+          <div class="field-group" style="margin-bottom:0">
+            <label>Holdco domicile</label>
+            <select class="f-select" onchange="set('holdco_domicile',this.value)">
+              <option>India</option>
+              <option>Singapore</option>
+              <option>USA (Delaware)</option>
+              <option>Cayman Islands</option>
+              <option>Mauritius</option>
+              <option>UK</option>
+              <option>UAE</option>
+            </select>
+          </div>
+          <div class="field-group" style="margin-bottom:0">
+            <label>RBI registration</label>
+            <select class="f-select" onchange="set('rbi_registration',this.value||null)">
+              <option value="">None</option>
+              <option>PA (Payment Aggregator)</option>
+              <option>PG (Payment Gateway)</option>
+              <option>NBFC</option>
+              <option>NBFC-AA</option>
+              <option>Prepaid Instruments</option>
+            </select>
+          </div>
+        </div>
+        <div class="adv-check-grid">
+          <label class="adv-check"><input type="checkbox" onchange="set('payment_or_card_program',this.checked)"> Payment / card program</label>
+          <label class="adv-check"><input type="checkbox" onchange="set('healthcare_operations',this.checked)"> Healthcare operations</label>
+          <label class="adv-check"><input type="checkbox" onchange="set('food_or_pharma_manufacturing',this.checked)"> Food / pharma manufacturing</label>
+          <label class="adv-check"><input type="checkbox" onchange="set('product_recall_exposure',this.checked)"> Product recall exposure</label>
+          <label class="adv-check"><input type="checkbox" onchange="set('event_or_production_operations',this.checked)"> Event / production operations</label>
+          <label class="adv-check"><input type="checkbox" onchange="set('contract_bid_or_performance_bond_need',this.checked)"> Contract / performance bond needed</label>
+        </div>
+      </div>
+
+      <div class="adv-card">
+        <div class="adv-card-title">Workforce</div>
+        <div class="field-row" style="margin-bottom:0">
+          <div class="field-group" style="margin-bottom:0">
+            <label>Gig / contract workforce (%)</label>
+            <input class="f-input" type="number" min="0" max="100" placeholder="0" oninput="set('gig_headcount_pct',+this.value/100)">
+          </div>
+          <div class="field-group" style="margin-bottom:0">
+            <label>Claims in last 3 years</label>
+            <input class="f-input" type="number" min="0" step="1" placeholder="0" oninput="set('claims_last_3_years',+this.value)">
+          </div>
+        </div>
+      </div>
+
+      <div class="section-nav">
+        <button class="btn btn-ghost" onclick="go(2)">← Back</button>
+        <button class="btn btn-primary btn-lg btn-analyse" id="analyse-bottom" onclick="analyse()">Analyse risk →</button>
+      </div>
+    </div>
+
+  </main>
+</div><!-- /form-screen -->
+
+<script>
+/* ── State ────────────────────────────────────────────────── */
+const P = {
+  startup_name:'', sector:'', funding_stage:'', team_size:20,
+  has_investors:'No', operations:'', data_sensitivity:'',
+  ai_in_product:false, customer_type:[], annual_revenue_cr:0,
+  total_insurable_asset_value_cr:0, product_description:'',
+  data_handled:[], regulatory:[], physical_assets:[], biggest_fear:'',
+};
+let cur = 0;
+
+const REQUIRED = {
+  0:['startup_name','sector','funding_stage','team_size','has_investors'],
+  1:['operations','data_sensitivity','ai_in_product','customer_type','annual_revenue_cr'],
+  2:['data_handled','regulatory','physical_assets'],
+};
+
+/* ── Sector grid ──────────────────────────────────────────── */
+const SECTORS=[
+  ['Fintech','💳'],['Healthtech','🏥'],['SaaS / Enterprise Software','💻'],
+  ['Deeptech / AI / Robotics','🤖'],['Edtech','🎓'],['D2C / Consumer Brands','🛍'],
+  ['Logistics / Mobility','🚚'],['Agritech / Foodtech','🌱'],
+  ['Cleantech / Climatetech','🌿'],['Gaming / Media / Content','🎮'],
+  ['HRtech','👥'],['Legaltech','⚖'],['Proptech','🏠'],['Insurtech','🛡'],['Other','✦'],
+];
+(function buildSectors(){
+  const g=document.getElementById('sector-grid');
+  SECTORS.forEach(([name,icon])=>{
+    const b=document.createElement('button');
+    b.className='choice-card'; b.dataset.key='sector'; b.dataset.val=name;
+    b.innerHTML=`<div class="cc-icon">${icon}</div><div class="cc-label">${name}</div>`;
+    b.onclick=()=>pickCard(b);
+    g.appendChild(b);
+  });
+})();
+
+/* ── Interaction helpers ──────────────────────────────────── */
+function set(k,v){ P[k]=v; recalc(); save(); }
+
+function pick1(btn){
+  const k=btn.dataset.key, v=btn.dataset.val;
+  btn.closest('.chip-grid,.toggle-row').querySelectorAll('[data-key="'+k+'"]')
+    .forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  P[k]=v; recalc(); save();
+}
+
+function pickCard(btn){
+  const k=btn.dataset.key;
+  btn.closest('.choice-grid').querySelectorAll('[data-key="'+k+'"]')
+    .forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  P[k]=btn.dataset.val; recalc(); save();
+}
+
+function togglePair(btn){
+  btn.closest('.toggle-row').querySelectorAll('.toggle-btn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  const v=btn.dataset.val;
+  P[btn.dataset.key]=(v==='true'?true:v==='false'?false:v);
+  recalc(); save();
+}
+
+function pickN(btn){
+  const k=btn.dataset.key, v=btn.dataset.val;
+  if(!Array.isArray(P[k])) P[k]=[];
+  const i=P[k].indexOf(v);
+  if(i===-1){ P[k].push(v); btn.classList.add('on'); }
+  else{ P[k].splice(i,1); btn.classList.remove('on'); }
+  recalc(); save();
+}
+
+/* ── Progress & readiness ─────────────────────────────────── */
+function filled(k){
+  const v=P[k];
+  if(k==='ai_in_product') return typeof v==='boolean';
+  if(k==='team_size') return +v>0;
+  if(Array.isArray(v)) return v.length>0;
+  if(typeof v==='boolean') return true;
+  if(typeof v==='number') return v>0;
+  if(v==null) return false;
+  return String(v).trim()!=='';
+}
+
+function recalc(){
+  for(let i=0;i<3;i++){
+    const ks=REQUIRED[i]||[];
+    const n=ks.filter(filled).length, t=ks.length;
+    const pct=t?Math.round(n/t*100):100;
+    const fill=document.getElementById('p'+i);
+    if(fill) fill.style.width=pct+'%';
+    const count=document.getElementById('c'+i);
+    if(count) count.textContent=n+'/'+t;
+    const step=document.getElementById('step-'+i);
+    if(step){ step.classList.toggle('done', n===t && t>0); }
+  }
+  const ready= (REQUIRED[0].filter(filled).length>=3) && (REQUIRED[1].filter(filled).length>=2);
+  document.querySelectorAll('.btn-analyse').forEach(b=>b.classList.toggle('ready',ready));
+}
+
+/* ── Section nav ──────────────────────────────────────────── */
+function go(n){
+  document.getElementById('sec-'+cur).classList.remove('on');
+  document.getElementById('step-'+cur).classList.remove('active');
+  cur=n;
+  document.getElementById('sec-'+n).classList.add('on');
+  document.getElementById('step-'+n).classList.add('active');
+  window.scrollTo({top:0,behavior:'instant'});
+}
+
+/* ── Screens ──────────────────────────────────────────────── */
+function enterMode(mode){
+  document.getElementById('role-screen').style.display='none';
+  document.getElementById('form-screen').classList.add('on');
+}
+function backToRole(){
+  document.getElementById('role-screen').style.display='';
+  document.getElementById('form-screen').classList.remove('on');
+}
+
+/* ── Analysis ─────────────────────────────────────────────── */
+function analyse(){
+  /* In production this would POST to /api/analyze.
+     In this prototype, navigate to the results screen. */
+  try{ localStorage.setItem('sparc_last_profile',JSON.stringify(P)); }catch(e){}
+  window.location.href='02-results.html';
+}
+
+/* ── Company lookup (demo data) ───────────────────────────── */
+const DEMO=[
+  {name:'Razorpay',sector:'Fintech',stage:'Series B+',size:2500,ops:'Digital-only',ds:'High'},
+  {name:'Zepto',sector:'D2C / Consumer Brands',stage:'Series B+',size:3000,ops:'Hybrid',ds:'Medium'},
+  {name:'Practo',sector:'Healthtech',stage:'Series B+',size:1800,ops:'Digital-only',ds:'High'},
+  {name:'BrowserStack',sector:'SaaS / Enterprise Software',stage:'Series B+',size:1400,ops:'Digital-only',ds:'Medium'},
+  {name:'Porter',sector:'Logistics / Mobility',stage:'Series A',size:900,ops:'Hybrid',ds:'Low'},
+  {name:'LeadSquared',sector:'SaaS / Enterprise Software',stage:'Series A',size:1200,ops:'Digital-only',ds:'Medium'},
+  {name:'Zetwerk',sector:'D2C / Consumer Brands',stage:'Series B+',size:2200,ops:'Hybrid',ds:'Low'},
+];
+
+function lookupSearch(q){
+  const dd=document.getElementById('lookup-dd');
+  if(!q||q.length<2){dd.classList.remove('on');return;}
+  const hits=DEMO.filter(c=>c.name.toLowerCase().includes(q.toLowerCase()));
+  if(!hits.length){dd.classList.remove('on');return;}
+  dd.innerHTML=hits.map(c=>`
+    <div class="lookup-item" onclick='prefill(${JSON.stringify(c)})'>
+      <div><div class="li-name">${c.name}</div><div class="li-meta">${c.sector} · ${c.stage} · ${c.size.toLocaleString('en-IN')} employees</div></div>
+    </div>`).join('');
+  dd.classList.add('on');
+}
+
+function prefill(c){
+  P.startup_name=c.name; P.sector=c.sector; P.funding_stage=c.stage;
+  P.team_size=c.size; P.operations=c.ops; P.data_sensitivity=c.ds;
+  document.getElementById('f-name').value=c.name;
+  document.getElementById('team-val').textContent=c.size;
+  document.querySelector('input[type="range"]').value=Math.min(500,c.size);
+
+  // Reflect sector
+  document.getElementById('sector-grid').querySelectorAll('.choice-card').forEach(b=>{
+    b.classList.toggle('on', b.dataset.val===c.sector);
+  });
+  // Stage
+  document.getElementById('stage-chips').querySelectorAll('.chip').forEach(b=>{
+    b.classList.toggle('on', b.dataset.val===c.stage);
+  });
+  // Ops
+  document.getElementById('ops-grid').querySelectorAll('.choice-card').forEach(b=>{
+    b.classList.toggle('on', b.dataset.val===c.ops);
+  });
+
+  document.getElementById('lookup-input').value=c.name;
+  document.getElementById('lookup-dd').classList.remove('on');
+  recalc(); save();
+}
+
+/* ── Persist ──────────────────────────────────────────────── */
+let saveT;
+function save(){
+  clearTimeout(saveT);
+  saveT=setTimeout(()=>{
+    try{localStorage.setItem('sparc_intake_v3',JSON.stringify(P));}catch(e){}
+    const b=document.getElementById('save-badge');
+    b.classList.add('on');
+    setTimeout(()=>b.classList.remove('on'),1200);
+  },400);
+}
+
+/* ── Close dropdown on outside click ─────────────────────── */
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.lookup-wrap'))
+    document.getElementById('lookup-dd').classList.remove('on');
+});
+
+/* ── Init ─────────────────────────────────────────────────── */
+recalc();
+</script>
+</body>
+</html>

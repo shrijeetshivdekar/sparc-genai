@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "SPARC — Prototype Launcher",
+  "entry": "sparc-prototype-launcher.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-05-17T12:02:23.365Z",
+  "updatedAt": "2026-05-17T12:02:23.403Z",
+  "metadata": {
+    "identifier": "sparc-prototype-launcher",
+    "artifactType": "text/html",
+    "inferred": false
+  }
+}

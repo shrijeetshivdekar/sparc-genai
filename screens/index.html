@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SPARC — Prototype Overview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FAFAF8;--surface:#F1F1EE;--fg:#0F172A;--ink2:#1E293B;
+  --muted:#64748B;--faint:#94A3B8;--border:#E2E2DC;--white:#FFFFFF;
+  --red:#AD1E23;--green:#059669;
+  --fd:'Space Grotesk',system-ui,sans-serif;
+  --fb:'DM Sans',system-ui,sans-serif;
+  --shadow:0 1px 2px rgba(15,23,42,.04),0 4px 12px rgba(15,23,42,.06),0 12px 32px rgba(15,23,42,.05);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-font-smoothing:antialiased}
+body{background:var(--bg);color:var(--fg);font-family:var(--fb);min-height:100vh;padding:40px 24px 80px}
+.wrap{max-width:840px;margin:0 auto}
+.eyebrow{
+  font-family:var(--fd);font-size:11px;font-weight:800;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--red);margin-bottom:12px;
+  display:flex;align-items:center;gap:8px;
+}
+.eyebrow::before{content:'';display:block;width:24px;height:2px;background:var(--red);border-radius:999px}
+h1{
+  font-family:var(--fd);font-size:clamp(28px,4vw,40px);font-weight:800;
+  letter-spacing:-0.03em;line-height:1.05;color:var(--fg);margin-bottom:10px;
+}
+.sub{font-size:15px;color:var(--muted);line-height:1.65;max-width:560px;margin-bottom:40px}
+.screens{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.screen-card{
+  background:var(--white);border:1px solid var(--border);border-radius:18px;
+  padding:28px 24px;box-shadow:var(--shadow);text-decoration:none;color:inherit;
+  transition:box-shadow .18s,transform .15s,border-color .18s;
+  display:block;
+}
+.screen-card:hover{box-shadow:0 4px 20px rgba(15,23,42,.12),0 20px 60px rgba(15,23,42,.1);transform:translateY(-3px);border-color:rgba(173,30,35,.3)}
+.sc-num{
+  font-family:var(--fd);font-size:11px;font-weight:800;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--faint);margin-bottom:12px;
+}
+.sc-title{font-family:var(--fd);font-size:20px;font-weight:700;letter-spacing:-0.025em;color:var(--fg);margin-bottom:8px}
+.sc-desc{font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:18px}
+.sc-features{display:flex;flex-direction:column;gap:5px;margin-bottom:20px}
+.sc-feature{
+  display:flex;align-items:center;gap:8px;
+  font-size:12px;color:var(--muted);
+}
+.sc-feature::before{content:'✓';color:var(--green);font-weight:700;font-size:11px}
+.sc-link{
+  display:inline-flex;align-items:center;gap:6px;
+  font-family:var(--fd);font-size:13px;font-weight:700;color:var(--red);
+}
+.brand-row{display:flex;align-items:center;gap:10px;margin-bottom:36px}
+.brand-mark{width:36px;height:36px;border-radius:9px;background:var(--red);display:flex;align-items:center;justify-content:center;font-family:var(--fd);font-size:14px;font-weight:800;color:#fff}
+.brand-name{font-family:var(--fd);font-size:18px;font-weight:700;letter-spacing:-0.02em;color:var(--fg)}
+.brand-sep{width:1px;height:18px;background:var(--border)}
+.brand-sub{font-size:13px;color:var(--muted);font-weight:500}
+.design-note{
+  margin-top:32px;background:var(--surface);border:1px solid var(--border);
+  border-radius:14px;padding:20px 22px;
+}
+.dn-title{font-family:var(--fd);font-size:13px;font-weight:700;color:var(--fg);letter-spacing:-0.01em;margin-bottom:8px}
+.dn-body{font-size:13px;color:var(--muted);line-height:1.65}
+.dn-body code{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;background:var(--white);padding:1px 5px;border-radius:4px;color:var(--fg);border:1px solid var(--border)}
+@media(max-width:600px){.screens{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand-row">
+    <div class="brand-mark">SP</div>
+    <span class="brand-name">SPARC</span>
+    <div class="brand-sep"></div>
+    <span class="brand-sub">ICICI Lombard · Startup Risk Intelligence</span>
+  </div>
+
+  <div class="eyebrow">Prototype screens</div>
+  <h1>Input + Output — Design Concept</h1>
+  <p class="sub">High-fidelity responsive prototype for the SPARC frontend. Uses the established brand system from DESIGN.md: Assessment Paper canvas, Signal Red accent, Space Grotesk headings. Open each screen below.</p>
+
+  <div class="screens">
+    <a class="screen-card" href="01-intake.html">
+      <div class="sc-num">Screen 01 · Input</div>
+      <div class="sc-title">Company Intake Form</div>
+      <div class="sc-desc">Role selector + 4-section underwriter form. Designed for the RM sitting across from a founder in a sales meeting.</div>
+      <div class="sc-features">
+        <span class="sc-feature">Role selection: Founder quick-entry vs RM full analysis</span>
+        <span class="sc-feature">Database lookup with company pre-fill</span>
+        <span class="sc-feature">4 sections: Identity, Shape, Exposure, Advanced</span>
+        <span class="sc-feature">Sector choice cards, funding chips, exposure pills</span>
+        <span class="sc-feature">Section progress indicators + autosave</span>
+        <span class="sc-feature">Analyse button pulses when form is ready</span>
+      </div>
+      <span class="sc-link">Open intake screen →</span>
+    </a>
+
+    <a class="screen-card" href="02-results.html">
+      <div class="sc-num">Screen 02 · Output</div>
+      <div class="sc-title">Risk Report &amp; Bundle</div>
+      <div class="sc-desc">Full results view for PayNova Technologies (Fintech · Series A · 45 FTEs). Realistic mock data from the SPARC risk engine.</div>
+      <div class="sc-features">
+        <span class="sc-feature">Dark navy hero: company, score 72/100, bundle name</span>
+        <span class="sc-feature">KPI strip: risk score, top category, premium est.</span>
+        <span class="sc-feature">Bundle tab: covers by priority (Mandatory / Recommended / Optional)</span>
+        <span class="sc-feature">Risk Scores tab: 13 categories, radar chart, top drivers</span>
+        <span class="sc-feature">Quote tab: per-product premium estimates</span>
+        <span class="sc-feature">21-step expandable methodology with IRDAI citations</span>
+      </div>
+      <span class="sc-link">Open results screen →</span>
+    </a>
+  </div>
+
+  <div class="design-note">
+    <div class="dn-title">Design system note</div>
+    <div class="dn-body">These screens use the brand from <code>DESIGN.md</code> — not the generic human-approachable direction you picked in the form. Your DESIGN.md has a complete, specific system (Signal Red <code>#AD1E23</code>, Assessment Paper <code>#FAFAF8</code>, Space Grotesk) that's far more intentional than the generic direction palette. If you want the Airbnb-style warmth instead, say so and I'll produce a second variant.</div>
+  </div>
+</div>
+</body>
+</html>

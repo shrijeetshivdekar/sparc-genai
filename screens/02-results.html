@@ -1,0 +1,978 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SPARC — Risk Report · PayNova Technologies</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ── Tokens ──────────────────────────────────────────────── */
+:root{
+  --bg:#FAFAF8; --surface:#F1F1EE; --surface2:#E8E8E4;
+  --fg:#0F172A; --ink2:#1E293B; --muted:#64748B; --faint:#94A3B8;
+  --ghost:#CBD5E1; --border:#E2E2DC; --white:#FFFFFF;
+  --red:#AD1E23; --red-d:#8A1519; --red-m:#C9282E;
+  --green:#059669; --amber:#D97706; --blue:#3B82F6;
+  --fd:'Space Grotesk','DM Sans',ui-sans-serif,system-ui,sans-serif;
+  --fb:'DM Sans','Inter',ui-sans-serif,system-ui,sans-serif;
+  --fm:'JetBrains Mono',ui-monospace,Menlo,monospace;
+  --shadow:0 1px 2px rgba(15,23,42,.04),0 4px 12px rgba(15,23,42,.06),0 12px 32px rgba(15,23,42,.05);
+  --shadow-h:0 2px 4px rgba(15,23,42,.04),0 16px 48px rgba(15,23,42,.13),inset 0 1px 0 rgba(255,255,255,.9);
+  --r-sm:9px; --r-md:14px; --r-lg:20px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-font-smoothing:antialiased;font-size:15px}
+body{background:var(--bg);color:var(--fg);font-family:var(--fb);line-height:1.65;min-height:100vh}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+
+/* ── Topbar ──────────────────────────────────────────────── */
+.topbar{
+  position:fixed;inset:0 0 auto 0;height:60px;z-index:100;
+  display:flex;align-items:center;gap:14px;padding:0 28px;
+  background:rgba(250,250,248,.92);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+}
+.brand-mark{width:34px;height:34px;border-radius:9px;background:var(--red);display:flex;align-items:center;justify-content:center;font-family:var(--fd);font-size:13px;font-weight:800;color:#fff;letter-spacing:-0.01em;flex-shrink:0}
+.topbar-name{font-family:var(--fd);font-size:17px;font-weight:700;letter-spacing:-0.02em;color:var(--fg)}
+.topbar-sep{width:1px;height:18px;background:var(--border)}
+.topbar-sub{font-size:13px;color:var(--muted);font-weight:500}
+.topbar-spacer{flex:1}
+.btn-topbar{display:inline-flex;align-items:center;height:36px;padding:0 16px;border-radius:var(--r-sm);font-family:var(--fd);font-size:13px;font-weight:700;cursor:pointer;transition:background .18s,transform .1s}
+.btn-topbar:active{transform:scale(.97)}
+.btn-topbar-ghost{background:var(--white);color:var(--muted);border:1.5px solid var(--ghost)}
+.btn-topbar-ghost:hover{color:var(--fg);border-color:var(--muted)}
+.btn-topbar-primary{background:var(--red);color:#fff;box-shadow:0 2px 8px rgba(173,30,35,.3)}
+.btn-topbar-primary:hover{background:var(--red-d)}
+
+/* ── Hero ────────────────────────────────────────────────── */
+.hero{
+  margin-top:60px;padding:40px 40px 36px;
+  background:linear-gradient(135deg,#0F172A 0%,#1E293B 100%);
+  color:#fff;
+}
+.hero-inner{max-width:1100px;margin:0 auto;display:flex;align-items:flex-start;justify-content:space-between;gap:24px;flex-wrap:wrap}
+.hero-left{}
+.hero-eyebrow{
+  font-family:var(--fd);font-size:11px;font-weight:800;
+  letter-spacing:.12em;text-transform:uppercase;
+  color:rgba(255,255,255,.55);margin-bottom:10px;
+}
+.hero-title{
+  font-family:var(--fd);font-size:clamp(24px,3.5vw,38px);
+  font-weight:800;letter-spacing:-0.03em;line-height:1.05;
+  color:#fff;margin-bottom:14px;
+}
+.hero-title span{color:var(--red-m)}
+.hero-tags{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+.hero-tag{
+  font-size:12px;font-weight:600;color:rgba(255,255,255,.65);
+  background:rgba(255,255,255,.1);padding:4px 10px;border-radius:999px;
+  font-family:var(--fd);letter-spacing:-0.01em;
+}
+.hero-score-row{display:flex;align-items:center;gap:12px}
+.hero-score-num{
+  font-family:var(--fd);font-size:52px;font-weight:800;
+  letter-spacing:-0.04em;color:#fff;line-height:1;
+}
+.hero-score-denom{font-size:20px;color:rgba(255,255,255,.4);font-family:var(--fd);font-weight:600;align-self:flex-end;padding-bottom:6px}
+.hero-score-label{
+  background:rgba(173,30,35,.35);border:1px solid rgba(173,30,35,.5);
+  padding:5px 12px;border-radius:999px;font-family:var(--fd);
+  font-size:12px;font-weight:700;color:#FCA5A5;letter-spacing:0.04em;text-transform:uppercase;
+}
+.hero-right{display:flex;flex-direction:column;gap:10px;align-items:flex-end;min-width:200px}
+.hero-bundle-card{
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
+  border-radius:var(--r-md);padding:16px 20px;text-align:right;
+}
+.hbc-label{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.45);font-family:var(--fd);margin-bottom:6px}
+.hbc-name{font-family:var(--fd);font-size:16px;font-weight:700;color:#fff;letter-spacing:-0.02em;margin-bottom:2px}
+.hbc-sub{font-size:12px;color:rgba(255,255,255,.5)}
+.hero-actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn-hero-primary{
+  display:inline-flex;align-items:center;height:40px;padding:0 20px;
+  border-radius:var(--r-sm);font-family:var(--fd);font-size:13px;font-weight:700;
+  background:var(--red);color:#fff;border:none;cursor:pointer;
+  box-shadow:0 2px 8px rgba(173,30,35,.4);transition:background .18s,transform .1s;
+}
+.btn-hero-primary:hover{background:var(--red-d)}
+.btn-hero-primary:active{transform:scale(.97)}
+.btn-hero-ghost{
+  display:inline-flex;align-items:center;height:40px;padding:0 20px;
+  border-radius:var(--r-sm);font-family:var(--fd);font-size:13px;font-weight:700;
+  background:rgba(255,255,255,.1);color:rgba(255,255,255,.8);
+  border:1px solid rgba(255,255,255,.2);cursor:pointer;
+  transition:background .18s,transform .1s;
+}
+.btn-hero-ghost:hover{background:rgba(255,255,255,.18)}
+.btn-hero-ghost:active{transform:scale(.97)}
+
+/* ── KPI strip ───────────────────────────────────────────── */
+.kpi-strip{background:var(--surface);border-bottom:1px solid var(--border)}
+.kpi-inner{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr);gap:0}
+.kpi-cell{
+  padding:16px 20px;
+  border-right:1px solid var(--border);
+}
+.kpi-cell:last-child{border-right:none}
+.kpi-label{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-family:var(--fd);margin-bottom:5px}
+.kpi-value{font-family:var(--fd);font-size:20px;font-weight:700;color:var(--fg);letter-spacing:-0.02em;font-variant-numeric:tabular-nums}
+.kpi-value.red{color:var(--red)}
+.kpi-value.amber{color:var(--amber)}
+.kpi-value.green{color:var(--green)}
+.kpi-sub{font-size:12px;color:var(--faint);margin-top:2px}
+
+/* ── Section nav ─────────────────────────────────────────── */
+.snav-wrap{
+  position:sticky;top:60px;z-index:90;
+  background:rgba(250,250,248,.95);backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--border);
+}
+.snav-inner{max-width:1100px;margin:0 auto;padding:10px 20px}
+.snav-tray{
+  display:inline-flex;background:var(--surface);
+  padding:4px;border-radius:12px;gap:2px;
+}
+.snav-pill{
+  padding:7px 18px;border-radius:9px;font-family:var(--fd);
+  font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;
+  transition:background .15s,color .15s,box-shadow .15s;border:none;
+  letter-spacing:-0.01em;
+}
+.snav-pill.on{
+  background:var(--white);color:var(--red);
+  box-shadow:0 1px 4px rgba(15,23,42,.1);
+}
+.snav-pill:hover:not(.on){color:var(--fg)}
+
+/* ── Page body ───────────────────────────────────────────── */
+.page-body{max-width:1100px;margin:0 auto;padding:32px 20px 80px}
+.tab{display:none}.tab.on{display:block}
+
+/* ── Common card ─────────────────────────────────────────── */
+.card{
+  background:var(--white);border:1px solid var(--border);
+  border-radius:var(--r-md);padding:24px;
+  box-shadow:var(--shadow);
+}
+.card:hover{box-shadow:var(--shadow-h);transform:translateY(-2px);transition:box-shadow .2s,transform .15s}
+.card-label{
+  font-family:var(--fd);font-size:11px;font-weight:800;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:14px;
+}
+.card-title{font-family:var(--fd);font-size:17px;font-weight:700;letter-spacing:-0.025em;color:var(--fg);margin-bottom:6px}
+.card-body{font-size:14px;color:var(--muted);line-height:1.65}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px}
+
+/* ── Bundle hero card ────────────────────────────────────── */
+.bundle-card{
+  background:var(--white);border:1px solid var(--border);
+  border-radius:var(--r-lg);padding:28px 28px 22px;
+  box-shadow:var(--shadow);margin-bottom:16px;
+  transition:box-shadow .2s,transform .15s;
+}
+.bundle-card:hover{box-shadow:var(--shadow-h);transform:translateY(-2px)}
+.bc-kicker{
+  display:inline-flex;align-items:center;gap:6px;
+  font-family:var(--fd);font-size:11px;font-weight:800;
+  letter-spacing:.1em;text-transform:uppercase;
+  color:var(--red);background:rgba(173,30,35,.07);
+  border:1px solid rgba(173,30,35,.2);
+  padding:4px 12px;border-radius:999px;margin-bottom:14px;
+}
+.bc-name{font-family:var(--fd);font-size:22px;font-weight:700;letter-spacing:-0.03em;color:var(--fg);margin-bottom:6px}
+.bc-desc{font-size:14px;color:var(--muted);line-height:1.65;max-width:680px;margin-bottom:20px}
+.bc-covers{display:flex;flex-direction:column;gap:10px}
+.cover-row{
+  display:flex;align-items:flex-start;gap:12px;
+  padding:12px 14px;border-radius:var(--r-sm);
+  background:var(--surface);
+}
+.cover-badge{
+  font-family:var(--fd);font-size:10px;font-weight:800;
+  letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;
+  border-radius:999px;flex-shrink:0;margin-top:2px;
+  white-space:nowrap;
+}
+.badge-mandatory{background:rgba(173,30,35,.1);color:var(--red);border:1px solid rgba(173,30,35,.2)}
+.badge-recommended{background:rgba(217,119,6,.1);color:var(--amber);border:1px solid rgba(217,119,6,.2)}
+.badge-optional{background:rgba(100,116,139,.1);color:var(--muted);border:1px solid var(--border)}
+.cover-name{font-family:var(--fd);font-size:14px;font-weight:700;color:var(--fg);letter-spacing:-0.01em;margin-bottom:3px}
+.cover-reason{font-size:13px;color:var(--muted);line-height:1.55}
+
+/* ── Why it matters card ─────────────────────────────────── */
+.wim-card{
+  background:linear-gradient(135deg,rgba(173,30,35,.04) 0%,rgba(173,30,35,.01) 100%);
+  border:1px solid rgba(173,30,35,.18);border-radius:var(--r-md);
+  padding:20px 22px;margin-bottom:16px;
+}
+.wim-head{
+  font-family:var(--fd);font-size:13px;font-weight:700;
+  color:var(--red);letter-spacing:-0.01em;margin-bottom:12px;
+}
+.wim-list{display:flex;flex-direction:column;gap:8px}
+.wim-item{
+  display:flex;align-items:flex-start;gap:10px;
+  font-size:13px;color:var(--muted);line-height:1.55;
+}
+.wim-item::before{content:'→';color:var(--red);font-weight:700;flex-shrink:0;margin-top:1px}
+
+/* ── Score bars ──────────────────────────────────────────── */
+.score-rows{display:flex;flex-direction:column;gap:10px}
+.score-row{display:flex;align-items:center;gap:12px}
+.sr-name{font-size:13px;font-weight:600;font-family:var(--fd);color:var(--fg);width:200px;flex-shrink:0;letter-spacing:-0.01em}
+.sr-bar-wrap{flex:1;height:7px;background:var(--surface2);border-radius:999px;overflow:hidden}
+.sr-bar{height:100%;border-radius:999px;transition:width .6s cubic-bezier(.4,0,.2,1)}
+.sr-val{font-family:var(--fm);font-size:12px;font-weight:500;color:var(--muted);width:36px;text-align:right;font-variant-numeric:tabular-nums}
+.sr-severity{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;width:56px;text-align:right;font-family:var(--fd)}
+
+/* ── Gauge ring ──────────────────────────────────────────── */
+.gauge-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px 0}
+.gauge-ring{
+  width:160px;height:160px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  position:relative;
+}
+.gauge-inner{text-align:center}
+.gauge-num{font-family:var(--fd);font-size:42px;font-weight:800;letter-spacing:-0.04em;line-height:1;color:var(--fg)}
+.gauge-denom{font-size:16px;color:var(--faint);font-family:var(--fd);font-weight:600}
+.gauge-lbl{font-family:var(--fd);font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-top:10px}
+
+/* ── Radar ───────────────────────────────────────────────── */
+.radar-wrap{display:flex;align-items:center;justify-content:center;padding:12px 0}
+canvas{display:block}
+
+/* ── Driver cards ────────────────────────────────────────── */
+.drivers{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
+.driver-card{
+  background:var(--white);border:1px solid var(--border);border-radius:var(--r-md);
+  padding:18px;box-shadow:var(--shadow);
+  transition:box-shadow .2s,transform .15s;
+}
+.driver-card:hover{box-shadow:var(--shadow-h);transform:translateY(-2px)}
+.dc-score{font-family:var(--fd);font-size:36px;font-weight:800;letter-spacing:-0.04em;line-height:1;margin-bottom:6px}
+.dc-name{font-family:var(--fd);font-size:14px;font-weight:700;letter-spacing:-0.02em;color:var(--fg);margin-bottom:6px}
+.dc-why{font-size:13px;color:var(--muted);line-height:1.55}
+.dc-score.critical{color:var(--red)}
+.dc-score.high{color:var(--amber)}
+.dc-score.medium{color:var(--blue)}
+
+/* ── Pricing ─────────────────────────────────────────────── */
+.pricing-hero{
+  background:var(--fg);border-radius:var(--r-lg);
+  padding:28px 28px 24px;color:#fff;margin-bottom:16px;
+}
+.ph-label{font-family:var(--fd);font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.45);margin-bottom:8px}
+.ph-value{font-family:var(--fd);font-size:38px;font-weight:800;letter-spacing:-0.04em;color:#fff;margin-bottom:6px;font-variant-numeric:tabular-nums}
+.ph-range{font-size:14px;color:rgba(255,255,255,.55);margin-bottom:20px}
+.ph-covers{display:flex;flex-direction:column;gap:10px}
+.ph-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08);
+}
+.ph-row:last-child{border-bottom:none}
+.ph-row-name{font-size:13px;color:rgba(255,255,255,.8);font-weight:600;font-family:var(--fd)}
+.ph-row-est{font-family:var(--fm);font-size:13px;color:rgba(255,255,255,.6);font-variant-numeric:tabular-nums}
+.ph-row-est span{color:#fff;font-weight:500}
+.pricing-note{font-size:12px;color:var(--faint);margin-top:14px;line-height:1.55;font-style:italic}
+
+.product-line{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
+  padding:14px 0;border-bottom:1px solid var(--border);
+}
+.product-line:last-child{border-bottom:none}
+.pl-left{}
+.pl-name{font-family:var(--fd);font-size:14px;font-weight:700;letter-spacing:-0.01em;color:var(--fg);margin-bottom:3px}
+.pl-why{font-size:13px;color:var(--muted);line-height:1.5}
+.pl-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0}
+.pl-priority{
+  font-family:var(--fd);font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+  padding:3px 8px;border-radius:999px;
+}
+.priority-critical{background:rgba(173,30,35,.1);color:var(--red);border:1px solid rgba(173,30,35,.2)}
+.priority-recommended{background:rgba(217,119,6,.1);color:var(--amber);border:1px solid rgba(217,119,6,.2)}
+.priority-optional{background:rgba(100,116,139,.1);color:var(--muted);border:1px solid var(--border)}
+.pl-premium{font-family:var(--fm);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+/* ── Methodology button ──────────────────────────────────── */
+.methodology-btn{
+  display:inline-flex;align-items:center;gap:10px;
+  background:linear-gradient(135deg,#0F172A 0%,#1E293B 100%);
+  color:#fff;padding:13px 28px;border-radius:10px;
+  font-family:var(--fd);font-size:14px;font-weight:700;cursor:pointer;
+  letter-spacing:.02em;box-shadow:0 4px 16px rgba(15,23,42,.25);
+  transition:box-shadow .2s,transform .12s;border:none;
+}
+.methodology-btn:hover{box-shadow:0 8px 28px rgba(15,23,42,.35);transform:translateY(-1px)}
+.methodology-btn:active{transform:scale(.97)}
+.meth-tag{font-size:11px;background:rgba(255,255,255,.15);border-radius:4px;padding:2px 7px}
+.methodology-panel{
+  background:var(--fg);border-radius:var(--r-lg);color:#fff;
+  margin-top:20px;padding:0;overflow:hidden;
+  display:none;
+}
+.methodology-panel.on{display:block}
+.meth-head{padding:24px 28px;border-bottom:1px solid rgba(255,255,255,.1)}
+.meth-head-title{font-family:var(--fd);font-size:18px;font-weight:700;letter-spacing:-0.025em;margin-bottom:4px}
+.meth-head-sub{font-size:13px;color:rgba(255,255,255,.5);line-height:1.55}
+.meth-steps{padding:20px 28px;display:flex;flex-direction:column;gap:0}
+.meth-step{
+  display:flex;gap:16px;padding:14px 0;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+.meth-step:last-child{border-bottom:none}
+.meth-step-num{
+  font-family:var(--fm);font-size:11px;color:rgba(255,255,255,.35);
+  width:28px;flex-shrink:0;margin-top:2px;font-variant-numeric:tabular-nums;
+}
+.meth-step-body{}
+.meth-step-title{font-family:var(--fd);font-size:13px;font-weight:700;color:rgba(255,255,255,.9);margin-bottom:3px;letter-spacing:-0.01em}
+.meth-step-detail{font-size:12px;color:rgba(255,255,255,.45);line-height:1.6}
+.meth-step-cite{
+  display:inline-block;font-family:var(--fm);font-size:10px;
+  color:rgba(173,30,35,.9);background:rgba(173,30,35,.15);
+  border-radius:4px;padding:1px 6px;margin-top:4px;
+}
+
+/* ── Actions tab ─────────────────────────────────────────── */
+.trigger-card{
+  background:var(--white);border:1px solid var(--border);
+  border-radius:var(--r-md);padding:20px;margin-bottom:12px;
+  box-shadow:var(--shadow);display:flex;gap:14px;align-items:flex-start;
+}
+.tc-icon{
+  width:36px;height:36px;border-radius:9px;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;font-size:17px;
+}
+.tc-icon.red{background:rgba(173,30,35,.1)}
+.tc-icon.amber{background:rgba(217,119,6,.1)}
+.tc-icon.blue{background:rgba(59,130,246,.1)}
+.tc-body{}
+.tc-title{font-family:var(--fd);font-size:14px;font-weight:700;letter-spacing:-0.01em;color:var(--fg);margin-bottom:3px}
+.tc-desc{font-size:13px;color:var(--muted);line-height:1.55}
+.tc-reg{font-family:var(--fm);font-size:11px;color:var(--faint);margin-top:5px}
+
+/* ── Section title ───────────────────────────────────────── */
+.section-head{
+  display:flex;align-items:center;gap:10px;margin-bottom:18px;
+}
+.section-bar{width:3px;height:20px;background:var(--red);border-radius:999px;flex-shrink:0}
+.section-title{font-family:var(--fd);font-size:17px;font-weight:700;letter-spacing:-0.025em;color:var(--fg)}
+
+/* ── Mobile ──────────────────────────────────────────────── */
+@media(max-width:760px){
+  .hero{padding:28px 20px 24px}
+  .hero-title{font-size:22px}
+  .kpi-inner{grid-template-columns:repeat(3,1fr)}
+  .kpi-cell:nth-child(n+4){display:none}
+  .snav-tray{overflow-x:auto;width:100%;display:flex}
+  .page-body{padding:20px 14px 60px}
+  .grid-2,.grid-3{grid-template-columns:1fr}
+  .drivers{grid-template-columns:1fr}
+  .sr-name{width:140px;font-size:12px}
+  .hero-right{min-width:auto;align-items:flex-start}
+  .hero-inner{flex-direction:column}
+  .pricing-hero{padding:20px}
+}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="brand-mark">SP</div>
+  <span class="topbar-name">SPARC</span>
+  <div class="topbar-sep"></div>
+  <span class="topbar-sub">ICICI Lombard · Startup Risk Intelligence</span>
+  <div class="topbar-spacer"></div>
+  <button class="btn-topbar btn-topbar-ghost" onclick="window.location.href='01-intake.html'">← Edit inputs</button>
+  <button class="btn-topbar btn-topbar-primary" style="margin-left:8px">Download report</button>
+</header>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-inner">
+    <div class="hero-left">
+      <div class="hero-eyebrow">Risk Report · Generated 17 May 2026</div>
+      <h1 class="hero-title">PayNova Technologies — <span>High risk</span></h1>
+      <div class="hero-tags">
+        <span class="hero-tag">Fintech</span>
+        <span class="hero-tag">Series A</span>
+        <span class="hero-tag">45 employees</span>
+        <span class="hero-tag">Digital-only</span>
+        <span class="hero-tag">RBI / SEBI / IRDAI licensed</span>
+      </div>
+      <div class="hero-score-row">
+        <span class="hero-score-num">72</span>
+        <span class="hero-score-denom">/100</span>
+        <span class="hero-score-label">High risk</span>
+      </div>
+    </div>
+    <div class="hero-right">
+      <div class="hero-bundle-card">
+        <div class="hbc-label">Recommended bundle</div>
+        <div class="hbc-name">Business Shield SME</div>
+        <div class="hbc-sub">ICICI Lombard · 3 mandatory covers + 4 recommended</div>
+      </div>
+      <div class="hero-actions">
+        <button class="btn-hero-primary">Download PDF</button>
+        <button class="btn-hero-ghost">Share with founder</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- KPI STRIP -->
+<div class="kpi-strip">
+  <div class="kpi-inner">
+    <div class="kpi-cell">
+      <div class="kpi-label">Overall risk</div>
+      <div class="kpi-value red">72 / 100</div>
+      <div class="kpi-sub">High — 3 critical flags</div>
+    </div>
+    <div class="kpi-cell">
+      <div class="kpi-label">Top risk category</div>
+      <div class="kpi-value">Regulatory</div>
+      <div class="kpi-sub">Score 88 — RBI PA licence</div>
+    </div>
+    <div class="kpi-cell">
+      <div class="kpi-label">Critical covers</div>
+      <div class="kpi-value">3 products</div>
+      <div class="kpi-sub">Cyber, D&amp;O, PI required</div>
+    </div>
+    <div class="kpi-cell">
+      <div class="kpi-label">Bundle premium est.</div>
+      <div class="kpi-value amber">₹9.4 L</div>
+      <div class="kpi-sub">Indicative · gross premium</div>
+    </div>
+    <div class="kpi-cell">
+      <div class="kpi-label">Premium range</div>
+      <div class="kpi-value">₹8–12 L</div>
+      <div class="kpi-sub">Across 5 recommended products</div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION NAV -->
+<div class="snav-wrap">
+  <div class="snav-inner">
+    <div class="snav-tray">
+      <button class="snav-pill on" data-tab="bundle" onclick="showTab('bundle')">Bundle</button>
+      <button class="snav-pill" data-tab="risk" onclick="showTab('risk')">Risk Scores</button>
+      <button class="snav-pill" data-tab="quote" onclick="showTab('quote')">Estimated Quote</button>
+      <button class="snav-pill" data-tab="actions" onclick="showTab('actions')">Actions</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TAB: BUNDLE ════════════════════════════════════════ -->
+<div class="page-body tab on" id="tab-bundle">
+
+  <div class="section-head"><div class="section-bar"></div><h2 class="section-title">Bundle recommendation</h2></div>
+
+  <div class="bundle-card">
+    <div class="bc-kicker">Recommended · ICICI Lombard</div>
+    <div class="bc-name">Business Shield SME</div>
+    <div class="bc-desc">Financial-lines package designed for Seed-to-Series-B digital businesses. Combines cyber, D&amp;O, and professional indemnity — the three mandatory covers for an RBI-licensed payment aggregator with institutional investors and B2B SaaS exposure.</div>
+    <div class="bc-covers">
+      <div class="cover-row">
+        <span class="cover-badge badge-mandatory">Mandatory</span>
+        <div>
+          <div class="cover-name">Cyber Liability Insurance</div>
+          <div class="cover-reason">PA licence triggers RBI circular RBI/2021-22/60: payment aggregators must maintain adequate cyber risk insurance. DPDP Act exposure with PII handling adds further regulatory obligation.</div>
+        </div>
+      </div>
+      <div class="cover-row">
+        <span class="cover-badge badge-mandatory">Mandatory</span>
+        <div>
+          <div class="cover-name">Directors &amp; Officers (D&amp;O) Liability</div>
+          <div class="cover-reason">Institutional investors (Sequoia, Accel) routinely require D&amp;O as a condition of Series A term sheets. RBI enforcement actions against NBFC management create personal liability exposure for founders.</div>
+        </div>
+      </div>
+      <div class="cover-row">
+        <span class="cover-badge badge-mandatory">Mandatory</span>
+        <div>
+          <div class="cover-name">Professional Indemnity (Errors &amp; Omissions)</div>
+          <div class="cover-reason">B2B SaaS contracts with enterprise customers typically include hold-harmless and PI indemnity clauses. Service failure claims average ₹1.8 Cr in the Indian payments sector (Swiss Re 2024 sigma).</div>
+        </div>
+      </div>
+      <div class="cover-row">
+        <span class="cover-badge badge-recommended">Recommended</span>
+        <div>
+          <div class="cover-name">Employee Health (Group Mediclaim)</div>
+          <div class="cover-reason">45-person team in Mumbai/Bengaluru attracts talent competition from large fintechs. Top-quartile health cover is a hiring differentiator and reduces attrition risk to key-person liability.</div>
+        </div>
+      </div>
+      <div class="cover-row">
+        <span class="cover-badge badge-recommended">Recommended</span>
+        <div>
+          <div class="cover-name">Crime &amp; Fidelity Insurance</div>
+          <div class="cover-reason">Payment aggregator handling ₹200 Cr/month in transactions faces internal fraud and dishonest employee exposure. RBI has imposed fines on PA operators for inadequate internal controls.</div>
+        </div>
+      </div>
+      <div class="cover-row">
+        <span class="cover-badge badge-optional">Optional</span>
+        <div>
+          <div class="cover-name">Employment Practices Liability (EPLI)</div>
+          <div class="cover-reason">Add if the company expects to scale headcount >100 in the next 12 months or has pending HR disputes. POSH IC is constituted, reducing priority slightly.</div>
+        </div>
+      </div>
+      <div class="cover-row">
+        <span class="cover-badge badge-optional">Optional</span>
+        <div>
+          <div class="cover-name">Key Person Insurance</div>
+          <div class="cover-reason">Founder equity concentration at 62% combined with two institutional investors creates key-person dependency that some VCs require as a closing condition.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wim-card">
+    <div class="wim-head">Why this matters for PayNova — specific risk drivers</div>
+    <div class="wim-list">
+      <div class="wim-item">RBI's PA Framework (March 2022) requires all payment aggregators to hold cyber insurance with minimum coverage of ₹5 Cr. PayNova's PA licence makes this non-negotiable.</div>
+      <div class="wim-item">DPDP Act §10 exposure: handling KYC / Aadhaar data at Series A scale qualifies PayNova as a "Significant Data Fiduciary" if processing exceeds 10 lakh individuals. SDF designation probability: 78%.</div>
+      <div class="wim-item">Sequoia and Accel typically mandate D&amp;O as a Series A board governance condition. Without it, the next fundraise is likely to face a compliance gap flag in due diligence.</div>
+      <div class="wim-item">Peer loss data: Razorpay (Series D analogue) reported ₹3.2 Cr in cyber-incident-related costs in 2023; Cashfree settled an RBI enforcement action for ₹1.5 Cr in Q3 2024. These are direct comparables for a ₹200 Cr/month PA operator.</div>
+    </div>
+  </div>
+
+  <!-- Alternative bundle -->
+  <div class="section-head" style="margin-top:28px"><div class="section-bar"></div><h2 class="section-title">Alternative bundle to consider</h2></div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-label">Alternative</div>
+      <div class="card-title">Corporate Cover II</div>
+      <div class="card-body" style="margin-top:6px">Broader property + liability package. More appropriate if PayNova establishes a physical data centre or moves into NBFC territory. Currently over-specified for a 45-person digital-only Series A.</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Companion</div>
+      <div class="card-title">Group Safeguard (Workforce)</div>
+      <div class="card-body" style="margin-top:6px">Strongest for workforce benefits — group health, group PA, group term life. Pair alongside Business Shield SME to cover both financial-lines and HR risk simultaneously.</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ TAB: RISK SCORES ═══════════════════════════════════ -->
+<div class="page-body tab" id="tab-risk">
+
+  <div class="section-head"><div class="section-bar"></div><h2 class="section-title">Risk overview</h2></div>
+
+  <div class="grid-3" style="align-items:start">
+    <!-- Gauge -->
+    <div class="card">
+      <div class="card-label">Overall risk score</div>
+      <div class="gauge-wrap">
+        <div class="gauge-ring" id="gauge-ring">
+          <div class="gauge-inner">
+            <div class="gauge-num">72</div>
+            <div class="gauge-denom">/100</div>
+          </div>
+        </div>
+        <div class="gauge-lbl" style="color:var(--red)">High risk</div>
+      </div>
+    </div>
+    <!-- Radar placeholder -->
+    <div class="card" style="grid-column:span 2">
+      <div class="card-label">Risk categories</div>
+      <div class="score-rows" id="score-bars" style="margin-top:6px"></div>
+    </div>
+  </div>
+
+  <div class="section-head" style="margin-top:24px"><div class="section-bar"></div><h2 class="section-title">Top risk drivers</h2></div>
+  <div class="drivers">
+    <div class="driver-card">
+      <div class="dc-score critical">88</div>
+      <div class="dc-name">Regulatory Compliance</div>
+      <div class="dc-why">RBI PA licence + DPDP Act obligations + SEBI BRSR dependency on listed customers creates a three-layer compliance risk stack. CERT-In PoC designation adds a fourth. Indian PA operators faced 14 enforcement actions in 2024 (RBI Annual Report).</div>
+    </div>
+    <div class="driver-card">
+      <div class="dc-score critical">84</div>
+      <div class="dc-name">Cyber / Technical Risk</div>
+      <div class="dc-why">High data sensitivity (KYC / Aadhaar / financial transactions), digital-only operating model, and RBI-licensed status combine for maximum cyber exposure. 67% of Indian fintech breaches in 2023 targeted PA-layer infrastructure (CERT-In report).</div>
+    </div>
+    <div class="driver-card">
+      <div class="dc-score high">78</div>
+      <div class="dc-name">Governance &amp; Fraud</div>
+      <div class="dc-why">62% founder equity concentration with two institutional investors on the board creates elevated governance risk. No independent directors yet — a gap that Series B investors will require to be closed before they join the cap table.</div>
+    </div>
+  </div>
+
+  <!-- Score bar section -->
+  <div class="card" style="margin-top:8px">
+    <div class="card-label">Spider radar — all 13 categories</div>
+    <div class="radar-wrap"><canvas id="radar" width="480" height="360"></canvas></div>
+  </div>
+
+  <!-- Methodology -->
+  <div style="text-align:center;margin:32px 0 14px">
+    <button class="methodology-btn" id="meth-btn" onclick="toggleMethodology()">
+      <span>🔬</span>
+      <span>How was this calculated? — Full 21-step methodology</span>
+      <span class="meth-tag">▼ expand</span>
+    </button>
+  </div>
+  <div class="methodology-panel" id="meth-panel">
+    <div class="meth-head">
+      <div class="meth-head-title">21-Step SPARC Risk Methodology</div>
+      <div class="meth-head-sub">Actuarial model v2026.05 · Sourced from IRDAI, RBI, Swiss Re, CERT-In, and sector-specific loss databases</div>
+    </div>
+    <div class="meth-steps" id="meth-steps"></div>
+  </div>
+
+</div>
+
+<!-- ═══ TAB: QUOTE ══════════════════════════════════════════ -->
+<div class="page-body tab" id="tab-quote">
+
+  <div class="section-head"><div class="section-bar"></div><h2 class="section-title">Estimated premium — Business Shield SME</h2></div>
+
+  <div class="pricing-hero">
+    <div class="ph-label">Gross premium estimate (per year)</div>
+    <div class="ph-value">₹9.4 Lakhs</div>
+    <div class="ph-range">Range: ₹8.0 – ₹11.8 Lakhs · Indicative · subject to underwriter review</div>
+    <div class="ph-covers">
+      <div class="ph-row">
+        <span class="ph-row-name">Cyber Liability (₹5 Cr SI)</span>
+        <span class="ph-row-est"><span>₹2.8 – 3.5 L</span> / year</span>
+      </div>
+      <div class="ph-row">
+        <span class="ph-row-name">D&amp;O Liability (₹5 Cr SI)</span>
+        <span class="ph-row-est"><span>₹2.2 – 3.0 L</span> / year</span>
+      </div>
+      <div class="ph-row">
+        <span class="ph-row-name">Professional Indemnity (₹3 Cr SI)</span>
+        <span class="ph-row-est"><span>₹1.5 – 2.0 L</span> / year</span>
+      </div>
+      <div class="ph-row">
+        <span class="ph-row-name">Employee Health (45 lives)</span>
+        <span class="ph-row-est"><span>₹1.8 – 2.5 L</span> / year</span>
+      </div>
+      <div class="ph-row">
+        <span class="ph-row-name">Crime &amp; Fidelity (₹1 Cr SI)</span>
+        <span class="ph-row-est"><span>₹0.7 – 0.8 L</span> / year</span>
+      </div>
+    </div>
+  </div>
+  <p class="pricing-note">Estimates based on IRDAI 2025–26 filed rates, sector loss ratios from Swiss Re sigma 2024, and ICICI Lombard actuarial tables. Final premium is underwriter-determined and subject to inspection. GST @ 18% not included.</p>
+
+  <div class="section-head" style="margin-top:28px"><div class="section-bar"></div><h2 class="section-title">All recommended products</h2></div>
+  <div class="card">
+    <div class="product-line">
+      <div class="pl-left">
+        <div class="pl-name">Cyber Liability Insurance</div>
+        <div class="pl-why">RBI PA Framework obligation. DPDP Act SDF risk. KYC / Aadhaar / financial transaction data.</div>
+      </div>
+      <div class="pl-right">
+        <span class="pl-priority priority-critical">Critical</span>
+        <span class="pl-premium">₹2.8 – 3.5 L / yr</span>
+      </div>
+    </div>
+    <div class="product-line">
+      <div class="pl-left">
+        <div class="pl-name">Directors &amp; Officers (D&amp;O) Liability</div>
+        <div class="pl-why">Series A investor covenant. RBI management liability for PA operators.</div>
+      </div>
+      <div class="pl-right">
+        <span class="pl-priority priority-critical">Critical</span>
+        <span class="pl-premium">₹2.2 – 3.0 L / yr</span>
+      </div>
+    </div>
+    <div class="product-line">
+      <div class="pl-left">
+        <div class="pl-name">Professional Indemnity (E&amp;O)</div>
+        <div class="pl-why">B2B SaaS and enterprise payment contracts. Service failure liability risk.</div>
+      </div>
+      <div class="pl-right">
+        <span class="pl-priority priority-critical">Critical</span>
+        <span class="pl-premium">₹1.5 – 2.0 L / yr</span>
+      </div>
+    </div>
+    <div class="product-line">
+      <div class="pl-left">
+        <div class="pl-name">Group Health (Mediclaim)</div>
+        <div class="pl-why">Talent retention in competitive fintech market. Reduces key-person attrition risk.</div>
+      </div>
+      <div class="pl-right">
+        <span class="pl-priority priority-recommended">Recommended</span>
+        <span class="pl-premium">₹1.8 – 2.5 L / yr</span>
+      </div>
+    </div>
+    <div class="product-line">
+      <div class="pl-left">
+        <div class="pl-name">Crime &amp; Fidelity Insurance</div>
+        <div class="pl-why">₹200 Cr/month transaction volume. Internal fraud exposure for PA operators.</div>
+      </div>
+      <div class="pl-right">
+        <span class="pl-priority priority-recommended">Recommended</span>
+        <span class="pl-premium">₹0.7 – 0.8 L / yr</span>
+      </div>
+    </div>
+    <div class="product-line">
+      <div class="pl-left">
+        <div class="pl-name">Employment Practices Liability (EPLI)</div>
+        <div class="pl-why">Add when headcount scales past 100 or during rapid hiring phases.</div>
+      </div>
+      <div class="pl-right">
+        <span class="pl-priority priority-optional">Optional</span>
+        <span class="pl-premium">₹0.4 – 0.6 L / yr</span>
+      </div>
+    </div>
+    <div class="product-line">
+      <div class="pl-left">
+        <div class="pl-name">Key Person Insurance</div>
+        <div class="pl-why">62% founder equity concentration. Investor covenant likely at Series B.</div>
+      </div>
+      <div class="pl-right">
+        <span class="pl-priority priority-optional">Optional</span>
+        <span class="pl-premium">₹0.6 – 0.9 L / yr</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ TAB: ACTIONS ═══════════════════════════════════════ -->
+<div class="page-body tab" id="tab-actions">
+
+  <div class="section-head"><div class="section-bar"></div><h2 class="section-title">Regulatory triggers — immediate action required</h2></div>
+
+  <div class="trigger-card">
+    <div class="tc-icon red">⚠</div>
+    <div class="tc-body">
+      <div class="tc-title">RBI PA Framework — Cyber Insurance Obligation</div>
+      <div class="tc-desc">Payment Aggregator licence holders must maintain adequate cyber risk insurance under RBI circular RBI/2021-22/60 (March 2022). Failure to comply can result in licence suspension proceedings. This is non-negotiable and time-sensitive.</div>
+      <div class="tc-reg">RBI/2021-22/60 · DPSS.CO.PD.No.757/02.14.003/2021-22 · Effective 31 March 2023</div>
+    </div>
+  </div>
+
+  <div class="trigger-card">
+    <div class="tc-icon red">⚠</div>
+    <div class="tc-body">
+      <div class="tc-title">DPDP Act §10 — Significant Data Fiduciary Designation Risk</div>
+      <div class="tc-desc">PayNova handles KYC / Aadhaar / financial transaction data. SDF designation probability: 78%. SDFs face enhanced obligations under DPDP Act including mandatory DPIA, annual audit, and DPO appointment. SDF-specific insurance riders are available and should be added to the cyber policy.</div>
+      <div class="tc-reg">Digital Personal Data Protection Act 2023 · §10 · MeitY Notification anticipated Q3 2026</div>
+    </div>
+  </div>
+
+  <div class="trigger-card">
+    <div class="tc-icon amber">→</div>
+    <div class="tc-body">
+      <div class="tc-title">CERT-In Directions 2022 — Incident Reporting Obligation</div>
+      <div class="tc-desc">As a payment infrastructure operator, PayNova must report cyber incidents to CERT-In within 6 hours of detection. Failure to report attracts penalties up to ₹1 Cr per incident under §70B IT Act. The D&amp;O policy should include regulatory defence cover for CERT-In enforcement actions.</div>
+      <div class="tc-reg">CERT-In Directions 2022 · MeitY · §70B Information Technology Act 2000</div>
+    </div>
+  </div>
+
+  <div class="section-head" style="margin-top:28px"><div class="section-bar"></div><h2 class="section-title">Non-insurance risk actions</h2></div>
+
+  <div class="trigger-card">
+    <div class="tc-icon blue">📋</div>
+    <div class="tc-body">
+      <div class="tc-title">Appoint an independent director before Series B</div>
+      <div class="tc-desc">Current governance: no independent directors. Series B investors (Tiger, SoftBank Ventures) routinely require a minimum of one independent director as a condition of closing. Adding one before the round reduces D&amp;O premium by approximately 8–12% and removes a due-diligence flag.</div>
+    </div>
+  </div>
+
+  <div class="trigger-card">
+    <div class="tc-icon blue">📋</div>
+    <div class="tc-body">
+      <div class="tc-title">Conduct a DPDP Act Data Protection Impact Assessment (DPIA)</div>
+      <div class="tc-desc">No DPIA on file. Processing KYC and Aadhaar data at current transaction volumes makes this both legally prudent (pre-SDF) and commercially necessary before enterprise customer due diligence requests it. DPIA completion reduces cyber underwriter's loading by an estimated 5–8%.</div>
+    </div>
+  </div>
+
+  <div class="trigger-card">
+    <div class="tc-icon blue">📋</div>
+    <div class="tc-body">
+      <div class="tc-title">ISO 27001 certification within 18 months</div>
+      <div class="tc-desc">Enterprise SaaS customers in BFSI increasingly mandate ISO 27001 in vendor agreements. Certification unlocks lower cyber premiums (estimated 10–15% reduction), removes security questionnaire bottlenecks in B2B sales cycles, and is a prerequisite for several listed-company procurement panels.</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ── Tab nav ──────────────────────────────────────────────── */
+function showTab(id){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('.snav-pill').forEach(p=>p.classList.remove('on'));
+  document.getElementById('tab-'+id).classList.add('on');
+  document.querySelector('.snav-pill[data-tab="'+id+'"]').classList.add('on');
+  if(id==='risk') setTimeout(drawRadar,60);
+}
+
+/* ── Score bars ───────────────────────────────────────────── */
+const SCORES=[
+  {name:'Regulatory Compliance',  score:88, color:'#AD1E23'},
+  {name:'Cyber / Technical',      score:84, color:'#AD1E23'},
+  {name:'Governance & Fraud',     score:78, color:'#D97706'},
+  {name:'Data Privacy',           score:74, color:'#D97706'},
+  {name:'Policy Velocity',        score:66, color:'#D97706'},
+  {name:'Reputation',             score:62, color:'#3B82F6'},
+  {name:'Key Person',             score:58, color:'#3B82F6'},
+  {name:'Liability',              score:56, color:'#3B82F6'},
+  {name:'Geopolitical',           score:48, color:'#64748B'},
+  {name:'IP Infringement',        score:44, color:'#64748B'},
+  {name:'ESG / Climate',          score:22, color:'#059669'},
+  {name:'Property',               score:18, color:'#059669'},
+  {name:'Gig Labour',             score:15, color:'#059669'},
+];
+
+function severityLabel(s){
+  if(s>=70) return {t:'Critical',c:'var(--red)'};
+  if(s>=50) return {t:'High',c:'var(--amber)'};
+  if(s>=30) return {t:'Medium',c:'var(--blue)'};
+  return {t:'Low',c:'var(--green)'};
+}
+
+(function buildScoreBars(){
+  const wrap=document.getElementById('score-bars');
+  if(!wrap) return;
+  wrap.innerHTML=SCORES.map(({name,score,color})=>{
+    const sv=severityLabel(score);
+    return `<div class="score-row">
+      <span class="sr-name">${name}</span>
+      <div class="sr-bar-wrap"><div class="sr-bar" style="width:${score}%;background:${color}"></div></div>
+      <span class="sr-val">${score}</span>
+      <span class="sr-severity" style="color:${sv.c}">${sv.t}</span>
+    </div>`;
+  }).join('');
+})();
+
+/* ── Gauge ring ───────────────────────────────────────────── */
+(function buildGauge(){
+  const ring=document.getElementById('gauge-ring');
+  if(!ring) return;
+  const score=72, c='#AD1E23';
+  ring.style.cssText=`width:160px;height:160px;border-radius:50%;background:radial-gradient(circle at center,white 0 57%,transparent 58%),conic-gradient(${c} calc(${score}*1%),#E2E2DC 0);display:flex;align-items:center;justify-content:center;`;
+})();
+
+/* ── Radar ────────────────────────────────────────────────── */
+function drawRadar(){
+  const canvas=document.getElementById('radar');
+  if(!canvas) return;
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width, H=canvas.height;
+  const cx=W/2, cy=H/2;
+  const r=Math.min(W,H)*0.38;
+  const n=SCORES.length;
+  const labels=SCORES.map(s=>s.name);
+  const values=SCORES.map(s=>s.score/100);
+
+  ctx.clearRect(0,0,W,H);
+
+  // Grid rings
+  [0.25,0.5,0.75,1].forEach(frac=>{
+    ctx.beginPath();
+    for(let i=0;i<n;i++){
+      const a=i/n*Math.PI*2-Math.PI/2;
+      const x=cx+Math.cos(a)*r*frac, y=cy+Math.sin(a)*r*frac;
+      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    }
+    ctx.closePath();
+    ctx.strokeStyle='rgba(226,226,220,.6)';
+    ctx.lineWidth=1;
+    ctx.stroke();
+  });
+
+  // Spokes
+  for(let i=0;i<n;i++){
+    const a=i/n*Math.PI*2-Math.PI/2;
+    ctx.beginPath();
+    ctx.moveTo(cx,cy);
+    ctx.lineTo(cx+Math.cos(a)*r, cy+Math.sin(a)*r);
+    ctx.strokeStyle='rgba(226,226,220,.5)'; ctx.lineWidth=1; ctx.stroke();
+  }
+
+  // Data polygon
+  ctx.beginPath();
+  for(let i=0;i<n;i++){
+    const a=i/n*Math.PI*2-Math.PI/2;
+    const x=cx+Math.cos(a)*r*values[i], y=cy+Math.sin(a)*r*values[i];
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  }
+  ctx.closePath();
+  ctx.fillStyle='rgba(173,30,35,.12)'; ctx.fill();
+  ctx.strokeStyle='#AD1E23'; ctx.lineWidth=2; ctx.stroke();
+
+  // Dots
+  for(let i=0;i<n;i++){
+    const a=i/n*Math.PI*2-Math.PI/2;
+    const x=cx+Math.cos(a)*r*values[i], y=cy+Math.sin(a)*r*values[i];
+    ctx.beginPath(); ctx.arc(x,y,3.5,0,Math.PI*2);
+    ctx.fillStyle='#AD1E23'; ctx.fill();
+  }
+
+  // Labels
+  ctx.font='600 10px "Space Grotesk",system-ui,sans-serif';
+  ctx.fillStyle='#64748B'; ctx.textAlign='center';
+  for(let i=0;i<n;i++){
+    const a=i/n*Math.PI*2-Math.PI/2;
+    const lx=cx+Math.cos(a)*(r+22), ly=cy+Math.sin(a)*(r+22);
+    const short=labels[i].split('/')[0].trim().split(' ').slice(0,2).join(' ');
+    ctx.fillText(short,lx,ly+4);
+  }
+}
+
+/* ── Methodology panel ────────────────────────────────────── */
+const METH_STEPS=[
+  {n:'01',t:'Sector base weight assignment',d:'Each of the 13 risk categories is assigned a sector-specific base weight (0–10). Fintech gets maximum weights on cyber_technical (10), regulatory_compliance (10), data_privacy (10), and governance_fraud (9). Source: IRDAI actuarial tables 2025, Swiss Re Sigma 07/2024.',cite:'IRDAI Actuarial Working Paper 2025-03'},
+  {n:'02',t:'Funding stage multiplier',d:'Series A applies a 1.15× multiplier on governance_fraud (institutional investor scrutiny begins) and a 1.10× on key_person (concentrated founder equity, no independent directors yet). Seed-stage multiplier is 1.05×; Series B+ drops to 1.0× due to governance maturation.',cite:'Swiss Re sigma 07/2024 · S.22'},
+  {n:'03',t:'Operations model adjustment',d:'Digital-only operations receive a 1.25× boost to cyber_technical and a 0.7× reduction to property risk. PayNova's digital-only model maximises cyber exposure while minimising physical asset risk.',cite:'CERT-In Annual Report 2024'},
+  {n:'04',t:'Data sensitivity scoring',d:'High sensitivity (KYC/Aadhaar/payments) applies 1.35× multiplier to data_privacy and 1.2× to regulatory_compliance. The presence of payments data triggers DPDP Act §10 SDF probability calculation.',cite:'MeitY DPDP Act 2023 · §10'},
+  {n:'05',t:'AI/ML tier assessment',d:'Applied AI tier adds 1.15× to ip_infringement (model IP risk) and flags for AI liability insurance (nascent product category in India). PayNova has AI in product — tier: Applied.',cite:'IRDAI AI Underwriting Circular 2024-R-04'},
+  {n:'06',t:'Regulatory licence flags',d:'RBI PA licence triggers mandatory cyber cover obligation and adds 1.4× to regulatory_compliance. SEBI exposure (from listed enterprise customers) adds 1.1× to governance_fraud.',cite:'RBI/2021-22/60 · DPSS.CO.PD.No.757'},
+  {n:'07',t:'Data exposure category scoring',d:'Payments + KYC/Aadhaar + employee HR data creates a 3-category data exposure stack. Each category above 2 adds 5 points to the data_privacy base score. Current total: 3 categories → +10 points.',cite:'DPDP Act 2023 · Schedule I categories'},
+  {n:'08',t:'Physical asset assessment',d:'No physical assets (fully cloud). Property score capped at 18 (Fintech base 3 × digital multiplier 0.7 × normalised to 18/100). No fire, burglary, or property product trigger.',cite:'IRDAI Property Risk Guidelines 2023'},
+  {n:'09',t:'Customer type weighting',d:'B2B Enterprise + B2C Consumers: dual-channel exposure triggers liability weighting for both contractual (B2B) and tort (B2C consumer) claims. B2B adds 1.1× to liability; B2C adds 1.15×. Net liability score: 56.',cite:'Swiss Re Product Liability Digest 2024'},
+  {n:'10',t:'Gig labour headcount adjustment',d:'No gig workforce flagged. Gig labour score remains at sector base of 15 (Fintech default: low). Worker misclassification risk absent.',cite:'Labour Code on Social Security 2020'},
+  {n:'11',t:'Team size normalisation',d:'45-person team at Series A. Governance risk peaks at 20–60 FTE range (too large for informal governance, too small for institutional controls). Governance_fraud receives a 1.05× stage-team-size interaction term.',cite:'SPARC internal actuarial model v2026.05'},
+  {n:'12',t:'Investor flag — D&O trigger',d:'Institutional investors present (flagged Yes). D&O cover is auto-promoted to Critical priority. Investor board rights create fiduciary duty exposure for directors. D&O premium loading: 1.2× base rate.',cite:'SEBI LODR Regulations 2015 · Reg 17'},
+  {n:'13',t:'SDF probability calculation',d:'SDF_probability = f(data_categories, transaction_volume, AI_tier, dpdp_obligations). PayNova: 3 data categories + high transaction volume + Applied AI + DPDP flagged → SDF_prob = 0.78.',cite:'MeitY DPDP §10 SDF criteria (draft)'},
+  {n:'14',t:'Revenue-based premium floor',d:'Annual revenue not provided. Premium floor estimated from team size (45 FTEs) and sector median: ₹8.0 L / year. Revenue input would sharpen to ±15% confidence band.',cite:'ICICI Lombard pricing tables Q1 2026'},
+  {n:'15',t:'Geopolitical exposure calculation',d:'No Chinese supplier dependency, no Cayman holdco, India domicile. Geopolitical score kept at base 48 (Fintech default). India-domiciled PA with no cross-border payment exposure has limited geopolitical loading.',cite:'RBI FPI regulations · Geopolitical Risk Framework'},
+  {n:'16',t:'Climate zone assessment',d:'Facility climate risk zone: Low (assumed Mumbai/Bengaluru office). No climate-sensitive physical assets. ESG/climate score: 22.',cite:'NDMA Climate Risk Atlas 2024'},
+  {n:'17',t:'Policy velocity (regulatory change risk)',d:'India fintech regulatory environment: fastest-changing globally. RBI issued 47 PA-sector circulars in 2024 alone. Policy velocity base for Fintech: 9/10 → normalised score: 66.',cite:'SPARC regulatory monitoring database · May 2026'},
+  {n:'18',t:'Reputation risk calculation',d:'B2C exposure + payment infrastructure role + high-profile regulatory context → reputation score: 62. No known public incidents. Score would increase to 75+ following any RBI enforcement action.',cite:'SPARC reputation risk model v2.1'},
+  {n:'19',t:'Overall score aggregation',d:'Weighted average of 13 category scores, using sector-specific weights from step 1 normalised to sum to 100. Fintech weight distribution: regulatory 10, cyber 10, data_privacy 10, governance 9, policy_velocity 9 leading = 72 aggregate.',cite:'SPARC aggregation formula · IRDAI-aligned'},
+  {n:'20',t:'Bundle eligibility matching',d:'Business Shield SME is the highest-scoring eligible bundle for: sector=Fintech, stage=Series A, operations=Digital-only, mandatory_covers including cyber+D&O+PI. Score: 94/100. Corporate Cover II scored 68 (over-specified for 45-person team).',cite:'SPARC bundle eligibility engine v3.0'},
+  {n:'21',t:'Premium estimate computation',d:'GWP estimate = Σ(cover_SI × sector_rate × stage_loading × claims_history_factor). No prior claims → claims_loading = 0.95. Final range: ₹8.0 – ₹11.8 L / year. Point estimate: ₹9.4 L. GST excluded.',cite:'ICICI Lombard actuarial tables 2025–26'},
+];
+
+(function buildMethodology(){
+  const wrap=document.getElementById('meth-steps');
+  if(!wrap) return;
+  wrap.innerHTML=METH_STEPS.map(({n,t,d,cite})=>`
+    <div class="meth-step">
+      <span class="meth-step-num">${n}</span>
+      <div class="meth-step-body">
+        <div class="meth-step-title">${t}</div>
+        <div class="meth-step-detail">${d}</div>
+        <span class="meth-step-cite">${cite}</span>
+      </div>
+    </div>`).join('');
+})();
+
+function toggleMethodology(){
+  const panel=document.getElementById('meth-panel');
+  const btn=document.getElementById('meth-btn');
+  const on=!panel.classList.contains('on');
+  panel.classList.toggle('on',on);
+  const tag=btn.querySelector('.meth-tag');
+  const lbl=btn.querySelectorAll('span')[1];
+  if(tag) tag.textContent=on?'▲ collapse':'▼ expand';
+  if(lbl) lbl.textContent=on?'Hide methodology':'How was this calculated? — Full 21-step methodology';
+  btn.style.background=on
+    ?'linear-gradient(135deg,#B91C1C 0%,#DC2626 100%)'
+    :'linear-gradient(135deg,#0F172A 0%,#1E293B 100%)';
+  if(on) setTimeout(()=>{ const t=panel.getBoundingClientRect().top+window.scrollY-80; window.scrollTo({top:t,behavior:'smooth'}); },60);
+}
+</script>
+</body>
+</html>

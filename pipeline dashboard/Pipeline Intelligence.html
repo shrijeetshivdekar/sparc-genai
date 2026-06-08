@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pipeline Intelligence — ICICI Lombard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="pipeline_styles.css">
+</head>
+<body>
+
+<header class="topbar" id="topbar"></header>
+<div class="filter-strip" id="filter-strip"></div>
+
+<div class="main">
+  <div class="priority-queue" id="priority-queue"></div>
+  <div class="viz-row">
+    <div class="panel" id="funnel-panel"></div>
+    <div class="panel" id="heatmap-panel"></div>
+  </div>
+  <div class="panel" id="bubble-panel"></div>
+  <div class="panel" id="table-panel"></div>
+</div>
+
+<!-- Status bar (fixed bottom) -->
+<div class="status-bar" id="status-bar"></div>
+
+<!-- Tooltip -->
+<div class="tooltip" id="tooltip"></div>
+
+<!-- Drawer -->
+<div class="drawer-scrim" id="drawer-scrim"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true">
+  <div class="drawer-head">
+    <button class="drawer-close" id="drawer-close" aria-label="Close" title="Close (Esc)">✕</button>
+    <span class="drawer-breadcrumb" id="drawer-breadcrumb"></span>
+    <button class="drawer-star" id="drawer-star" title="Star (s)">☆</button>
+  </div>
+  <div class="drawer-body" id="drawer-body"></div>
+  <div class="drawer-foot">
+    <button class="dr-action">✉ Generate outreach</button>
+    <button class="dr-action secondary">→ Underwriter</button>
+    <button class="dr-action icon-only" title="Schedule call">⏰</button>
+  </div>
+</aside>
+
+<script src="pipeline_data.js"></script>
+<script src="pipeline_app.js"></script>
+</body>
+</html>

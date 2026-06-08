@@ -1,0 +1,1015 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SPARC | Liability Intelligence Layer Draft</title>
+  <meta name="description" content="Draft format for the liability intelligence layer that powers RM and Underwriter recommendations." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700;800&family=DM+Sans:wght@400;500;700;800&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --paper: #fafaf8;
+      --surface: #f2f1ec;
+      --surface-2: #e7e4dc;
+      --card: #ffffff;
+      --ink: #0f172a;
+      --ink-2: #1e293b;
+      --muted: #64748b;
+      --faint: #94a3b8;
+      --border: rgba(15, 23, 42, 0.08);
+      --shadow: 0 1px 2px rgba(15,23,42,.04), 0 18px 50px rgba(15,23,42,.08);
+      --shadow-soft: 0 1px 1px rgba(15,23,42,.03), 0 8px 22px rgba(15,23,42,.06);
+      --red: #ad1e23;
+      --red-soft: rgba(173, 30, 35, 0.08);
+      --red-border: rgba(173, 30, 35, 0.16);
+      --green: #047857;
+      --amber: #b45309;
+      --blue: #2563eb;
+      --violet: #5b5bd6;
+      --radius: 24px;
+      --radius-lg: 30px;
+      --font-head: "Space Grotesk", "DM Sans", ui-sans-serif, system-ui, sans-serif;
+      --font-body: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+      --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+      --ease: cubic-bezier(0.32, 0.72, 0, 1);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top left, rgba(173,30,35,.08), transparent 26%),
+        radial-gradient(circle at top right, rgba(37,99,235,.08), transparent 24%),
+        linear-gradient(180deg, #fcfcfb 0%, #f8f7f3 100%);
+      color: var(--ink);
+      font-family: var(--font-body);
+      line-height: 1.55;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.03;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 300 300' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-repeat: repeat;
+      z-index: 0;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; }
+
+    .shell {
+      position: relative;
+      z-index: 1;
+      width: min(1480px, calc(100vw - 48px));
+      margin: 0 auto;
+      padding: 24px 0 72px;
+    }
+
+    .floating-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 16px;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      border-radius: 999px;
+      background: rgba(255,255,255,.76);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 10px 35px rgba(15,23,42,.06);
+      margin-bottom: 20px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .mark {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      background: var(--red);
+      color: white;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      flex: 0 0 auto;
+      box-shadow: 0 12px 28px rgba(173,30,35,.22);
+    }
+
+    .brand-copy {
+      min-width: 0;
+    }
+
+    .brand-copy span {
+      display: block;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .18em;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+
+    .brand-copy strong {
+      display: block;
+      font-family: var(--font-head);
+      font-size: 15px;
+      letter-spacing: -0.03em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .nav-links a {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 38px;
+      padding: 0 14px;
+      border-radius: 999px;
+      color: var(--ink-2);
+      font-size: 13px;
+      font-weight: 700;
+      border: 1px solid transparent;
+      transition: transform .24s var(--ease), background .24s var(--ease), border-color .24s var(--ease);
+    }
+
+    .nav-links a:hover {
+      background: rgba(15,23,42,.03);
+      border-color: rgba(15,23,42,.06);
+      transform: translateY(-1px);
+    }
+
+    .nav-links a.active {
+      background: var(--red-soft);
+      border-color: var(--red-border);
+      color: var(--red);
+    }
+
+    .nav-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 38px;
+      padding: 0 14px;
+      border-radius: 999px;
+      background: #0f172a;
+      color: white;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .02em;
+      white-space: nowrap;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(340px, .85fr);
+      gap: 18px;
+      align-items: stretch;
+      margin-top: 18px;
+      margin-bottom: 22px;
+    }
+
+    .panel {
+      border-radius: var(--radius-lg);
+      background: rgba(255,255,255,.86);
+      border: 1px solid rgba(15,23,42,.08);
+      box-shadow: var(--shadow);
+    }
+
+    .hero-main {
+      padding: 34px;
+      position: relative;
+      overflow: hidden;
+      min-height: 480px;
+    }
+
+    .hero-main::after {
+      content: "";
+      position: absolute;
+      inset: auto -18% -30% auto;
+      width: 340px;
+      height: 340px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(173,30,35,.12), rgba(173,30,35,0) 66%);
+      pointer-events: none;
+      filter: blur(10px);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: var(--red-soft);
+      border: 1px solid var(--red-border);
+      color: var(--red);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .16em;
+      font-weight: 800;
+    }
+
+    h1 {
+      margin: 16px 0 14px;
+      font-family: var(--font-head);
+      font-weight: 800;
+      letter-spacing: -0.05em;
+      font-size: clamp(40px, 5vw, 84px);
+      line-height: .95;
+      max-width: 11ch;
+    }
+
+    .hero-copy {
+      max-width: 68ch;
+      font-size: 17px;
+      color: var(--ink-2);
+      margin: 0;
+    }
+
+    .hero-meta {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .mini-stat {
+      border-radius: 18px;
+      background: rgba(255,255,255,.92);
+      border: 1px solid rgba(15,23,42,.08);
+      padding: 16px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .mini-stat span {
+      display: block;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .16em;
+      color: var(--muted);
+      margin-bottom: 10px;
+      font-weight: 800;
+    }
+
+    .mini-stat strong {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 18px;
+      letter-spacing: -.02em;
+      margin-bottom: 6px;
+    }
+
+    .mini-stat p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .hero-side {
+      display: grid;
+      gap: 14px;
+      padding: 18px;
+    }
+
+    .layer-stack {
+      display: grid;
+      gap: 12px;
+    }
+
+    .layer-card {
+      border-radius: 22px;
+      background: var(--card);
+      border: 1px solid rgba(15,23,42,.08);
+      padding: 18px;
+      box-shadow: var(--shadow-soft);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .layer-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(173,30,35,.03), rgba(37,99,235,.02));
+      pointer-events: none;
+    }
+
+    .layer-card h2,
+    .section h2 {
+      position: relative;
+      z-index: 1;
+      margin: 0 0 10px;
+      font-family: var(--font-head);
+      font-size: 20px;
+      letter-spacing: -0.04em;
+    }
+
+    .layer-card p,
+    .section p,
+    .section li {
+      position: relative;
+      z-index: 1;
+      color: var(--muted);
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: 1fr 28px 1fr 28px 1fr 28px 1fr;
+      gap: 10px;
+      align-items: center;
+      margin-top: 14px;
+    }
+
+    .node {
+      border-radius: 18px;
+      background: #fff;
+      border: 1px solid rgba(15,23,42,.08);
+      padding: 14px;
+      min-height: 96px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .node small {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .16em;
+      font-weight: 800;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .node strong {
+      display: block;
+      font-family: var(--font-head);
+      font-size: 16px;
+      letter-spacing: -0.03em;
+      margin-bottom: 8px;
+    }
+
+    .node span {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .arrow {
+      display: grid;
+      place-items: center;
+      color: var(--faint);
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .section {
+      margin-top: 18px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(320px, .95fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      border-radius: 22px;
+      background: rgba(255,255,255,.9);
+      border: 1px solid rgba(15,23,42,.08);
+      box-shadow: var(--shadow-soft);
+      padding: 18px;
+    }
+
+    .card h3 {
+      margin: 0 0 8px;
+      font-family: var(--font-head);
+      font-size: 18px;
+      letter-spacing: -0.04em;
+    }
+
+    .card .kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 28px;
+      padding: 0 10px;
+      border-radius: 999px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .16em;
+      font-weight: 800;
+      margin-bottom: 14px;
+    }
+
+    .kicker-red { background: var(--red-soft); color: var(--red); }
+    .kicker-blue { background: rgba(37,99,235,.08); color: var(--blue); }
+    .kicker-green { background: rgba(4,120,87,.08); color: var(--green); }
+    .kicker-amber { background: rgba(180,83,9,.09); color: var(--amber); }
+    .kicker-violet { background: rgba(91,91,214,.08); color: var(--violet); }
+
+    .list {
+      list-style: none;
+      display: grid;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+    }
+
+    .list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px 14px;
+      border-radius: 18px;
+      background: rgba(15,23,42,.02);
+      border: 1px solid rgba(15,23,42,.06);
+    }
+
+    .bullet {
+      flex: 0 0 auto;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 11px;
+      font-weight: 800;
+      margin-top: 1px;
+      color: white;
+      background: var(--red);
+      box-shadow: 0 8px 18px rgba(173,30,35,.18);
+    }
+
+    .list strong {
+      display: block;
+      color: var(--ink);
+      font-size: 14px;
+      margin-bottom: 2px;
+    }
+
+    .list span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .compare {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .compare-card {
+      border-radius: 24px;
+      padding: 20px;
+      border: 1px solid rgba(15,23,42,.08);
+      background: rgba(255,255,255,.9);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .compare-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .compare-head strong {
+      font-family: var(--font-head);
+      font-size: 20px;
+      letter-spacing: -0.04em;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      height: 30px;
+      padding: 0 11px;
+      border-radius: 999px;
+      background: rgba(15,23,42,.04);
+      color: var(--ink-2);
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .16em;
+    }
+
+    .metric-row {
+      display: grid;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .metric {
+      display: grid;
+      grid-template-columns: 150px 1fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: 16px;
+      background: rgba(15,23,42,.02);
+      border: 1px solid rgba(15,23,42,.05);
+    }
+
+    .metric b {
+      font-size: 13px;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .bar {
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(15,23,42,.06);
+      overflow: hidden;
+    }
+
+    .bar > i {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--red), #cb4a50);
+    }
+
+    .schema {
+      display: grid;
+      grid-template-columns: 1.05fr .95fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: 20px;
+      background: rgba(255,255,255,.9);
+      box-shadow: var(--shadow-soft);
+      border: 1px solid rgba(15,23,42,.08);
+    }
+
+    .table th,
+    .table td {
+      text-align: left;
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(15,23,42,.06);
+      vertical-align: top;
+      font-size: 13px;
+    }
+
+    .table th {
+      background: rgba(15,23,42,.025);
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .16em;
+    }
+
+    .table td code,
+    .mono {
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+
+    .footer-band {
+      margin-top: 20px;
+      padding: 22px 24px;
+      border-radius: 26px;
+      background: #0f172a;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 20px 60px rgba(15,23,42,.16);
+    }
+
+    .footer-band p {
+      margin: 6px 0 0;
+      color: rgba(255,255,255,.72);
+      max-width: 72ch;
+    }
+
+    .footer-band strong {
+      display: block;
+      font-family: var(--font-head);
+      font-size: 20px;
+      letter-spacing: -0.04em;
+    }
+
+    .cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      height: 46px;
+      padding: 0 18px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.08);
+      color: white;
+      font-weight: 800;
+      white-space: nowrap;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.1);
+    }
+
+    .cta .arrow-circle {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: rgba(255,255,255,.12);
+      font-size: 14px;
+    }
+
+    .note {
+      color: var(--faint);
+      font-size: 12px;
+      margin-top: 10px;
+    }
+
+    @media (max-width: 1120px) {
+      .hero,
+      .two-col,
+      .schema,
+      .compare {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-main {
+        min-height: auto;
+      }
+
+      .flow {
+        grid-template-columns: 1fr;
+      }
+
+      .arrow {
+        display: none;
+      }
+
+      .hero-meta,
+      .grid-3 {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .shell {
+        width: min(100vw - 24px, 100%);
+        padding: 14px 0 48px;
+      }
+
+      .floating-nav {
+        border-radius: 24px;
+        padding: 16px;
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .nav-links {
+        justify-content: flex-start;
+      }
+
+      h1 {
+        max-width: 100%;
+        font-size: clamp(34px, 12vw, 54px);
+      }
+
+      .hero-main,
+      .hero-side,
+      .card,
+      .compare-card,
+      .layer-card {
+        padding: 18px;
+      }
+
+      .metric {
+        grid-template-columns: 1fr;
+      }
+
+      .footer-band {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="floating-nav">
+      <div class="brand">
+        <div class="mark">IL</div>
+        <div class="brand-copy">
+          <span>SPARC / Liability Intelligence Layer</span>
+          <strong>RM + Underwriter decision surface</strong>
+        </div>
+      </div>
+      <nav class="nav-links" aria-label="Sections">
+        <a href="#layer" class="active">Layer</a>
+        <a href="#rm">RM View</a>
+        <a href="#uw">Underwriter View</a>
+        <a href="#schema">Schema</a>
+        <a href="#calibration">Calibration</a>
+      </nav>
+      <div class="nav-chip">Draft format</div>
+    </header>
+
+    <section class="hero" id="layer">
+      <article class="panel hero-main">
+        <div class="eyebrow">liability intelligence layer</div>
+        <h1>Read the risk. Explain the product. Route the action.</h1>
+        <p class="hero-copy">
+          This layer sits between the IIB workbook and the dashboard. It normalizes messy raw fields, retrieves the right liability knowledge, explains the product in plain English, and returns separate recommendation paths for RMs and Underwriters.
+        </p>
+
+        <div class="hero-meta">
+          <div class="mini-stat">
+            <span>Input</span>
+            <strong>IIB sheet schema</strong>
+            <p>Raw policy, claims, and dictionary fields. Missing values allowed.</p>
+          </div>
+          <div class="mini-stat">
+            <span>Core output</span>
+            <strong>Decision objects</strong>
+            <p>RM next-best-action and UW referral logic from one normalized record.</p>
+          </div>
+          <div class="mini-stat">
+            <span>Future proof</span>
+            <strong>Multi-line ready</strong>
+            <p>Fire, engineering, health, and bundles plug into the same adapter model.</p>
+          </div>
+        </div>
+      </article>
+
+      <aside class="panel hero-side">
+        <div class="layer-stack">
+          <div class="layer-card">
+            <h2>Layer architecture</h2>
+            <p>The layer behaves like a controlled pipeline, not a chatbot. Every stage produces structured output, confidence, and explanation text.</p>
+
+            <div class="flow" aria-label="Processing flow">
+              <div class="node">
+                <small>1. ingest</small>
+                <strong>Workbook + doc + future feeds</strong>
+                <span>Policy rows, claims rows, dictionary schema, product notes.</span>
+              </div>
+              <div class="arrow">→</div>
+              <div class="node">
+                <small>2. normalize</small>
+                <strong>Canonical risk object</strong>
+                <span>Product family, exposures, missing fields, data quality.</span>
+              </div>
+              <div class="arrow">→</div>
+              <div class="node">
+                <small>3. retrieve</small>
+                <strong>Relevant product text</strong>
+                <span>Clauses, exclusions, cover intent, and product logic.</span>
+              </div>
+              <div class="arrow">→</div>
+              <div class="node">
+                <small>4. decide</small>
+                <strong>RM and UW outputs</strong>
+                <span>Pitch, refer, price, or ask for more data.</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="layer-card">
+            <h2>What it returns</h2>
+            <div class="grid-3" style="margin-top: 14px;">
+              <div class="card" style="padding: 16px;">
+                <div class="kicker kicker-blue">rm output</div>
+                <h3>Attack order</h3>
+                <p>Which product to lead with, why it matters, and what adjacent cover to pitch next.</p>
+              </div>
+              <div class="card" style="padding: 16px;">
+                <div class="kicker kicker-red">uw output</div>
+                <h3>Risk decision</h3>
+                <p>Accept, refer, or decline with the exact reason, missing fields, and structural risk signal.</p>
+              </div>
+              <div class="card" style="padding: 16px;">
+                <div class="kicker kicker-green">shared output</div>
+                <h3>Explanation</h3>
+                <p>A single defensible reason chain that both sales and underwriting can trust.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="section two-col" id="rm">
+      <article class="card">
+        <div class="kicker kicker-blue">rm experience</div>
+        <h2>How the RM sees it</h2>
+        <p style="max-width: 70ch;">The RM view should feel like an action board. It compresses product complexity into something a seller can use during a live meeting.</p>
+
+        <div class="metric-row">
+          <div class="metric">
+            <b>Lead product</b>
+            <div class="bar"><i style="width: 78%"></i></div>
+            <span>Professional Indemnity</span>
+          </div>
+          <div class="metric">
+            <b>Why now</b>
+            <div class="bar"><i style="width: 64%"></i></div>
+            <span>Renewal window + governance signal</span>
+          </div>
+          <div class="metric">
+            <b>Next cross-sell</b>
+            <div class="bar"><i style="width: 55%"></i></div>
+            <span>Cyber or D&amp;O</span>
+          </div>
+        </div>
+
+        <ul class="list" style="margin-top: 18px;">
+          <li><span class="bullet">1</span><div><strong>Product-first guidance</strong><span>Which liability cover to pitch first, based on the account profile and schema completeness.</span></div></li>
+          <li><span class="bullet">2</span><div><strong>Plain-English explanation</strong><span>Clause and product summaries rewritten so the RM can explain the recommendation without opening the document.</span></div></li>
+          <li><span class="bullet">3</span><div><strong>Call script support</strong><span>Short talking points, objections, and what evidence to ask the customer for next.</span></div></li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <div class="kicker kicker-amber">uw experience</div>
+        <h2>How the Underwriter sees it</h2>
+        <p style="max-width: 70ch;">The UW view should feel like a referral desk. It shows what is safe, what is missing, and what needs manual review.</p>
+
+        <div class="metric-row">
+          <div class="metric">
+            <b>Appetite fit</b>
+            <div class="bar"><i style="width: 46%"></i></div>
+            <span>Conditional bind</span>
+          </div>
+          <div class="metric">
+            <b>Missing fields</b>
+            <div class="bar"><i style="width: 72%"></i></div>
+            <span>Retro date + deductible + jurisdiction</span>
+          </div>
+          <div class="metric">
+            <b>Referral reason</b>
+            <div class="bar"><i style="width: 88%"></i></div>
+            <span>High SI + claim pattern + endorsements</span>
+          </div>
+        </div>
+
+        <ul class="list" style="margin-top: 18px;">
+          <li><span class="bullet">1</span><div><strong>Decision control</strong><span>Accept, refer, or decline with auditable reasons, not loose commentary.</span></div></li>
+          <li><span class="bullet">2</span><div><strong>Pricing discipline</strong><span>Recommended deductible, limit, and loading direction if the risk is bindable.</span></div></li>
+          <li><span class="bullet">3</span><div><strong>Data quality gate</strong><span>It highlights what must be collected before a clean underwriting decision can be made.</span></div></li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="section" id="schema">
+      <div class="compare">
+        <div class="compare-card">
+          <div class="compare-head">
+            <strong>Schema registry</strong>
+            <span class="pill">dynamic</span>
+          </div>
+          <p>The registry maps messy IIB fields into canonical fields that the rest of the system can trust.</p>
+          <div class="table-wrap" style="margin-top: 14px;">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Raw field</th>
+                  <th>Canonical meaning</th>
+                  <th>Rule</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>Policy_SI</code></td>
+                  <td>Exposure limit</td>
+                  <td class="mono">number normalize</td>
+                </tr>
+                <tr>
+                  <td><code>Endt_Reason_Description</code></td>
+                  <td>Change / risk signal</td>
+                  <td class="mono">endorsement flag</td>
+                </tr>
+                <tr>
+                  <td><code>Policy_End_Date</code></td>
+                  <td>Renewal clock</td>
+                  <td class="mono">days to renewal</td>
+                </tr>
+                <tr>
+                  <td><code>Occupancy_Description</code></td>
+                  <td>Risk context</td>
+                  <td class="mono">sector / hazard map</td>
+                </tr>
+                <tr>
+                  <td><code>Claims rows</code></td>
+                  <td>Outcome feedback</td>
+                  <td class="mono">calibration input</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="compare-card" id="calibration">
+          <div class="compare-head">
+            <strong>Outcome calibration</strong>
+            <span class="pill">learns over time</span>
+          </div>
+          <p>This is where the layer becomes smarter. It compares recommendations against real outcomes and adjusts scores, not just rules.</p>
+          <div class="metric-row">
+            <div class="metric">
+              <b>Recommended and won</b>
+              <div class="bar"><i style="width: 82%"></i></div>
+              <span>raise confidence</span>
+            </div>
+            <div class="metric">
+              <b>Recommended and declined</b>
+              <div class="bar"><i style="width: 34%"></i></div>
+              <span>lower fit for that pattern</span>
+            </div>
+            <div class="metric">
+              <b>Binded then claim emerged</b>
+              <div class="bar"><i style="width: 60%"></i></div>
+              <span>tighten UW logic</span>
+            </div>
+          </div>
+          <p class="note">This section is why the layer is not static. It gets better with every closed deal, referral, and claim outcome.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="uw">
+      <div class="card">
+        <div class="kicker kicker-violet">cross-line expansion</div>
+        <h2>How it scales beyond liability</h2>
+        <p style="max-width: 78ch;">The same shell should accept Fire, Engineering, Group Health, Financial Lines, and bundled products later. The layer only needs new adapters, not a new UI pattern.</p>
+
+        <div class="grid-3" style="margin-top: 16px;">
+          <div class="card" style="background: linear-gradient(180deg, rgba(37,99,235,.04), rgba(255,255,255,.92));">
+            <div class="kicker kicker-blue">fire</div>
+            <h3>Asset concentration</h3>
+            <p>Building occupancy, stock, and interruption risk become the new RM/UW decision drivers.</p>
+          </div>
+          <div class="card" style="background: linear-gradient(180deg, rgba(180,83,9,.05), rgba(255,255,255,.92));">
+            <div class="kicker kicker-amber">engineering</div>
+            <h3>Project and machinery logic</h3>
+            <p>Project stage, installation risk, commissioning, and equipment exposure are plugged into the same flow.</p>
+          </div>
+          <div class="card" style="background: linear-gradient(180deg, rgba(4,120,87,.05), rgba(255,255,255,.92));">
+            <div class="kicker kicker-green">health / bundle</div>
+            <h3>Expanded portfolio view</h3>
+            <p>It can recommend multiple covers in one action while keeping each cover explanation separate and clear.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="footer-band">
+      <div>
+        <strong>Draft intent: a decision layer, not a prettier report</strong>
+        <p>Use this structure as the reusable shell. The intelligence layer should sit between raw IIB data and the dashboards, then emit a separate RM recommendation and Underwriter recommendation from the same normalized record.</p>
+      </div>
+      <a class="cta" href="#layer">
+        Review architecture
+        <span class="arrow-circle">↗</span>
+      </a>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,221 @@
+I checked the current v2 bundle logic. Selection is mainly driven by:
+
+`sector + funding_stage + physical asset band + risk scores + compliance triggers`.
+
+Below are practical input recipes.
+
+**Important Caveat**
+`Bharat Sookshma Udyam Suraksha` is eligible for micro physical-asset profiles, but in the current v2 scoring it often loses to `MSME Suraksha Kavach` because MSME covers the same property/liability/labour risks with stronger commercial score. It may appear as an alternative unless scoring/config is adjusted.
+
+| Bundle | Inputs Most Likely To Select It |
+|---|---|
+| **Startup Shield Pack** | `sector`: Fintech / SaaS / Healthtech / Edtech / HRtech / Legaltech. `funding_stage`: Seed or Series A. `operations`: Digital-only. `data_sensitivity`: High. `data_handled`: Payments, KYC/Aadhaar, health records, source code, customer behavioural data. `regulatory`: DPDP Act, IT Act/CERT-In, RBI/SEBI/IRDAI if fintech. `physical_assets`: None or Office. `team_size`: 20-150. `has_investors`: Yes. |
+| **Corporate Cover II** | `sector`: Fintech works especially well at Series B+ because it avoids Employee Welfare beating it. `funding_stage`: Series B+. `team_size`: 100+. `has_investors`: Yes. `data_sensitivity`: Medium/High. `customer_type`: B2B Enterprise. `regulatory`: RBI/SEBI/IRDAI, DPDP, Competition Act. `physical_assets`: Office, warehouse, factory, or any larger setup. |
+| **MSME Suraksha Kavach** | `sector`: D2C / Consumer Brands, Logistics, Foodtech, Agritech, Cleantech. `funding_stage`: Seed or Series A. `operations`: Hybrid or Physical-only. `physical_assets`: Warehouse / fulfilment centre, retail stores, kitchen, cold chain, vehicles. `data_handled`: Physical inventory / goods. `team_size`: 10-80. Keep `asset_value_inr` modest. |
+| **Bharat Sookshma Udyam Suraksha** | Intended profile: `funding_stage`: Pre-seed or Seed. `operations`: Physical-only or Hybrid. `physical_assets`: small warehouse, shop, office, small inventory. `asset_value_inr`: under `50,000,000`. `data_sensitivity`: Low. `regulatory`: None/minimal. Best theoretical risk pattern: high Property, Liability, Gig/Labour; low Cyber, Governance, IP. Current v2 may rank MSME above it. |
+| **Deeptech Innovation Bundle** | `sector`: Deeptech / AI / Robotics, Healthtech, Cleantech. `funding_stage`: Series A or Series B+. `operations`: Hardware / IoT or Hybrid. `physical_assets`: Lab / R&D equipment, drones, medical devices, data centre/server room. `hardware_software_split`: 0.35-0.75. `data_handled`: Intellectual property / source code, health records if healthtech. `regulatory`: DGCA for drones, CDSCO for medical devices, BIS/QCO. Set `drone_ops: true` if drone cover is needed. |
+| **Employee Welfare Bundle** | `sector`: SaaS, D2C, Healthtech, Edtech, Cleantech. `funding_stage`: Seed through Series B+. `team_size`: high, ideally 100+. `data_handled`: Employee / HR data. `regulatory`: Labour Codes / gig worker regulations. `gig_headcount_pct`: 0.2+. `physical_assets`: any or none. This bundle tends to win when workforce exposure is broad. |
+| **Marine Trade Credit Bundle** | `sector`: D2C, Logistics, Cleantech, SaaS B2B with trade exposure. `funding_stage`: Series A or Series B+. `customer_type`: B2B Enterprise + D2C/Marketplace. `b2b_pct`: 0.8-1.0. `export_us_pct` / `export_eu_pct`: high. `export_china_pct` or `chinese_supplier_pct_cogs`: high if applicable. `physical_assets`: none, warehouse, or factory. Avoid Labour Codes/BRSR triggers if they force other compliance bundles. |
+| **Engineering Project Bundle** | `sector`: Cleantech / Climatetech, Deeptech, D2C manufacturing. `funding_stage`: Series A+. `operations`: Hardware / IoT or Hybrid. `physical_assets`: Manufacturing plant, solar/clean-energy infrastructure, lab/R&D equipment. `hardware_software_split`: 0.7+. `regulatory`: EPR/environmental compliance, BIS/QCO. Best when Property + ESG/Climate + Liability + IP risks are high. |
+| **Climate Parametric Bundle** | `sector`: Cleantech / Climatetech or D2C. `funding_stage`: Seed or Series A works best. `operations`: Hybrid / Physical. `facility_climate_risk_zone`: High or Extreme. `physical_assets`: Warehouse or manufacturing plant. Avoid lab-only asset band if you want Climate over Deeptech/Engineering. `regulatory`: EPR/environmental compliance. `data_handled`: Physical inventory / goods. |
+
+For the current app, the strongest tested top-pick examples are:
+
+- Startup Shield: Series A Fintech, high data sensitivity, payments + KYC + DPDP/RBI.
+- Corporate Cover II: Series B+ Fintech, high governance/regulatory/data risk.
+- MSME: Seed D2C with warehouse/inventory.
+- Deeptech: Series A Deeptech with lab + drones + DGCA.
+- Employee Welfare: Seed SaaS with 300 team size and labour/gig exposure.
+- Marine Trade Credit: Series A D2C with high export and B2B receivables profile.
+- Engineering: Series A Cleantech with factory/lab/solar infrastructure.
+- Climate Parametric: Seed Cleantech with warehouse/factory and Extreme climate zone.
+
+
+fire, liability and engineering - eg not hydraulic 
+broad preferred and not preferred 
+
+
+Premium Estimation Reference — All 9 Bundles
+How the engine works (pricing_engine.py):
+
+
+premium = max(min_floor, exposure_SI × base_rate × combined_loading)
+combined_loading = risk × stage × sector × climate × controls × claims × revenue × records
+                   (capped at 4.0×)
+Stage loadings: Pre-seed 0.90 · Seed 1.00 · Series A 1.12 · Series B+ 1.28
+
+Bundle discount: 3–4 covers → −5% · 5+ covers → −8% · GST: +18%
+
+Size buckets (premium_estimator.py brackets):
+
+micro = Pre-seed/Seed + team ≤ 25
+small = Series A, or Seed + team > 25
+growth = Series B+
+1. Startup Shield Pack
+Profile: Series A Fintech · 50 team · digital-only · high data sensitivity · DPDP/RBI
+Size bucket: small
+
+Cover	Base rate	SI / exposure	Net range (L)
+Cyber Liability	1.75 L/Cr	cyber_limit ~9.75 Cr	2.5 – 9.0
+D&O Liability	0.75 L/Cr	DNO limit ~6 Cr	2.0 – 6.0
+Professional Indemnity	0.70 L/Cr	PI limit ~5.6 Cr	1.5 – 5.0
+Crime / Fidelity	0.35 L/Cr	crime limit ~2 Cr	1.0 – 3.5
+Group Health	0.13 L/emp	50 employees	2.0 – 8.0
+Group PA	0.09 L/emp	50 employees	0.4 – 1.5
+Subtotal: 9.4–33.0 L · −8% bundle discount · Net: 8.6–30.4 L · GST: 1.6–5.5 L
+
+Gross: ₹10.2 – 35.9 L/year (realistic mid-point ~₹18–22 L)
+
+Key uplifts: Fintech cyber sector +20%, Series A stage +12%, high data sensitivity cyber_limit multiplied 1.5×, DPDP records loading +10–30%.
+
+2. Corporate Cover II
+Profile: Series B+ Fintech · 150 team · B2B Enterprise · medium-high data sensitivity
+Size bucket: growth
+
+Cover	Base rate	SI / exposure	Net range (L)
+Property Fire	0.35 L/Cr	~20+ Cr (office/warehouse)	4.0 – 15.0
+Business Interruption	0.22 L/Cr	gross profit ~35 Cr	4.0 – 15.0
+Public Liability / CGL	0.30–0.40 L/Cr	limit ~15 Cr	2.5 – 12.0
+Employees Comp	0.40 L/Cr	payroll ~18 Cr	2.5 – 8.0
+Cyber Liability	1.75 L/Cr	limit ~25 Cr	9.0 – 30.0
+D&O Liability	0.75 L/Cr	limit ~25 Cr	6.0 – 20.0
+Subtotal: 28–100 L · −8% bundle discount · Net: 25.8–92 L · GST: 4.6–16.6 L
+
+Gross: ₹30 – 109 L/year (realistic mid-point ~₹60–75 L)
+
+Key uplifts: Series B+ stage +28%, Fintech cyber +20%, governance fraud multiplier 1.4× at series_b stage.
+
+3. MSME Suraksha Kavach
+Profile: Seed D2C · 20 team · warehouse + inventory · ~2–5 Cr asset value
+Size bucket: micro (Seed, team ≤ 25)
+
+Cover	Base rate	SI / exposure	Net range (L)
+Property Fire (mandatory)	0.35 L/Cr	~2–3 Cr property	0.3 – 1.2
+Burglary (mandatory)	0.18 L/Cr	~0.7–1.5 Cr stock	0.1 – 0.4
+Business Interruption (mandatory)	0.22 L/Cr	~0.5 Cr gross profit	0.3 – 1.0
+Cyber Liability	1.75 L/Cr	~1 Cr limit	0.5 – 2.5
+Product Liability	0.52 L/Cr	~1–2 Cr limit	0.4 – 1.5
+Public Liability	0.30 L/Cr	~1 Cr limit	0.2 – 0.8
+Employees Comp	0.40 L/Cr	payroll ~2.4 Cr	0.2 – 0.8
+Mandatory 3 covers: Net 0.7–2.6 L · −5% · Gross: ₹0.8 – 2.9 L/year
+
+Full 7 covers: Net 2.0–8.2 L · −8% · Gross: ₹2.2 – 8.9 L/year
+
+D2C liability multiplier 1.5× on liability covers; sector property loading +15%.
+
+4. Bharat Sookshma Udyam Suraksha
+Profile: Pre-seed/Seed · 10 team · small shop/warehouse · asset_value_inr < ₹50L (SI cap)
+Size bucket: micro
+
+Note: SI cap at ₹50L / 0.5 Cr applies; property_fire min floor ₹0.35L at this SI level.
+
+Cover	Base rate	SI / exposure	Net range (L)
+Property Fire (mandatory)	0.35 L/Cr	≤ 0.5 Cr (capped)	0.35 – 0.8
+Public Liability	0.30 L/Cr	~0.5 Cr limit	0.2 – 0.5
+Employees Comp	0.40 L/Cr	payroll ~1.2 Cr	0.2 – 0.5
+Burglary	0.18 L/Cr	~0.2 Cr stock	0.1 – 0.3
+Money Insurance	0.35 L/Cr	~0.1 Cr cash	0.1 – 0.3
+Machinery Breakdown	0.55 L/Cr	~0.3 Cr equipment	0.2 – 0.5
+Core 3 covers: Net 0.75–1.8 L · −5% · Gross: ₹0.8 – 2.0 L/year
+
+Full 6 covers: Net 1.2–2.9 L · −8% · Gross: ₹1.3 – 3.2 L/year
+
+Pre-seed stage discount (0.90×) partially offsets risk loading.
+
+5. Deeptech Innovation Bundle
+Profile: Series A Deeptech · 50 team · Lab + Drones · hardware_split 0.5
+Size bucket: small (Series A, asset_band = lab_equipment)
+
+Cover	Base rate	SI / exposure	Net range (L)
+Property All Risk (mandatory)	0.52 L/Cr	~9–12 Cr (lab+stage+hardware)	2.0 – 7.0
+Electronic Equipment (mandatory)	0.80 L/Cr	~4–5 Cr equipment	1.2 – 4.0
+Professional Indemnity (mandatory)	0.70 L/Cr	~5 Cr limit	1.5 – 5.0
+D&O Liability (mandatory)	0.75 L/Cr	~6 Cr limit	2.0 – 6.0
+Cyber Liability	1.75 L/Cr	~6.5 Cr limit	2.5 – 9.0
+Product Liability	0.52 L/Cr	~4 Cr limit	1.5 – 5.0
+Engineering CAR	0.22 L/Cr	~5 Cr project value	2.0 – 8.0
+Drone Insurance	0.42 L/Cr	~1 Cr hull SI	1.0 – 3.5
+Mandatory 4 covers: Net 6.7–22 L · −5% · Gross: ₹7.5 – 24.7 L/year
+
+Full 8 covers: Net 13.7–47.5 L · −8% · Gross: ₹14.9 – 51.6 L/year
+
+Deeptech IP infringement multiplier 1.5×, property multiplier 1.3× (lab_equipment asset band), Series A stage +12%.
+
+6. Employee Welfare Bundle
+Profile: Seed SaaS · 300 team · 20%+ gig workers
+Size bucket: small (Seed + team > 25)
+
+PREMIUM_RANGES brackets are calibrated for ~50 employees. For 300 employees, use per-employee pricing engine rates.
+
+Cover	Rate	Exposure	Per-employee rate	Net estimate (300 emp)
+Group Health	0.13 L/emp	300 emp	₹13,000/emp avg	39 – 58 L
+Group PA	0.09 L/emp	300 emp	₹9,000/emp avg	27 – 36 L
+Employees Comp	0.40 L/Cr	payroll ~36 Cr	—	14 – 18 L
+Employment Practices	—	small bracket	—	1.0 – 3.5 L
+3 core covers (300 team): Net 80–112 L · −5% · Gross: ₹90 – 125 L/year
+
+For smaller Seed SaaS (50 team): Group Health 7.8 L + PA 5 L + Comp 2.4 L = Net 15 L · Gross: ₹17–20 L/year
+
+This bundle's premium scales almost linearly with headcount. At ₹15K avg health premium, ₹9K PA, and 0.4% of payroll for comp.
+
+7. Marine Trade Credit Bundle
+Profile: Series A D2C · B2B 80%+ · export US/EU 50%+ · warehouse or asset-light
+Size bucket: small (Series A)
+
+Cover	Base rate	SI / exposure	Net range (L)
+Marine Cargo	0.40 L/Cr	cargo turnover ~13–15 Cr (revenue × 0.55 × 1.25 for high export)	5.0 – 7.5
+Trade Credit	0.40 L/Cr	receivables ~3–5 Cr (revenue × 0.80 × 0.18)	1.5 – 3.5
+PREMIUM_RANGES (small) understates for high-turnover: marine 1.0–3.5 L is calibrated for ₹2 Cr/month cargo; at Series A D2C with high exports the engine calculates higher.
+
+2 core covers: Net 6.5–11 L · −5% · Gross: ₹7.7 – 13.0 L/year
+
+If adding property_fire + BI for warehouse profile: add ₹2.5–8.5 L gross
+
+Geopolitical risk multiplier fires for high export; Chinese supplier loading adds 0–10% additional.
+
+8. Engineering Project Bundle
+Profile: Series A Cleantech · manufacturing plant + solar · hardware_split 0.7+
+Size bucket: small (Series A, asset_band = fab_or_plant)
+
+Cover	Base rate	SI / exposure	Net range (L)
+Engineering CAR/EAR	0.22 L/Cr	project value (see below)	varies
+Surety	0.45 L/Cr	project value	varies
+Marine Cargo	0.40 L/Cr	equipment transit	1.0 – 4.0
+Project value drives everything. Inferred from _infer_property_si: stage 6 Cr + factory 8 Cr + solar 6 Cr = 20 Cr property × 1.7 = project_value ~34 Cr.
+
+Project size	CAR/EAR	Surety	Marine	Total net	Gross
+Small (5 Cr)	1.4 L	2.9 L	1.0 L	5.3 L	₹6.2 L
+Mid (15 Cr)	4.2 L	8.6 L	2.0 L	14.8 L	₹17.5 L
+Large (34 Cr)	9.5 L	19.6 L	3.5 L	32.6 L	₹38.5 L
+(All with −5% bundle discount, +18% GST, Series A stage loading 1.12×, Cleantech engineering sector +15%)
+
+9. Climate Parametric Bundle
+Profile: Seed Cleantech · warehouse/factory · Extreme climate zone · ~20–30 team
+Size bucket: micro (Seed + team ≤ 25) or small
+
+Climate loading for Extreme zone: ×1.32 (applies to property_fire, BI, and parametric covers)
+
+Cover	Base rate	SI / exposure	Net (Extreme, micro)	Net (Extreme, small)
+Climate Parametric	0.22 L/Cr	weather_exposed_si ~4.7 Cr	1.6 – 2.5 L	5.5 – 8.5 L
+Property Fire	0.35 L/Cr	property_si ~3.5 Cr	0.5 – 1.6 L	1.6 – 5.3 L
+Public Liability	0.30 L/Cr	~1.5 Cr limit	0.2 – 0.8 L	0.8 – 2.5 L
+3 covers, micro, Extreme zone: Net 2.3–4.9 L · −5% · Gross: ₹2.6 – 5.5 L/year
+
+3 covers, small, Extreme zone: Net 7.9–16.3 L · −5% · Gross: ₹8.9 – 18.4 L/year
+
+Extreme zone adds ~32% to all three covers versus a Low-risk zone baseline.
+
+Summary Table
+Bundle	Size bucket	Core covers	Net premium range (L)	Gross (incl. GST) L/yr
+Startup Shield Pack	small	6	8.6 – 30.4	10.2 – 35.9
+Corporate Cover II	growth	6–7	25.8 – 92	30 – 109
+MSME Suraksha Kavach	micro	3 mand / 7 full	0.7–2.5 / 1.8–7.5	0.8–2.9 / 2.2–8.9
+Bharat Sookshma Udyam	micro	3–6	0.7 – 2.7	0.8 – 3.2
+Deeptech Innovation	small	4 mand / 8 full	6.4–20.9 / 12.6–43.7	7.5–24.7 / 14.9–51.6
+Employee Welfare (50 team)	small	3	15	~17–20
+Employee Welfare (300 team)	small	3	80 – 112	90 – 125
+Marine Trade Credit	small	2	6.5 – 11	7.7 – 13
+Engineering Project	small	3	5–33 (project-size-driven)	6–38
+Climate Parametric (micro)	micro	3	2.2 – 4.7	2.6 – 5.5
+Climate Parametric (small)	small	3	7.9 – 16.3	8.9 – 18.4
+Footnote (from premium_estimator.py): Indicative estimates only. Actual premium is subject to underwriting, SI selection, controls, and claims history. Sources: IRDAI Annual Report 2023-24, GIC Re pricing circulars, and industry broker benchmarks Q1 2026.

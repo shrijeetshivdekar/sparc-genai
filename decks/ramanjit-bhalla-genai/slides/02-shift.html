@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>What Changed</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+</head>
+<body>
+  <section class="slide">
+    <div class="topbar">
+      <div class="brand"><span class="brand-mark"></span>SPARC / GenAI</div>
+      <div class="eyebrow">What changed in the product claim</div>
+    </div>
+    <div class="grid-2" style="flex:1; gap:28px;">
+      <div class="card" style="padding:34px;">
+        <div class="small-label">Before</div>
+        <h2 class="headline">AI mostly explained the answer after deterministic selection.</h2>
+        <p class="body">The recommendation itself was deterministic. Gemini mainly helped with outreach and explanatory copy, which was useful, but it did not make the core claim “GenAI-driven recommendation” operationally true.</p>
+      </div>
+      <div class="card" style="padding:34px; border-color:rgba(249,157,39,0.36);">
+        <div class="small-label">Now</div>
+        <h2 class="headline">AI participates in ranking, while deterministic logic still owns eligibility.</h2>
+        <p class="body">The engine first computes risk, hard gates, underwriting constraints, and eligible products or bundles. Only then does Gemini rerank the shortlist in strict JSON using startup profile, risk scores, compliance triggers, and constraints.</p>
+      </div>
+    </div>
+    <div class="timeline">
+      <div class="timeline-card">
+        <div class="timeline-step">Shift 01</div>
+        <div class="timeline-title">Shortlist first</div>
+        <div class="timeline-copy">No product reaches Gemini unless deterministic logic already says it is eligible for that startup.</div>
+      </div>
+      <div class="timeline-card">
+        <div class="timeline-step">Shift 02</div>
+        <div class="timeline-title">Rerank second</div>
+        <div class="timeline-copy">GenAI returns ranked recommendations, confidence, rationale, fit explanation, and missing information in machine-checkable form.</div>
+      </div>
+      <div class="timeline-card">
+        <div class="timeline-step">Shift 03</div>
+        <div class="timeline-title">Audit always</div>
+        <div class="timeline-copy">The response includes mode, source, error state, bundle match, shadow diff, and audit metadata so the RM can see whether AI changed anything.</div>
+      </div>
+    </div>
+    <div class="footer">
+      <div>The claim is now: GenAI influences ranking, not eligibility.</div>
+      <div class="page">02 / 06</div>
+    </div>
+  </section>
+</body>
+</html>

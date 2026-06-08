@@ -1,0 +1,789 @@
+{
+  "version": "2026.06",
+  "meta": {
+    "description": "Per-cover document affinity matrix. For each insurance cover (keyed by the bundle-component name from research_config.json), declares which documents narrow its premium confidence band and by how many percentage points.",
+    "base_band_pct": 50,
+    "min_band_pct": 8,
+    "doc_types": [
+      "pl",
+      "balance_sheet",
+      "itr",
+      "gst_returns",
+      "mca_filings",
+      "prior_policy",
+      "client_contract",
+      "asset_register",
+      "vapt_report"
+    ]
+  },
+  "covers": {
+    "CYBER": {
+      "base_band_pct": 50,
+      "documents": {
+        "pl": {
+          "narrow_pct": 4,
+          "fields_used": [
+            "revenue_cr"
+          ]
+        },
+        "balance_sheet": {
+          "narrow_pct": 3,
+          "fields_used": [
+            "total_assets_cr"
+          ]
+        },
+        "gst_returns": {
+          "narrow_pct": 5,
+          "fields_used": [
+            "b2b_concentration_top3",
+            "state_count"
+          ]
+        },
+        "mca_filings": {
+          "narrow_pct": 4,
+          "fields_used": [
+            "paid_up_capital_cr"
+          ]
+        },
+        "prior_policy": {
+          "narrow_pct": 12,
+          "fields_used": [
+            "cyber_si",
+            "cyber_claims_3yr",
+            "cyber_ncd_years"
+          ]
+        },
+        "vapt_report": {
+          "narrow_pct": 15,
+          "fields_used": [
+            "critical_count",
+            "mfa_enabled",
+            "backup_rto_hours"
+          ]
+        },
+        "client_contract": {
+          "narrow_pct": 8,
+          "fields_used": [
+            "data_processor_role",
+            "pii_volume_est"
+          ]
+        }
+      }
+    },
+    "D_AND_O": {
+      "base_band_pct": 50,
+      "documents": {
+        "pl": {
+          "narrow_pct": 4,
+          "fields_used": [
+            "revenue_cr",
+            "net_profit_cr"
+          ]
+        },
+        "balance_sheet": {
+          "narrow_pct": 6,
+          "fields_used": [
+            "equity_cr",
+            "debt_cr"
+          ]
+        },
+        "itr": {
+          "narrow_pct": 2,
+          "fields_used": [
+            "profit_cr"
+          ]
+        },
+        "mca_filings": {
+          "narrow_pct": 18,
+          "fields_used": [
+            "directors",
+            "shareholders",
+            "contingent_liabilities_cr",
+            "charges_unsatisfied_count",
+            "director_resignations_24mo"
+          ]
+        },
+        "prior_policy": {
+          "narrow_pct": 12,
+          "fields_used": [
+            "do_si",
+            "do_claims_3yr",
+            "do_ncd_years"
+          ]
+        }
+      }
+    },
+    "PI_TECH_EO": {
+      "base_band_pct": 50,
+      "documents": {
+        "pl": {
+          "narrow_pct": 5,
+          "fields_used": [
+            "revenue_cr"
+          ]
+        },
+        "gst_returns": {
+          "narrow_pct": 10,
+          "fields_used": [
+            "export_share",
+            "b2b_concentration_top3",
+            "hsn_sac_codes"
+          ]
+        },
+        "client_contract": {
+          "narrow_pct": 20,
+          "fields_used": [
+            "liability_cap_inr",
+            "unlimited_liability_flag",
+            "sla_penalty_per_day_inr",
+            "foreign_jurisdiction_flag",
+            "retroactive_required"
+          ]
+        },
+        "prior_policy": {
+          "narrow_pct": 10,
+          "fields_used": [
+            "pi_si",
+            "pi_claims_3yr",
+            "retroactive_date",
+            "pi_ncd_years"
+          ]
+        },
+        "mca_filings": {
+          "narrow_pct": 3,
+          "fields_used": [
+            "latest_aoc4"
+          ]
+        }
+      }
+    },
+    "CRIME_FIDELITY": {
+      "base_band_pct": 50,
+      "documents": {
+        "pl": {
+          "narrow_pct": 4,
+          "fields_used": [
+            "revenue_cr",
+            "payroll_cr"
+          ]
+        },
+        "balance_sheet": {
+          "narrow_pct": 5,
+          "fields_used": [
+            "current_assets_cr"
+          ]
+        },
+        "mca_filings": {
+          "narrow_pct": 10,
+          "fields_used": [
+            "directors",
+            "related_party_transactions"
+          ]
+        },
+        "vapt_report": {
+          "narrow_pct": 8,
+          "fields_used": [
+            "third_party_access_count",
+            "mfa_enabled"
+          ]
+        },
+        "prior_policy": {
+          "narrow_pct": 12,
+          "fields_used": [
+            "crime_si",
+            "crime_claims_3yr",
+            "crime_ncd_years"
+          ]
+        }
+      }
+    },
+    "EMPLOYMENT_PRACTICES": {
+      "base_band_pct": 50,
+      "documents": {
+        "pl": {
+          "narrow_pct": 5,
+          "fields_used": [
+            "payroll_cr"
+          ]
+        },
+        "mca_filings": {
+          "narrow_pct": 6,
+          "fields_used": [
+            "directors"
+          ]
+        },
+        "prior_policy": {
+          "narrow_pct": 12,
+          "fields_used": [
+            "epli_si",
+            "epli_claims_3yr",
+            "epli_ncd_years"
+          ]
+        }
+      }
+    },
+    "CGL_I_ELITE": {
+      "base_band_pct": 50,
+      "documents": {
+        "pl": {
+          "narrow_pct": 5,
+          "fields_used": [
+            "revenue_cr"
+          ]
+        },
+        "balance_sheet": {
+          "narrow_pct": 4,
+          "fields_used": [
+            "total_assets_cr"
+          ]
+        },
+        "gst_returns": {
+          "narrow_pct": 8,
+          "fields_used": [
+            "state_count",
+            "hsn_sac_codes"
+          ]
+        },
+        "client_contract": {
+          "narrow_pct": 8,
+          "fields_used": [
+            "liability_cap_inr",
+            "jurisdiction"
+          ]
+        },
+        "prior_policy": {
+          "narrow_pct": 10,
+          "fields_used": [
+            "cgl_si",
+            "cgl_claims_3yr",
+            "cgl_ncd_years"
+          ]
+        }
+      }
+    },
+    "PUBLIC_LIABILITY": {
+      "base_band_pct": 50,
+      "documents": {
+        "pl": {
+          "narrow_pct": 4,
+          "fields_used": [
+            "revenue_cr"
+          ]
+        },
+        "gst_returns": {
+          "narrow_pct": 10,
+          "fields_used": [
+            "state_count"
+          ]
+        },
+        "asset_register": {
+          "narrow_pct": 8,
+          "fields_used": [
+            "location_count"
+          ]
+        },
+        "prior_policy": {
+          "narrow_pct": 12,
+          "fields_used": [
+            "pl_si",
+            "pl_claims_3yr",
+            "pl_ncd_years"
+          ]
+        }
+      }
+    },
+    "EMPLOYERS_COMP": {
+      "base_band_pct": 50,
+      "documents": {
+        "pl": {
+          "narrow_pct": 8,
+          "fields_used": [
+            "payroll_cr"
+          ]
+        },
+        "balance_sheet": {
+          "narrow_pct": 2,
+          "fields_used": [
+            "total_assets_cr"
+          ]
+        },
+        "mca_filings": {
+          "narrow_pct": 3,
+          "fields_used": [
+            "paid_up_capital_cr"
+          ]
+        },
+        "prior_policy": {
+          "narrow_pct": 14,
+          "fields_used": [
+            "ec_si",
+            "ec_claims_3yr",
+            "headcount",
+            "ec_ncd_years"
+          ]
+        }
+      }
+    },
+    "GROUP_HEALTH": {
+      "base_band_pct": 50,
+      "documents": {
+        "pl": {
+          "narrow_pct": 10,
+          "fields_used": [
+            "payroll_cr"
+          ]
+        },
+        "mca_filings": {
+          "narrow_pct": 3,
+          "fields_used": [
+            "paid_up_capital_cr"
+          ]
+        },
+        "prior_policy": {
+          "narrow_pct": 18,
+          "fields_used": [
+            "gh_si_per_head",
+            "gh_claims_ratio",
+            "headcount",
+            "sum_insured_per_grade"
+          ]
+        }
+      }
+    },
+    "GROUP_PA": {
+      "base_band_pct": 50,
+      "documents": {
+        "pl": {
+          "narrow_pct": 6,
+          "fields_used": [
+            "payroll_cr"
+          ]
+        },
+        "prior_policy": {
+          "narrow_pct": 16,
+          "fields_used": [
+            "gpa_si_per_head",
+            "gpa_claims_3yr",
+            "headcount"
+          ]
+        }
+      }
+    },
+    "BHARAT_SOOKSHMA": {
+      "base_band_pct": 50,
+      "documents": {
+        "pl": {
+          "narrow_pct": 3,
+          "fields_used": [
+            "revenue_cr"
+          ]
+        },
+        "balance_sheet": {
+          "narrow_pct": 8,
+          "fields_used": [
+            "fixed_assets_cr",
+            "total_assets_cr"
+          ]
+        },
+        "asset_register": {
+          "narrow_pct": 25,
+          "fields_used": [
+            "total_replacement_cr",
+            "weighted_avg_age",
+            "location_count",
+            "imported_share"
+          ]
+        },
+        "prior_policy": {
+          "narrow_pct": 10,
+          "fields_used": [
+            "property_si",
+            "fire_claims_3yr",
+            "property_ncd_years"
+          ]
+        }
+      }
+    },
+    "BHARAT_LAGHU": {
+      "base_band_pct": 50,
+      "documents": {
+        "pl": {
+          "narrow_pct": 3,
+          "fields_used": [
+            "revenue_cr"
+          ]
+        },
+        "balance_sheet": {
+          "narrow_pct": 8,
+          "fields_used": [
+            "fixed_assets_cr",
+            "total_assets_cr"
+          ]
+        },
+        "asset_register": {
+          "narrow_pct": 22,
+          "fields_used": [
+            "total_replacement_cr",
+            "weighted_avg_age",
+            "location_count"
+          ]
+        },
+        "prior_policy": {
+          "narrow_pct": 10,
+          "fields_used": [
+            "property_si",
+            "fire_claims_3yr",
+            "property_ncd_years"
+          ]
+        }
+      }
+    },
+    "BHARAT_UDYAM": {
+      "base_band_pct": 50,
+      "documents": {
+        "pl": {
+          "narrow_pct": 3,
+          "fields_used": [
+            "revenue_cr"
+          ]
+        },
+        "balance_sheet": {
+          "narrow_pct": 8,
+          "fields_used": [
+            "fixed_assets_cr"
+          ]
+        },
+        "asset_register": {
+          "narrow_pct": 22,
+          "fields_used": [
+            "total_replacement_cr",
+            "weighted_avg_age",
+            "imported_share"
+          ]
+        },
+        "prior_policy": {
+          "narrow_pct": 10,
+          "fields_used": [
+            "property_si",
+            "fire_claims_3yr",
+            "property_ncd_years"
+          ]
+        }
+      }
+    },
+    "PROPERTY_FIRE": {
+      "base_band_pct": 50,
+      "documents": {
+        "pl": {
+          "narrow_pct": 3,
+          "fields_used": [
+            "revenue_cr"
+          ]
+        },
+        "balance_sheet": {
+          "narrow_pct": 10,
+          "fields_used": [
+            "fixed_assets_cr",
+            "total_assets_cr"
+          ]
+        },
+        "asset_register": {
+          "narrow_pct": 25,
+          "fields_used": [
+            "total_replacement_cr",
+            "weighted_avg_age",
+            "location_count"
+          ]
+        },
+        "prior_policy": {
+          "narrow_pct": 10,
+          "fields_used": [
+            "property_si",
+            "fire_claims_3yr",
+            "property_ncd_years"
+          ]
+        }
+      }
+    },
+    "PROPERTY_ALL_RISK": {
+      "base_band_pct": 50,
+      "documents": {
+        "pl": {
+          "narrow_pct": 3,
+          "fields_used": [
+            "revenue_cr"
+          ]
+        },
+        "balance_sheet": {
+          "narrow_pct": 10,
+          "fields_used": [
+            "fixed_assets_cr",
+            "total_assets_cr"
+          ]
+        },
+        "asset_register": {
+          "narrow_pct": 25,
+          "fields_used": [
+            "total_replacement_cr",
+            "weighted_avg_age",
+            "location_count",
+            "imported_share"
+          ]
+        },
+        "prior_policy": {
+          "narrow_pct": 10,
+          "fields_used": [
+            "property_si",
+            "property_claims_3yr",
+            "property_ncd_years"
+          ]
+        }
+      }
+    },
+    "BUSINESS_INTERRUPTION": {
+      "base_band_pct": 50,
+      "documents": {
+        "pl": {
+          "narrow_pct": 10,
+          "fields_used": [
+            "revenue_cr",
+            "gross_profit_cr"
+          ]
+        },
+        "balance_sheet": {
+          "narrow_pct": 4,
+          "fields_used": [
+            "fixed_assets_cr"
+          ]
+        },
+        "asset_register": {
+          "narrow_pct": 15,
+          "fields_used": [
+            "location_count",
+            "imported_share"
+          ]
+        },
+        "gst_returns": {
+          "narrow_pct": 8,
+          "fields_used": [
+            "b2b_concentration_top3",
+            "state_count"
+          ]
+        },
+        "client_contract": {
+          "narrow_pct": 8,
+          "fields_used": [
+            "sla_penalties_per_day"
+          ]
+        },
+        "prior_policy": {
+          "narrow_pct": 10,
+          "fields_used": [
+            "bi_si",
+            "bi_claims_3yr",
+            "indemnity_months"
+          ]
+        }
+      }
+    },
+    "MACHINERY_BREAKDOWN": {
+      "base_band_pct": 50,
+      "documents": {
+        "balance_sheet": {
+          "narrow_pct": 6,
+          "fields_used": [
+            "fixed_assets_cr"
+          ]
+        },
+        "asset_register": {
+          "narrow_pct": 28,
+          "fields_used": [
+            "total_replacement_cr",
+            "weighted_avg_age",
+            "imported_share",
+            "oem_contracts"
+          ]
+        },
+        "prior_policy": {
+          "narrow_pct": 12,
+          "fields_used": [
+            "mb_si",
+            "mb_claims_3yr",
+            "mb_ncd_years"
+          ]
+        }
+      }
+    },
+    "ELECTRONIC_EQUIPMENT": {
+      "base_band_pct": 50,
+      "documents": {
+        "balance_sheet": {
+          "narrow_pct": 6,
+          "fields_used": [
+            "fixed_assets_cr"
+          ]
+        },
+        "asset_register": {
+          "narrow_pct": 28,
+          "fields_used": [
+            "total_replacement_cr",
+            "weighted_avg_age",
+            "imported_share"
+          ]
+        },
+        "prior_policy": {
+          "narrow_pct": 12,
+          "fields_used": [
+            "eei_si",
+            "eei_claims_3yr",
+            "eei_ncd_years"
+          ]
+        }
+      }
+    },
+    "ENGINEERING_CAR_EAR_CPM_MBD_EEI": {
+      "base_band_pct": 50,
+      "documents": {
+        "balance_sheet": {
+          "narrow_pct": 6,
+          "fields_used": [
+            "fixed_assets_cr"
+          ]
+        },
+        "asset_register": {
+          "narrow_pct": 28,
+          "fields_used": [
+            "total_replacement_cr",
+            "weighted_avg_age",
+            "imported_share",
+            "location_count"
+          ]
+        },
+        "prior_policy": {
+          "narrow_pct": 12,
+          "fields_used": [
+            "engineering_si",
+            "engineering_claims_3yr",
+            "engineering_ncd_years"
+          ]
+        }
+      }
+    },
+    "BURGLARY": {
+      "base_band_pct": 50,
+      "documents": {
+        "balance_sheet": {
+          "narrow_pct": 6,
+          "fields_used": [
+            "current_assets_cr",
+            "inventory_cr"
+          ]
+        },
+        "asset_register": {
+          "narrow_pct": 18,
+          "fields_used": [
+            "total_replacement_cr",
+            "location_count"
+          ]
+        },
+        "vapt_report": {
+          "narrow_pct": 8,
+          "fields_used": [
+            "mfa_enabled"
+          ]
+        },
+        "prior_policy": {
+          "narrow_pct": 12,
+          "fields_used": [
+            "burglary_si",
+            "burglary_claims_3yr",
+            "property_ncd_years"
+          ]
+        }
+      }
+    },
+    "EVENT_PRODUCTION": {
+      "base_band_pct": 50,
+      "documents": {
+        "pl": {
+          "narrow_pct": 6,
+          "fields_used": [
+            "revenue_cr"
+          ]
+        },
+        "client_contract": {
+          "narrow_pct": 14,
+          "fields_used": [
+            "liability_cap_inr",
+            "jurisdiction",
+            "sla_penalties_per_day"
+          ]
+        },
+        "prior_policy": {
+          "narrow_pct": 12,
+          "fields_used": [
+            "event_si",
+            "event_claims_3yr"
+          ]
+        }
+      }
+    },
+    "MARINE_TRANSIT": {
+      "base_band_pct": 50,
+      "documents": {
+        "pl": {
+          "narrow_pct": 5,
+          "fields_used": [
+            "cogs_cr"
+          ]
+        },
+        "gst_returns": {
+          "narrow_pct": 10,
+          "fields_used": [
+            "export_share",
+            "state_count"
+          ]
+        },
+        "prior_policy": {
+          "narrow_pct": 14,
+          "fields_used": [
+            "marine_si",
+            "marine_claims_3yr",
+            "marine_ncd_years"
+          ]
+        }
+      }
+    },
+    "TRADE_CREDIT": {
+      "base_band_pct": 50,
+      "documents": {
+        "pl": {
+          "narrow_pct": 5,
+          "fields_used": [
+            "revenue_cr"
+          ]
+        },
+        "balance_sheet": {
+          "narrow_pct": 10,
+          "fields_used": [
+            "receivables_cr"
+          ]
+        },
+        "gst_returns": {
+          "narrow_pct": 10,
+          "fields_used": [
+            "b2b_concentration_top3",
+            "top_buyers"
+          ]
+        },
+        "prior_policy": {
+          "narrow_pct": 12,
+          "fields_used": [
+            "tc_si",
+            "tc_claims_3yr"
+          ]
+        }
+      }
+    }
+  }
+}

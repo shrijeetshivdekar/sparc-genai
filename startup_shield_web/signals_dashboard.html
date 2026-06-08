@@ -1,0 +1,1163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SPARC Signal Intelligence Dashboard</title>
+  <style>
+    :root {
+      --paper: #fafaf8;
+      --surface: #f1f1ee;
+      --surface-2: #e8e8e4;
+      --ink: #0f172a;
+      --ink-2: #1e293b;
+      --muted: #64748b;
+      --faint: #94a3b8;
+      --border: #e2e2dc;
+      --red: #ad1e23;
+      --red-deep: #8a1519;
+      --red-soft: #f5e7e7;
+      --green: #047857;
+      --amber: #b45309;
+      --blue: #2563eb;
+      --shadow: 0 1px 2px rgba(15,23,42,.04), 0 8px 26px rgba(15,23,42,.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: "DM Sans", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .shell {
+      width: min(1480px, calc(100vw - 48px));
+      margin: 0 auto;
+      padding: 30px 0 64px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 800;
+      letter-spacing: -.02em;
+    }
+
+    .mark {
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: var(--red);
+      color: #fff;
+      font-weight: 900;
+    }
+
+    .topbar-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--ink-2);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-weight: 800;
+      transition: transform .18s ease, background .18s ease, border-color .18s ease;
+    }
+
+    .btn:hover { border-color: #cbd5e1; }
+    .btn:active { transform: scale(.97); }
+    .btn-primary {
+      border-color: var(--red);
+      background: var(--red);
+      color: #fff;
+      box-shadow: 0 2px 9px rgba(173,30,35,.25);
+    }
+    .btn-primary:hover { background: var(--red-deep); }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(360px, .8fr);
+      gap: 20px;
+      align-items: stretch;
+      margin-bottom: 20px;
+    }
+
+    .hero-main,
+    .hero-side,
+    .panel,
+    .signal-row,
+    .detail-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
+
+    .hero-main {
+      border-radius: 18px;
+      padding: 34px;
+      min-height: 310px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: fit-content;
+      border-radius: 999px;
+      background: var(--red-soft);
+      border: 1px solid rgba(173,30,35,.14);
+      color: var(--red);
+      padding: 8px 12px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      font-weight: 900;
+    }
+
+    h1 {
+      max-width: 920px;
+      margin: 22px 0 16px;
+      font-size: clamp(38px, 6vw, 76px);
+      line-height: .96;
+      letter-spacing: -.045em;
+      font-weight: 900;
+    }
+
+    .hero-copy {
+      max-width: 78ch;
+      color: var(--muted);
+      font-size: 17px;
+      margin: 0;
+    }
+
+    .hero-funnel {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 30px;
+    }
+
+    .hero-funnel span {
+      min-height: 48px;
+      border-radius: 11px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--ink-2);
+      font-size: 12px;
+      font-weight: 900;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 0 10px;
+    }
+
+    .hero-side {
+      border-radius: 18px;
+      padding: 22px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .exec-note {
+      border-radius: 14px;
+      background: var(--ink);
+      color: #f8fafc;
+      padding: 18px;
+    }
+
+    .exec-note span {
+      display: block;
+      color: #cbd5e1;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .exec-note strong {
+      display: block;
+      font-size: 24px;
+      line-height: 1.05;
+      letter-spacing: -.03em;
+      margin-bottom: 8px;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+
+    .stat {
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      padding: 15px;
+      min-height: 100px;
+    }
+
+    .stat span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .11em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .stat strong {
+      font-size: 30px;
+      letter-spacing: -.04em;
+      line-height: 1;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 310px minmax(0, 1fr) 380px;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .panel {
+      border-radius: 16px;
+      padding: 18px;
+    }
+
+    .panel h2,
+    .detail-card h2 {
+      margin: 0 0 14px;
+      font-size: 18px;
+      letter-spacing: -.025em;
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .field label {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      font-weight: 900;
+    }
+
+    .search,
+    .select {
+      width: 100%;
+      border: 1px solid var(--border);
+      background: var(--paper);
+      color: var(--ink);
+      border-radius: 10px;
+      padding: 12px 12px;
+      outline: none;
+    }
+
+    .search:focus,
+    .select:focus {
+      border-color: var(--red);
+      box-shadow: 0 0 0 4px rgba(173,30,35,.08);
+    }
+
+    .domain-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .domain-btn {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--paper);
+      color: var(--ink);
+      padding: 12px;
+      text-align: left;
+      font-weight: 800;
+    }
+
+    .domain-btn.active {
+      border-color: rgba(173,30,35,.35);
+      background: var(--red-soft);
+      color: var(--red);
+    }
+
+    .domain-count {
+      color: inherit;
+      opacity: .78;
+      font-size: 12px;
+    }
+
+    .thesis-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .thesis {
+      border-radius: 13px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 14px;
+    }
+
+    .thesis strong {
+      display: block;
+      margin-bottom: 5px;
+      letter-spacing: -.02em;
+    }
+
+    .thesis p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .toolbar-title {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .toolbar-title strong {
+      font-size: 17px;
+      letter-spacing: -.025em;
+    }
+
+    .toolbar-title span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .signal-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .signal-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 140px;
+      gap: 16px;
+      align-items: center;
+      border-radius: 14px;
+      padding: 16px;
+      text-align: left;
+      width: 100%;
+      color: inherit;
+      transition: transform .18s ease, border-color .18s ease, background .18s ease;
+    }
+
+    .signal-row:hover,
+    .signal-row.active {
+      border-color: rgba(173,30,35,.32);
+      transform: translateY(-1px);
+    }
+
+    .signal-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      font-weight: 900;
+      letter-spacing: -.02em;
+    }
+
+    .rank {
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: var(--ink);
+      color: #fff;
+      font-size: 12px;
+    }
+
+    .signal-row p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .badge-stack {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+
+    .badge {
+      border-radius: 999px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--ink-2);
+      padding: 6px 9px;
+      font-size: 11px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .badge.hot { color: var(--red); background: var(--red-soft); border-color: rgba(173,30,35,.18); }
+    .badge.revenue { color: var(--green); background: rgba(5,150,105,.08); border-color: rgba(5,150,105,.18); }
+    .badge.data { color: var(--blue); background: rgba(59,130,246,.08); border-color: rgba(59,130,246,.16); }
+    .badge.physical { color: var(--amber); background: rgba(217,119,6,.09); border-color: rgba(217,119,6,.18); }
+
+    .detail-card {
+      position: sticky;
+      top: 18px;
+      border-radius: 16px;
+      padding: 20px;
+    }
+
+    .detail-kicker {
+      color: var(--red);
+      font-size: 11px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      font-weight: 900;
+      margin-bottom: 10px;
+    }
+
+    .detail-card h2 {
+      font-size: 24px;
+      line-height: 1.12;
+      margin-bottom: 12px;
+    }
+
+    .detail-card p {
+      color: var(--muted);
+      margin: 0 0 15px;
+    }
+
+    .detail-section {
+      border-top: 1px solid var(--border);
+      padding-top: 14px;
+      margin-top: 14px;
+    }
+
+    .detail-section span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      font-weight: 900;
+      margin-bottom: 8px;
+    }
+
+    .product-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .product-chips b {
+      border-radius: 999px;
+      background: var(--paper);
+      border: 1px solid var(--border);
+      padding: 8px 10px;
+      font-size: 12px;
+    }
+
+    .path {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .path span {
+      color: var(--ink-2);
+      margin: 0;
+      letter-spacing: 0;
+      text-transform: none;
+      font-size: 13px;
+      border-radius: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 10px;
+    }
+
+    .empty {
+      border: 1px dashed var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      color: var(--muted);
+      text-align: center;
+      background: #fff;
+    }
+
+    .footer-note {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+    }
+
+    @media (max-width: 1180px) {
+      .hero,
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .detail-card {
+        position: static;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .shell {
+        width: min(100vw - 28px, 1480px);
+        padding-top: 16px;
+      }
+
+      .topbar,
+      .toolbar {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .hero-main {
+        padding: 22px;
+      }
+
+      .hero-funnel,
+      .stat-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .signal-row {
+        grid-template-columns: 1fr;
+      }
+
+      .badge-stack {
+        justify-content: flex-start;
+      }
+    }
+
+    @media print {
+      .topbar-actions,
+      .filters,
+      .toolbar button {
+        display: none !important;
+      }
+
+      body {
+        background: #fff;
+      }
+
+      .shell {
+        width: 100%;
+        padding: 0;
+      }
+
+      .hero-main,
+      .hero-side,
+      .panel,
+      .signal-row,
+      .detail-card {
+        box-shadow: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="mark">SP</span>
+        <span>SPARC Signal Intelligence</span>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn" id="copyBrief">Copy MD brief</button>
+        <button class="btn btn-primary" id="printDash">Print dashboard</button>
+      </div>
+    </header>
+
+    <section class="hero" aria-label="Executive signal thesis">
+      <div class="hero-main">
+        <div>
+          <span class="kicker">ICICI Lombard startup risk radar</span>
+          <h1>Public signals converted into RM-ready insurance opportunities.</h1>
+          <p class="hero-copy">A board-level view of startup events that indicate changing insurance need: regulatory exposure, cyber posture, physical expansion, workforce risk, transit risk, and product liability. The dashboard compresses the signal library into a prioritised operating model for sales, underwriting, and portfolio strategy.</p>
+        </div>
+        <div class="hero-funnel" aria-label="Signal operating model">
+          <span>Public event</span>
+          <span>Risk interpretation</span>
+          <span>SPARC profile delta</span>
+          <span>Bundle or cover match</span>
+          <span>RM next action</span>
+        </div>
+      </div>
+
+      <aside class="hero-side" aria-label="Executive metrics">
+        <div class="exec-note">
+          <span>MD framing</span>
+          <strong>This is not a news feed. It is a growth and risk-selection engine.</strong>
+          <p>Every signal is useful only if it changes an RM action, underwriting question, cover limit, premium loading, or cross-sell path.</p>
+        </div>
+        <div class="stat-grid">
+          <div class="stat"><span>Signal families</span><strong id="familyCount">5</strong></div>
+          <div class="stat"><span>Indexed signals</span><strong id="signalCount">30</strong></div>
+          <div class="stat"><span>Primary products</span><strong id="productCount">18</strong></div>
+          <div class="stat"><span>RM use case</span><strong>Lead timing</strong></div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="grid">
+      <aside class="panel filters" aria-label="Filters">
+        <h2>Executive Lens</h2>
+        <div class="field">
+          <label for="searchInput">Search signal, rationale, product</label>
+          <input class="search" id="searchInput" placeholder="Try DPDP, drone, GST, warehouse..." />
+        </div>
+        <div class="field">
+          <label for="prioritySelect">Board priority</label>
+          <select class="select" id="prioritySelect">
+            <option value="">All priorities</option>
+            <option value="High">High frequency / high commercial value</option>
+            <option value="Medium">Medium frequency / specialist value</option>
+            <option value="Watch">Watchlist / emerging</option>
+          </select>
+        </div>
+        <div class="domain-list" id="domainList"></div>
+
+        <div class="detail-section">
+          <span>How to present it</span>
+          <div class="thesis-list">
+            <div class="thesis">
+              <strong>1. Show the opportunity first</strong>
+              <p>RMs reach startups when insurable change is visible, not after renewal timing is lost.</p>
+            </div>
+            <div class="thesis">
+              <strong>2. Show the underwriting control</strong>
+              <p>Signals are not auto-bind decisions. They create better questions, document asks, and human-reviewed actions.</p>
+            </div>
+            <div class="thesis">
+              <strong>3. Show the product bridge</strong>
+              <p>Every public event maps to one or more ICICI Lombard commercial covers or bundles.</p>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <section class="panel" aria-label="Signal inventory">
+        <div class="toolbar">
+          <div class="toolbar-title">
+            <strong id="listTitle">Priority signals</strong>
+            <span id="listSubtitle">Ranked for MD demo, RM actionability, and news visibility.</span>
+          </div>
+          <button class="btn" id="resetFilters">Reset filters</button>
+        </div>
+        <div class="signal-list" id="signalList"></div>
+      </section>
+
+      <aside class="detail-card" id="detailCard" aria-label="Selected signal detail"></aside>
+    </section>
+
+    <p class="footer-note">Source: signals.md and signals_inventory.csv. This dashboard is a presentation layer; all outreach remains subject to human RM and underwriting review.</p>
+  </main>
+
+  <script>
+    let signals = [
+      {
+        domain: "Liability and Governance",
+        signal: "Funding round, new board, or marquee investor announcement",
+        priority: "High",
+        frequency: "Very common",
+        telemetry: "Startup news, funding databases, founder posts, investor announcements",
+        rationale: "A funding event changes governance, public scrutiny, contract pressure, and board accountability. It is also the easiest point for an RM to start a commercial risk conversation.",
+        products: ["D&O", "Key Person", "Cyber", "Corporate Cover II"],
+        action: "Book a board-level risk review before the next governance or renewal cycle."
+      },
+      {
+        domain: "Property and Engineering",
+        signal: "Warehouse, dark store, factory, fulfilment centre, or retail expansion",
+        priority: "High",
+        frequency: "Very common",
+        telemetry: "News, hiring posts, lease announcements, GST state registrations, logistics releases",
+        rationale: "Physical expansion converts a digital startup into an asset and interruption exposure. Fire, theft, stock movement, public footfall, and property accumulation become material.",
+        products: ["Property Fire", "IAR", "MSME Suraksha Kavach", "Burglary", "Business Interruption"],
+        action: "Ask for asset register, property SI, stock values, location count, and prior policy schedule."
+      },
+      {
+        domain: "Cyber and Financial Lines",
+        signal: "Fintech licence, NBFC partnership, payment gateway, BNPL, or RBI-linked announcement",
+        priority: "High",
+        frequency: "Common",
+        telemetry: "RBI disclosures, press releases, app flows, partner announcements, website terms",
+        rationale: "Financial infrastructure creates regulated data, transaction failure, mis-selling, recovery-agent, and professional negligence exposure. This is both cyber and E&O territory.",
+        products: ["Cyber", "Professional Indemnity", "D&O", "Crime"],
+        action: "Lead with cyber controls, PI wording, data localisation, and regulatory defence questions."
+      },
+      {
+        domain: "Cyber and Financial Lines",
+        signal: "Security audit, ISO 27001, SOC 2, VAPT finding, data breach, or DPDP compliance update",
+        priority: "High",
+        frequency: "Common",
+        telemetry: "Compliance pages, audit reports, customer trust centres, breach notices, legal pages",
+        rationale: "Cyber posture is now a sales requirement for enterprise startups and a pricing driver for insurers. Weak controls change both risk score and premium loading.",
+        products: ["Cyber", "D&O", "Tech E&O", "Crime"],
+        action: "Request VAPT age, critical CVEs, MFA status, backup RTO, EDR, and third-party privileged access count."
+      },
+      {
+        domain: "Transit, Motor and Trade",
+        signal: "Export, import, cross-border customer, distributor credit, or TReDS invoice discounting",
+        priority: "High",
+        frequency: "Common",
+        telemetry: "GST summaries, export news, distributor announcements, TReDS integration, filings",
+        rationale: "International and distributor-led growth creates marine cargo, trade credit, jurisdiction, and receivables risk. It also indicates revenue scale and working-capital pressure.",
+        products: ["Marine Cargo", "Trade Credit", "D&O", "Corporate Cover II"],
+        action: "Ask for export share, top customer concentration, credit terms, receivables, and shipment values."
+      },
+      {
+        domain: "Employee Benefits",
+        signal: "Large hiring plan, field-force growth, gig-worker onboarding, or multi-city operations",
+        priority: "High",
+        frequency: "Very common",
+        telemetry: "LinkedIn hiring, job boards, press releases, app onboarding, regional launches",
+        rationale: "People risk rises with headcount, field movement, gig labour, and geographic spread. It creates employee benefit, accident, and employment-practices exposure.",
+        products: ["Group Health", "GPA", "Employers Compensation", "D&O"],
+        action: "Ask for employee count, contractor count, payroll, field roles, locations, and benefits renewal."
+      },
+      {
+        domain: "Liability and Governance",
+        signal: "Public Terms of Service update adding AI, LLM, automated decisions, or advisory logic",
+        priority: "High",
+        frequency: "Increasing",
+        telemetry: "Website terms, product changelog, GitHub, app release notes, support pages",
+        rationale: "Automated advice can create professional negligence, hallucination, algorithmic bias, and customer harm exposure. This is a clear E&O and governance trigger.",
+        products: ["Professional Indemnity", "Tech E&O", "D&O", "Cyber"],
+        action: "Ask whether AI output affects customer decisions, contracts, financial advice, medical advice, or compliance workflows."
+      },
+      {
+        domain: "Transit, Motor and Trade",
+        signal: "Drone, robotics, EV fleet, autonomous delivery, or commercial motor deployment",
+        priority: "High",
+        frequency: "Increasing",
+        telemetry: "DGCA Digital Sky references, fleet announcements, product launches, RTO data, pilot programmes",
+        rationale: "Autonomous or regulated physical movement creates third-party injury, property damage, aviation compliance, motor, and equipment exposure.",
+        products: ["Drone RPAS", "Public Liability", "Commercial Motor", "Product Liability", "IAR"],
+        action: "Ask for fleet size, UIN/RPC compliance, operating geography, maintenance contracts, and third-party liability limits."
+      },
+      {
+        domain: "Liability and Governance",
+        signal: "ONDC seller, buyer, logistics, or network participant integration",
+        priority: "Medium",
+        frequency: "Increasing",
+        telemetry: "ONDC registry, network participant pages, app release notes, press coverage",
+        rationale: "ONDC participation creates multi-party grievance, ODR, product quality, and fulfilment accountability. A digital marketplace event can become a public liability event.",
+        products: ["CGL", "Product Liability", "Professional Indemnity", "Public Liability"],
+        action: "Ask whether the startup is a buyer app, seller app, logistics participant, or technology service provider."
+      },
+      {
+        domain: "Cyber and Financial Lines",
+        signal: "Children's data, biometric onboarding, facial recognition, or age-gated product launch",
+        priority: "Medium",
+        frequency: "Specialist",
+        telemetry: "App UX, privacy policy, product release, education or gaming news",
+        rationale: "Children's data and biometric data intensify DPDP, consent, breach, and board accountability exposure. A single breach can be reputationally severe.",
+        products: ["Cyber", "D&O", "Tech E&O"],
+        action: "Ask for consent architecture, data retention, parental verification, breach response, and processor contracts."
+      },
+      {
+        domain: "Property and Engineering",
+        signal: "Lithium-ion battery storage, solar rooftop, high-voltage infrastructure, or energy retrofit",
+        priority: "Medium",
+        frequency: "Common in cleantech and logistics",
+        telemetry: "Building permits, procurement posts, sustainability reports, facility updates",
+        rationale: "Energy infrastructure changes fire load, installation risk, structural load, and business interruption exposure. Standard office property assumptions may no longer hold.",
+        products: ["Property Fire", "EAR", "IAR", "Machinery Breakdown"],
+        action: "Ask for BMS, installation vendor, fire protections, warranty, power capacity, and asset replacement value."
+      },
+      {
+        domain: "Property and Engineering",
+        signal: "Robotic sorting arm, manufacturing line, test facility, or high-value machinery procurement",
+        priority: "Medium",
+        frequency: "Common in manufacturing and fulfilment",
+        telemetry: "Procurement news, hiring, factory videos, plant expansion, vendor contracts",
+        rationale: "Machinery failure can stop operations immediately and create repair, replacement, and consequential loss exposure.",
+        products: ["Machinery Breakdown", "IAR", "CPM", "Business Interruption"],
+        action: "Ask for equipment list, OEM service contracts, critical machine count, spare parts, and prior breakdown history."
+      },
+      {
+        domain: "Employee Benefits",
+        signal: "Layoffs, restructuring, senior exits, or sudden leadership change",
+        priority: "Medium",
+        frequency: "Common",
+        telemetry: "News, LinkedIn, MCA filings, founder posts, employee forums",
+        rationale: "Workforce stress and leadership instability can create wrongful termination, governance, reputation, and key-person risk.",
+        products: ["D&O", "EPLI", "Key Person", "Group Health"],
+        action: "Ask whether any board, investor, employee, or customer dispute has followed the restructuring."
+      },
+      {
+        domain: "Transit, Motor and Trade",
+        signal: "Shift from one national logistics partner to fragmented regional 3PL network",
+        priority: "Medium",
+        frequency: "Common in D2C and commerce",
+        telemetry: "Vendor announcements, hiring, serviceability updates, fulfilment pages",
+        rationale: "A fragmented logistics chain raises theft, mishandling, delay, cargo damage, and accountability issues.",
+        products: ["Marine Transit", "Inland Transit", "CGL", "Trade Credit"],
+        action: "Ask for lane values, claims history, packaging standards, carrier liability, and COD exposure."
+      },
+      {
+        domain: "Cyber and Financial Lines",
+        signal: "Open-sourcing internal APIs, SDKs, or security-sensitive infrastructure",
+        priority: "Watch",
+        frequency: "Specialist",
+        telemetry: "GitHub, developer docs, changelogs, community posts",
+        rationale: "Open-source exposure expands the attack surface and can create downstream third-party claims if customers rely on the code.",
+        products: ["Cyber", "Tech E&O", "Professional Indemnity"],
+        action: "Ask for security review process, dependency scanning, disclosure policy, and customer indemnity clauses."
+      },
+      {
+        domain: "Property and Engineering",
+        signal: "Edge data centre, server rack, immersion cooling, or dense compute deployment",
+        priority: "Watch",
+        frequency: "Rising in AI and fintech",
+        telemetry: "Cloud migration news, data-centre leases, procurement, infrastructure posts",
+        rationale: "Dense compute in non-data-centre spaces creates electrical, cooling, liquid damage, and equipment breakdown exposure.",
+        products: ["Electronic Equipment", "Property Fire", "IAR", "Business Interruption"],
+        action: "Ask for server location, HVAC, fire suppression, backup power, equipment SI, and disaster recovery."
+      }
+    ];
+
+    const domainOrder = [
+      "Liability and Governance",
+      "Cyber and Financial Lines",
+      "Property and Engineering",
+      "Employee Benefits",
+      "Transit, Motor and Trade"
+    ];
+
+    function normalizeDomain(domain) {
+      const d = String(domain || "").trim();
+      if (/liability/i.test(d)) return "Liability and Governance";
+      if (/cyber|financial/i.test(d)) return "Cyber and Financial Lines";
+      if (/property|engineering/i.test(d)) return "Property and Engineering";
+      if (/employee|benefit|gig|labou?r/i.test(d)) return "Employee Benefits";
+      if (/transit|motor|trade/i.test(d)) return "Transit, Motor and Trade";
+      return d || "Other";
+    }
+
+    function inferPriority(row) {
+      const text = [row.signal, row.rationale, row.mapped_ICICI_Lombard_products].join(" ").toLowerCase();
+      const high = ["funding", "warehouse", "factory", "nbfc", "rbi", "dpdp", "breach", "vapt", "gst", "export", "import", "drone", "fleet", "layoff", "hiring", "critical"];
+      const watch = ["cryptographic", "sandbox", "altimeter", "heritage", "facial", "biometric", "algorithmic fairness", "edge-case"];
+      if (high.some(k => text.includes(k))) return "High";
+      if (watch.some(k => text.includes(k))) return "Watch";
+      return "Medium";
+    }
+
+    function inferFrequency(row) {
+      const text = [row.signal, row.rationale].join(" ").toLowerCase();
+      if (/(funding|hiring|warehouse|factory|gst|export|import|fleet|layoff|nbfc|partner|retail|field|cyber|audit)/.test(text)) return "Common";
+      if (/(dpdp|rbi|ondc|drone|gig|solar|battery|robotic|server|cloud)/.test(text)) return "Increasing";
+      return "Specialist";
+    }
+
+    function splitProducts(value) {
+      const raw = String(value || "");
+      return raw
+        .replace(/\band\b/gi, ",")
+        .replace(/\bplus\b/gi, ",")
+        .split(/[,;/]/)
+        .map(s => s.trim().replace(/\.$/, ""))
+        .filter(Boolean)
+        .slice(0, 6);
+    }
+
+    function normalizeInventoryRow(row) {
+      const signal = row.signal || row["Signal Indicator"] || "Signal";
+      return {
+        domain: normalizeDomain(row.domain || row["Risk Category"]),
+        signal,
+        priority: inferPriority(row),
+        frequency: inferFrequency(row),
+        telemetry: row.telemetry_source || row["Telemetry Source"] || "Public business event / public disclosures",
+        rationale: row.rationale || row["Underwriting Rationale & Risk Implication"] || row["Why It Matters"] || "Risk implication available in source inventory.",
+        products: splitProducts(row.mapped_ICICI_Lombard_products || row["Target ICICI Lombard Products"] || row["Likely Insurance Angle"]),
+        action: `Review this trigger with the startup and map it to ${splitProducts(row.mapped_ICICI_Lombard_products || "").slice(0, 3).join(", ") || "the relevant ICICI Lombard cover"}.`
+      };
+    }
+
+    const els = {
+      search: document.getElementById("searchInput"),
+      priority: document.getElementById("prioritySelect"),
+      domainList: document.getElementById("domainList"),
+      list: document.getElementById("signalList"),
+      detail: document.getElementById("detailCard"),
+      title: document.getElementById("listTitle"),
+      subtitle: document.getElementById("listSubtitle"),
+      familyCount: document.getElementById("familyCount"),
+      signalCount: document.getElementById("signalCount"),
+      productCount: document.getElementById("productCount"),
+    };
+
+    let state = {
+      domain: "",
+      selected: 0
+    };
+
+    function esc(value) {
+      return String(value ?? "").replace(/[&<>"']/g, ch => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      }[ch]));
+    }
+
+    function products() {
+      return [...new Set(signals.flatMap(s => s.products))].sort();
+    }
+
+    function domainCounts() {
+      return domainOrder.map(domain => ({
+        domain,
+        count: signals.filter(s => s.domain === domain).length
+      }));
+    }
+
+    function filteredSignals() {
+      const q = els.search.value.trim().toLowerCase();
+      const p = els.priority.value;
+      return signals.filter(s => {
+        const domainOk = !state.domain || s.domain === state.domain;
+        const priorityOk = !p || s.priority === p;
+        const hay = [s.domain, s.signal, s.frequency, s.telemetry, s.rationale, s.action, ...s.products].join(" ").toLowerCase();
+        const searchOk = !q || hay.includes(q);
+        return domainOk && priorityOk && searchOk;
+      });
+    }
+
+    function badgeClass(signal) {
+      const text = `${signal.signal} ${signal.domain} ${signal.rationale}`.toLowerCase();
+      if (text.includes("cyber") || text.includes("dpdp") || text.includes("data") || text.includes("vapt")) return "data";
+      if (text.includes("warehouse") || text.includes("factory") || text.includes("drone") || text.includes("machinery") || text.includes("fleet")) return "physical";
+      if (signal.priority === "High") return "hot";
+      return "revenue";
+    }
+
+    function renderDomains() {
+      els.familyCount.textContent = String(domainOrder.length);
+      els.signalCount.textContent = String(signals.length);
+      els.productCount.textContent = String(products().length);
+      els.domainList.innerHTML = `
+        <button class="domain-btn ${!state.domain ? "active" : ""}" data-domain="">
+          <span>All signal families</span><span class="domain-count">${signals.length}</span>
+        </button>
+        ${domainCounts().map(row => `
+          <button class="domain-btn ${state.domain === row.domain ? "active" : ""}" data-domain="${esc(row.domain)}">
+            <span>${esc(row.domain)}</span><span class="domain-count">${row.count}</span>
+          </button>
+        `).join("")}
+      `;
+      document.querySelectorAll(".domain-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          state.domain = btn.dataset.domain || "";
+          state.selected = 0;
+          render();
+        });
+      });
+    }
+
+    function renderList() {
+      const rows = filteredSignals();
+      els.title.textContent = state.domain || "Priority signals";
+      els.subtitle.textContent = `${rows.length} visible signal${rows.length === 1 ? "" : "s"} mapped to RM action and ICICI Lombard covers.`;
+      if (!rows.length) {
+        els.list.innerHTML = `<div class="empty">No signals match this filter. Clear the search or choose another family.</div>`;
+        renderDetail(null);
+        return;
+      }
+
+      if (state.selected >= rows.length) state.selected = 0;
+
+      els.list.innerHTML = rows.map((s, idx) => `
+        <button class="signal-row ${idx === state.selected ? "active" : ""}" data-index="${idx}">
+          <div>
+            <div class="signal-title"><span class="rank">${idx + 1}</span>${esc(s.signal)}</div>
+            <p>${esc(s.rationale)}</p>
+          </div>
+          <div class="badge-stack">
+            <span class="badge ${badgeClass(s)}">${esc(s.priority)}</span>
+            <span class="badge">${esc(s.frequency)}</span>
+            <span class="badge">${esc(s.domain.split(" ")[0])}</span>
+          </div>
+        </button>
+      `).join("");
+
+      document.querySelectorAll(".signal-row").forEach(btn => {
+        btn.addEventListener("click", () => {
+          state.selected = Number(btn.dataset.index || 0);
+          renderList();
+        });
+      });
+      renderDetail(rows[state.selected]);
+    }
+
+    function renderDetail(s) {
+      if (!s) {
+        els.detail.innerHTML = `<div class="empty">Select a signal to see the RM playbook.</div>`;
+        return;
+      }
+
+      els.detail.innerHTML = `
+        <div class="detail-kicker">${esc(s.domain)} | ${esc(s.priority)} priority</div>
+        <h2>${esc(s.signal)}</h2>
+        <p>${esc(s.rationale)}</p>
+
+        <div class="detail-section">
+          <span>Observable telemetry</span>
+          <p>${esc(s.telemetry)}</p>
+        </div>
+
+        <div class="detail-section">
+          <span>ICICI Lombard products</span>
+          <div class="product-chips">
+            ${s.products.map(p => `<b>${esc(p)}</b>`).join("")}
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <span>RM action</span>
+          <p>${esc(s.action)}</p>
+        </div>
+
+        <div class="detail-section">
+          <span>SPARC processing path</span>
+          <div class="path">
+            <span>1. Detect public signal from news, filings, public pages, or uploaded documents.</span>
+            <span>2. Classify the business change into a risk family.</span>
+            <span>3. Update SPARC profile fields and risk dimensions.</span>
+            <span>4. Re-rank bundles, standalone products, SI, and premium confidence.</span>
+            <span>5. Generate RM action, discovery questions, and client outreach.</span>
+          </div>
+        </div>
+      `;
+    }
+
+    function briefText() {
+      const top = signals.slice(0, 8).map((s, i) => `${i + 1}. ${s.signal}: ${s.products.join(", ")}`).join("\n");
+      return [
+        "SPARC Signal Intelligence MD Brief",
+        "",
+        "Thesis: convert public startup events into insurance timing, underwriting questions, and RM action.",
+        "",
+        "Operating model: Public event -> Risk interpretation -> SPARC profile delta -> Bundle or cover match -> RM next action.",
+        "",
+        `Indexed dashboard signals: ${signals.length}`,
+        `Signal families: ${domainOrder.length}`,
+        `Primary products represented: ${products().length}`,
+        "",
+        "Top demo signals:",
+        top,
+        "",
+        "Executive value: earlier lead timing, better cross-sell, sharper risk selection, and more defensible pricing conversations."
+      ].join("\n");
+    }
+
+    async function copyBrief() {
+      const text = briefText();
+      try {
+        await navigator.clipboard.writeText(text);
+        document.getElementById("copyBrief").textContent = "Copied";
+        setTimeout(() => document.getElementById("copyBrief").textContent = "Copy MD brief", 1400);
+      } catch (_) {
+        window.prompt("Copy MD brief", text);
+      }
+    }
+
+    function render() {
+      renderDomains();
+      renderList();
+    }
+
+    async function loadFullInventory() {
+      try {
+        const res = await fetch("/api/signal-inventory", { cache: "no-store" });
+        if (!res.ok) throw new Error("Inventory unavailable");
+        const payload = await res.json();
+        const rows = Array.isArray(payload.signals) ? payload.signals : [];
+        if (!rows.length) return;
+        signals = rows.map(normalizeInventoryRow).filter(s => s.signal && s.rationale);
+        state.selected = 0;
+        render();
+      } catch (_) {
+        // Offline fallback: keep the embedded MD-demo signal set.
+      }
+    }
+
+    els.search.addEventListener("input", () => {
+      state.selected = 0;
+      renderList();
+    });
+    els.priority.addEventListener("change", () => {
+      state.selected = 0;
+      renderList();
+    });
+    document.getElementById("resetFilters").addEventListener("click", () => {
+      state.domain = "";
+      state.selected = 0;
+      els.search.value = "";
+      els.priority.value = "";
+      render();
+    });
+    document.getElementById("copyBrief").addEventListener("click", copyBrief);
+    document.getElementById("printDash").addEventListener("click", () => window.print());
+
+    render();
+    loadFullInventory();
+  </script>
+</body>
+</html>

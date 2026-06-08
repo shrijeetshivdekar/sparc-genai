@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Architecture</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+</head>
+<body>
+  <section class="slide dark">
+    <div class="topbar">
+      <div class="brand"><span class="brand-mark"></span>SPARC / Pipeline</div>
+      <div class="eyebrow">Actual recommendation path</div>
+    </div>
+    <div class="hero" style="grid-template-columns:1fr;">
+      <div class="hero-copy" style="justify-content:flex-start;">
+        <div class="eyebrow">Implemented flow</div>
+        <h2 class="headline">Profile in. Eligible shortlist out. GenAI rerank on top.</h2>
+        <p class="subtitle">This is the critical design decision: the model does not browse the full catalog. It only reasons over what the deterministic engine has already allowed.</p>
+        <div class="node-flow">
+          <div class="node">
+            <div class="node-title">1. Startup profile</div>
+            <div class="node-copy">sector, stage, team size, data handled, assets, regulations, and advanced fields.</div>
+          </div>
+          <div class="node">
+            <div class="node-title">2. Risk engine</div>
+            <div class="node-copy">deterministic profiling and category scores across cyber, privacy, liability, property, governance, and regulatory dimensions.</div>
+          </div>
+          <div class="node">
+            <div class="node-title">3. Eligibility engine</div>
+            <div class="node-copy">hard gates, compliance triggers, underwriting constraints, mandatory covers, and bundle shortlist.</div>
+          </div>
+          <div class="node">
+            <div class="node-title">4. Gemini reranker</div>
+            <div class="node-copy">strict JSON over startup profile, scores, shortlisted products, shortlisted bundles, and constraints.</div>
+          </div>
+          <div class="node">
+            <div class="node-title">5. Audited response</div>
+            <div class="node-copy">bundle match, ranked products, rationale, confidence, mode, source, fallback state, and shadow diff.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="footer">
+      <div>Model freedom is intentionally narrow; control stays with deterministic logic.</div>
+      <div class="page">03 / 06</div>
+    </div>
+  </section>
+</body>
+</html>

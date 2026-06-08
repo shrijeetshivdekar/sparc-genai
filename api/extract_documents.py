@@ -22,6 +22,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 
@@ -506,7 +507,33 @@ def _call_gemini_typed(text: str, doc_type: str) -> tuple[dict | None, str | Non
             "confidence": "extracted" if val is not None else "not_found",
             "source": src,
         }
+
+    # Overwrite audit_age_months server-side — Gemini doesn't know today's date
+    # so it computes age from document creation time, always returning 0.
+    if doc_type == "vapt_report":
+        audit_date_val = fields.get("audit_date", {}).get("value")
+        if audit_date_val:
+            computed = _compute_audit_age_months(str(audit_date_val))
+            if computed is not None:
+                fields["audit_age_months"] = {
+                    "value": computed,
+                    "confidence": "calculated",
+                    "source": f"Computed server-side from audit_date '{audit_date_val}'",
+                }
+
     return fields, None
+
+
+def _compute_audit_age_months(date_str: str) -> int | None:
+    """Compute months between audit_date and today. Gemini doesn't know today's date."""
+    for fmt in ("%d %b %Y", "%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y", "%b %Y"):
+        try:
+            dt = datetime.strptime(date_str.strip(), fmt)
+            today = datetime.today()
+            return max(0, (today.year - dt.year) * 12 + (today.month - dt.month))
+        except ValueError:
+            continue
+    return None
 
 
 _DETECT_TYPE_PROMPT = """\
@@ -849,7 +876,8 @@ def _build_response(documents: list[dict]) -> dict:
     merged = _merge_extractions(per_doc)
     inferences = _merge_categorical_inferences(per_doc)
     checks = consistency_checker.run_all_checks(merged)
-    prefill = profile_mapper.map_extracts_to_profile(merged)
+    # Pass inferences so physical_assets + hardware_software_split can be inferred
+    prefill = profile_mapper.map_extracts_to_profile(merged, inferences=inferences)
     evidence = profile_mapper.build_evidence_packet(merged)
 
     # Merge Gemini's categorical inferences into the form prefill so the user
@@ -876,21 +904,8 @@ def _build_response(documents: list[dict]) -> dict:
                 "source": "Inferred by Gemini from document content",
             }
 
-    # --- Verified financial-ratio assessment layer ---
-    verified = None
-    base_scores = _base_scores_from_inferences(inferences) if inferences else None
-    if base_scores:
-        try:
-            from pricing.financial_ratio_engine import verified_assessment
-            verified = verified_assessment(
-                extracts=merged,
-                base_scores=base_scores,
-                inferred_sector=inferences.get("sector"),
-            )
-        except Exception as exc:
-            verified = {"error": f"verified_assessment failed: {type(exc).__name__}: {exc}"}
-
     # Bundle non-financial docs into a per-doc-type bucket for the modifier engine.
+    # Built BEFORE verified_assessment so it can be passed in as context.
     # Shape: {"gst_returns": {field: {value,..}}, "prior_policy": {...}, ...}
     documents_extracted: dict[str, dict] = {}
     for entry in per_doc:
@@ -908,6 +923,23 @@ def _build_response(documents: list[dict]) -> dict:
         documents_extracted.setdefault("pl", {k: v for k, v in merged.items() if k in ("revenue_cr", "net_profit_cr", "payroll_cr", "gross_profit_cr", "cogs_cr")})
     if any(e.get("document_type") == "balance_sheet" for e in per_doc):
         documents_extracted.setdefault("balance_sheet", {k: v for k, v in merged.items() if k in ("total_assets_cr", "fixed_assets_cr", "current_assets_cr", "inventory_cr", "receivables_cr", "total_liabilities_cr", "equity_cr", "debt_cr")})
+
+    # --- Verified financial-ratio assessment layer ---
+    # documents_extracted is now available, pass it so the engine can use
+    # VAPT, asset register, GST, and prior policy data for SI / loading / modifiers.
+    verified = None
+    base_scores = _base_scores_from_inferences(inferences) if inferences else None
+    if base_scores:
+        try:
+            from pricing.financial_ratio_engine import verified_assessment
+            verified = verified_assessment(
+                extracts=merged,
+                base_scores=base_scores,
+                inferred_sector=inferences.get("sector"),
+                documents_extracted=documents_extracted,
+            )
+        except Exception as exc:
+            verified = {"error": f"verified_assessment failed: {type(exc).__name__}: {exc}"}
 
     return {
         "status": _overall_status(per_doc),

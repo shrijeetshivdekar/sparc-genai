@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SPARC GenAI Recommendation Engine</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+</head>
+<body>
+  <section class="slide dark">
+    <div class="topbar">
+      <div class="brand"><span class="brand-mark"></span>SPARC / ICICI Lombard</div>
+      <div class="eyebrow">Internal deck for Ramanjit Bhalla</div>
+    </div>
+    <div class="hero">
+      <div class="hero-copy">
+        <div class="eyebrow">6-slide HTML deck</div>
+        <h1 class="title">How SPARC uses <span class="accent">GenAI</span> in recommendation, without giving up auditability.</h1>
+        <p class="subtitle">The engine no longer uses AI only for copy. It now uses a structured GenAI reranker on top of deterministic eligibility, compliance triggers, and underwriting guardrails.</p>
+        <div class="chip-row">
+          <div class="chip">deterministic shortlist first</div>
+          <div class="chip">strict JSON rerank</div>
+          <div class="chip">shadow + primary modes</div>
+          <div class="chip">fallback-safe</div>
+        </div>
+      </div>
+      <div class="visual-panel">
+        <div class="small-label">Engine snapshot</div>
+        <div class="metric-stack">
+          <div class="metric">
+            <div class="metric-value">3</div>
+            <div class="metric-copy">runtime modes: <strong>`off`</strong>, <strong>`shadow`</strong>, <strong>`primary`</strong>.</div>
+          </div>
+          <div class="metric">
+            <div class="metric-value">2-layer</div>
+            <div class="metric-copy">deterministic risk and eligibility engine first, GenAI ranking layer second.</div>
+          </div>
+          <div class="metric">
+            <div class="metric-value">auditable</div>
+            <div class="metric-copy">API responses explicitly report if Gemini influenced the recommendation or if deterministic fallback served the result.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="footer">
+      <div>Grounded in implemented repo behavior, not presentation-only claims.</div>
+      <div class="page">01 / 06</div>
+    </div>
+  </section>
+</body>
+</html>

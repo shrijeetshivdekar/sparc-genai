@@ -63,8 +63,7 @@ Then it checks the regulatory signal layer. Two triggers fire automatically:
 
 **Trigger 1 — DPDP Act 2023 + CERT-In Directions 2022.** Razorpay handles personal identity data above the threshold. Under DPDP, a data breach must be reported to the Data Protection Board within 72 hours. CERT-In Directions require mandatory incident reporting to the government. Civil penalty exposure under DPDP: up to INR 250 crore per incident. The engine flags Cyber as mandatory.
 
-**Trigger 2 — RBI Digital Lending Directions 2025.** RBI-licensed payment aggregators are now subject to operational resilience and business continuity requirements under these directions. A regulatory action or licence suspension without cover is an existential event.
-
+**Trigger 2 — RBI Digital Lending Directions 2025.** RBI-licensed payment aggregators are now subject to operational resilience and business continuity requirements under these directions. A regulatory action or licence suspension without cover is an existential event
 The bundle recommendation: **I-select Liability Insurance. 93% profile fit.**
 
 Notice this isn't Business Shield SME — and the reason matters. Razorpay is Growth-stage, 3,500 employees, and running payment operations at enterprise scale. The engine has pushed past the early-stage bundle and surfaced five mandatory covers instead of four.

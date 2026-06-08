@@ -32,6 +32,12 @@ MAX_RISK_LOADING = 1.5
 CYBER_ENTERPRISE_SI_THRESHOLD_CR = 25.0
 CYBER_ENTERPRISE_MIN_ROL = 0.003
 CYBER_ENTERPRISE_MAX_ROL = 0.008
+# Enterprise Secure Package Policy — flat blended package rate (ICICI Lombard
+# underwriter-supplied, Jun 2026). When this bundle is selected, the engine
+# overrides the per-cover summation and prices the package as:
+#   premium_inr = ENTERPRISE_SECURE_RATE_PER_SI × total_sum_insured_inr
+ENTERPRISE_SECURE_RATE_PER_SI = 0.000445729294
+
 ENTERPRISE_LIABILITY_SI_THRESHOLD_CR = 25.0
 ENTERPRISE_LIABILITY_ROL_BANDS = {
     "cyber_liability": (0.0030, 0.0080),
@@ -161,8 +167,9 @@ COVER_ALIASES = {
     "MACHINERY_BREAKDOWN": "machinery_breakdown",
     "ENGINEERING_CAR_EAR_CPM_MBD_EEI": "engineering",
     "engineering": "engineering",
-    "contractors_all_risk": "engineering",
-    "CONTRACTORS_ALL_RISK": "engineering",
+    "contractors_all_risk": "contractors_all_risk",
+    "CONTRACTORS_ALL_RISK": "contractors_all_risk",
+    "contractor_all_risk": "contractors_all_risk",
     "SURETY": "surety",
     "surety": "surety",
     "MARINE_CARGO": "marine_transit",
@@ -240,44 +247,44 @@ class PricingRule:
 # All covers are non-tariff (market-based) post IRDAI de-notification Apr 2024,
 # except Employees Compensation (IIB-based) and Electronic Equipment (ex-tariff reference).
 COVER_SPECS: Dict[str, CoverSpec] = {
-    # rate 1.75 → effective ~2.0% of limit at mid-loading; market 2–2.5L/Cr (Mitigata 2026)
+    # 0.46 L/Cr — ICICI Lombard anchor: ₹2.30L for ₹5Cr limit, B2B SaaS 50-person, basic controls (Jun 2026)
     "cyber_liability": CoverSpec(
-        "Cyber Liability", "cyber_limit_cr", 1.75, 1.50,
+        "Cyber Liability", "cyber_limit_cr", 0.46, 0.46,
         ("Cyber Technical Risk", "Data Privacy Risk", "Regulatory Compliance Risk"),
     ),
-    # rate 0.75 → effective ~0.85% of limit; market 0.5–1.5% (Liberty/IFFCO Tokio); floor raised to 2.00L (institutional round trigger)
+    # 0.15 L/Cr — ICICI Lombard anchor: ₹0.75L for ₹5Cr limit, unlisted startup with institutional investors (Jun 2026)
     "dno_liability": CoverSpec(
-        "Directors and Officers Liability", "dno_limit_cr", 0.75, 2.00,
+        "Directors and Officers Liability", "dno_limit_cr", 0.15, 0.15,
         ("Governance & Fraud Risk", "Regulatory Compliance Risk", "Reputation Risk"),
     ),
-    # rate 0.70 → effective ~0.80% of limit; market 0.6–1.2% (IRDAI PI Guidelines 2021)
+    # 0.46 L/Cr — ICICI Lombard anchor: ₹2.30L for ₹5Cr limit, B2B software, no prior claims (Jun 2026)
     "professional_indemnity": CoverSpec(
-        "Professional Indemnity / Tech E&O", "pi_limit_cr", 0.70, 1.00,
+        "Professional Indemnity / Tech E&O", "pi_limit_cr", 0.46, 0.46,
         ("Liability Risk", "IP Infringement Risk", "Reputation Risk"),
     ),
-    # rate 0.40 → effective ~0.45% of limit; HDFC ERGO CGL market range
+    # 0.14 L/Cr — ICICI Lombard anchor: ₹0.70L for ₹5Cr limit, 50-person startup (Jun 2026)
     "comprehensive_general_liability": CoverSpec(
-        "Comprehensive General Liability", "public_liability_limit_cr", 0.40, 0.55,
+        "Comprehensive General Liability", "public_liability_limit_cr", 0.14, 0.14,
         ("Liability Risk", "Reputation Risk", "Regulatory Compliance Risk"),
     ),
-    # rate 0.30 → effective ~0.34% of limit; Bajaj Allianz PL range
+    # 0.40 L/Cr — ICICI Lombard anchor: ₹0.40L for ₹1Cr limit, small B2B premises (Jun 2026)
     "public_liability": CoverSpec(
-        "Public Liability", "public_liability_limit_cr", 0.30, 0.35,
+        "Public Liability", "public_liability_limit_cr", 0.40, 0.40,
         ("Liability Risk", "Property Risk"),
     ),
-    # rate 0.52 → effective ~0.59% of limit; market for D2C/Healthtech sectors
+    # 0.35 L/Cr — ICICI Lombard anchor: ₹0.70L for ₹2Cr limit, single product domestic distribution (Jun 2026)
     "product_liability": CoverSpec(
-        "Product Liability", "product_liability_limit_cr", 0.52, 0.60,
+        "Product Liability", "product_liability_limit_cr", 0.35, 0.35,
         ("Liability Risk", "Reputation Risk", "Regulatory Compliance Risk"),
     ),
-    # rate 0.50 → effective ~0.57% of SI; IRDAI de-tariff Apr 2024 drove market rates up 60–80% (BusinessStandard Dec 2024)
+    # rate 0.50 per mille → ICICI Lombard underwriter-supplied fire-class rate (Jun 2026 calibration)
     "property_fire": CoverSpec(
         "Property Fire", "property_sum_insured_cr", 0.50, 0.45,
         ("Property Risk", "ESG & Climate Risk"),
     ),
-    # rate 0.52 → effective ~0.59% of SI; ~1.5x fire rate per market convention
+    # rate 0.50 per mille → same fire-class rate (user spec: "all fire related insurance")
     "property_all_risk": CoverSpec(
-        "Property All Risk", "property_sum_insured_cr", 0.52, 0.55,
+        "Property All Risk", "property_sum_insured_cr", 0.50, 0.55,
         ("Property Risk", "ESG & Climate Risk", "Liability Risk"),
     ),
     # rate 0.22 → effective ~0.25% of BI SI; Trust Risk Control Jan 2025 standardisation
@@ -290,14 +297,14 @@ COVER_SPECS: Dict[str, CoverSpec] = {
         "Burglary", "stock_sum_insured_cr", 0.18, 0.15,
         ("Property Risk", "Gig & Labour Risk"),
     ),
-    # rate 0.80 → effective ~0.91% of equipment value; ex-tariff 1.25% (WTIB); market 0.8–1.2%
+    # rate 0.25 per mille → ICICI Lombard underwriter-supplied EEI rate (Jun 2026 calibration)
     "electronic_equipment": CoverSpec(
-        "Electronic Equipment", "equipment_sum_insured_cr", 0.80, 0.50,
+        "Electronic Equipment", "equipment_sum_insured_cr", 0.25, 0.50,
         ("Property Risk", "Cyber Technical Risk"),
     ),
-    # rate 0.55 → effective ~0.62% of plant value; HDFC ERGO / Liberty General range
+    # rate 0.25 per mille → ICICI Lombard underwriter-supplied MBD rate (Jun 2026 calibration)
     "machinery_breakdown": CoverSpec(
-        "Machinery Breakdown", "equipment_sum_insured_cr", 0.55, 0.40,
+        "Machinery Breakdown", "equipment_sum_insured_cr", 0.25, 0.40,
         ("Property Risk", "ESG & Climate Risk"),
     ),
     # rate 0.40 → effective ~0.45% of payroll; IRDAI WC office class ~0.5%
@@ -327,9 +334,14 @@ COVER_SPECS: Dict[str, CoverSpec] = {
         "Trade Credit", "receivables_on_credit_cr", 0.40, 0.45,
         ("Governance & Fraud Risk", "Geopolitical Risk", "Reputation Risk"),
     ),
-    # rate 0.22 → effective ~0.25% of project value; Riskbirbal CAR/EAR 0.1–0.5%
+    # rate 0.40 per mille → ICICI Lombard underwriter-supplied engineering rate (Jun 2026 calibration)
     "engineering": CoverSpec(
-        "Engineering CAR / EAR", "project_value_cr", 0.22, 0.55,
+        "Engineering CAR / EAR", "project_value_cr", 0.40, 0.55,
+        ("Property Risk", "Liability Risk", "ESG & Climate Risk"),
+    ),
+    # rate 1.00 per mille = 0.1% of project value → ICICI Lombard CAR rate (Jun 2026 calibration)
+    "contractors_all_risk": CoverSpec(
+        "Contractors All Risk (CAR)", "project_value_cr", 1.00, 0.55,
         ("Property Risk", "Liability Risk", "ESG & Climate Risk"),
     ),
     # rate 0.45 → effective ~0.51% of bond value; IRDAI Surety Guidelines 2022
@@ -382,9 +394,9 @@ COVER_SPECS: Dict[str, CoverSpec] = {
         "Entertainment Production Package", "production_budget_cr", 0.60, 0.60,
         ("Liability Risk", "Reputation Risk", "Property Risk"),
     ),
-    # rate 0.45 → effective ~0.51% of limit; emerging EPLI market in India (Marsh/AON EPL data 2025)
+    # 0.70 L/Cr — ICICI Lombard anchor: ₹1.40L for ₹2Cr limit, 50 employees (Jun 2026)
     "employment_practices": CoverSpec(
-        "Employment Practices Liability", "employment_practices_limit_cr", 0.45, 1.00,
+        "Employment Practices Liability", "employment_practices_limit_cr", 0.70, 0.70,
         ("Gig & Labour Risk", "Governance & Fraud Risk", "Reputation Risk"),
     ),
     # rate 0.05 lakh/employee → effective ~₹5,600/emp at mid-loading; critical illness rider market India 2025
@@ -422,6 +434,7 @@ PRICING_RULES: Dict[str, PricingRule] = {
     "electronic_equipment": PricingRule("asset_value_property", 25.0, 50.0, 75.0),
     "machinery_breakdown": PricingRule("asset_value_property", 25.0, 50.0, 75.0),
     "engineering": PricingRule("project_value_engineering", 10.0, 25.0, 50.0),
+    "contractors_all_risk": PricingRule("project_value_engineering", 10.0, 25.0, 50.0),
     "surety": PricingRule("contract_value_referral", 0.0, 0.0, 0.0, ("proposal_form_proxy",)),
     "marine_transit": PricingRule("annual_transit_turnover", 25.0, 50.0, 100.0),
     "trade_credit": PricingRule("credit_turnover_or_receivables", 25.0, 50.0, 100.0),
@@ -1471,8 +1484,22 @@ def price_output_stage(
         )
 
     subtotal = round(sum(item["premium_lakh"] for item in priced), 2)
+
+    # ── Enterprise Secure Package Policy: flat package rate override ─────────
+    # ICICI Lombard underwriter-supplied blended package rate (Jun 2026):
+    #   premium = 0.000445729294 × total sum insured (rupees)
+    # Override applies only when the bundle is Enterprise Secure (any variant).
+    bundle_name_norm = (bundle or {}).get("name", "").lower()
+    enterprise_secure_override_applied = False
+    if "enterprise secure" in bundle_name_norm and priced:
+        total_si_cr = sum(item["sum_insured_cr"] for item in priced)
+        total_si_inr = total_si_cr * 1_00_00_000
+        enterprise_secure_premium_inr = total_si_inr * ENTERPRISE_SECURE_RATE_PER_SI
+        subtotal = round(enterprise_secure_premium_inr / 1_00_000, 2)  # → lakhs
+        enterprise_secure_override_applied = True
+
     discount_rate = 0.0
-    if bundle and bundle.get("name") and len(priced) >= 3:
+    if bundle and bundle.get("name") and len(priced) >= 3 and not enterprise_secure_override_applied:
         discount_rate = 0.10 if len(priced) >= 5 else 0.05
     discount = round(subtotal * discount_rate, 2)
     net = round(max(0.0, subtotal - discount), 2)
@@ -1527,7 +1554,13 @@ def price_output_stage(
             "status": benchmark_status,
             "explanation": benchmark_explanation,
         },
-        "explanation_items": explanation_items,
+        "enterprise_secure_override_applied": enterprise_secure_override_applied,
+        "enterprise_secure_rate_per_si": ENTERPRISE_SECURE_RATE_PER_SI if enterprise_secure_override_applied else None,
+        "explanation_items": (
+            explanation_items + [
+                f"Enterprise Secure package rate applied: ₹{ENTERPRISE_SECURE_RATE_PER_SI:.10f} × total SI overrides per-cover summation."
+            ] if enterprise_secure_override_applied else explanation_items
+        ),
         "pricing_scale": scale,
         "underwriting_inputs": {key: value for key, value in inputs.items() if not key.startswith("_")},
         "assumptions": inputs.get("_assumption_notes", []),

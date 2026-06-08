@@ -245,8 +245,12 @@ def sync_from_signals(
                     continue
                 sector = sig.get("sector") or ""
                 stage  = sig.get("funding_stage") or ""
+                city = sig.get("city") or ""
+                funding_round = sig.get("round") or stage
+                announced_on = sig.get("announced_on") or ""
                 lo = int(float(sig.get("premium_min_lakh") or 0) * 100_000)
                 hi = int(float(sig.get("premium_max_lakh") or 0) * 100_000)
+                amount_inr = hi or lo or _to_int(sig.get("amount_inr"))
                 bundle = sig.get("recommended_bundle") or sig.get("est_bundle") or ""
                 source = f"signal_radar:{sig.get('signal_id','')}"
 
@@ -262,10 +266,24 @@ def sync_from_signals(
 
                 conn.execute(
                     """INSERT INTO funding_leads
-                       (lead_id, company, sector, stage, est_gwp_low_inr,
-                        est_gwp_high_inr, est_bundle, status, source)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?)""",
-                    ("lead_" + secrets.token_hex(8), company, sector, stage, lo, hi, bundle, source),
+                       (lead_id, company, city, sector, stage, amount_inr, round,
+                        announced_on, est_gwp_low_inr, est_gwp_high_inr,
+                        est_bundle, status, source)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)""",
+                    (
+                        "lead_" + secrets.token_hex(8),
+                        company,
+                        city,
+                        sector,
+                        stage,
+                        amount_inr or None,
+                        funding_round,
+                        announced_on,
+                        lo,
+                        hi,
+                        bundle,
+                        source,
+                    ),
                 )
                 synced += 1
     finally:

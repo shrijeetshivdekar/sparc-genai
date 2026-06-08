@@ -4,186 +4,198 @@ STARTUP_SIZE_BUCKETS = {
     "growth": {"stages": ["Series B+"], "team_max": 500},
 }
 
+# All ranges = rate × typical_SI ± 20%.
+# Typical SIs: micro ₹2Cr liability/₹3Cr property/15 emp,
+#              small ₹5Cr liability/₹10Cr property/75 emp (ICICI Lombard Jun 2026 anchors),
+#              growth ₹25Cr liability/₹40Cr property/200 emp.
 PREMIUM_RANGES = {
-    "cyber_liability": {
-        "micro": {"min_lakh": 0.5, "max_lakh": 2.5, "basis": "INR 1cr SI, digital-only, basic controls"},
-        "small": {"min_lakh": 2.5, "max_lakh": 9.0, "basis": "INR 5cr SI, Series A, DPDPA compliance"},
-        "growth": {"min_lakh": 9.0, "max_lakh": 30.0, "basis": "INR 25cr SI, Series B+, SDF-likely"},
+    # ── ICICI Lombard verified rates (Jun 2026) — ±20% ────────────────────────────
+    "cyber_liability": {           # 0.46 L/Cr — ICICI Lombard verified
+        "micro":  {"min_lakh": 0.74, "max_lakh": 1.10, "basis": "₹2Cr SI × 0.46 L/Cr ±20% — ICICI Lombard verified"},
+        "small":  {"min_lakh": 1.84, "max_lakh": 2.76, "basis": "₹5Cr SI × 0.46 L/Cr ±20% — ICICI Lombard verified"},
+        "growth": {"min_lakh": 9.20, "max_lakh": 13.80, "basis": "₹25Cr SI × 0.46 L/Cr ±20% — ICICI Lombard verified"},
     },
-    "dno_liability": {
-        "micro": {"min_lakh": 0.8, "max_lakh": 2.0, "basis": "INR 2cr SI, seed-stage founders"},
-        "small": {"min_lakh": 2.0, "max_lakh": 6.0, "basis": "INR 5cr SI, Series A, institutional investors"},
-        "growth": {"min_lakh": 6.0, "max_lakh": 20.0, "basis": "INR 25cr SI, Series B+, listed-company exposure"},
+    "dno_liability": {             # 0.15 L/Cr — ICICI Lombard verified
+        "micro":  {"min_lakh": 0.24, "max_lakh": 0.36, "basis": "₹2Cr SI × 0.15 L/Cr ±20% — ICICI Lombard verified"},
+        "small":  {"min_lakh": 0.60, "max_lakh": 0.90, "basis": "₹5Cr SI × 0.15 L/Cr ±20% — ICICI Lombard verified"},
+        "growth": {"min_lakh": 3.00, "max_lakh": 4.50, "basis": "₹25Cr SI × 0.15 L/Cr ±20% — ICICI Lombard verified"},
     },
-    "professional_indemnity": {
-        "micro": {"min_lakh": 0.3, "max_lakh": 1.5, "basis": "INR 1cr SI, small client base"},
-        "small": {"min_lakh": 1.5, "max_lakh": 5.0, "basis": "INR 5cr SI, enterprise B2B contracts"},
-        "growth": {"min_lakh": 5.0, "max_lakh": 18.0, "basis": "INR 25cr SI, large-enterprise contracts"},
+    "professional_indemnity": {    # 0.46 L/Cr — ICICI Lombard verified
+        "micro":  {"min_lakh": 0.74, "max_lakh": 1.10, "basis": "₹2Cr SI × 0.46 L/Cr ±20% — ICICI Lombard verified"},
+        "small":  {"min_lakh": 1.84, "max_lakh": 2.76, "basis": "₹5Cr SI × 0.46 L/Cr ±20% — ICICI Lombard verified"},
+        "growth": {"min_lakh": 9.20, "max_lakh": 13.80, "basis": "₹25Cr SI × 0.46 L/Cr ±20% — ICICI Lombard verified"},
     },
-    "employee_health": {
-        "micro": {"min_lakh": 0.5, "max_lakh": 2.0, "basis": "INR 3L floater, 10 employees"},
-        "small": {"min_lakh": 2.0, "max_lakh": 8.0, "basis": "INR 5L floater, 50 employees"},
-        "growth": {"min_lakh": 8.0, "max_lakh": 25.0, "basis": "INR 5L floater, 150 employees"},
+    "comprehensive_general_liability": {  # 0.14 L/Cr — ICICI Lombard verified
+        "micro":  {"min_lakh": 0.22, "max_lakh": 0.34, "basis": "₹2Cr limit × 0.14 L/Cr ±20% — ICICI Lombard verified"},
+        "small":  {"min_lakh": 0.56, "max_lakh": 0.84, "basis": "₹5Cr limit × 0.14 L/Cr ±20% — ICICI Lombard verified"},
+        "growth": {"min_lakh": 2.24, "max_lakh": 3.36, "basis": "₹20Cr limit × 0.14 L/Cr ±20% — ICICI Lombard verified"},
     },
-    "group_pa": {
-        "micro": {"min_lakh": 0.1, "max_lakh": 0.4, "basis": "INR 10L cover, 10 employees"},
-        "small": {"min_lakh": 0.4, "max_lakh": 1.5, "basis": "INR 10L cover, 50 employees"},
-        "growth": {"min_lakh": 1.5, "max_lakh": 5.0, "basis": "INR 10L cover, 150 employees"},
+    "public_liability": {          # 0.40 L/Cr — ICICI Lombard verified
+        "micro":  {"min_lakh": 0.32, "max_lakh": 0.48, "basis": "₹1Cr limit × 0.40 L/Cr ±20% — ICICI Lombard verified"},
+        "small":  {"min_lakh": 0.64, "max_lakh": 0.96, "basis": "₹2Cr limit × 0.40 L/Cr ±20% — ICICI Lombard verified"},
+        "growth": {"min_lakh": 4.80, "max_lakh": 7.20, "basis": "₹15Cr limit × 0.40 L/Cr ±20% — ICICI Lombard verified"},
     },
-    "group_criti_shield": {
-        "micro": {"min_lakh": 0.05, "max_lakh": 0.30, "basis": "INR 5L critical illness cover, 10 employees"},
-        "small": {"min_lakh": 0.30, "max_lakh": 1.20, "basis": "INR 5L cover, 50 employees"},
-        "growth": {"min_lakh": 1.20, "max_lakh": 4.00, "basis": "INR 10L cover, 150 employees"},
+    "employment_practices": {      # 0.70 L/Cr — ICICI Lombard verified
+        "micro":  {"min_lakh": 0.56, "max_lakh": 0.84, "basis": "₹1Cr limit × 0.70 L/Cr ±20% — ICICI Lombard verified"},
+        "small":  {"min_lakh": 1.12, "max_lakh": 1.68, "basis": "₹2Cr limit × 0.70 L/Cr ±20% — ICICI Lombard verified"},
+        "growth": {"min_lakh": 5.60, "max_lakh": 8.40, "basis": "₹10Cr limit × 0.70 L/Cr ±20% — ICICI Lombard verified"},
     },
-    "group_hospishield": {
-        "micro": {"min_lakh": 0.06, "max_lakh": 0.40, "basis": "INR 1,000/day hospital cash, 10 employees"},
-        "small": {"min_lakh": 0.40, "max_lakh": 1.50, "basis": "INR 1,000/day, 50 employees"},
-        "growth": {"min_lakh": 1.50, "max_lakh": 5.00, "basis": "INR 2,000/day, 150 employees"},
+    "product_liability": {         # 0.35 L/Cr — ICICI Lombard verified
+        "micro":  {"min_lakh": 0.28, "max_lakh": 0.42, "basis": "₹1Cr limit × 0.35 L/Cr ±20% — ICICI Lombard verified"},
+        "small":  {"min_lakh": 0.56, "max_lakh": 0.84, "basis": "₹2Cr limit × 0.35 L/Cr ±20% — ICICI Lombard verified"},
+        "growth": {"min_lakh": 4.20, "max_lakh": 6.30, "basis": "₹15Cr limit × 0.35 L/Cr ±20% — ICICI Lombard verified"},
     },
-    "employees_comp": {
-        "micro": {"min_lakh": 0.2, "max_lakh": 0.8, "basis": "Small team, limited hazardous ops"},
-        "small": {"min_lakh": 0.8, "max_lakh": 2.5, "basis": "Mid-size team, moderate hazardous ops"},
-        "growth": {"min_lakh": 2.5, "max_lakh": 8.0, "basis": "Large team, warehouse/logistics ops"},
+    "property_fire": {             # 0.50 L/Cr — ICICI Lombard verified
+        "micro":  {"min_lakh": 1.20, "max_lakh": 1.80, "basis": "₹3Cr SI × 0.50 L/Cr ±20% — ICICI Lombard verified"},
+        "small":  {"min_lakh": 4.00, "max_lakh": 6.00, "basis": "₹10Cr SI × 0.50 L/Cr ±20% — ICICI Lombard verified"},
+        "growth": {"min_lakh": 16.00, "max_lakh": 24.00, "basis": "₹40Cr SI × 0.50 L/Cr ±20% — ICICI Lombard verified"},
     },
-    "property_fire": {
-        "micro": {"min_lakh": 0.50, "max_lakh": 2.00, "basis": "INR 2Cr property; post-IRDAI de-tariff Apr 2024"},
-        "small": {"min_lakh": 2.00, "max_lakh": 6.50, "basis": "INR 10Cr property; non-tariff SME market rate"},
-        "growth": {"min_lakh": 6.50, "max_lakh": 22.00, "basis": "INR 50Cr property; market range post-de-notification"},
+    "property_all_risk": {         # 0.50 L/Cr — ICICI Lombard verified
+        "micro":  {"min_lakh": 1.20, "max_lakh": 1.80, "basis": "₹3Cr SI × 0.50 L/Cr ±20% — ICICI Lombard verified"},
+        "small":  {"min_lakh": 4.00, "max_lakh": 6.00, "basis": "₹10Cr SI × 0.50 L/Cr ±20% — ICICI Lombard verified"},
+        "growth": {"min_lakh": 16.00, "max_lakh": 24.00, "basis": "₹40Cr SI × 0.50 L/Cr ±20% — ICICI Lombard verified"},
     },
-    "business_edge": {
-        "micro": {"min_lakh": 0.4, "max_lakh": 1.5, "basis": "Package: fire+burglary+PL, SME"},
-        "small": {"min_lakh": 1.5, "max_lakh": 5.0, "basis": "Package: comprehensive, mid-size"},
-        "growth": {"min_lakh": 5.0, "max_lakh": 15.0, "basis": "Package: full suite, growth"},
+    "engineering": {               # 0.40 L/Cr — ICICI Lombard verified
+        "micro":  {"min_lakh": 0.64, "max_lakh": 0.96, "basis": "₹2Cr project × 0.40 L/Cr ±20% — ICICI Lombard verified"},
+        "small":  {"min_lakh": 2.56, "max_lakh": 3.84, "basis": "₹8Cr project × 0.40 L/Cr ±20% — ICICI Lombard verified"},
+        "growth": {"min_lakh": 8.00, "max_lakh": 12.00, "basis": "₹25Cr project × 0.40 L/Cr ±20% — ICICI Lombard verified"},
     },
-    "public_liability": {
-        "micro": {"min_lakh": 0.2, "max_lakh": 0.8, "basis": "INR 1cr limit, small premises"},
-        "small": {"min_lakh": 0.8, "max_lakh": 2.5, "basis": "INR 2cr limit, medium operations"},
-        "growth": {"min_lakh": 2.5, "max_lakh": 8.0, "basis": "INR 5cr limit, multi-site ops"},
+    "machinery_breakdown": {       # 0.25 L/Cr — ICICI Lombard verified
+        "micro":  {"min_lakh": 0.20, "max_lakh": 0.30, "basis": "₹1Cr machinery SI × 0.25 L/Cr ±20% — ICICI Lombard verified"},
+        "small":  {"min_lakh": 1.00, "max_lakh": 1.50, "basis": "₹5Cr machinery SI × 0.25 L/Cr ±20% — ICICI Lombard verified"},
+        "growth": {"min_lakh": 3.00, "max_lakh": 4.50, "basis": "₹15Cr machinery SI × 0.25 L/Cr ±20% — ICICI Lombard verified"},
     },
-    "product_liability": {
-        "micro": {"min_lakh": 0.4, "max_lakh": 1.5, "basis": "INR 2cr SI, single product line"},
-        "small": {"min_lakh": 1.5, "max_lakh": 5.0, "basis": "INR 5cr SI, multiple product lines"},
-        "growth": {"min_lakh": 5.0, "max_lakh": 18.0, "basis": "INR 20cr SI, large production volume"},
+    "electronic_equipment": {      # 0.25 L/Cr — ICICI Lombard verified
+        "micro":  {"min_lakh": 0.20, "max_lakh": 0.30, "basis": "₹1Cr EEI SI × 0.25 L/Cr ±20% — ICICI Lombard verified"},
+        "small":  {"min_lakh": 1.00, "max_lakh": 1.50, "basis": "₹5Cr EEI SI × 0.25 L/Cr ±20% — ICICI Lombard verified"},
+        "growth": {"min_lakh": 3.00, "max_lakh": 4.50, "basis": "₹15Cr EEI SI × 0.25 L/Cr ±20% — ICICI Lombard verified"},
     },
-    "marine_transit": {
-        "micro": {"min_lakh": 0.2, "max_lakh": 1.0, "basis": "Open cover, INR 50L goods per month"},
-        "small": {"min_lakh": 1.0, "max_lakh": 3.5, "basis": "Open cover, INR 2cr goods per month"},
-        "growth": {"min_lakh": 3.5, "max_lakh": 12.0, "basis": "Open cover, INR 10cr goods per month"},
+    "contractors_all_risk": {      # 1.00 L/Cr — ICICI Lombard verified
+        "micro":  {"min_lakh": 1.60, "max_lakh": 2.40, "basis": "₹2Cr project × 1.00 L/Cr ±20% — ICICI Lombard verified"},
+        "small":  {"min_lakh": 5.60, "max_lakh": 8.40, "basis": "₹7Cr project × 1.00 L/Cr ±20% — ICICI Lombard verified"},
+        "growth": {"min_lakh": 24.00, "max_lakh": 36.00, "basis": "₹30Cr project × 1.00 L/Cr ±20% — ICICI Lombard verified"},
     },
-    "key_person": {
-        "micro": {"min_lakh": 0.5, "max_lakh": 1.5, "basis": "INR 2cr cover, 1 founder"},
-        "small": {"min_lakh": 1.5, "max_lakh": 4.0, "basis": "INR 5cr cover, 2 key persons"},
-        "growth": {"min_lakh": 4.0, "max_lakh": 12.0, "basis": "INR 15cr cover, leadership team"},
+    "enterprise_secure": {         # 0.000445729294/₹ flat — ICICI Lombard verified
+        "micro":  {"min_lakh": 1.78, "max_lakh": 2.68, "basis": "₹25Cr total SI × 0.044573‰ ±20% — ICICI Lombard verified"},
+        "small":  {"min_lakh": 1.78, "max_lakh": 2.68, "basis": "₹25Cr total SI × 0.044573‰ ±20% — ICICI Lombard verified"},
+        "growth": {"min_lakh": 5.35, "max_lakh": 8.02, "basis": "₹75Cr total SI × 0.044573‰ ±20% — ICICI Lombard verified"},
     },
-    "employment_practices": {
-        "micro": {"min_lakh": 0.40, "max_lakh": 1.20, "basis": "INR 1Cr limit, team < 25, low POSH exposure"},
-        "small": {"min_lakh": 1.20, "max_lakh": 3.50, "basis": "INR 3Cr limit, Series A, 50 employees"},
-        "growth": {"min_lakh": 3.50, "max_lakh": 10.00, "basis": "INR 10Cr limit, Series B+, 150+ employees"},
+    # ── Market estimates (named sources) — ±35% ───────────────────────────────────
+    "business_interruption": {     # 0.22 L/Cr; market estimate (Trust Risk Control / general BI pricing)
+        "micro":  {"min_lakh": 0.14, "max_lakh": 0.30, "basis": "₹1Cr BI SI × 0.22 L/Cr ±35% — market estimate"},
+        "small":  {"min_lakh": 0.72, "max_lakh": 1.49, "basis": "₹5Cr BI SI × 0.22 L/Cr ±35% — market estimate"},
+        "growth": {"min_lakh": 2.15, "max_lakh": 4.46, "basis": "₹15Cr BI SI × 0.22 L/Cr ±35% — market estimate"},
     },
-    "crime_fidelity": {
-        "micro": {"min_lakh": 0.3, "max_lakh": 1.0, "basis": "INR 50L coverage, small finance ops"},
-        "small": {"min_lakh": 1.0, "max_lakh": 3.5, "basis": "INR 2cr coverage, mid-size finance"},
-        "growth": {"min_lakh": 3.5, "max_lakh": 12.0, "basis": "INR 10cr coverage, large payment ops"},
+    "employees_comp": {            # 0.40 L/Cr payroll; market estimate (IRDAI WC office-class rate)
+        "micro":  {"min_lakh": 0.26, "max_lakh": 0.54, "basis": "₹1Cr payroll × 0.40 L/Cr ±35% — market estimate (IRDAI WC)"},
+        "small":  {"min_lakh": 1.30, "max_lakh": 2.70, "basis": "₹5Cr payroll × 0.40 L/Cr ±35% — market estimate (IRDAI WC)"},
+        "growth": {"min_lakh": 5.20, "max_lakh": 10.80, "basis": "₹20Cr payroll × 0.40 L/Cr ±35% — market estimate (IRDAI WC)"},
     },
-    "gadget_equipment": {
-        "micro": {"min_lakh": 0.1, "max_lakh": 0.5, "basis": "10 devices, INR 30L cover"},
-        "small": {"min_lakh": 0.5, "max_lakh": 1.5, "basis": "50 devices, INR 1.5cr cover"},
-        "growth": {"min_lakh": 1.5, "max_lakh": 5.0, "basis": "150 devices, INR 5cr cover"},
+    "employee_health": {           # 0.13 L/emp; market estimate (NivaaBupa / Pazcare group health data)
+        "micro":  {"min_lakh": 1.27, "max_lakh": 2.63, "basis": "15 emp × ₹13K/emp ±35% — market estimate (NivaaBupa/Pazcare)"},
+        "small":  {"min_lakh": 6.34, "max_lakh": 13.16, "basis": "75 emp × ₹13K/emp ±35% — market estimate (NivaaBupa/Pazcare)"},
+        "growth": {"min_lakh": 16.90, "max_lakh": 35.10, "basis": "200 emp × ₹13K/emp ±35% — market estimate (NivaaBupa/Pazcare)"},
     },
-    "clinical_trials": {
-        "micro": {"min_lakh": 1.0, "max_lakh": 4.0, "basis": "Phase 1 trial, INR 5cr liability"},
-        "small": {"min_lakh": 4.0, "max_lakh": 12.0, "basis": "Phase 2 trial, INR 20cr liability"},
-        "growth": {"min_lakh": 12.0, "max_lakh": 40.0, "basis": "Phase 3 trial, INR 100cr liability"},
+    "group_pa": {                  # 0.09 L/emp; market estimate (Bajaj Finserv group PA market)
+        "micro":  {"min_lakh": 0.88, "max_lakh": 1.82, "basis": "15 emp × ₹9K/emp ±35% — market estimate (Bajaj Finserv)"},
+        "small":  {"min_lakh": 4.39, "max_lakh": 9.11, "basis": "75 emp × ₹9K/emp ±35% — market estimate (Bajaj Finserv)"},
+        "growth": {"min_lakh": 11.70, "max_lakh": 24.30, "basis": "200 emp × ₹9K/emp ±35% — market estimate (Bajaj Finserv)"},
     },
-    "comprehensive_general_liability": {
-        "micro": {"min_lakh": 0.3, "max_lakh": 1.2, "basis": "INR 1cr limit, small B2B"},
-        "small": {"min_lakh": 1.2, "max_lakh": 4.0, "basis": "INR 3cr limit, enterprise contracts"},
-        "growth": {"min_lakh": 4.0, "max_lakh": 12.0, "basis": "INR 10cr limit, large-enterprise"},
+    "marine_transit": {            # 0.40 L/Cr; market estimate (Pazago domestic marine cargo rate)
+        "micro":  {"min_lakh": 0.52, "max_lakh": 1.08, "basis": "₹2Cr turnover × 0.40 L/Cr ±35% — market estimate (Pazago)"},
+        "small":  {"min_lakh": 2.08, "max_lakh": 4.32, "basis": "₹8Cr turnover × 0.40 L/Cr ±35% — market estimate (Pazago)"},
+        "growth": {"min_lakh": 7.80, "max_lakh": 16.20, "basis": "₹30Cr turnover × 0.40 L/Cr ±35% — market estimate (Pazago)"},
     },
-    "business_interruption": {
-        "micro": {"min_lakh": 0.3, "max_lakh": 1.0, "basis": "INR 50L BI cover, 90 days indemnity"},
-        "small": {"min_lakh": 1.0, "max_lakh": 4.0, "basis": "INR 2cr BI cover, 180 days indemnity"},
-        "growth": {"min_lakh": 4.0, "max_lakh": 15.0, "basis": "INR 10cr BI cover, 365 days indemnity"},
+    "trade_credit": {              # 0.40 L/Cr; market estimate (Allianz Trade receivables rate)
+        "micro":  {"min_lakh": 0.52, "max_lakh": 1.08, "basis": "₹2Cr receivables × 0.40 L/Cr ±35% — market estimate (Allianz Trade)"},
+        "small":  {"min_lakh": 2.08, "max_lakh": 4.32, "basis": "₹8Cr receivables × 0.40 L/Cr ±35% — market estimate (Allianz Trade)"},
+        "growth": {"min_lakh": 7.80, "max_lakh": 16.20, "basis": "₹30Cr receivables × 0.40 L/Cr ±35% — market estimate (Allianz Trade)"},
     },
-    "property_all_risk": {
-        "micro": {"min_lakh": 0.5, "max_lakh": 2.0, "basis": "INR 3cr property, lab/equipment"},
-        "small": {"min_lakh": 2.0, "max_lakh": 7.0, "basis": "INR 15cr property, pilot plant"},
-        "growth": {"min_lakh": 7.0, "max_lakh": 25.0, "basis": "INR 75cr property, full facility"},
+    "surety": {                    # 0.45 L/Cr; market estimate (IRDAI Surety Guidelines 2022)
+        "micro":  {"min_lakh": 0.59, "max_lakh": 1.22, "basis": "₹2Cr bond × 0.45 L/Cr ±35% — market estimate (IRDAI Surety Guidelines)"},
+        "small":  {"min_lakh": 2.93, "max_lakh": 6.08, "basis": "₹10Cr bond × 0.45 L/Cr ±35% — market estimate (IRDAI Surety Guidelines)"},
+        "growth": {"min_lakh": 8.78, "max_lakh": 18.23, "basis": "₹30Cr bond × 0.45 L/Cr ±35% — market estimate (IRDAI Surety Guidelines)"},
     },
-    "electronic_equipment": {
-        "micro": {"min_lakh": 0.3, "max_lakh": 1.2, "basis": "INR 1cr EEI SI, GPU/servers"},
-        "small": {"min_lakh": 1.2, "max_lakh": 4.0, "basis": "INR 5cr EEI SI, data centre"},
-        "growth": {"min_lakh": 4.0, "max_lakh": 15.0, "basis": "INR 25cr EEI SI, large infra"},
+    "crime_fidelity": {            # 0.35 L/Cr; market estimate
+        "micro":  {"min_lakh": 0.11, "max_lakh": 0.24, "basis": "₹50L limit × 0.35 L/Cr ±35% — market estimate"},
+        "small":  {"min_lakh": 0.46, "max_lakh": 0.95, "basis": "₹2Cr limit × 0.35 L/Cr ±35% — market estimate"},
+        "growth": {"min_lakh": 2.28, "max_lakh": 4.73, "basis": "₹10Cr limit × 0.35 L/Cr ±35% — market estimate"},
     },
-    "machinery_breakdown": {
-        "micro": {"min_lakh": 0.2, "max_lakh": 0.8, "basis": "INR 1cr machinery, small plant"},
-        "small": {"min_lakh": 0.8, "max_lakh": 3.0, "basis": "INR 5cr machinery, mid plant"},
-        "growth": {"min_lakh": 3.0, "max_lakh": 10.0, "basis": "INR 25cr machinery, large plant"},
+    "money_insurance": {           # 0.35 L/Cr; market estimate
+        "micro":  {"min_lakh": 0.05, "max_lakh": 0.09, "basis": "₹20L cash × 0.35 L/Cr ±35% — market estimate"},
+        "small":  {"min_lakh": 0.23, "max_lakh": 0.47, "basis": "₹1Cr cash × 0.35 L/Cr ±35% — market estimate"},
+        "growth": {"min_lakh": 1.14, "max_lakh": 2.36, "basis": "₹5Cr cash × 0.35 L/Cr ±35% — market estimate"},
     },
-    "motor_fleet": {
-        "micro": {"min_lakh": 0.5, "max_lakh": 2.0, "basis": "5-vehicle fleet"},
-        "small": {"min_lakh": 2.0, "max_lakh": 7.0, "basis": "20-vehicle fleet"},
-        "growth": {"min_lakh": 7.0, "max_lakh": 25.0, "basis": "100-vehicle fleet"},
+    "motor_fleet": {               # 0.18 L/vehicle; market estimate (commercial motor fleet rate)
+        "micro":  {"min_lakh": 0.59, "max_lakh": 1.22, "basis": "5 vehicles × ₹18K/vehicle ±35% — market estimate"},
+        "small":  {"min_lakh": 2.34, "max_lakh": 4.86, "basis": "20 vehicles × ₹18K/vehicle ±35% — market estimate"},
+        "growth": {"min_lakh": 11.70, "max_lakh": 24.30, "basis": "100 vehicles × ₹18K/vehicle ±35% — market estimate"},
     },
-    "healthcare_pi": {
-        "micro": {"min_lakh": 0.8, "max_lakh": 2.5, "basis": "Small clinic/diagnostic exposure, INR 1-2cr PI limit"},
-        "small": {"min_lakh": 2.5, "max_lakh": 9.0, "basis": "Multi-location healthtech, INR 5cr PI limit"},
-        "growth": {"min_lakh": 9.0, "max_lakh": 30.0, "basis": "Scaled clinical operations, INR 20cr+ PI limit"},
+    "drone_insurance": {           # 0.42 L/Cr; market estimate (limited market data)
+        "micro":  {"min_lakh": 0.14, "max_lakh": 0.28, "basis": "₹50L hull × 0.42 L/Cr ±35% — market estimate (limited data)"},
+        "small":  {"min_lakh": 0.55, "max_lakh": 1.13, "basis": "₹2Cr hull × 0.42 L/Cr ±35% — market estimate (limited data)"},
+        "growth": {"min_lakh": 2.73, "max_lakh": 5.67, "basis": "₹10Cr hull × 0.42 L/Cr ±35% — market estimate (limited data)"},
     },
-    "financial_services_pi": {
-        "micro": {"min_lakh": 1.0, "max_lakh": 3.5, "basis": "Small regulated fintech, INR 2cr FI PI limit"},
-        "small": {"min_lakh": 3.5, "max_lakh": 12.0, "basis": "NBFC/payment profile, INR 5-10cr FI PI limit"},
-        "growth": {"min_lakh": 12.0, "max_lakh": 40.0, "basis": "Growth fintech, INR 25cr+ FI PI limit"},
+    "group_criti_shield": {        # 0.05 L/emp; market estimate (critical illness rider market India)
+        "micro":  {"min_lakh": 0.49, "max_lakh": 1.01, "basis": "15 emp × ₹5K/emp ±35% — market estimate (India CI rider)"},
+        "small":  {"min_lakh": 2.44, "max_lakh": 5.06, "basis": "75 emp × ₹5K/emp ±35% — market estimate (India CI rider)"},
+        "growth": {"min_lakh": 6.50, "max_lakh": 13.50, "basis": "200 emp × ₹5K/emp ±35% — market estimate (India CI rider)"},
     },
-    "payment_protection": {
-        "micro": {"min_lakh": 0.5, "max_lakh": 1.8, "basis": "Low-volume card/payment programme"},
-        "small": {"min_lakh": 1.8, "max_lakh": 6.0, "basis": "Series A payment/embedded finance exposure"},
-        "growth": {"min_lakh": 6.0, "max_lakh": 20.0, "basis": "Large payment programme and customer compensation exposure"},
+    "group_hospishield": {         # 0.06 L/emp; market estimate (hospital daily cash market India)
+        "micro":  {"min_lakh": 0.59, "max_lakh": 1.22, "basis": "15 emp × ₹6K/emp ±35% — market estimate (India hosp cash)"},
+        "small":  {"min_lakh": 2.93, "max_lakh": 6.08, "basis": "75 emp × ₹6K/emp ±35% — market estimate (India hosp cash)"},
+        "growth": {"min_lakh": 7.80, "max_lakh": 16.20, "basis": "200 emp × ₹6K/emp ±35% — market estimate (India hosp cash)"},
     },
-    "product_recall": {
-        "micro": {"min_lakh": 0.7, "max_lakh": 2.5, "basis": "Small batch production and basic recall limit"},
-        "small": {"min_lakh": 2.5, "max_lakh": 8.0, "basis": "D2C/FSSAI production, INR 5cr recall limit"},
-        "growth": {"min_lakh": 8.0, "max_lakh": 28.0, "basis": "Scaled FMCG/pharma/hardware recall exposure"},
+    # ── Heuristic estimates — ±35% ────────────────────────────────────────────────
+    "healthcare_pi": {             # 0.95 L/Cr; heuristic estimate
+        "micro":  {"min_lakh": 1.24, "max_lakh": 2.57, "basis": "₹2Cr limit × 0.95 L/Cr ±35% — heuristic estimate"},
+        "small":  {"min_lakh": 3.09, "max_lakh": 6.41, "basis": "₹5Cr limit × 0.95 L/Cr ±35% — heuristic estimate"},
+        "growth": {"min_lakh": 12.35, "max_lakh": 25.65, "basis": "₹20Cr limit × 0.95 L/Cr ±35% — heuristic estimate"},
     },
-    "event_production": {
-        "micro": {"min_lakh": 0.4, "max_lakh": 1.2, "basis": "Small event or production budget"},
-        "small": {"min_lakh": 1.2, "max_lakh": 5.0, "basis": "Series A production/event slate"},
-        "growth": {"min_lakh": 5.0, "max_lakh": 18.0, "basis": "Large production schedule and venue/equipment exposure"},
+    "financial_services_pi": {     # 1.05 L/Cr; heuristic estimate
+        "micro":  {"min_lakh": 1.37, "max_lakh": 2.84, "basis": "₹2Cr limit × 1.05 L/Cr ±35% — heuristic estimate"},
+        "small":  {"min_lakh": 3.41, "max_lakh": 7.09, "basis": "₹5Cr limit × 1.05 L/Cr ±35% — heuristic estimate"},
+        "growth": {"min_lakh": 13.65, "max_lakh": 28.35, "basis": "₹20Cr limit × 1.05 L/Cr ±35% — heuristic estimate"},
     },
-    "surety": {
-        "micro": {"min_lakh": 0.8, "max_lakh": 2.5, "basis": "Small bid/performance bond need"},
-        "small": {"min_lakh": 2.5, "max_lakh": 10.0, "basis": "EPC/solar project, INR 10cr contract value"},
-        "growth": {"min_lakh": 10.0, "max_lakh": 35.0, "basis": "Large contract performance exposure"},
+    "payment_protection": {        # 0.65 L/Cr; heuristic estimate
+        "micro":  {"min_lakh": 0.85, "max_lakh": 1.76, "basis": "₹2Cr limit × 0.65 L/Cr ±35% — heuristic estimate"},
+        "small":  {"min_lakh": 2.11, "max_lakh": 4.39, "basis": "₹5Cr limit × 0.65 L/Cr ±35% — heuristic estimate"},
+        "growth": {"min_lakh": 8.45, "max_lakh": 17.55, "basis": "₹20Cr limit × 0.65 L/Cr ±35% — heuristic estimate"},
     },
-    "trade_credit": {
-        "micro": {"min_lakh": 0.4, "max_lakh": 1.5, "basis": "INR 2cr receivables"},
-        "small": {"min_lakh": 1.5, "max_lakh": 5.0, "basis": "INR 10cr receivables"},
-        "growth": {"min_lakh": 5.0, "max_lakh": 18.0, "basis": "INR 50cr receivables"},
+    "product_recall": {            # 0.85 L/Cr; heuristic estimate
+        "micro":  {"min_lakh": 0.55, "max_lakh": 1.15, "basis": "₹1Cr limit × 0.85 L/Cr ±35% — heuristic estimate"},
+        "small":  {"min_lakh": 2.76, "max_lakh": 5.74, "basis": "₹5Cr limit × 0.85 L/Cr ±35% — heuristic estimate"},
+        "growth": {"min_lakh": 11.05, "max_lakh": 22.95, "basis": "₹20Cr limit × 0.85 L/Cr ±35% — heuristic estimate"},
     },
-    "money_insurance": {
-        "micro": {"min_lakh": 0.1, "max_lakh": 0.4, "basis": "INR 5L cash limit"},
-        "small": {"min_lakh": 0.4, "max_lakh": 1.2, "basis": "INR 20L cash limit"},
-        "growth": {"min_lakh": 1.2, "max_lakh": 4.0, "basis": "INR 1cr cash limit"},
+    "event_production": {          # 0.60 L/Cr; heuristic estimate
+        "micro":  {"min_lakh": 0.39, "max_lakh": 0.81, "basis": "₹1Cr budget × 0.60 L/Cr ±35% — heuristic estimate"},
+        "small":  {"min_lakh": 1.95, "max_lakh": 4.05, "basis": "₹5Cr budget × 0.60 L/Cr ±35% — heuristic estimate"},
+        "growth": {"min_lakh": 7.80, "max_lakh": 16.20, "basis": "₹20Cr budget × 0.60 L/Cr ±35% — heuristic estimate"},
     },
-    "contractors_all_risk": {
-        "micro": {"min_lakh": 0.5, "max_lakh": 2.0, "basis": "INR 2cr project value"},
-        "small": {"min_lakh": 2.0, "max_lakh": 8.0, "basis": "INR 10cr project value"},
-        "growth": {"min_lakh": 8.0, "max_lakh": 30.0, "basis": "INR 50cr project value"},
+    "key_person": {                # ~1.0 L/Cr; heuristic estimate
+        "micro":  {"min_lakh": 1.30, "max_lakh": 2.70, "basis": "₹2Cr cover × ~1.0 L/Cr ±35% — heuristic estimate"},
+        "small":  {"min_lakh": 3.25, "max_lakh": 6.75, "basis": "₹5Cr cover × ~1.0 L/Cr ±35% — heuristic estimate"},
+        "growth": {"min_lakh": 9.75, "max_lakh": 20.25, "basis": "₹15Cr cover × ~1.0 L/Cr ±35% — heuristic estimate"},
     },
-    "drone_insurance": {
-        "micro": {"min_lakh": 0.3, "max_lakh": 1.0, "basis": "2 drones, INR 50L hull"},
-        "small": {"min_lakh": 1.0, "max_lakh": 3.5, "basis": "10 drones, INR 2cr hull"},
-        "growth": {"min_lakh": 3.5, "max_lakh": 12.0, "basis": "50 drones, INR 10cr hull"},
+    "msme_suraksha": {             # 0.50 L/Cr; heuristic estimate
+        "micro":  {"min_lakh": 0.16, "max_lakh": 0.34, "basis": "₹50L SI × 0.50 L/Cr ±35% — heuristic estimate"},
+        "small":  {"min_lakh": 0.65, "max_lakh": 1.35, "basis": "₹2Cr SI × 0.50 L/Cr ±35% — heuristic estimate"},
+        "growth": {"min_lakh": 3.25, "max_lakh": 6.75, "basis": "₹10Cr SI × 0.50 L/Cr ±35% — heuristic estimate"},
     },
-    "msme_suraksha": {
-        "micro": {"min_lakh": 0.3, "max_lakh": 1.0, "basis": "INR 50L insurable value, all perils"},
-        "small": {"min_lakh": 1.0, "max_lakh": 3.5, "basis": "INR 2cr insurable value"},
-        "growth": {"min_lakh": 3.5, "max_lakh": 10.0, "basis": "INR 10cr insurable value"},
+    "gadget_equipment": {          # ~1.5 L/Cr; heuristic estimate
+        "micro":  {"min_lakh": 0.20, "max_lakh": 0.41, "basis": "₹20L equipment × 1.5 L/Cr ±35% — heuristic estimate"},
+        "small":  {"min_lakh": 0.98, "max_lakh": 2.03, "basis": "₹1Cr equipment × 1.5 L/Cr ±35% — heuristic estimate"},
+        "growth": {"min_lakh": 4.88, "max_lakh": 10.13, "basis": "₹5Cr equipment × 1.5 L/Cr ±35% — heuristic estimate"},
     },
-    "enterprise_secure": {
-        "micro": {"min_lakh": 0.8, "max_lakh": 2.5, "basis": "Package: property+BI+PL"},
-        "small": {"min_lakh": 2.5, "max_lakh": 8.0, "basis": "Package: full suite, Series A"},
-        "growth": {"min_lakh": 8.0, "max_lakh": 25.0, "basis": "Package: enterprise suite"},
+    "clinical_trials": {           # specialist product; heuristic estimate
+        "micro":  {"min_lakh": 1.63, "max_lakh": 3.38, "basis": "Phase 1 specialist rate ±35% — heuristic estimate"},
+        "small":  {"min_lakh": 5.20, "max_lakh": 10.80, "basis": "Phase 2 specialist rate ±35% — heuristic estimate"},
+        "growth": {"min_lakh": 16.90, "max_lakh": 35.10, "basis": "Phase 3 specialist rate ±35% — heuristic estimate"},
+    },
+    "business_edge": {             # package ~0.50 L/Cr; heuristic estimate
+        "micro":  {"min_lakh": 0.98, "max_lakh": 2.03, "basis": "₹3Cr SI package × 0.50 L/Cr ±35% — heuristic estimate"},
+        "small":  {"min_lakh": 3.25, "max_lakh": 6.75, "basis": "₹10Cr SI package × 0.50 L/Cr ±35% — heuristic estimate"},
+        "growth": {"min_lakh": 9.75, "max_lakh": 20.25, "basis": "₹30Cr SI package × 0.50 L/Cr ±35% — heuristic estimate"},
     },
 }
 

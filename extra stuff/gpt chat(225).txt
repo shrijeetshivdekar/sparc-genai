@@ -1,0 +1,1501 @@
+Create VP slide prompts
+No tasks in progress
+
+
+So I have to give a presentation to SENIOR LEVEL PERSON IN ORGANIZATION (ONE STEP BELOW MD) - he only cares about why the project, what have you done in the project, what is the outcome 
+
+So create a prompt for image generation of each of my slide to gpt image generation to create 10 to 15 slides which highlights this product and its features with emphasis on WHY THE FEATURE, WHAT IS THE FEATURE And  WHAT IS THE OUTCOME OF THAT FEATURE - IT SHOULD BE CLEAR AND APPEALING. ALSO TELL WHAT I WILL SAY FOR EACH SLIDE IN MY PITCH TO HIM!! My manager told me that he gets very bored watching unnecessary diagrams unless they dont hit the right spot! So create meaningful infographics, charts etc only!!
+
+THIS FORMAT SHOULD BE FOLLOWED: 
+
+
+ilomppt format = ICICI Lombard PPT brand format
+
+Use these rules whenever you say “ilomppt”.
+
+make the slide on plain white background colour, 16:9 format
+
+Brand colours only
+
+No other colours are allowed anywhere in the presentation.
+
+Role	RGB
+
+Primary Dark Navy	R:5 G:60 B:109
+Secondary Orange	R:249 G:157 B:39
+Tertiary 1 Dark Red	R:151 G:41 B:30
+Tertiary 2 Warm Grey	R:209 G:207 B:187
+Tertiary 3 Light Cream	R:255 G:243 B:236
+
+
+Typography
+
+Font throughout: Mulish
+
+Element	Size	Style
+
+Slide Title	36pt	Mulish Extra Bold
+Sub-Title on title slide	24pt	Mulish Bold
+Date / Metadata	20pt	Mulish Regular
+Section / Slide Heading	32pt	Mulish Extra Bold
+Sub-Heading	24pt	Mulish Bold
+Body Text	18–22pt	Mulish Regular
+Emphasis Text	18–22pt	Mulish Bold
+Chart Labels	16pt	Mulish Regular
+Table Header	20pt	Mulish Bold
+Table Body	20pt	Mulish Regular
+Table Emphasis Rows	20pt	Mulish Bold
+SmartArt Header	18–24pt	Mulish Regular
+SmartArt Body	16–22pt	Mulish Regular
+Footer	16pt	Mulish Regular
+
+Show more
+Thursday 8:14 AM
+
+
+Worked for 1m 43s
+Below is a 12-slide executive deck plan. Copy the Global Image Prompt before every slide prompt when using GPT image generation.
+
+Important: GPT image generation can distort small text. Best output method is: generate the slide visual/layout, then place the exact text in PowerPoint using Mulish.
+
+Global Image Prompt For Every Slide
+
+Create one professional 16:9 PowerPoint slide in “ilomppt” ICICI Lombard brand format.
+
+Background: plain white only.
+Font: Mulish only.
+Brand colours only:
+- Primary Dark Navy RGB(5,60,109)
+- Secondary Orange RGB(249,157,39)
+- Dark Red RGB(151,41,30)
+- Warm Grey RGB(209,207,187)
+- Light Cream RGB(255,243,236)
+
+No gradients. No stock photos. No decorative icons unless they explain the business point. Use clean executive infographics only. Make it suitable for a senior ICICI Lombard executive who dislikes unnecessary diagrams. Layout must be sharp, minimal, data-led, and boardroom-ready.
+
+Typography:
+Slide title 36pt Mulish Extra Bold.
+Section heading 32pt Mulish Extra Bold.
+Subheading 24pt Mulish Bold.
+Body text 18–22pt Mulish Regular.
+Chart labels 16pt Mulish Regular.
+
+Every slide must clearly answer:
+WHY this matters
+WHAT SPARC does
+OUTCOME for ICICI Lombard / RM / underwriting
+Slide 1: Executive Opening
+Image Prompt
+
+Title: “SPARC: Turning Startup Risk Into Structured Insurance Opportunity”
+
+Create a clean title slide with a large navy title on the left. On the right, show a simple three-part executive value equation:
+
+Startup Profile → Risk Intelligence → Right Bundle + Quote
+
+Use three connected blocks in navy outline, orange arrows, and a small outcome box:
+“RM-ready recommendation in minutes”
+
+Footer:
+“Startup Protection and Risk Classification Engine | ICICI Lombard Commercial Lines | May 2026”
+
+Keep the slide calm, premium, and senior-executive friendly.
+What You Say
+“Sir, this project is called SPARC: Startup Protection and Risk Classification. The objective is simple: help our RMs identify the right insurance bundle for a startup based on its actual risk profile, not guesswork or generic SME logic.”
+
+Slide 2: Why This Project
+Image Prompt
+
+Title: “Why: India’s Startup Segment Is Underinsured, Not Uninsurable”
+
+Create a meaningful infographic with three overlapping circles:
+Assets
+Liabilities
+Regulation
+
+At the center write:
+“Uncovered Startup Exposure”
+
+On the right, create a KPI strip with four large numbers:
+112,000+ recognized startups
+12 lakh+ employees
+USD 140B+ funding raised
+INR 47,100 Cr configured bundle TAM
+
+Add bottom insight bar in navy:
+“Problem: ICICI Lombard has the products, but no systematic way to match the right bundle to the right startup at the right stage.”
+What You Say
+“The opportunity is not that startups do not need insurance. The issue is that their risks are changing faster than the traditional sales conversation. They have data risk, D&O risk, product liability, employee risk, regulatory risk, and asset risk. We already have products for these exposures. The gap is matching.”
+
+Slide 3: What We Built
+Image Prompt
+
+Title: “What SPARC Does”
+
+Create a four-step horizontal process infographic:
+
+1. Startup Profile Intake
+Sector, stage, team size, data, assets, regulation
+
+2. 13-Dimension Risk Scoring
+Cyber, privacy, liability, governance, property, ESG, labour
+
+3. Bundle Recommendation
+13 implemented insurance bundles ranked by fit
+
+4. Quote + Compliance Output
+Premium estimate, mandatory covers, regulatory triggers
+
+Use navy step boxes, orange step numbers, warm grey connector lines.
+Add a small bottom architecture strip:
+research_config.json → risk_engine.py → bundle_recommender_v2.py → pricing_engine.py → RM web app
+What You Say
+“We built an engine that takes a startup profile, scores it across 13 risk dimensions, recommends the best-fit ICICI Lombard bundle, shows mandatory covers, and gives an indicative quote. The important part is that the logic is config-driven, so weights and regulatory citations can be updated without rebuilding the product.”
+
+Slide 4: Feature 1: Risk Scoring Engine
+Image Prompt
+
+Title: “Feature 1: Startup-Specific Risk Scoring”
+
+Create a clean radial score wheel with 13 outer labels:
+Cyber Technical
+Data Privacy
+Liability
+IP Infringement
+Key Person
+Governance & Fraud
+Property
+Regulatory Compliance
+ESG & Climate
+Geopolitical
+Gig & Labour
+Policy Velocity
+Reputation
+
+Center label:
+“Startup Risk Score”
+
+Create a three-column panel below:
+WHY: Generic SME scoring misses startup-specific exposure
+WHAT: 13 deterministic risk categories with sector and stage multipliers
+OUTCOME: RM gets a defensible risk conversation, not a product brochure
+What You Say
+“The first major feature is the risk engine. A fintech startup and a manufacturing D2C startup should not be assessed with the same logic. SPARC applies sector, stage, data, asset, and regulatory multipliers so the RM can explain why a recommendation was made.”
+
+Slide 5: Feature 2: Bundle Recommendation
+Image Prompt
+
+Title: “Feature 2: From Product Shelf To Bundle Decision”
+
+Create a left-to-right decision flow:
+Risk Scores → Eligibility Rules → Bundle Ranking → Fit Score → Recommendation
+
+On the right, show a ranked bundle table with sample rows:
+1. Business Shield SME
+2. I-select Liability Insurance
+3. Enterprise Secure Package
+4. Industrial All Risk
+5. Corporate Cover II
+
+Columns:
+Bundle | Fit | Why Recommended | Graduation Path
+
+Use orange highlight for Rank 1. Use navy table headers and warm grey grid lines.
+Add bottom three-part explanation:
+WHY: RMs need one clear recommendation
+WHAT: SPARC ranks 13 bundles with rationale
+OUTCOME: Faster client conversation and higher confidence
+What You Say
+“The second feature is bundle matching. Instead of showing every product, SPARC ranks the most relevant bundle and explains why. It also shows alternatives and graduation paths, so this becomes a lifecycle relationship, not a one-time sale.”
+
+Slide 6: Feature 3: Regulatory Trigger Engine
+Image Prompt
+
+Title: “Feature 3: Mandatory Cover Detection”
+
+Create a vertical compliance trigger funnel with six levels:
+DPDP / CERT-In
+RBI Digital Lending
+DGCA Drone Rule 44
+Companies Act D&O
+Labour / Gig Exposure
+Environmental / EPR
+
+Each level should connect to:
+Trigger → Citation → Mandatory Cover → RM Action
+
+Add a bold outcome box:
+“RM does not need to remember every regulation. SPARC checks every profile every time.”
+
+Use navy and orange only for emphasis. Keep this slide very clean and credible.
+What You Say
+“This is one of the most important features. If a startup handles KYC data, DPDP and CERT-In triggers appear. If it operates drones, DGCA Rule 44 triggers Drone RPAS cover. If it is RBI-regulated, digital lending obligations appear. The outcome is fewer missed mandatory covers and a stronger underwriting conversation.”
+
+Slide 7: Feature 4: Indicative Quote Engine
+Image Prompt
+
+Title: “Feature 4: Indicative Quote Before The RM Leaves The Meeting”
+
+Create a simple quote workflow:
+Recommended Bundle → Underwriting Inputs → Premium Estimate → Referral Flag → Next Action
+
+Show a mock quote card:
+Bundle: I-select Liability Insurance
+Cyber Limit: INR 15 Cr
+D&O Limit: INR 10 Cr
+PI Limit: INR 7.5 Cr
+Crime Limit: INR 5 Cr
+Output: Indicative premium + GST
+Referral: High cyber score requires control questionnaire
+
+Add three bottom boxes:
+WHY: RMs need a number to continue the sales motion
+WHAT: SPARC captures SI and quote inputs
+OUTCOME: Founder gets a concrete next step, not a vague follow-up
+What You Say
+“The quote engine is not final underwriting. It is an indicative commercial bridge. It helps the RM leave the meeting with a pricing direction, required inputs, referral flags, and the next underwriting action.”
+
+Slide 8: Demo Scenario 1: Fintech
+Image Prompt
+
+Title: “Demo 1: Fintech / Digital Lending Startup”
+
+Create a crisp executive profile card on the left:
+Sector: Fintech
+Stage: Series A
+Team: 55
+Data: Payments + KYC
+Regulation: RBI + DPDP
+Operations: Digital-only
+
+On the right, create a risk-output panel:
+Top Risks:
+Data Privacy: 85
+Cyber Technical: 82
+Regulatory Compliance: 78
+Governance & Fraud: 72
+
+Recommended Covers:
+Cyber
+D&O
+Professional Indemnity / Tech E&O
+Crime / Fidelity
+
+Outcome box:
+“SPARC turns a complex fintech profile into a clear liability-led recommendation.”
+What You Say
+“For a digital lending fintech, the engine immediately pushes cyber, data privacy, regulatory compliance, and governance risk to the top. That leads to cyber, D&O, PI or Tech E&O, and crime/fidelity covers. This is exactly where a generic SME pitch would be weak.”
+
+Slide 9: Demo Scenario 2: Deeptech Drone Company
+Image Prompt
+
+Title: “Demo 2: Deeptech Drone Startup”
+
+Create a two-part infographic.
+
+Left: Startup profile card:
+Sector: Deeptech / Robotics
+Stage: Series A
+Team: 400
+Assets: Lab + drones
+Hardware Split: 55%
+Regulation: DGCA drone operations
+
+Right: Compliance-first recommendation:
+DGCA Drone Rule 44 → Drone RPAS mandatory
+Industrial All Risk → Property + machinery + equipment exposure
+Key risks: Property, IP, Key Person, Liability
+
+Add outcome strip:
+“SPARC prevents the RM from missing the legally critical cover.”
+What You Say
+“This is where SPARC becomes more than a sales tool. For a drone company, DGCA Rule 44 is critical. The engine flags Drone RPAS as mandatory. Missing this would not just be a missed sale; it could become a claims and compliance issue.”
+
+Slide 10: Demo Scenario 3: D2C Manufacturing
+Image Prompt
+
+Title: “Demo 3: D2C Manufacturing Startup”
+
+Create a clean manufacturing risk map:
+Factory + Warehouse → Property Risk
+Consumer Electronics → Product Liability
+600 Employees → Employer Liability
+Series B Board → D&O / Governance
+Digital Sales → Cyber / Reputation
+
+Show recommendation card:
+Recommended Bundle: Enterprise Secure Package Policy
+Why: Combines liability, cyber, D&O, employer, and property exposure
+Outcome: Converts fragmented risks into one enterprise-grade account plan
+
+Use simple connected nodes, not decorative illustrations.
+What You Say
+“For a D2C manufacturing startup, the conversation shifts from only cyber or D&O to property, product liability, employer obligations, reputation, and governance. SPARC correctly moves the RM toward an enterprise package instead of a narrow product discussion.”
+
+Slide 11: What Is The Business Outcome
+Image Prompt
+
+Title: “Outcome: Better Sales Motion, Better Risk Selection”
+
+Create a 2x2 executive outcome matrix.
+
+Columns:
+Before SPARC
+After SPARC
+
+Rows:
+RM Conversation
+Recommendation Quality
+Compliance Coverage
+Data Asset
+
+Fill with concise contrast:
+Before: Generic pitch / manual judgement / missed triggers / no learning loop
+After: Profile-led pitch / ranked bundle / mandatory trigger checks / CRM-ready recommendation data
+
+Add KPI band:
+13 risk dimensions
+13 implemented bundles
+6 regulatory signal groups
+121 passing tests
+INR 47,100 Cr configured TAM
+What You Say
+“The outcome is threefold. First, the RM gets a sharper conversation. Second, underwriting gets better risk selection because recommendations are traceable. Third, ICICI Lombard starts building a structured startup risk dataset that can improve over time.”
+
+Slide 12: Leadership Ask / Next Step
+Image Prompt
+
+Title: “Ask: Approve A Controlled 60-Day Pilot”
+
+Create a simple 60-day pilot roadmap with four milestones:
+Week 1–2: Pilot design + account selection
+Week 3–4: RM training + CRM logging setup
+Week 5–8: Field usage with selected startup accounts
+End: Review conversion, quote click-through, coverage gaps, RM feedback
+
+Create a right-side decision box:
+What we need:
+1. Leadership endorsement
+2. Claims / historical GWP data access
+3. CRM integration support
+4. Compliance review
+
+Outcome box at bottom:
+“Goal: Validate recommendation quality, commercial lift, and underwriting usefulness before scale-up.”
+What You Say
+“What I am asking for is not a full-scale rollout today. The right next step is a controlled 60-day pilot. We select accounts, train RMs, log recommendations, and measure whether SPARC improves recommendation acceptance, quote movement, and coverage quality.”
+
+Final Closing Line
+“SPARC is not replacing underwriting or the RM. It gives both of them a sharper starting point: the right risk, the right bundle, the right evidence, and the right next action.”
+
+
+
+
+
+Thursday 8:15 AM
+Make it according to this!
+
+
+SPARC — Full Feature Breakdown
+HOME SCREEN
+1. Auto-Profile Search (AI)
+Type any Indian startup name → SPARC pulls live public data via Gemini + Google Search grounding, auto-fills the entire 13-dimension risk profile, runs the full scoring engine, and returns a complete recommendation — no form required.
+
+2. Quick-Try Pills
+One-click buttons (Zepto, Razorpay, CRED, Ather Energy, Pristyn Care) that fire the auto-profile instantly.
+
+3. Pipeline Intelligence Dashboard
+Curated list of 262+ verified Indian startups ranked by estimated premium opportunity, stage urgency, and sector concentration. Filterable by sector, stage, and market status (Pre-seed / Seed / Strike Now / Covered). Includes a sector heat map view.
+
+4. RM Quick Classify
+Shorter input form (~10 fields). Plain-English output. Designed for a fast meeting prep conversation — walk out with a bundle and a pitch.
+
+5. Full SPARC Assessment (Manual Form)
+Complete 50+ field intake across all 13 risk dimensions. For when you have detailed information about the company.
+
+INPUTS (Manual Form)
+Category	Fields
+Identity	Company name, sector, sub-sector, funding stage, team size
+Operations	Business model (B2B/B2C %), operations type (Digital / Hybrid / Physical), state footprint
+Financial	Annual revenue (Cr), total insurable asset value, gross profit
+Data & Cyber	Data types handled (PII, payments, health, etc.), data sensitivity, records count, DPDP status, CERT-In obligations
+Regulatory	RBI/SEBI/IRDAI licensed, FSSAI, CDSCO, DGCA, labour codes, MV Act, etc.
+Physical	Vehicles/fleet count, vehicle types, warehouses, manufacturing plant, cold chain, drones, retail stores
+Governance	Investor type, holdco domicile, founder equity %, independent directors, DPIIT recognition, POSH IC
+Specialty	AI tier, healthcare operations, payment/card program, export %, Chinese supplier %, gig headcount %, product recall, food/pharma manufacturing, event operations, claims history
+Quote inputs	Sum insured per cover, location count, turnover, contract value
+OUTPUT — TAB 1: BUNDLE
+6. Recommended Bundle
+Named ICICI Lombard insurance bundle matched deterministically to the startup's sector + stage + operating model. Shows mandatory covers, optional covers, and a "why this bundle" explanation personalised by Gemini.
+
+7. Why It Matters (GenAI)
+Per-product personalised reason why each cover is relevant to this specific company — not generic copy. Generated by Gemini based on sector, stage, data types, and regulatory triggers.
+
+8. Bundle Alternatives
+Up to 2 runner-up bundles with their match scores and why they ranked lower — shown in a collapsible section.
+
+9. Companion Bundle
+If the primary bundle has a natural complement (e.g. a cyber add-on for a fintech bundle), it's shown as a paired recommendation with its own cover list.
+
+10. Claims Scenarios
+3 realistic claim scenarios for the matched sector — shows what would actually trigger a payout under this bundle (e.g. "Zepto: a data breach affecting 2M users triggers Cyber Liability").
+
+11. Additional Recommended Products
+Products recommended by the scoring engine that fall outside the matched bundle — ranked by priority (Critical / High / Medium).
+
+12. Not-Preferred Products
+Products explicitly flagged as poor fits for this profile, with the reason why (e.g. "Marine Cargo: no import/export operations detected").
+
+13. Download Founder Summary (PDF)
+One-click PDF export of the bundle recommendation, formatted for sharing with the startup founder.
+
+OUTPUT — TAB 2: OUTREACH
+14. Pitch Bullets (Deterministic)
+3–5 sharp, meeting-ready pitch bullets generated from the risk scores — available instantly without Gemini (e.g. "Your DPDP Act obligations + 500L+ customer records make a Cyber breach your highest financial exposure").
+
+15. Objection Handlers (GenAI)
+Gemini-personalised responses to the 3 most likely objections from this type of founder — drawn from a curated pitch/objection library, personalised to sector, stage, and bundle. Loaded lazily when you open this tab.
+
+16. Email Drafts — Outreach (GenAI)
+3 role-specific email templates (CEO, CTO, CFO) fully personalised to the company — subject line, body, call to action. Each has a Copy and Send Email button. AI-generated via Gemini; falls back to deterministic templates if Gemini is unavailable.
+
+17. Email Preview Modal
+Opens a formatted preview of the email with the ICICI Lombard visual template before sending.
+
+OUTPUT — TAB 3: ESTIMATED QUOTE
+18. Why This Bundle Was Recommended (GenAI)
+Plain-English narrative explanation of the bundle selection — neuromarketing-style, sector-specific, stage-aware. Includes revenue breakdown analysis and graduation path.
+
+19. Bundle-Only Pricing Quote
+Estimated premium for just the recommended bundle covers — uses submitted sum insured values, applies bundle discount, adds GST. Shown as a structured table with per-cover breakdown.
+
+20. Full Portfolio Pricing Quote
+Estimated premium across all recommended products (not just the bundle) — itemised by cover, with SI, rate, and gross premium per line.
+
+21. Pricing Scale / Enterprise Flag
+If the submitted limits are outside startup benchmark range, the benchmark is suppressed and an underwriter-check flag is shown instead of a misleading number.
+
+22. Benchmark Range (Pre-Quote)
+Before sum insured is entered — shows a market benchmark range (min–max in lakhs) based on sector and stage norms. Explicitly labelled "not a quote."
+
+23. Graduation Path
+The coverage roadmap: what covers this startup should add at the next funding stage (Seed → Series A → Series B+), displayed as a timeline.
+
+24. Product Comparison Table
+Side-by-side comparison of all recommended products — cover name, priority, SI range, typical rate, notes. Collapsible.
+
+25. How Is This Calculated? (Methodology)
+Expandable modal explaining the full 21-step pricing methodology — inputs, rate assumptions, discount logic, GST treatment.
+
+OUTPUT — TAB 4: RISK SCORES
+26. Overall Risk Score (Gauge)
+0–100 composite risk score shown as a radial gauge with colour coding (green/amber/red) and a plain-English label (Low / Moderate / High / Critical).
+
+27. 13-Dimension Score Bars
+Individual scores across all 13 risk dimensions — Cyber, Regulatory, Liability, Physical, Financial, IP, People, Supply Chain, etc. — shown as horizontal bars with colour coding.
+
+28. Spider / Radar Chart
+Interactive radar chart plotting all 13 dimensions — visualises the risk shape of the company at a glance.
+
+29. Top 3 Risk Driver Cards
+The three highest-scoring risk dimensions expanded into cards — each shows the score, what's driving it, and what insurance cover addresses it.
+
+30. Score Breakdown — Multipliers Applied
+Collapsible section showing exactly which inputs triggered which multipliers in the scoring engine — full auditability of why the scores landed where they did.
+
+31. Full 21-Step Methodology Panel
+Expandable deep-dive into the complete scoring methodology — every step from sector baseline through regulatory multipliers to final composite.
+
+OUTPUT — TAB 5: ACTIONS
+32. Regulatory Triggers
+List of specific regulatory obligations fired for this company (e.g. "DPDP Act: mandatory breach notification within 72 hours") — each with the relevant act and implication.
+
+33. Non-Insurance Actions
+Complementary risk mitigation actions that aren't insurance products — legal, governance, operational (e.g. "Constitute a POSH Internal Committee before Series A").
+
+34. Downstream Opportunities
+Cross-sell and upsell opportunities flagged by the engine — products the RM can introduce at the next meeting or funding milestone.
+
+35. Global Products Benchmark
+How ICICI Lombard's offering compares to global insurance products available for this sector — flags products that exist globally but not yet in India (innovation whitespace).
+
+36. Product Innovation Opportunities
+Custom triggers that identify emerging insurance needs not covered by standard products — specific to this company's profile.
+
+37. Refine Profile Panel
+Live sliders and toggles to adjust key profile parameters (revenue, team size, data sensitivity, etc.) and immediately re-run the scoring engine without going back to the form.
+
+38. Assumptions Used
+Collapsible list of every assumption the engine made when fields were left blank — full transparency on what was inferred vs. inputted.
+
+ALWAYS-VISIBLE (across all tabs)
+39. KPI Strip
+6 always-visible summary metrics: Overall Risk, Top Risk, Critical Covers count, Bundle Quote, Premium Range, Risk Clusters analysed.
+
+40. Download Full Report
+JSON export of the complete analysis result — all scores, recommendations, quotes, triggers, and GenAI outputs.
+
+41. Edit Inputs
+Jump back to the full form with the current profile pre-filled — adjust and re-run without starting from scratch.
+
+42. Back to Home
+Returns to the landing screen.
+
+That's 42 discrete features across home, inputs, and 5 output tabs.
+
+Show more
+Thursday 8:21 AM
+
+Yes. This version is structured around the 42 actual SPARC features, but packaged for a senior executive as: Why it exists → What it does → Business outcome.
+
+Use this Global Prompt before every slide prompt.
+
+Create a 16:9 PowerPoint slide in “ilomppt” ICICI Lombard PPT brand format.
+
+Plain white background only.
+Use Mulish font only.
+Use only these colours:
+Primary Dark Navy RGB(5,60,109)
+Secondary Orange RGB(249,157,39)
+Dark Red RGB(151,41,30)
+Warm Grey RGB(209,207,187)
+Light Cream RGB(255,243,236)
+
+No other colours. No gradients. No stock photos. No decorative diagrams.
+Use meaningful executive infographics, clean tables, process flows, dashboards, scorecards, funnels, and comparison panels only.
+
+Typography:
+Slide Title: 36pt Mulish Extra Bold
+Section Heading: 32pt Mulish Extra Bold
+Subheading: 24pt Mulish Bold
+Body: 18–22pt Mulish Regular
+Emphasis: 18–22pt Mulish Bold
+Chart labels: 16pt Mulish Regular
+
+Audience: very senior ICICI Lombard leader, one step below MD.
+Tone: crisp, commercial, risk-aware, outcome-focused.
+Every slide must make the point quickly.
+Slide 1: Executive Thesis
+Image Prompt
+
+Title: “SPARC: From Startup Name To Insurance Recommendation”
+
+Create a clean executive title slide.
+
+Center visual: one horizontal transformation flow:
+Startup Name → Auto Risk Profile → Bundle Recommendation → Quote + RM Pitch → Founder Report
+
+Below it, create three bold pillars:
+WHY: Startup risk is growing faster than manual RM preparation
+WHAT: AI-assisted profiling + deterministic insurance recommendation engine
+OUTCOME: Faster RM readiness, fewer missed covers, better startup monetisation
+
+Footer: “Startup Protection and Risk Classification Engine | ICICI Lombard”
+What You Say
+“Sir, SPARC solves one specific problem: how does an RM walk into a startup meeting with the right risk view, the right bundle, the right quote direction, and the right pitch without spending hours preparing manually?”
+
+Slide 2: Why This Project Exists
+Image Prompt
+
+Title: “Why: Startup Insurance Is A Matching Problem”
+
+Create a three-column problem infographic.
+
+Column 1: Startup Reality
+- Fast scaling
+- Data-heavy operations
+- Investor scrutiny
+- Regulatory exposure
+- Physical and digital assets
+
+Column 2: RM Challenge
+- Limited preparation time
+- Product catalogue complexity
+- Regulations are hard to track
+- Founder objections are specific
+
+Column 3: Business Gap
+- Right products exist
+- Matching is inconsistent
+- Mandatory covers may be missed
+- Premium opportunity is not prioritised
+
+Bottom insight bar:
+“SPARC converts fragmented startup information into a structured insurance decision.”
+What You Say
+“The issue is not that ICICI Lombard lacks products. The issue is matching. A fintech, a drone company, a D2C manufacturer, and a healthcare startup need very different covers. SPARC makes that matching systematic.”
+
+Slide 3: Product Overview: 42 Features In One Workflow
+Image Prompt
+
+Title: “What We Built: 42 Features Across The RM Workflow”
+
+Create a clean five-stage product map:
+
+1. Home Screen Intelligence
+Auto-profile, quick-try, startup pipeline, RM quick classify
+
+2. Intake Layer
+Manual 50+ field assessment across 13 risk dimensions
+
+3. Recommendation Layer
+Bundle, alternatives, companion bundle, claims scenarios, founder PDF
+
+4. Commercial Layer
+Outreach, objection handling, email drafts, quote engine
+
+5. Risk + Action Layer
+Scores, methodology, regulatory triggers, downstream opportunities, report export
+
+Add a small label:
+“Designed for both fast meeting prep and detailed underwriting-grade assessment.”
+What You Say
+“The product is not just a form. It covers the full RM workflow: discover the startup, classify the risk, recommend the bundle, generate the pitch, estimate pricing, show regulatory actions, and export reports.”
+
+Slide 4: Home Screen Intelligence
+Image Prompt
+
+Title: “Home Screen: Meeting Prep In Minutes”
+
+Create a dashboard-style slide with four panels.
+
+Panel 1: Auto-Profile Search
+“Type any Indian startup name”
+Gemini + Google Search grounding
+Auto-fills 13-dimension profile
+
+Panel 2: Quick-Try Pills
+Zepto | Razorpay | CRED | Ather Energy | Pristyn Care
+
+Panel 3: Pipeline Intelligence
+262+ verified Indian startups
+Ranked by premium opportunity, stage urgency, sector concentration
+
+Panel 4: RM Quick Classify
+10-field shortcut form
+Plain-English bundle + pitch output
+
+Bottom outcome:
+“Outcome: RM can prepare before a meeting without researching the startup manually.”
+What You Say
+“The home screen is built for speed. The RM can type a startup name, use a quick-try company, browse a ranked pipeline, or use a short classify form. This makes SPARC useful before the meeting even starts.”
+
+Slide 5: Input Layer: Quick Or Full Assessment
+Image Prompt
+
+Title: “Input Layer: From 10 Fields To 50+ Underwriting Signals”
+
+Create a split-screen comparison.
+
+Left side:
+“RM Quick Classify”
+- Around 10 fields
+- Fast meeting prep
+- Plain-English output
+- Good for first conversation
+
+Right side:
+“Full SPARC Assessment”
+- 50+ fields
+- 13 risk dimensions
+- Detailed underwriting view
+- Good for serious prospect / quote discussion
+
+Below, create a compact field taxonomy:
+Identity | Operations | Financial | Data & Cyber | Regulatory | Physical | Governance | Specialty | Quote Inputs
+
+Bottom outcome:
+“Outcome: Same engine supports both quick sales prep and detailed assessment.”
+What You Say
+“We built two entry points. If the RM has limited time, they use Quick Classify. If they have richer information, the full assessment captures financials, regulatory exposure, data handling, physical assets, governance, specialty triggers, and quote inputs.”
+
+Slide 6: Tab 1: Bundle Recommendation
+Image Prompt
+
+Title: “Output Tab 1: Bundle Recommendation”
+
+Create a central recommendation card:
+Recommended Bundle
+Mandatory Covers
+Optional Covers
+Why This Bundle
+
+Surround it with six supporting modules:
+1. Why It Matters: Gemini-personalised cover explanation
+2. Bundle Alternatives: top 2 runner-up bundles
+3. Companion Bundle: natural add-on recommendation
+4. Claims Scenarios: 3 realistic payout examples
+5. Additional Products: critical / high / medium priority
+6. Not-Preferred Products: poor-fit products with reason
+
+Add PDF icon-style box:
+“Download Founder Summary”
+
+Bottom outcome:
+“Outcome: RM gets a founder-ready recommendation, not a generic product list.”
+What You Say
+“The first output tab answers the most important question: what should we recommend? It shows the best bundle, why it fits, which covers are mandatory, what alternatives exist, and even what products should not be pitched.”
+
+Slide 7: Tab 2: Outreach Engine
+Image Prompt
+
+Title: “Output Tab 2: Outreach That An RM Can Use Immediately”
+
+Create a three-part communication workflow:
+
+Risk Scores → Pitch Bullets → Objection Handling → Email Drafts
+
+Show three email recipient cards:
+CEO: business continuity and board confidence
+CTO: cyber, data, operational resilience
+CFO: premium logic, risk transfer, financial exposure
+
+Add small modal preview frame:
+“ICICI Lombard formatted email preview”
+
+Bottom three-part panel:
+WHY: Founder conversations are specific
+WHAT: Deterministic pitch bullets + Gemini-personalised objection handlers and emails
+OUTCOME: RM has meeting-ready language, not raw analysis
+What You Say
+“SPARC does not stop at analysis. It turns the analysis into usable communication. The RM gets pitch bullets instantly, objection handlers for likely founder pushback, and role-specific emails for CEO, CTO, and CFO.”
+
+Slide 8: Tab 3: Estimated Quote
+Image Prompt
+
+Title: “Output Tab 3: Quote Direction With Controls”
+
+Create a quote workflow funnel:
+
+Benchmark Range
+“Pre-quote market range, clearly marked not a quote”
+
+→ Sum Insured Inputs
+“Cover-wise SI, turnover, contract value, location count”
+
+→ Bundle-Only Quote
+“Premium for recommended bundle covers”
+
+→ Full Portfolio Quote
+“All recommended products itemised”
+
+→ Enterprise Flag
+“Suppress misleading benchmark when limits exceed startup range”
+
+Create side modules:
+Graduation Path
+Product Comparison Table
+How Is This Calculated? 21-step methodology
+
+Bottom outcome:
+“Outcome: RM leaves with pricing direction and underwriting next steps.”
+What You Say
+“The quote tab gives commercial direction without pretending to replace underwriting. It shows benchmark ranges before SI is entered, then calculates bundle-only and full portfolio estimates once inputs are added. If the limits are too large, it flags underwriter review instead of showing a misleading number.”
+
+Slide 9: Tab 4: Risk Scores
+Image Prompt
+
+Title: “Output Tab 4: Risk Score With Auditability”
+
+Create a dashboard slide.
+
+Left:
+Overall Risk Gauge 0–100
+Use only brand colours:
+Navy = low/moderate
+Orange = elevated
+Dark Red = critical
+
+Middle:
+13 horizontal score bars:
+Cyber
+Regulatory
+Liability
+Physical
+Financial
+IP
+People
+Supply Chain
+Data Privacy
+Governance
+Property
+ESG / Climate
+Reputation
+
+Right:
+Top 3 Risk Driver Cards:
+Score
+What is driving it
+Insurance cover that addresses it
+
+Bottom expandable panels:
+Multiplier Breakdown
+Full 21-Step Scoring Methodology
+
+Outcome box:
+“Outcome: RM can explain not just the score, but why the score exists.”
+What You Say
+“This tab is about trust. The executive or RM can see the overall score, the 13 individual dimensions, the top three drivers, and the exact multipliers applied. That gives auditability.”
+
+Slide 10: Tab 5: Actions Beyond Insurance
+Image Prompt
+
+Title: “Output Tab 5: From Recommendation To Action Plan”
+
+Create a six-box action grid.
+
+1. Regulatory Triggers
+Acts fired, implication, mandatory cover
+
+2. Non-Insurance Actions
+Legal, governance, operational fixes
+
+3. Downstream Opportunities
+Future cross-sell and upsell
+
+4. Global Products Benchmark
+ICICI Lombard vs global product landscape
+
+5. Product Innovation Opportunities
+Emerging needs not covered by standard products
+
+6. Refine Profile + Assumptions
+Live sliders, rerun scoring, inferred assumptions
+
+Bottom outcome:
+“Outcome: SPARC becomes a consultative RM tool, not only a quote tool.”
+What You Say
+“The actions tab is where SPARC becomes consultative. It tells the RM what regulation was triggered, what non-insurance actions the founder should take, what future covers to introduce, and where product innovation opportunities may exist.”
+
+Slide 11: Always-Visible Executive Controls
+Image Prompt
+
+Title: “Always Visible: The RM Command Layer”
+
+Create a top persistent KPI strip with six metrics:
+Overall Risk
+Top Risk
+Critical Covers
+Bundle Quote
+Premium Range
+Risk Clusters Analysed
+
+Below it, show three utility actions:
+Download Full Report
+Edit Inputs
+Back To Home
+
+Create a small JSON export icon:
+“Complete analysis export: scores, recommendations, quotes, triggers, GenAI outputs”
+
+Bottom outcome:
+“Outcome: RM never loses the commercial summary while moving across tabs.”
+What You Say
+“We kept the key commercial information always visible. The RM always sees risk, top exposure, critical covers, quote range, and analysed clusters. They can export, edit, or go back without restarting.”
+
+Slide 12: AI + Deterministic Engine Design
+Image Prompt
+
+Title: “AI Where Useful. Deterministic Where Critical.”
+
+Create a two-layer architecture diagram.
+
+Top layer: Gemini / AI
+- Auto-profile search
+- Personalised why-it-matters
+- Objection handlers
+- Email drafts
+- Narrative explanation
+
+Bottom layer: Deterministic Engine
+- Risk scoring
+- Bundle eligibility
+- Regulatory triggers
+- Pricing methodology
+- Fallback templates
+
+Center governance box:
+“AI assists communication and enrichment. Rules engine controls eligibility, scoring, pricing, and compliance.”
+
+Bottom outcome:
+“Outcome: Better user experience without losing auditability.”
+What You Say
+“This is important. SPARC does not blindly let AI decide insurance eligibility. AI helps with public-data profiling and personalised explanation. But scoring, bundle eligibility, regulatory triggers, and pricing logic remain deterministic and auditable.”
+
+Slide 13: Example End-To-End Flow
+Image Prompt
+
+Title: “Example: Razorpay From Search To Recommendation”
+
+Create an end-to-end journey using Razorpay as the example.
+
+Step 1: Type “Razorpay”
+Step 2: Auto-profile fills fintech, payment data, RBI exposure, high sensitivity
+Step 3: Risk scores show Cyber, Data Privacy, Regulatory, Governance
+Step 4: Bundle recommendation shows liability-led cover stack
+Step 5: Outreach tab creates CEO / CTO / CFO messaging
+Step 6: Quote tab estimates premium and flags referral where needed
+
+Add outcome bar:
+“From company name to RM-ready recommendation in one workflow.”
+What You Say
+“For example, with Razorpay, the RM can start with only the company name. SPARC builds the profile, identifies payment data and regulatory exposure, scores the risk, recommends the liability-led cover stack, creates pitch material, and gives quote direction.”
+
+Slide 14: Business Outcome For ICICI Lombard
+Image Prompt
+
+Title: “Business Outcome: Better Conversion, Better Coverage, Better Data”
+
+Create a 3-column executive impact table.
+
+Column 1: RM Productivity
+Before: manual research, generic pitch
+After: company-specific recommendation and pitch
+
+Column 2: Underwriting Quality
+Before: missed signals, inconsistent data
+After: scored profile, regulatory triggers, assumptions log
+
+Column 3: Portfolio Strategy
+Before: limited startup segment intelligence
+After: ranked pipeline, sector heat map, product whitespace
+
+Add KPI strip:
+42 features
+13 risk dimensions
+50+ intake fields
+262+ verified startups
+5 output tabs
+1 complete report export
+What You Say
+“The business outcome is not just better UI. SPARC improves RM preparation, improves recommendation quality, reduces missed regulatory covers, and creates a structured startup risk dataset for portfolio strategy.”
+
+Slide 15: Leadership Ask
+Image Prompt
+
+Title: “Ask: Approve A Controlled 60-Day Pilot”
+
+Create a simple 60-day roadmap.
+
+Phase 1: Pilot Design
+Select startup clusters, RM group, success metrics
+
+Phase 2: RM Enablement
+Train RMs on Auto-Profile, Quick Classify, Bundle tab, Quote tab
+
+Phase 3: Field Usage
+Use SPARC in live prospect preparation and meetings
+
+Phase 4: Review
+Measure quote movement, recommendation acceptance, RM feedback, coverage gaps
+
+Right-side ask box:
+We need:
+Leadership endorsement
+Pilot account access
+Claims / GWP calibration data
+CRM integration path
+Compliance review
+
+Bottom outcome:
+“Goal: Validate commercial lift and underwriting usefulness before scale-up.”
+What You Say
+“The ask is a controlled 60-day pilot. We do not need to claim full-scale impact today. We need to validate whether SPARC improves RM preparation, quote movement, recommendation acceptance, and coverage quality in the field.”
+
+Closing Line
+“SPARC starts with a startup name and ends with a defensible insurance action plan. It gives the RM speed, gives underwriting traceability, and gives ICICI Lombard a structured way to monetise the startup segment.”
+
+
+
+
+
+Thursday 8:22 AM
+THE OVERALL THEME SHOULD BE WHY THE PROJECT, WHAT I HAVE DONE IN THE PROJECT, WHAT IS THE OUTCOME OF THIS FOR ICICI LOMBARD
+
+each slide should be in "WHAT FEATURE I HAVE DONE, WHY THIS FEATURE, WHAT IS THE OUTCOME OF THIS FEATURE FOR ICICI LOMBARD"
+
+EACH SLIDE (if possible) SHOULD BE BACKED WITH STATISTICS, REPORTS, from credible sources !!
+
+
+Thursday 8:29 AM
+
+
+Worked for 2m 54s
+Yes. Use this structure: every slide must have 3 visible blocks:
+
+WHAT I BUILT | WHY THIS FEATURE | OUTCOME FOR ICICI LOMBARD
+
+Also add a small footer: Source: ... wherever a slide uses external data. Put exact source text manually in PPT after image generation because image models can distort small text.
+
+Credible Stats To Use
+
+DPIIT-recognised startups: 2,12,283 as of 31 Jan 2026. Source: PIB / DPIIT
+India non-life insurance penetration: 1.0% vs world 4.3% in 2024. Source: IRDAI Annual Report 2024-25 / Swiss Re sigma
+India average data breach cost: INR 220 million in 2025, up 13% YoY. Source: IBM Cost of Data Breach 2025
+CERT-In cyber incident reporting: within 6 hours for qualifying incidents. Source: CERT-In FAQ
+DPDP breach safeguard penalty: up to INR 250 crore. Source: DPDP Act Schedule
+Drone insurance relevance: Drone Rules 2021 include Rule 44 on insurance. Source: Ministry of Civil Aviation
+Global Prompt
+Create a 16:9 PowerPoint slide in “ilomppt” ICICI Lombard brand format.
+
+Plain white background only.
+Use Mulish font only.
+Use only these colours:
+Primary Dark Navy RGB(5,60,109)
+Secondary Orange RGB(249,157,39)
+Dark Red RGB(151,41,30)
+Warm Grey RGB(209,207,187)
+Light Cream RGB(255,243,236)
+
+No gradients. No stock photos. No decorative diagrams.
+Use meaningful executive infographics, dashboards, scorecards, tables, funnels, and comparison panels only.
+
+Every slide must visibly follow this structure:
+WHAT I BUILT
+WHY THIS FEATURE
+OUTCOME FOR ICICI LOMBARD
+
+Audience: very senior ICICI Lombard leader, one step below MD.
+Tone: crisp, commercial, risk-aware, outcome-focused.
+Slide 1: Why The Project
+Prompt
+
+Title: “Why SPARC: Startup Risk Is A Large, Under-Matched Insurance Opportunity”
+
+Create a three-block executive slide.
+
+Left block: WHAT I BUILT
+“A startup insurance intelligence engine that converts company information into risk scores, bundle recommendation, quote direction, and RM pitch.”
+
+Middle block: WHY THIS PROJECT
+Show two KPI cards:
+2,12,283 DPIIT-recognised startups
+India non-life insurance penetration: 1.0% vs world 4.3%
+
+Right block: OUTCOME FOR ICICI LOMBARD
+“Move from generic startup pitching to systematic risk-led monetisation.”
+
+Use a clean market-gap infographic: Startup Growth → Risk Complexity → Insurance Matching Gap → SPARC.
+Footer source: PIB/DPIIT 2026; IRDAI Annual Report 2024-25.
+What You Say
+“Sir, the reason for this project is simple. India has over 2.12 lakh DPIIT-recognised startups, but non-life insurance penetration is still only 1% in India versus 4.3% globally. So the opportunity is large, but the matching mechanism is weak. SPARC is built to close that gap.”
+
+Slide 2: What I Built Overall
+Prompt
+
+Title: “What I Built: 42 Features Across The RM Workflow”
+
+Create a horizontal product workflow with 5 stages:
+Home Intelligence → Intake → Bundle Recommendation → Outreach + Quote → Risk Actions + Report
+
+Under each stage show feature count:
+Home: 5 features
+Inputs: 9 input categories
+Bundle tab: 8 features
+Outreach + Quote tabs: 12 features
+Risk + Actions + Always-visible: 17 features
+
+Bottom bar:
+“From startup name to founder-ready insurance action plan.”
+
+Use a clean product map, not a decorative diagram.
+What You Say
+“I have not built only a form or a dashboard. I built a full RM workflow: discovery, classification, recommendation, pitch generation, quote direction, regulatory actions, and report export. Across the product, there are 42 discrete features.”
+
+Slide 3: Auto-Profile Search
+Prompt
+
+Title: “Feature: Auto-Profile Search”
+
+Create a focused feature slide.
+
+WHAT I BUILT:
+“Type any Indian startup name. Gemini + Google Search grounding pulls public data, auto-fills the 13-dimension profile, runs scoring, and returns recommendation.”
+
+WHY THIS FEATURE:
+“RMs often do not have time to research every startup before a meeting.”
+
+OUTCOME FOR ICICI LOMBARD:
+“Faster RM preparation, more informed first conversation, higher-quality prospecting.”
+
+Add visual:
+Search bar: “Razorpay”
+Arrow to auto-filled profile:
+Sector, stage, data handled, regulation, assets, team size
+Arrow to recommendation output.
+
+Add source chip:
+IBM: India average breach cost INR 220 million in 2025.
+What You Say
+“This feature removes the biggest friction: manual research. The RM can type a startup name and SPARC builds the risk profile automatically. For data-heavy companies, this matters because IBM reports the average data breach cost in India reached INR 22 crore in 2025.”
+
+Slide 4: Quick-Try Pills + RM Quick Classify
+Prompt
+
+Title: “Feature: Fast Classification For Meeting Prep”
+
+Create a split slide.
+
+Left: Quick-Try Pills
+Zepto | Razorpay | CRED | Ather Energy | Pristyn Care
+“One-click profile run”
+
+Right: RM Quick Classify
+“10-field short form”
+Fields: sector, stage, team, data, regulation, assets, revenue, operations, geography, claims
+
+Three blocks:
+WHAT I BUILT: Instant demo profiles + short RM input mode
+WHY: RMs need speed before founder meetings
+OUTCOME: More meetings can be prepared without analyst support
+What You Say
+“Quick-Try and Quick Classify are for speed. If the RM has only 5 minutes before a call, they can still get a usable bundle recommendation and pitch angle.”
+
+Slide 5: Pipeline Intelligence Dashboard
+Prompt
+
+Title: “Feature: Pipeline Intelligence Dashboard”
+
+Create an executive dashboard visual.
+
+WHAT I BUILT:
+“262+ verified Indian startups ranked by premium opportunity, stage urgency, sector concentration, and market status.”
+
+WHY THIS FEATURE:
+“RMs should not only react to inbound leads; they should know which startup accounts to prioritise.”
+
+OUTCOME FOR ICICI LOMBARD:
+“Better prospect prioritisation and sector-wise account planning.”
+
+Show:
+- Ranked startup table
+- Sector heat map
+- Filters: sector, stage, market status
+- Status badges: Pre-seed, Seed, Strike Now, Covered
+
+Source footer: DPIIT recognised startups, PIB 2026.
+What You Say
+“This feature turns SPARC from a one-company analysis tool into a pipeline tool. It helps identify which startups are worth pursuing first based on premium opportunity and urgency.”
+
+Slide 6: Full SPARC Assessment
+Prompt
+
+Title: “Feature: 50+ Field Full SPARC Assessment”
+
+Create a structured intake matrix.
+
+Rows:
+Identity
+Operations
+Financial
+Data & Cyber
+Regulatory
+Physical
+Governance
+Specialty
+Quote Inputs
+
+Columns:
+Example fields
+Risk signal captured
+Insurance relevance
+
+Three blocks:
+WHAT I BUILT: Full 50+ field intake across 13 risk dimensions
+WHY: Startup risk cannot be captured by sector and revenue alone
+OUTCOME: More precise underwriting conversation and fewer hidden assumptions
+What You Say
+“The full assessment captures the details that actually change risk: data sensitivity, regulatory licences, warehouses, drones, gig workforce, Chinese suppliers, AI tier, product recall, and quote inputs. This is what makes the recommendation defensible.”
+
+Slide 7: Recommended Bundle
+Prompt
+
+Title: “Feature: Deterministic Bundle Recommendation”
+
+Create a central recommendation card:
+Recommended Bundle
+Mandatory Covers
+Optional Covers
+Why This Bundle
+Match Score
+
+Surround it with:
+Bundle Alternatives
+Companion Bundle
+Additional Recommended Products
+Not-Preferred Products
+
+Three blocks:
+WHAT I BUILT: Bundle recommendation with alternatives and exclusions
+WHY: RMs need one clear recommendation, not a product catalogue
+OUTCOME: Cleaner sales conversation and reduced mis-selling risk
+What You Say
+“This is the core output. SPARC recommends the best-fit ICICI Lombard bundle, shows alternatives, adds companion bundles, and also says which products are poor fits. That last point matters because a good RM should know what not to sell.”
+
+Slide 8: Why It Matters + Claims Scenarios
+Prompt
+
+Title: “Feature: Personalised ‘Why It Matters’ + Claims Scenarios”
+
+Create two-panel visual.
+
+Left panel:
+WHY IT MATTERS
+Per-cover personalised explanation generated for the company:
+Cyber
+D&O
+PI / Tech E&O
+Crime / Fidelity
+Product Liability
+
+Right panel:
+CLAIMS SCENARIOS
+3 realistic payout examples:
+Data breach
+Director liability
+Product defect / operational loss
+
+Three blocks:
+WHAT I BUILT: Gemini-personalised cover rationale and claim examples
+WHY: Founders understand scenarios better than insurance wording
+OUTCOME: Better founder education and stronger RM persuasion
+
+Source chip: IBM India breach cost INR 220 million, 2025.
+What You Say
+“Founders do not buy insurance because we list products. They buy when they understand the scenario. So SPARC explains why each cover matters to that specific startup and shows realistic claim situations.”
+
+Slide 9: Outreach Engine
+Prompt
+
+Title: “Feature: Outreach Engine For RM Conversion”
+
+Create a communication workflow:
+Risk Scores → Pitch Bullets → Objection Handlers → CEO / CTO / CFO Emails → Email Preview
+
+Three blocks:
+WHAT I BUILT:
+Deterministic pitch bullets, Gemini objection handlers, role-specific email drafts, ICICI Lombard email preview.
+
+WHY:
+RMs need usable language, not just analysis.
+
+OUTCOME:
+Faster follow-up, sharper founder messaging, consistent sales quality.
+
+Show three recipient cards:
+CEO: business continuity
+CTO: cyber/data resilience
+CFO: premium and financial exposure
+What You Say
+“This converts analysis into action. The RM gets pitch bullets, likely objection responses, and role-specific emails. The CEO, CTO, and CFO do not care about the same thing, so the messaging changes by role.”
+
+Slide 10: Estimated Quote Engine
+Prompt
+
+Title: “Feature: Estimated Quote With Guardrails”
+
+Create a pricing funnel:
+Benchmark Range → SI Inputs → Bundle-Only Quote → Full Portfolio Quote → Enterprise Flag → Methodology
+
+Three blocks:
+WHAT I BUILT:
+Pre-quote benchmark, bundle quote, full portfolio quote, pricing scale flag, product comparison, 21-step methodology.
+
+WHY:
+RMs need pricing direction, but misleading estimates are dangerous.
+
+OUTCOME:
+Commercial next step without bypassing underwriting discipline.
+
+Use table:
+Cover | SI | Rate | Gross Premium | Referral Flag
+What You Say
+“The quote tab gives pricing direction, but with controls. If the limits are outside benchmark range, it suppresses the number and flags underwriter review. So it supports commercial motion without pretending to replace underwriting.”
+
+Slide 11: Risk Scores + Auditability
+Prompt
+
+Title: “Feature: 13-Dimension Risk Score With Audit Trail”
+
+Create a risk dashboard:
+Overall Risk Gauge
+13 horizontal score bars
+Spider/radar chart
+Top 3 risk driver cards
+Multiplier breakdown
+21-step methodology panel
+
+Three blocks:
+WHAT I BUILT:
+Composite score, 13-dimension score bars, radar chart, top drivers, multiplier audit.
+
+WHY:
+Senior stakeholders and underwriters must know why a score exists.
+
+OUTCOME:
+Traceable recommendation, better underwriting confidence, lower black-box risk.
+What You Say
+“This is where the product becomes credible. The RM can show not only the score, but the factors behind it: sector multiplier, stage multiplier, data sensitivity, regulatory trigger, asset exposure, and other inputs.”
+
+Slide 12: Regulatory Triggers
+Prompt
+
+Title: “Feature: Regulatory Trigger Engine”
+
+Create a compliance trigger table.
+
+Columns:
+Trigger
+When it fires
+Insurance implication
+RM action
+
+Rows:
+DPDP / CERT-In
+RBI / financial regulation
+DGCA Drone Rule 44
+Companies Act / D&O
+Labour / POSH
+Consumer product liability
+
+Three blocks:
+WHAT I BUILT:
+Company-specific regulatory obligations with implications.
+
+WHY:
+RMs cannot manually remember every regulation for every sector.
+
+OUTCOME:
+Fewer missed mandatory covers and stronger compliance-led selling.
+
+Source footer:
+CERT-In FAQ 2022; DPDP Act Schedule; Drone Rules 2021.
+What You Say
+“This is one of the strongest features. If the company handles personal data, operates drones, has financial regulation, or has product liability exposure, SPARC surfaces the trigger and the insurance implication. This reduces missed covers.”
+
+Slide 13: Actions, Benchmarks, Innovation
+Prompt
+
+Title: “Feature: Actions Beyond The First Policy”
+
+Create a six-box action grid:
+Regulatory Triggers
+Non-Insurance Actions
+Downstream Opportunities
+Global Products Benchmark
+Product Innovation Opportunities
+Refine Profile + Assumptions
+
+Three blocks:
+WHAT I BUILT:
+Action layer that goes beyond bundle recommendation.
+
+WHY:
+Startup risk evolves by funding stage, regulation, operations, and geography.
+
+OUTCOME:
+Multi-meeting account roadmap, cross-sell pipeline, product innovation signals.
+What You Say
+“SPARC does not stop at the first recommendation. It shows what to add next, what risks need non-insurance action, and where global product benchmarks suggest future innovation opportunities for ICICI Lombard.”
+
+Slide 14: Always-Visible Controls + Report Export
+Prompt
+
+Title: “Feature: RM Command Layer And Report Export”
+
+Create a top KPI strip:
+Overall Risk
+Top Risk
+Critical Covers
+Bundle Quote
+Premium Range
+Risk Clusters Analysed
+
+Below show:
+Download Full Report
+Download Founder Summary PDF
+Edit Inputs
+Back To Home
+JSON export
+
+Three blocks:
+WHAT I BUILT:
+Persistent KPI strip, founder PDF, full JSON report, edit-and-rerun workflow.
+
+WHY:
+RMs need continuity while moving across tabs.
+
+OUTCOME:
+Reusable sales artifact, audit trail, and cleaner handoff to underwriting/CRM.
+What You Say
+“The always-visible layer makes the tool practical. The RM can move between tabs without losing the commercial summary, export the founder summary, or download the full analysis for internal review.”
+
+Slide 15: Final Outcome For ICICI Lombard
+Prompt
+
+Title: “Outcome: What SPARC Gives ICICI Lombard”
+
+Create a 3-column executive outcome table.
+
+Column 1: RM Productivity
+From manual research to company-specific recommendation
+
+Column 2: Underwriting Quality
+From generic inputs to scored profile, triggers, assumptions, methodology
+
+Column 3: Commercial Strategy
+From scattered startup leads to ranked pipeline, cross-sell path, innovation whitespace
+
+Add bottom pilot ask:
+“Next step: 60-day controlled pilot”
+Metrics:
+Recommendation acceptance
+Quote movement
+RM usage
+Coverage gaps identified
+Founder response quality
+
+Final line:
+“SPARC gives ICICI Lombard speed, traceability, and a structured startup monetisation engine.”
+What You Say
+“The outcome for ICICI Lombard is speed, consistency, and traceability. RMs prepare faster, recommendations become more defensible, underwriting gets structured data, and leadership gets a pipeline view of startup insurance opportunity. The next step should be a controlled 60-day pilot.”
+
+
+
+
+
+Thursday 8:31 AM
+User attachment
+remove this box like appearance around Pipeline intelligence part and table heatmap etc part
+Thursday 9:29 AM
+
+
+Worked for 1m 32s
+Done in startup_shield_web/styles.css (line 7411).
+
+I removed the boxed/framed treatment around:
+
+the main Pipeline Intelligence header section
+the Current cut panel
+the Table / Heat map filter strip
+the table wrapper and heat-map rows
+I kept the KPI cards as cards because they still need to read as separate metrics. I didn’t run a browser check, but the CSS change is scoped only under .hev-shell, so it should affect just this dark Pipeline Intelligence view.
+
+1 file changed
+Undo
+
+Review
+
+startup_shield_web/styles.css
+
+
+
+
+Thursday 9:30 AM
+push to git
+Thursday 9:55 AM
+
+I’ll check the repo state first. There were existing uncommitted changes before my CSS tweak, so I need to avoid accidentally committing unrelated work while pushing.
+
+
+Ran 3 commands

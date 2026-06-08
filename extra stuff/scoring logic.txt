@@ -1,0 +1,189 @@
+SPARC — 8 to 10 Minute Presentation Script
+Senior VP (Sales Focus) — Positive Tone Throughout
+[Greet and settle the room]
+
+OPENING — 1 minute
+"Good morning Sir. Thank you so much for your time today. I'm genuinely excited to show you something I believe can make a real difference for our commercial lines team.
+
+Sir, our Relationship Managers are some of the sharpest people in the business. They know how to build trust, read a room, and close a deal. That instinct — that human connection — is irreplaceable.
+
+And what I've been thinking about is this: what if we could give them a superpower before they even walk into the room?
+
+What if, before every startup meeting, the RM already knew exactly what that startup's biggest risk is, exactly which ICICI Lombard product fits them best, exactly what premium range to anchor the conversation on — and already had a warm, personalised email ready to send the moment the meeting ends?
+
+That's precisely what SPARC does. Let me show you."
+
+WHAT IS SPARC — 1 minute
+"SPARC stands for Startup Protection and Risk Classifier.
+
+The idea is beautifully simple. An RM types in a startup's basic details — their name, sector, funding stage, team size, what kind of data they handle. Thirty seconds of inputs.
+
+And SPARC does all the heavy lifting.
+
+It analyses the startup's risk across 13 dimensions. It selects the single best ICICI Lombard product for them. It explains exactly why that product fits. It estimates the premium range. And it writes a warm, ready-to-send personalised email — all in under two minutes.
+
+The RM walks into every meeting fully armed. Let me show you this live."
+
+LIVE DEMO — 4 minutes
+[Open the app on screen]
+
+"I'm going to run Battery Smart through SPARC right now. They're a Series B cleantech company — EV battery swapping infrastructure, 320 employees, significant physical assets across India.
+
+I fill in their details. Sector — Cleantech. Funding stage — Series B Plus. Team size — 320. Operations — Hybrid.
+
+[Submit]
+
+In about 10 seconds — here's what the RM gets.
+
+The risk score.
+
+Battery Smart scores 65.4 out of 100 overall. One number. The RM immediately knows — this is a high-value, high-priority account. Real exposure, real premium potential, real conversation to be had.
+
+The bundle recommendation.
+
+SPARC has looked at everything — Battery Smart's sector, their stage, their assets, their regulatory environment — and recommended Corporate Cover II. 76% profile fit.
+
+Not a generic suggestion. A specific, scored recommendation for this specific company. And below it, every cover inside the bundle is explained in plain English — language a startup founder reads and immediately understands.
+
+This gives the RM a confident, well-reasoned pitch before the conversation even begins.
+
+The outreach kit.
+
+Sir, this is the part that I'm most excited about.
+
+The moment the analysis is done, the email is already written. Look at this — 'Dear Battery Smart team, Greetings from ICICI Lombard. Our expert underwriters have been closely studying risk profiles across the Cleantech landscape, and Battery Smart stood out.'
+
+It's warm. It's specific to this startup. It references their actual risk areas — Property, ESG, Regulatory Compliance. It recommends the right product. And it's signed with the RM's real name and phone number.
+
+One click — and this goes as a beautifully formatted ICICI Lombard branded email. Navy header, orange stripe, professional layout. Exactly the impression we want to make.
+
+There's a WhatsApp message too. One tap to send.
+
+The RM spends zero time on outreach prep — and the quality of what goes out is sharper and more personalised than anything we could produce manually.
+
+The premium estimate.
+
+Without a single underwriting document, SPARC has estimated a premium range of 36 to 123 lakhs for Battery Smart — across 6 products.
+
+The RM walks in with a number. That anchors the entire conversation differently. It signals that we've done our homework. That we understand their business. That we're serious.
+
+The risk breakdown.
+
+13 risk categories, individually scored. Property Risk — 100, critical. ESG and Climate Risk — 100, critical. Makes complete sense for a company deploying battery infrastructure across India.
+
+The RM now knows exactly where to focus the conversation. And Battery Smart sees a level of analysis they've probably never received from any insurer before.
+
+That's how trust is built.
+
+And finally — downstream opportunities.
+
+SPARC identifies that Battery Smart's own B2B clients — solar companies, EV infrastructure players — likely need Contractors All Risk and Erection All Risk cover. Estimated potential: 76 to 380 lakhs.
+
+One meeting with Battery Smart could open three more conversations. SPARC helps us see that before anyone else does."
+
+ABOVE AND BEYOND — 2 minutes
+"Sir, the project brief I was given had three goals — profile startups, identify their risks, and recommend products.
+
+I'm proud to say we went significantly further.
+
+SPARC today delivers twelve capabilities. Premium estimation with confidence levels. Ready-to-send personalised outreach emails. WhatsApp messages. Beautifully branded HTML email templates. A 50-product competitor benchmarking engine showing how ICICI Lombard compares to Bajaj, Tata AIG, HDFC ERGO, and global players. Regulatory trigger mapping — flagging which laws apply to each startup and what they mean for coverage. Operational risk advice for the startup. A coverage timeline — what to buy now versus what to plan for. Downstream B2B opportunity identification. A company database of 130 startups ready to pull up instantly.
+
+Three things were asked for. Twelve were delivered.
+
+And the one thing I'd like you to notice — every single one of these capabilities is designed to make our RMs more effective, more confident, and more compelling in front of a client."
+
+CLOSING — 1 minute
+"Sir, India's startup ecosystem is one of the fastest growing in the world. Every one of these founders has real insurance needs — cyber, liability, D&O, property. The premium potential is enormous. And ICICI Lombard is perfectly placed to lead this segment.
+
+SPARC makes sure we lead it with precision.
+
+Our RMs walk into every startup meeting already knowing the risk profile, already holding the right product, already having the premium conversation started, and already holding a personalised email ready to send.
+
+They spend every minute of that meeting doing what they do best — building the relationship, building trust, and closing the deal.
+
+That's the opportunity. And I believe we're ready to capture it.
+
+Thank you so much Sir. I'd love to hear your thoughts on the best next step."
+
+[Leave 2–3 minutes for questions]
+
+Total speaking time: approximately 9 minutes
+
+
+
+The Full Risk Score Formula
+Step 1 — Base score (out of 10) from Sector Profile
+Every sector has a hardcoded base score for each of the 13 risk categories. Example for Fintech:
+
+Risk Category	Base Score
+Cyber Technical	10
+Data Privacy	10
+Liability	9
+Governance & Fraud	9
+Regulatory Compliance	10
+Geopolitical	8
+Reputation	9
+Key Person	8
+Policy Velocity	9
+IP Infringement	5
+Property	3
+ESG & Climate	3
+Gig & Labour	5
+If a sub-sector is provided (e.g. Fintech.PA_PG), those base scores are overridden with sub-sector specific values.
+
+Step 2 — Multipliers applied per category
+Each risk category gets multiplied by a different combination of these factors:
+
+Stage Multiplier (default — most categories)
+
+Pre-seed → ×0.70
+Seed     → ×0.90
+Series A → ×1.10
+Series B+→ ×1.30
+Exceptions:
+
+Governance & Fraud has its own U-shaped multiplier: Pre-seed ×0.90 · Seed ×0.85 · Series A ×1.00 · Series B+ ×1.30
+Policy Velocity has an inverse multiplier: Pre-seed ×1.10 · Seed ×1.00 · Series A ×0.95 · Series B+ ×1.00
+Team Size Multiplier
+Team Size	General (team_mult)	Key Person (kp_mult)
+≤ 5	×0.80	×1.50
+6–10	×1.00	×1.40
+11–20	×1.00	×1.20
+21–50	×1.15	×1.00
+51–150	×1.30	×0.85
+150+	×1.50	×0.70
+Operations Multiplier
+Digital-only	Physical-only	Hybrid
+Property	×0.4	×1.4	×1.0
+Liability	×0.8	×1.2	×1.0
+Cyber	×1.2	×0.7	×1.0
+Gig & Labour	×0.6	×1.3	×1.0
+Data Sensitivity Multiplier
+Low	Medium	High
+Cyber Technical	×0.6	×1.0	×1.4
+Data Privacy	×0.5	×1.0	×1.5
+Regulatory Compliance	×0.8	×1.0	×1.3
+Dynamic Adjusters (from profile inputs)
+Adjuster	Formula	Affects
+SDF probability	1.0 + (sdf_prob × 0.5)	Data Privacy
+Chinese investor / supplier	1.0 + (cn_investor% × 0.8) + (cn_supplier% × 0.4)	Geopolitical
+Gig headcount %	1.0 + (gig% × 1.2) — capped at ×2.0	Gig & Labour
+Gig state risk (KA/RJ/BR/JH/TG)	×1.25 bonus if gig% > 10%	Gig & Labour
+Hardware split %	1.0 + (hw_split × 0.6)	Property, Regulatory
+EU export %	1.0 + (eu_pct × 1.5)	ESG & Climate, Geopolitical
+AI in product	×1.3	Regulatory Compliance, Policy Velocity
+Founder concentration	1.0 + (concentration × 0.5) + (0.3 if raised > ₹2,000cr)	Governance & Fraud
+BRSR dependency	×1.2	ESG & Climate
+Climate risk zone	Low ×1.0 / Medium ×1.2 / High ×1.5 / Extreme ×1.8	ESG & Climate, Property
+B2B revenue %	1.0 + (b2b% × 0.4)	Liability
+Liability-team factor	0.85 + 0.08 × ln(team_size / 10)	Liability, Reputation
+Step 3 — Final score formula per category
+
+Raw = base_score × [applicable multipliers]
+Score (0–100) = Raw × 7.5, capped at 100
+The × 7.5 converts the base-10 scale to 0–100. A sector base score of 10 with a stage multiplier of 1.30 and data multiplier of 1.5 would give 10 × 1.30 × 1.50 × 7.5 = 146.25 → capped at 100.
+
+Step 4 — Overall score
+
+Overall = average of all 13 category scores
+That's the single number shown at the top (e.g. Battery Smart's 65.4/100).

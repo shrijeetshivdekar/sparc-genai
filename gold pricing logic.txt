@@ -1,0 +1,21 @@
+gold pricing logic
+
+1. 11 sections, 1 policy for all requirements
+2. eg property on premise (compulsory) ;  pincode decides the zone - 1 is safe and 3 is least safe - taken on basis of past data (shoplifting, fidelity etc) ; 
+3. section 1 - sum insured - eg: below 25 cr - if rate / uske upar then policy is automatically approved without underwriter ( taken on basis of past data )
+4. section 1 has multiple points  - on premise , property outside  etc -irrespective of sum insured they have a fixed rate
+--------
+section 2 
+. property and custody 
+. if employer - if you give gold to 3rd party - and if gold is stolen - then it is covered 
+- except for sec 1 and fidelity - rates are standard (for them it is dynamic)
+
+- look at multiple policies - bifurcate according to sum insured - at what sum insured what rate is given - 0.12 - mostly approved here - if in myra
+- find an optimum rate where not a lot of loss - but customer is also satisfied. 
+- on the basis of past claims - you can decide the policy rate 
+- out of 100, 60 claims are done 
+- major premium impacted by section 1 , section 4, section 5 and exhibition (section 6) - we have to optimize its rate.
+- majorly - pincode, occupancy - mfg unit or jewellery shop , sum insured limit = major determinants of premium and risk.
+============================
+. show both projects side by side
+for each bundle recommended - ask what is premium calculated from underwriter - on average what is charged - compare with premium potential to assess whether the premium potential is accurate or not.

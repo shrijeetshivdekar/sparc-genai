@@ -1,0 +1,553 @@
+{
+  "quote": {
+    "decision": "indicative_quote",
+    "line_of_business": "DO",
+    "premium_low_inr": 254627.77,
+    "premium_high_inr": 472880.15,
+    "premium_mid_inr": 363753.96,
+    "premium_in_lakhs": "₹2.55 L — ₹4.73 L",
+    "premium_in_crores": "₹0.025 Cr — ₹0.047 Cr",
+    "premium_to_revenue_bps": 45.5,
+    "factor_trace": [
+      {
+        "step": "1. Base rate (₹ per crore SI)",
+        "value": "₹45,000",
+        "raw_value": 45000.0,
+        "source_citation": "[S1]",
+        "source_url": "https://www.icicilombard.com/business-insurance/liability-insurance/directors-and-officers-liability-insurance",
+        "source_type": "carrier_brochure",
+        "confidence": "medium",
+        "is_placeholder": false,
+        "notes": "Calibrated to 0.45% of SI for typical Series A SaaS — matches Marsh India D&O Market Outlook 2024 commentary."
+      },
+      {
+        "step": "2. Pure premium",
+        "value": "₹2,25,000",
+        "raw_value": 225000.0,
+        "source_citation": "—",
+        "source_url": "",
+        "source_type": "derived",
+        "confidence": "high",
+        "is_placeholder": false,
+        "notes": "₹45,000/cr × 5.00 cr"
+      },
+      {
+        "step": "3a. × NIC 62 hazard factor",
+        "value": "1.05",
+        "raw_value": 1.05,
+        "source_citation": "[S2]",
+        "source_url": "https://iib.gov.in/IIB/IIB_AnnualReports.html",
+        "source_type": "industry_report",
+        "confidence": "medium",
+        "is_placeholder": false,
+        "notes": ""
+      },
+      {
+        "step": "3b. × Stage factor (seriesA)",
+        "value": "1.15",
+        "raw_value": 1.15,
+        "source_citation": "[S3]",
+        "source_url": "",
+        "source_type": "PLACEHOLDER",
+        "confidence": "low",
+        "is_placeholder": true,
+        "notes": "No public Indian source — flagged PLACEHOLDER per spec."
+      },
+      {
+        "step": "3c. × State factor (Karnataka)",
+        "value": "0.95",
+        "raw_value": 0.95,
+        "source_citation": "[S4]",
+        "source_url": "https://irdai.gov.in/public-disclosures",
+        "source_type": "public_disclosure",
+        "confidence": "medium",
+        "is_placeholder": false,
+        "notes": "Bengaluru SaaS density — moderate hazard."
+      },
+      {
+        "step": "3d. × Tenure factor (3.1 yrs)",
+        "value": "1.00",
+        "raw_value": 1.0,
+        "source_citation": "[S5]",
+        "source_url": "",
+        "source_type": "PLACEHOLDER",
+        "confidence": "low",
+        "is_placeholder": true,
+        "notes": ""
+      },
+      {
+        "step": "3e. × SI relativity (5-25cr)",
+        "value": "0.85",
+        "raw_value": 0.85,
+        "source_citation": "[S6]",
+        "source_url": "https://www.tataaig.com/business-insurance/directors-officers-liability-insurance",
+        "source_type": "carrier_brochure",
+        "confidence": "medium",
+        "is_placeholder": false,
+        "notes": ""
+      },
+      {
+        "step": "3f. × Deductible credit (₹100,000)",
+        "value": "0.95",
+        "raw_value": 0.95,
+        "source_citation": "[S7]",
+        "source_url": "https://www.tataaig.com/business-insurance/directors-officers-liability-insurance",
+        "source_type": "carrier_brochure",
+        "confidence": "medium",
+        "is_placeholder": false,
+        "notes": ""
+      },
+      {
+        "step": "4. × Experience mod (cred=0.00, ULR_industry=0.55)",
+        "value": "1.00",
+        "raw_value": 1.0,
+        "source_citation": "[S8]",
+        "source_url": "https://irdai.gov.in/annual-reports",
+        "source_type": "regulator",
+        "confidence": "medium",
+        "is_placeholder": false,
+        "notes": "0 prior claim(s); credibility 0.00."
+      },
+      {
+        "step": "5. × Net loadings/discounts (-15.0%, clamped to ±25%)",
+        "value": "0.850",
+        "raw_value": 0.85,
+        "source_citation": "see panel",
+        "source_url": "",
+        "source_type": "loadings_panel",
+        "confidence": "medium",
+        "is_placeholder": false,
+        "notes": ""
+      },
+      {
+        "step": "6. ÷ (1 − expense 18% − comm 12.5% − cession 4% − margin 8%)",
+        "value": "× 1.739",
+        "raw_value": 1.7391304347826084,
+        "source_citation": "[S12][S13][S14][S15]",
+        "source_url": "",
+        "source_type": "expense_components",
+        "confidence": "medium",
+        "is_placeholder": false,
+        "notes": ""
+      },
+      {
+        "step": "7a. + GST @ 18%",
+        "value": "₹55,457",
+        "raw_value": 55457.38406249998,
+        "source_citation": "[S16]",
+        "source_url": "https://gstcouncil.gov.in/sites/default/files/Notifications/Notification%20no.%2011%202017%20(CT)Rate.pdf",
+        "source_type": "statute",
+        "confidence": "high",
+        "is_placeholder": false,
+        "notes": ""
+      },
+      {
+        "step": "7b. + Stamp duty (Karnataka)",
+        "value": "₹200",
+        "raw_value": 200.0,
+        "source_citation": "[S17]",
+        "source_url": "https://stamps.karnataka.gov.in",
+        "source_type": "statute",
+        "confidence": "high",
+        "is_placeholder": false,
+        "notes": ""
+      },
+      {
+        "step": "8. Range ±30%",
+        "value": "₹2,54,628 — ₹4,72,880",
+        "raw_value": 363753.96218749986,
+        "source_citation": "—",
+        "source_url": "",
+        "source_type": "band",
+        "confidence": "medium",
+        "is_placeholder": false,
+        "notes": ""
+      }
+    ],
+    "placeholders_used": [
+      "stage_factor.seriesA",
+      "tenure_factor.3-5"
+    ],
+    "data_quality_score": 0.6,
+    "sources_cited": [
+      {
+        "code": "[S1]",
+        "citation": "Median Tata AIG / ICICI L / HDFC ERGO D&O brochures (₹5 cr SI band)",
+        "url": "https://www.icicilombard.com/business-insurance/liability-insurance/directors-and-officers-liability-insurance",
+        "accessed": "2026-05-25",
+        "type": "carrier_brochure"
+      },
+      {
+        "code": "[S2]",
+        "citation": "IIB Liability Segment FY23 — IT services band",
+        "url": "https://iib.gov.in/IIB/IIB_AnnualReports.html",
+        "accessed": "2026-05-25",
+        "type": "industry_report"
+      },
+      {
+        "code": "[S3]",
+        "citation": "No public Indian source",
+        "url": "",
+        "accessed": "2026-05-25",
+        "type": "PLACEHOLDER"
+      },
+      {
+        "code": "[S4]",
+        "citation": "IRDAI L-1 state-wise data",
+        "url": "https://irdai.gov.in/public-disclosures",
+        "accessed": "2026-05-25",
+        "type": "public_disclosure"
+      },
+      {
+        "code": "[S5]",
+        "citation": "Baseline tenure",
+        "url": "",
+        "accessed": "2026-05-25",
+        "type": "PLACEHOLDER"
+      },
+      {
+        "code": "[S6]",
+        "citation": "Median carrier brochures — higher SI scale credit",
+        "url": "https://www.tataaig.com/business-insurance/directors-officers-liability-insurance",
+        "accessed": "2026-05-25",
+        "type": "carrier_brochure"
+      },
+      {
+        "code": "[S7]",
+        "citation": "Median carrier brochures",
+        "url": "https://www.tataaig.com/business-insurance/directors-officers-liability-insurance",
+        "accessed": "2026-05-25",
+        "type": "carrier_brochure"
+      },
+      {
+        "code": "[S8]",
+        "citation": "IRDAI Annual Report 2023-24, Statement 14 — Liability segment ULR",
+        "url": "https://irdai.gov.in/annual-reports",
+        "accessed": "2026-05-25",
+        "type": "regulator"
+      },
+      {
+        "code": "[S9]",
+        "citation": "Marsh India D&O Market Outlook 2024 commentary — governance discount typical 5-10%",
+        "url": "https://www.marsh.com/in/insights.html",
+        "accessed": "2026-05-25",
+        "type": "underwriter_judgment"
+      },
+      {
+        "code": "[S10]",
+        "citation": "Tata AIG D&O underwriting guide — Big-4 audit discount",
+        "url": "https://www.tataaig.com/business-insurance/directors-officers-liability-insurance",
+        "accessed": "2026-05-25",
+        "type": "underwriter_judgment"
+      },
+      {
+        "code": "[S11]",
+        "citation": "DPIIT Startup India recognition — carrier communications indicate goodwill discount",
+        "url": "https://www.startupindia.gov.in/content/sih/en/recoginition.html",
+        "accessed": "2026-05-25",
+        "type": "underwriter_judgment"
+      },
+      {
+        "code": "[S12]",
+        "citation": "IRDAI Annual Report 2023-24 — industry avg mgmt expense ratio for general insurers",
+        "url": "https://irdai.gov.in/annual-reports",
+        "accessed": "2026-05-25",
+        "type": "regulator"
+      },
+      {
+        "code": "[S13]",
+        "citation": "IRDAI (Payment of Commission) Regulations 2023, Schedule I — typical commercial lines cap",
+        "url": "https://irdai.gov.in/document-detail?documentId=3404538",
+        "accessed": "2026-05-25",
+        "type": "regulator"
+      },
+      {
+        "code": "[S14]",
+        "citation": "GIC Re Obligatory Cession FY25 = 4% (per IRDAI notification)",
+        "url": "https://www.gicre.in",
+        "accessed": "2026-05-25",
+        "type": "regulator"
+      },
+      {
+        "code": "[S15]",
+        "citation": "Implied from IRDAI solvency margin requirement (150% of required) and 5-yr industry ROE",
+        "url": "https://irdai.gov.in/annual-reports",
+        "accessed": "2026-05-25",
+        "type": "regulator"
+      },
+      {
+        "code": "[S16]",
+        "citation": "GST Act 2017, Notification 11/2017 — insurance services @ 18% (services SAC 9971)",
+        "url": "https://gstcouncil.gov.in/sites/default/files/Notifications/Notification%20no.%2011%202017%20(CT)Rate.pdf",
+        "accessed": "2026-05-25",
+        "type": "statute"
+      },
+      {
+        "code": "[S17]",
+        "citation": "Karnataka Stamp Act 1957, Schedule, Article 47",
+        "url": "https://stamps.karnataka.gov.in",
+        "accessed": "2026-05-25",
+        "type": "statute"
+      }
+    ],
+    "gst_amount_inr": 55457.38,
+    "stamp_duty_inr": 200.0,
+    "gross_premium_inr": 308096.58,
+    "technical_premium_inr": 208418.27,
+    "loaded_premium_inr": 177155.53,
+    "active_loadings": [
+      {
+        "id": "independent_board_majority",
+        "value": -0.075,
+        "source_citation": "[S9]",
+        "source_url": "https://www.marsh.com/in/insights.html",
+        "confidence": "low",
+        "catalog_default": -0.075
+      },
+      {
+        "id": "audited_financials_big4",
+        "value": -0.05,
+        "source_citation": "[S10]",
+        "source_url": "https://www.tataaig.com/business-insurance/directors-officers-liability-insurance",
+        "confidence": "low",
+        "catalog_default": -0.05
+      },
+      {
+        "id": "dpiit_recognised",
+        "value": -0.025,
+        "source_citation": "[S11]",
+        "source_url": "https://www.startupindia.gov.in/content/sih/en/recoginition.html",
+        "confidence": "low",
+        "catalog_default": -0.025
+      }
+    ],
+    "net_loading_pct": -0.15,
+    "disclaimer": "Indicative only under IRDAI File-and-Use detariffed regime. Not a bindable quote. 2 placeholder(s) used out of 11 cited factors. Final premium subject to underwriter review and reinsurance treaty terms.",
+    "refer_reasons": [],
+    "decline_reasons": [],
+    "inputs_echo": {
+      "revenue_current_inr": 80000000,
+      "revenue_projected_inr": 150000000,
+      "nic_code": "6201",
+      "stage": "seriesA",
+      "state": "Karnataka",
+      "headcount": 42,
+      "years_since_incorporation": 3.1,
+      "cin": "U62012KA2022PTC098765",
+      "dpiit_recognised": true,
+      "line_of_business": "DO",
+      "sum_insured_inr": 50000000,
+      "deductible_inr": 100000,
+      "prior_claims_count": 0,
+      "loadings_input": {
+        "independent_board_majority": 1,
+        "audited_financials_big4": 1,
+        "dpiit_recognised": 1
+      }
+    }
+  },
+  "loadings_catalog": {
+    "independent_board_majority": {
+      "value": -0.075,
+      "applies_to": [
+        "DO"
+      ],
+      "source": {
+        "type": "underwriter_judgment",
+        "citation": "Marsh India D&O Market Outlook 2024 commentary — governance discount typical 5-10%",
+        "url": "https://www.marsh.com/in/insights.html",
+        "accessed": "2026-05-25",
+        "page": null
+      },
+      "confidence": "low",
+      "editable": true
+    },
+    "audited_financials_big4": {
+      "value": -0.05,
+      "applies_to": [
+        "DO",
+        "Crime",
+        "PI"
+      ],
+      "source": {
+        "type": "underwriter_judgment",
+        "citation": "Tata AIG D&O underwriting guide — Big-4 audit discount",
+        "url": "https://www.tataaig.com/business-insurance/directors-officers-liability-insurance",
+        "accessed": "2026-05-25",
+        "page": null
+      },
+      "confidence": "low",
+      "editable": true
+    },
+    "iso_27001_certified": {
+      "value": -0.04,
+      "applies_to": [
+        "Cyber",
+        "PI"
+      ],
+      "source": {
+        "type": "carrier_brochure",
+        "citation": "ICICI Lombard Cyber brochure — ISO 27001 / SOC2 certification discount",
+        "url": "https://www.icicilombard.com/business-insurance/cyber-insurance",
+        "accessed": "2026-05-25",
+        "page": null
+      },
+      "confidence": "medium",
+      "editable": true
+    },
+    "pending_litigation_above_1cr": {
+      "value": 0.15,
+      "applies_to": [
+        "DO",
+        "PI",
+        "CGL"
+      ],
+      "source": {
+        "type": "carrier_brochure",
+        "citation": "Standard D&O / PI wording exclusions and loadings for pending litigation",
+        "url": "https://www.tataaig.com/business-insurance/directors-officers-liability-insurance",
+        "accessed": "2026-05-25",
+        "page": null
+      },
+      "confidence": "medium",
+      "editable": true
+    },
+    "prior_do_claim_3yr": {
+      "value": 0.2,
+      "applies_to": [
+        "DO"
+      ],
+      "source": {
+        "type": "carrier_brochure",
+        "citation": "HDFC ERGO D&O proposal form — claim history loading",
+        "url": "https://www.hdfcergo.com/commercial-insurance/liability-insurance/directors-officers-liability-insurance",
+        "accessed": "2026-05-25",
+        "page": null
+      },
+      "confidence": "medium",
+      "editable": true
+    },
+    "prior_cyber_incident_3yr": {
+      "value": 0.25,
+      "applies_to": [
+        "Cyber"
+      ],
+      "source": {
+        "type": "carrier_brochure",
+        "citation": "Tata AIG CyberEdge proposal form — incident history loading",
+        "url": "https://www.tataaig.com/business-insurance/cyber-insurance",
+        "accessed": "2026-05-25",
+        "page": null
+      },
+      "confidence": "medium",
+      "editable": true
+    },
+    "dpiit_recognised": {
+      "value": -0.025,
+      "applies_to": [
+        "DO",
+        "Cyber",
+        "PI",
+        "CGL",
+        "Crime",
+        "Property"
+      ],
+      "source": {
+        "type": "underwriter_judgment",
+        "citation": "DPIIT Startup India recognition — carrier communications indicate goodwill discount",
+        "url": "https://www.startupindia.gov.in/content/sih/en/recoginition.html",
+        "accessed": "2026-05-25",
+        "page": null
+      },
+      "confidence": "low",
+      "editable": true
+    },
+    "founder_prior_fraud_event": {
+      "value": 0.25,
+      "applies_to": [
+        "DO",
+        "Crime",
+        "Cyber"
+      ],
+      "source": {
+        "type": "underwriter_judgment",
+        "citation": "Underwriter judgment; MCA21 director disqualification database can corroborate",
+        "url": "https://www.mca.gov.in/mcafoportal/login.do",
+        "accessed": "2026-05-25",
+        "page": null
+      },
+      "confidence": "low",
+      "editable": true
+    },
+    "cert_in_poc_designated": {
+      "value": -0.03,
+      "applies_to": [
+        "Cyber"
+      ],
+      "source": {
+        "type": "regulator",
+        "citation": "CERT-In Directions Apr 2022 — point-of-contact designation reduces breach response time",
+        "url": "https://www.cert-in.org.in/PDF/CERT-In_Directions_70B_28.04.2022.pdf",
+        "accessed": "2026-05-25",
+        "page": null
+      },
+      "confidence": "medium",
+      "editable": true
+    },
+    "dpdp_dpo_appointed": {
+      "value": -0.035,
+      "applies_to": [
+        "Cyber"
+      ],
+      "source": {
+        "type": "regulator",
+        "citation": "DPDP Act 2023, Sec 10 + Sec 8(4) — DPO/DPIA governance reduces Sec 33 penalty exposure",
+        "url": "https://www.meity.gov.in/static/uploads/2024/06/2bf1f0e9f04e6fb4f8fef35e82c42aa5.pdf",
+        "accessed": "2026-05-25",
+        "page": null
+      },
+      "confidence": "medium",
+      "editable": true
+    },
+    "warehouse_fire_safety_audit": {
+      "value": -0.04,
+      "applies_to": [
+        "Property"
+      ],
+      "source": {
+        "type": "regulator",
+        "citation": "NBC 2016 (National Building Code) — fire safety audit corroborates IAR/SFSP underwriting",
+        "url": "https://www.bis.gov.in",
+        "accessed": "2026-05-25",
+        "page": null
+      },
+      "confidence": "medium",
+      "editable": true
+    },
+    "hospital_nabh_accredited": {
+      "value": -0.03,
+      "applies_to": [
+        "PI",
+        "CGL"
+      ],
+      "source": {
+        "type": "regulator",
+        "citation": "NABH accreditation for healthtech startups — quality signal for PI underwriting",
+        "url": "https://nabh.co",
+        "accessed": "2026-05-25",
+        "page": null
+      },
+      "confidence": "low",
+      "editable": true
+    }
+  },
+  "meta": {
+    "version": "0.1.0",
+    "last_updated": "2026-05-25",
+    "jurisdiction": "India",
+    "regulator": "IRDAI",
+    "currency": "INR",
+    "classification_system": "NIC 2008",
+    "disclaimer": "Indicative only under IRDAI File-and-Use detariffed regime. Not a bindable quote. Final premium subject to underwriter review and reinsurance treaty terms. All Indian public sources cited inline.\n"
+  }
+}

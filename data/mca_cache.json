@@ -1,0 +1,39 @@
+{
+  "U72900MH2021PTC310042": {
+    "cin": "U72900MH2021PTC310042",
+    "company_name": null,
+    "incorporation_date": null,
+    "registered_office_state": "MH",
+    "company_type": "private",
+    "authorized_capital_cr": null,
+    "paid_up_capital_cr": null,
+    "directors": [],
+    "director_changes_24mo": null,
+    "director_resignations_24mo": null,
+    "directors_associated_struck_off_count": null,
+    "independent_director_share": null,
+    "max_other_directorships": null,
+    "shareholders": [],
+    "shareholder_concentration_top3_pct": null,
+    "charges": [],
+    "charges_unsatisfied_count": null,
+    "total_secured_debt_cr": null,
+    "latest_aoc4": {
+      "fy": null,
+      "revenue_cr": null,
+      "pat_cr": null,
+      "net_worth_cr": null,
+      "contingent_liabilities_cr": null,
+      "related_party_transactions": [],
+      "auditor_opinion_modified": null
+    },
+    "contingent_liability_to_revenue": null,
+    "rpt_share_of_revenue": null,
+    "paid_up_capital_to_revenue": null,
+    "net_worth_cr": null,
+    "auditor_opinion_modified": null,
+    "fetched_at": "2026-06-02T21:17:25.508395+00:00",
+    "source": "unavailable",
+    "reason": "no_provider"
+  }
+}

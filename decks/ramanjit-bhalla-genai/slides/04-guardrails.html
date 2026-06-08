@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Modes and Guardrails</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+</head>
+<body>
+  <section class="slide">
+    <div class="topbar">
+      <div class="brand"><span class="brand-mark"></span>SPARC / Runtime modes</div>
+      <div class="eyebrow">Designed for safe rollout</div>
+    </div>
+    <div class="grid-3" style="flex:1;">
+      <div class="card">
+        <div class="small-label">Mode 01</div>
+        <div class="card-title">`off`</div>
+        <div class="card-copy">Serve deterministic recommendations only. GenAI metadata stays explicit, but recommendation ranking does not change.</div>
+      </div>
+      <div class="card">
+        <div class="small-label">Mode 02</div>
+        <div class="card-title">`shadow`</div>
+        <div class="card-copy">Run Gemini in parallel, compare its ranking to deterministic output, log the diff, but still serve the deterministic result to the user.</div>
+      </div>
+      <div class="card">
+        <div class="small-label">Mode 03</div>
+        <div class="card-title">`primary`</div>
+        <div class="card-copy">Serve the GenAI-ranked shortlist only after deterministic guardrails and validation checks pass.</div>
+      </div>
+    </div>
+    <div class="grid-2" style="margin-top:24px;">
+      <div class="panel" style="padding:28px;">
+        <div class="section-title">Guardrails that stay deterministic</div>
+        <div class="impact-list">
+          <div class="impact-item">
+            <div class="impact-number">A</div>
+            <div>
+              <div class="impact-title">Hard gates</div>
+              <div class="impact-copy">The model cannot recommend a product or bundle that deterministic eligibility has rejected.</div>
+            </div>
+          </div>
+          <div class="impact-item">
+            <div class="impact-number">B</div>
+            <div>
+              <div class="impact-title">Compliance triggers</div>
+              <div class="impact-copy">Regulatory and underwriting triggers are computed before reranking and remain enforceable regardless of model output.</div>
+            </div>
+          </div>
+          <div class="impact-item">
+            <div class="impact-number">C</div>
+            <div>
+              <div class="impact-title">Fallbacks</div>
+              <div class="impact-copy">If Gemini is unavailable, slow, malformed, or contradictory, SPARC falls back cleanly to deterministic recommendations.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="callout">
+        <strong>Why this matters internally:</strong> `shadow` mode gives Commercial Lines a way to observe how often Gemini would have changed the ranking before choosing to trust it in `primary`. That is a safer rollout pattern than a direct switch to AI-first recommendations.
+      </div>
+    </div>
+    <div class="footer">
+      <div>SPARC can move from observation to production without removing deterministic safety rails.</div>
+      <div class="page">04 / 06</div>
+    </div>
+  </section>
+</body>
+</html>

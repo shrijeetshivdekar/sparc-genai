@@ -521,6 +521,12 @@ const COVER_ALIASES = {
   "hospishield": "group_hospishield",
   "BHARAT_LAGHU": "property_fire",
   "bharat_laghu": "property_fire",
+  "MSME_SURAKSHA_KAVACH": "msme_suraksha_kavach",
+  "msme_suraksha_kavach": "msme_suraksha_kavach",
+  "CORPORATE_COVER_II": "corporate_cover_ii",
+  "corporate_cover_ii": "corporate_cover_ii",
+  "I_SELECT_LIABILITY_INSURANCE": "i_select_liability_insurance",
+  "i_select_liability_insurance": "i_select_liability_insurance",
 };
 
 Object.assign(COVER_ALIASES, {
@@ -851,6 +857,17 @@ async function init() {
     state.profile = loadDraftProfile(state.meta.defaults);
   }
   resetCustomerProfile();
+
+  const route = parseLiabilityRouteFromLocation();
+  if (route) {
+    window.__liabilityIntelState = { open: true, productKey: route.productKey, role: route.role };
+    syncLiabilityIntelDrawer();
+    loadLiabilityDocRegistry().then(() => {
+      const current = parseLiabilityRouteFromLocation();
+      if (current?.productKey === route.productKey && current?.role === route.role) syncLiabilityIntelDrawer();
+    });
+    return;
+  }
 
   // Restore last result if Vercel live-reloaded mid-session
   try {
@@ -1201,7 +1218,46 @@ function renderProfileSneak(profile) {
   requestAnimationFrame(() => card.classList.add("profile-sneak-visible"));
 }
 
+const _autofillCooldownUntil = {};
+
 async function triggerAutoProfiling(companyName, _retryCount = 0, signalContext = null) {
+  const normalizedName = String(companyName || "").trim().toLowerCase();
+  const cooldownUntil = _autofillCooldownUntil[normalizedName] || 0;
+  if (_retryCount === 0 && cooldownUntil > Date.now()) {
+    const waitSec = Math.ceil((cooldownUntil - Date.now()) / 1000);
+    $("main-content").innerHTML = `
+      <main class="hev-shell hev-error-shell">
+        <div class="hev-error-card">
+          <div class="hev-error-icon">⏳</div>
+          <div class="hev-error-company">${esc(companyName)}</div>
+          <h2 class="hev-error-title">Cooling down AI requests</h2>
+          <p class="hev-error-hint">Gemini rate-limited the last request. Wait about ${waitSec} seconds before trying again, or use the full form flow.</p>
+          <div class="hev-error-actions">
+            <button class="hev-search-btn" type="button" id="autofill-error-retry" disabled>
+              Try again in ${waitSec}s
+              <span class="hev-btn-icon">↺</span>
+            </button>
+            <button class="hev-error-ghost" type="button" id="autofill-error-back">Back to home</button>
+          </div>
+        </div>
+      </main>`;
+    const retryBtn = $("autofill-error-retry");
+    const timer = setInterval(() => {
+      const left = Math.ceil((cooldownUntil - Date.now()) / 1000);
+      if (!retryBtn || left <= 0) {
+        clearInterval(timer);
+        if (retryBtn) {
+          retryBtn.disabled = false;
+          retryBtn.innerHTML = `Try again <span class="hev-btn-icon">↺</span>`;
+          retryBtn.onclick = () => triggerAutoProfiling(companyName, 0, signalContext);
+        }
+        return;
+      }
+      retryBtn.innerHTML = `Try again in ${left}s <span class="hev-btn-icon">↺</span>`;
+    }, 1000);
+    $("autofill-error-back").onclick = () => renderRoleSelection();
+    return;
+  }
   const cancelLoader = renderAutoProfilingLoader(companyName);
   try {
     // Step 1: /api/autofill — Gemini only, no server.py import, fast (<8s)
@@ -1262,6 +1318,9 @@ async function triggerAutoProfiling(companyName, _retryCount = 0, signalContext 
   } catch (err) {
     cancelLoader();
     const { title, hint } = classifyAutofillError(err.message);
+    if (/rate|quota|429|too many/i.test(err.message || "")) {
+      _autofillCooldownUntil[normalizedName] = Date.now() + 45000;
+    }
     $("main-content").innerHTML = `
       <main class="hev-shell hev-error-shell">
         <div class="hev-error-card">
@@ -3089,6 +3148,7 @@ async function renderSignalRadarDashboard(filter = _signalRadarFilter, forceRefr
         <div class="signal-topbar">
           <button class="btn btn-ghost pipeline-back-btn" type="button" id="signal-back">&larr; Back</button>
           <button class="signal-refresh" type="button" id="signal-refresh">Refresh scan</button>
+          <button class="btn btn-ghost" type="button" id="signal-export-csv">Download funding CSV</button>
           <button class="btn btn-ghost signal-hide-seen" type="button" id="signal-hide-seen">${_hideSeenSignals ? "Show all" : "Hide seen"}</button>
           <button class="btn btn-ghost" type="button" id="signal-mark-seen">Mark all seen</button>
         </div>
@@ -3132,6 +3192,7 @@ async function renderSignalRadarDashboard(filter = _signalRadarFilter, forceRefr
 
   $("signal-back").onclick = () => renderRoleSelection();
   $("signal-refresh").onclick = () => renderSignalRadarDashboard(_signalRadarFilter, true);
+  $("signal-export-csv").onclick = () => downloadSignalFundingCsv(allSignals);
   $("signal-hide-seen").onclick = () => {
     _hideSeenSignals = !_hideSeenSignals;
     renderSignalRadarDashboard(_signalRadarFilter, false);
@@ -3175,6 +3236,56 @@ async function renderSignalRadarDashboard(filter = _signalRadarFilter, forceRefr
   });
 }
 
+function csvCell(value) {
+  const text = String(value ?? "");
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function signalFundingCsvRows(signals) {
+  const columns = ["company", "city", "sector", "stage", "amount_inr", "round", "source", "announced_on"];
+  const estimatedPremiumInr = (s) => {
+    const highLakh = Number(s.premium_max_lakh || 0);
+    const lowLakh = Number(s.premium_min_lakh || 0);
+    const fallbackAmount = Number(s.amount_inr || 0);
+    if (highLakh > 0) return Math.round(highLakh * 100000);
+    if (lowLakh > 0) return Math.round(lowLakh * 100000);
+    return fallbackAmount > 0 ? Math.round(fallbackAmount) : "";
+  };
+  const rows = (signals || []).map(s => ({
+    company: s.company || "",
+    city: s.city || "India",
+    sector: s.sector || "",
+    stage: s.funding_stage || s.stage || "",
+    amount_inr: estimatedPremiumInr(s),
+    round: s.round || s.funding_stage || s.stage || "",
+    source: s.source || "Signal Radar",
+    announced_on: s.announced_on || "",
+  })).filter(r => r.company);
+  return [
+    columns.join(","),
+    ...rows.map(row => columns.map(col => csvCell(row[col])).join(",")),
+  ].join("\n");
+}
+
+function downloadSignalFundingCsv(signals) {
+  const csv = signalFundingCsvRows(signals);
+  const count = Math.max(0, csv.split("\n").length - 1);
+  if (!count) {
+    alert("No signals available to export yet.");
+    return;
+  }
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const stamp = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `sparc_signal_radar_funding_${stamp}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 function renderSignalTask(signal) {
   const premium = Number(signal.premium_max_lakh || 0) > 0
     ? `INR ${formatLakh(signal.premium_min_lakh)}-${formatLakh(signal.premium_max_lakh)}L`
@@ -3194,6 +3305,7 @@ function renderSignalTask(signal) {
         <div class="signal-meta">
           <span>${escHtml(signal.sector || "Sector inferred")}</span>
           <span>${escHtml(signal.funding_stage || "Stage inferred")}</span>
+          <span>${escHtml(signal.city || "City inferred")}</span>
           <span>${escHtml(signal.source || "Public source")}</span>
         </div>
         <dl class="signal-intel">
@@ -3222,6 +3334,7 @@ function renderSignalTask(signal) {
         </div>
         <div class="signal-side-grid">
           <div><span>Premium range</span><strong>${premium}</strong></div>
+          <div><span>City</span><strong>${escHtml(signal.city || "India")}</strong></div>
           <div><span>Insurance angle</span><strong>${escHtml(signal.insurance_angle)}</strong></div>
           <div><span>Email source</span><strong>${escHtml(signal.contact_status)}</strong></div>
           <div><span>Review status</span><strong>${escHtml(signal.review_status)}</strong></div>
@@ -4031,6 +4144,7 @@ function renderCustomerResults(result) {
                 <span>${esc(product.priority || "Recommended")}</span>
                 ${product.mandatory ? "<span>Baseline</span>" : ""}
               </div>
+              ${renderIntelActionButtons(product.key || product.name || "")}
             </article>`).join("") || `<div class="r-card">${emptyState("i", "No products returned", "Try changing the customer profile inputs.")}</div>`}
         </div>
       </section>
@@ -5271,9 +5385,46 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
   };
   const pctText = (v) => (v >= 0 ? "+" : "") + (v * 100).toFixed(1) + "%";
   const labelStep = (step) => String(step || "").replace(/^\d+[a-z]?\.\s*[×x+÷-]?\s*/i, "").trim();
-  const sourceLink = (entry) => entry?.source_url
-    ? `<a href="${esc(entry.source_url)}" target="_blank" rel="noopener">${esc(entry.source_citation || "-")}</a>`
-    : esc(entry?.source_citation || "-");
+  const sourceText = (entry) => entry?.source_citation || entry?.source?.citation || "derived";
+  const sourceUrl = (entry) => entry?.source_url || entry?.source?.url || "";
+  const sourceLink = (entry) => sourceUrl(entry)
+    ? `<a href="${esc(sourceUrl(entry))}" target="_blank" rel="noopener">${esc(sourceText(entry) || "-")}</a>`
+    : esc(sourceText(entry) || "-");
+  const explainPayloadAttr = (payload) => esc(encodeURIComponent(JSON.stringify(payload || {})));
+  const factorSourceButton = (entry, payload = {}) => {
+    const label = sourceText(entry) || "Explain";
+    const srcType = entry?.source_type || entry?.source?.type || "";
+    const cls = srcType === "PLACEHOLDER" || entry?.is_placeholder ? " pc-source-chip-ph" : "";
+    return `<button class="pc-source-chip${cls}" type="button" data-pc-factor-explain="${explainPayloadAttr({
+      title: payload.title || labelStep(entry?.step) || payload.label || "Pricing factor",
+      value: payload.value || entry?.value || "",
+      formula: payload.formula || entry?.formula || "",
+      simple: payload.simple || (entry?.step ? stepSimpleText(entry, entry?.value || "") : ""),
+      derived: payload.derived || entry?.notes || "",
+      source: label,
+      source_url: sourceUrl(entry),
+      source_type: srcType || entry?.confidence || "",
+      confidence: entry?.confidence || payload.confidence || "",
+      placeholder: Boolean(entry?.is_placeholder || srcType === "PLACEHOLDER"),
+    })}">${esc(label)}</button>`;
+  };
+  const explainRowButton = (payload) => `<button class="pc-row-info" type="button" data-pc-factor-explain="${explainPayloadAttr(payload)}" aria-label="Explain ${esc(payload.title || "pricing row")}">?</button>`;
+  const stepSimpleText = (s, display) => {
+    const n = parseInt(s?.step, 10);
+    const label = labelStep(s?.step);
+    if (n === 1) return "This is the starting price per Rs. 1 crore of cover for this line of business. SPARC reads it from the pricing parameter table for the selected cover and risk class.";
+    if (n === 2) return "This multiplies the base rate by the selected Sum Insured. It is the expected loss cost before hazard, state, tenure, deductible, claims experience, expenses, and tax.";
+    if (String(label).toLowerCase().includes("hazard")) return "This adjusts the premium for the business activity risk. A value above 1 increases premium; below 1 discounts it.";
+    if (String(label).toLowerCase().includes("stage")) return "This adjusts for startup maturity. Early-stage companies can have less operating history, but this specific factor is marked as a placeholder when no public Indian calibration exists.";
+    if (String(label).toLowerCase().includes("state")) return "This adjusts for geography. SPARC uses the state selected in the quote inputs and applies the state relativity from the pricing parameter table.";
+    if (String(label).toLowerCase().includes("tenure")) return "This adjusts for years since incorporation. More operating history can improve underwriting credibility when a sourced factor exists.";
+    if (String(label).toLowerCase().includes("si relativity")) return "This adjusts for the Sum Insured band. Larger or smaller limits can price differently because expected claim severity and limit utilization change.";
+    if (String(label).toLowerCase().includes("deductible")) return "This credits the premium for the deductible. A higher deductible means the insured keeps more small losses, so insurer expected payout reduces.";
+    if (String(label).toLowerCase().includes("experience")) return "This adjusts for prior claims and credibility. If there is no credible account-level claims history, it stays neutral and industry loss ratio carries the assumption.";
+    if (n === 6) return "This grosses up the technical premium for management expense, commission, reinsurance cession, and target margin.";
+    if (n === 7) return "This adds statutory charges such as GST and state stamp duty after the insurance premium is calculated.";
+    return `${label || "This row"} is one step in the deterministic formula chain. It is applied exactly as shown in the calculation.`;
+  };
   const catalogValue = (id) => Number(catalogOverrides[id] ?? CATALOG[id]?.value ?? 0);
   const catalogMatchesSearch = (label) => !catalogState.search || label.toLowerCase().includes(catalogState.search.toLowerCase());
   const preserveCatalogStateFromDOM = () => {
@@ -5325,14 +5476,24 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
 
   function renderSIRow() {
     const siCr = (currentSI / 1e7).toFixed(2);
+    const siExplain = {
+      title: "Sum Insured",
+      value: `Rs. ${siCr} Cr`,
+      formula: "Pure premium = base rate per crore x Sum Insured in crores.",
+      simple: "Sum Insured is the maximum amount of cover being priced. SPARC estimates it from the startup profile and selected cover, then lets the RM override it before calculating premium.",
+      derived: `Current raw SI input is Rs. ${Math.round(currentSI).toLocaleString("en-IN")}. When this changes, SPARC recalculates pure premium and every downstream premium number.`,
+      source: "SPARC exposure heuristic",
+      source_type: "heuristic",
+      confidence: "medium",
+    };
     return `<div class="pc-row pc-si-row">
       <div class="pc-op"></div>
       <div class="pc-label">Sum Insured<span class="pc-sub">Heuristic estimate — edit to override</span></div>
       <button class="pc-val editable" type="button" data-kind="si" data-key="si" data-pct="0" data-value="${currentSI}">
         <span class="val-text">₹${siCr} Cr</span><span class="edit-pencil">edit</span>
       </button>
-      <div class="pc-src">—</div>
-      <div class="pc-conf"></div>
+      <div class="pc-src">${factorSourceButton({ source_citation: "heuristic", source_type: "heuristic", confidence: "medium" }, siExplain)}</div>
+      <div class="pc-conf">${explainRowButton(siExplain)}</div>
     </div>`;
   }
 
@@ -5343,12 +5504,24 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
       const editable = n === 1 || n === 3 || n === 4;
       const raw = Number(ratingOverrides[s.step] ?? s.raw_value);
       const display = n === 1 ? money(raw) : n === 2 ? s.value : raw.toFixed(3);
+      const factorExplain = {
+        title: labelStep(s.step),
+        value: display,
+        formula: s.formula || (n === 2 ? "Base rate x Sum Insured in crores." : "Previous premium step x this multiplier."),
+        simple: stepSimpleText(s, display),
+        derived: s.notes || (n === 2 ? `Base rate and SI produce ${display}.` : `A factor of ${display} means ${raw > 1 ? "premium increases" : raw < 1 ? "premium decreases" : "premium is unchanged"}.`),
+        source: sourceText(s),
+        source_url: sourceUrl(s),
+        source_type: s.source_type || "",
+        confidence: s.confidence || "",
+        placeholder: Boolean(s.is_placeholder),
+      };
       return `<div class="pc-row${n === 2 ? " sub" : ""}">
         <div class="pc-op">${n === 1 ? "" : n === 2 ? "=" : "x"}</div>
         <div class="pc-label">${esc(labelStep(s.step))}${s.is_placeholder ? '<span class="ph-tag">PH</span>' : ""}<span class="pc-sub">${esc((s.notes || "").slice(0, 110))}</span></div>
         ${editable ? valueCell("factor", s.step, raw, display, false) : `<div class="pc-val${n === 2 ? " bold" : ""}"><span class="val-text">${esc(display)}</span></div>`}
-        <div class="pc-src">${sourceLink(s)}</div>
-        <div class="pc-conf"><span class="pc-conf-dot pc-conf-${esc(s.is_placeholder ? "PLACEHOLDER" : (s.confidence || "medium"))}"></span></div>
+        <div class="pc-src">${factorSourceButton(s, factorExplain)}</div>
+        <div class="pc-conf">${explainRowButton(factorExplain)}<span class="pc-conf-dot pc-conf-${esc(s.is_placeholder ? "PLACEHOLDER" : (s.confidence || "medium"))}"></span></div>
       </div>`;
     }).join("");
     const expenseRows = trace.filter(s => [6, 7].includes(parseInt(s.step, 10))).map(s => `
@@ -5356,17 +5529,43 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
         <div class="pc-op">${String(s.step).startsWith("6.") ? "÷" : "+"}</div>
         <div class="pc-label">${esc(labelStep(s.step))}</div>
         <div class="pc-val"><span class="val-text">${esc(s.value)}</span></div>
-        <div class="pc-src">${sourceLink(s)}</div>
-        <div class="pc-conf"><span class="pc-conf-dot pc-conf-${esc(s.confidence || "medium")}"></span></div>
+        <div class="pc-src">${factorSourceButton(s)}</div>
+        <div class="pc-conf">${explainRowButton({
+          title: labelStep(s.step),
+          value: s.value,
+          formula: s.formula || "",
+          simple: stepSimpleText(s, s.value),
+          derived: s.notes || "Applied after the technical premium calculation.",
+          source: sourceText(s),
+          source_url: sourceUrl(s),
+          source_type: s.source_type || "",
+          confidence: s.confidence || "",
+          placeholder: Boolean(s.is_placeholder),
+        })}<span class="pc-conf-dot pc-conf-${esc(s.confidence || "medium")}"></span></div>
       </div>`).join("");
     const activeRows = [
       ...Array.from(activeLoadings).map(id => {
         const item = CATALOG[id];
         if (!item) return "";
         const v = catalogValue(id);
+        const loadExplain = {
+          title: item.label || labelize(id),
+          value: pctText(v),
+          formula: "Loaded premium = technical premium x (1 + net active adjustments). Net adjustments are clamped to +/-25%.",
+          simple: item.direction === "discount"
+            ? "This is a discount. It reduces the premium because the selected evidence lowers expected claim probability or severity."
+            : "This is a loading. It increases the premium because the selected evidence raises expected claim probability or severity.",
+          derived: item.rationale || item.notes || "Catalog factor selected by the RM from the pricing adjustment catalog.",
+          source: item.source?.citation || "Pricing adjustment catalog",
+          source_url: item.source?.url || "",
+          source_type: item.source?.type || "",
+          confidence: item.confidence || "",
+          placeholder: item.source?.type === "PLACEHOLDER",
+        };
         return `<div class="pc-loading-row">
           <div><strong>${esc(labelize(id))}</strong><span>${esc((item.source?.citation || "").slice(0, 95))}</span></div>
           ${valueCell("loading", id, v, pctText(v), true)}
+          ${explainRowButton(loadExplain)}
           <button class="pc-mini-btn" type="button" data-remove-loading="${esc(id)}">x</button>
         </div>`;
       }),
@@ -5374,6 +5573,16 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
         <div class="pc-loading-row pc-custom-row">
           <div><strong>${esc(adj.label)}</strong><span class="pc-custom-tag">Custom</span></div>
           <div class="pc-val bold ${adj.value < 0 ? "grn" : "red"}">${pctText(adj.value)}</div>
+          ${explainRowButton({
+            title: adj.label,
+            value: pctText(adj.value),
+            formula: "Custom adjustment selected by the RM and included in net schedule loading.",
+            simple: "This is an underwriter override. It is not sourced from the public catalog and should be used only when the RM has case-specific justification.",
+            derived: "Custom adjustments are included with catalog loadings and then clamped to +/-25%.",
+            source: "underwriter judgement",
+            source_type: "override",
+            confidence: "low",
+          })}
           <button class="pc-mini-btn" type="button" data-remove-custom="${esc(adj.id)}">x</button>
         </div>`),
     ].join("") || `<div class="pc-empty">No adjustments applied.</div>`;
@@ -5401,6 +5610,20 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
       const sourceHtml = srcUrl
         ? `<a class="pc-src-link" href="${esc(srcUrl)}" target="_blank" rel="noopener">${esc(srcCitation || srcUrl)}</a>`
         : (srcCitation ? `<span class="pc-src-text">${esc(srcCitation)}</span>` : "");
+      const catalogExplain = {
+        title: label,
+        value: rangeText,
+        formula: "If added, this catalog factor contributes to the net schedule adjustment, which is clamped to +/-25%.",
+        simple: item.direction === "discount"
+          ? "This factor can reduce the premium when the evidence shows lower expected loss."
+          : "This factor can increase the premium when the evidence shows higher expected loss.",
+        derived: item.rationale || item.notes || "Catalog factor from the pricing adjustment catalog.",
+        source: srcCitation || "Pricing adjustment catalog",
+        source_url: srcUrl,
+        source_type: item.source?.type || "",
+        confidence: item.confidence || "",
+        placeholder: item.source?.type === "PLACEHOLDER",
+      };
       const open = catalogState.openDetails.has(id) || on;
       return `<details class="pc-catalog-row${ok ? "" : " muted"}" data-catalog-id="${esc(id)}" ${open ? "open" : ""}>
         <summary>
@@ -5421,7 +5644,10 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
             <span><em>Applies to:</em> ${esc((item.applies_to || []).join(", ") || "All")}</span>
             ${item.notes ? `<span><em>Note:</em> ${esc(item.notes)}</span>` : ""}
           </div>
-          ${sourceHtml ? `<div class="pc-detail-source">Source: ${sourceHtml}</div>` : ""}
+          <div class="pc-detail-actions">
+            ${explainRowButton(catalogExplain)}
+            ${sourceHtml ? `<div class="pc-detail-source">Source: ${sourceHtml}</div>` : `<div class="pc-detail-source">Source: catalog assumption</div>`}
+          </div>
         </div>
       </details>`;
     }).filter(Boolean).join("");
@@ -5431,6 +5657,16 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
   function render() {
     const rows = renderRows();
     const c = recalc();
+    const techExplain = {
+      title: "Technical premium",
+      value: money(c.tech),
+      formula: "Technical premium = pure premium x all rating multipliers x active schedule adjustments before expenses and tax.",
+      simple: "This is the insurer's risk-cost estimate before expense loading, commission, reinsurance cession, target margin, GST, and stamp duty.",
+      derived: "SPARC starts with pure premium, multiplies through the hazard, stage, state, tenure, SI, deductible, and experience factors, then applies active loadings or discounts.",
+      source: "derived from formula chain",
+      source_type: "derived",
+      confidence: "calculated",
+    };
     container.innerHTML = `
       <div class="pc-shell">
         <div class="pc-topline">
@@ -5445,7 +5681,7 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
             <div class="pc-left-layout">
               <div class="pc-main">
                 <div class="pc-section-eyebrow">Rating Factors</div>
-                <div class="pc-factor-table">${renderSIRow()}${rows.ratingRows}<div class="pc-row sub"><div class="pc-op">=</div><div class="pc-label">Technical premium<span class="pc-sub">Before adjustments and expense loading</span></div><div class="pc-val bold"><span class="val-text">${money(c.tech)}</span></div><div class="pc-src">derived</div><div class="pc-conf"></div></div></div>
+                <div class="pc-factor-table">${renderSIRow()}${rows.ratingRows}<div class="pc-row sub"><div class="pc-op">=</div><div class="pc-label">Technical premium<span class="pc-sub">Before adjustments and expense loading</span></div><div class="pc-val bold"><span class="val-text">${money(c.tech)}</span></div><div class="pc-src">${factorSourceButton({ source_citation: "derived", source_type: "derived", confidence: "calculated" }, techExplain)}</div><div class="pc-conf">${explainRowButton(techExplain)}</div></div></div>
                 <div class="pc-section-eyebrow">Active Adjustments</div>
                 <div class="pc-loadings-card"><div class="pc-loadings-head"><span>Loadings and discounts</span><span class="pc-net-badge ${c.net < 0 ? "pc-net-neg" : c.net > 0 ? "pc-net-pos" : "pc-net-zero"}">${pctText(c.net)}</span></div><div class="pc-loadings-list">${rows.activeRows}</div><div class="pc-clamp ${c.clamped ? "on" : ""}">Net adjustment clamped to +/-25%</div></div>
                 <div class="pc-custom-adj-wrap" id="pc-custom-adj-wrap">
@@ -5516,8 +5752,51 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
             <div class="pc-explain-body">${renderExplanation(c)}</div>
           </div>
         </div>
+        <div class="pc-factor-modal hidden" id="pc-factor-modal" role="dialog" aria-modal="true" aria-labelledby="pc-factor-title">
+          <div class="pc-factor-backdrop" id="pc-factor-backdrop"></div>
+          <div class="pc-factor-card">
+            <header class="pc-factor-header">
+              <div>
+                <div class="pc-factor-eyebrow">Factor explainability</div>
+                <h3 id="pc-factor-title">Pricing factor</h3>
+              </div>
+              <button class="pc-factor-close" type="button" id="pc-factor-close" aria-label="Close">×</button>
+            </header>
+            <div class="pc-factor-body" id="pc-factor-body"></div>
+          </div>
+        </div>
       </div>`;
     bind();
+  }
+
+  function renderFactorExplanation(payload) {
+    const p = payload || {};
+    const source = p.source_url
+      ? `<a href="${esc(p.source_url)}" target="_blank" rel="noopener">${esc(p.source || "Open source")}</a>`
+      : esc(p.source || "No external source attached");
+    const sourceType = p.placeholder
+      ? `<span class="pc-factor-source-type pc-factor-placeholder">PLACEHOLDER</span>`
+      : p.source_type
+        ? `<span class="pc-factor-source-type">${esc(p.source_type)}</span>`
+        : "";
+    const confidence = p.confidence ? `<span class="pc-factor-confidence">Confidence: ${esc(p.confidence)}</span>` : "";
+    return `
+      <section class="pc-factor-section pc-factor-summary">
+        <div class="pc-factor-value">${esc(p.value || "-")}</div>
+        <p>${esc(p.simple || "This value is one step in the deterministic premium calculation.")}</p>
+      </section>
+      <section class="pc-factor-section">
+        <h4>How it was derived</h4>
+        <p>${esc(p.derived || "The value is loaded from the pricing trace returned by the backend for this quote.")}</p>
+        ${p.formula ? `<div class="pc-factor-formula">${esc(p.formula)}</div>` : ""}
+      </section>
+      <section class="pc-factor-section">
+        <h4>Source</h4>
+        <p>${source}</p>
+        <div class="pc-factor-tags">${sourceType}${confidence}</div>
+        ${p.placeholder ? `<p class="pc-factor-warning">This row is intentionally flagged as a placeholder because no public Indian source was available. Replace it with carrier/broker/underwriter calibration before treating the figure as market-backed.</p>` : ""}
+      </section>
+    `;
   }
 
   function renderExplanation(c) {
@@ -5819,13 +6098,41 @@ function renderPricingCalculator(container, Q, CATALOG, profile, LOB) {
     const explainModal    = $("pc-explain-modal");
     const explainClose    = $("pc-explain-close");
     const explainBackdrop = $("pc-explain-backdrop");
+    const factorModal     = $("pc-factor-modal");
+    const factorTitle     = $("pc-factor-title");
+    const factorBody      = $("pc-factor-body");
+    const factorClose     = $("pc-factor-close");
+    const factorBackdrop  = $("pc-factor-backdrop");
     const openExplain  = () => { if (explainModal) explainModal.classList.remove("hidden"); document.body.classList.add("pc-explain-open"); };
     const closeExplain = () => { if (explainModal) explainModal.classList.add("hidden"); document.body.classList.remove("pc-explain-open"); };
+    const closeFactor = () => { if (factorModal) factorModal.classList.add("hidden"); document.body.classList.remove("pc-explain-open"); };
+    const openFactor = (payload) => {
+      if (!factorModal || !factorBody) return;
+      if (factorTitle) factorTitle.textContent = payload?.title || "Pricing factor";
+      factorBody.innerHTML = renderFactorExplanation(payload);
+      factorModal.classList.remove("hidden");
+      document.body.classList.add("pc-explain-open");
+    };
+    container.querySelectorAll("[data-pc-factor-explain]").forEach(btn => btn.addEventListener("click", e => {
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        openFactor(JSON.parse(decodeURIComponent(btn.dataset.pcFactorExplain || "{}")));
+      } catch {
+        openFactor({ title: "Pricing factor", simple: "This factor is part of the deterministic premium calculation." });
+      }
+    }));
     if (explainBtn)      explainBtn.addEventListener("click", openExplain);
     if (explainClose)    explainClose.addEventListener("click", closeExplain);
     if (explainBackdrop) explainBackdrop.addEventListener("click", closeExplain);
+    if (factorClose)     factorClose.addEventListener("click", closeFactor);
+    if (factorBackdrop)  factorBackdrop.addEventListener("click", closeFactor);
     if (explainModal) {
       const escHandler = (e) => { if (e.key === "Escape" && !explainModal.classList.contains("hidden")) closeExplain(); };
+      document.addEventListener("keydown", escHandler);
+    }
+    if (factorModal) {
+      const escHandler = (e) => { if (e.key === "Escape" && !factorModal.classList.contains("hidden")) closeFactor(); };
       document.addEventListener("keydown", escHandler);
     }
   }
@@ -5839,6 +6146,15 @@ function renderResults(result) {
   if (window.__pendingSignalContext) {
     result.signal_context = window.__pendingSignalContext;
     window.__pendingSignalContext = null;
+  }
+  if (parseLiabilityRouteFromLocation()) {
+    window.__result = result;
+    window.__refineResult = result;
+    state.profile = structuredClone(result.profile || state.profile);
+    try { sessionStorage.setItem("sparc_last_result", JSON.stringify(result)); } catch (_) {}
+    loadLiabilityDocRegistry();
+    syncLiabilityIntelDrawer();
+    return;
   }
   if (!_navCalledByHistory) { const _r = result; _navHistory = _navHistory.slice(0, _navPos + 1); _navHistory.push({ fn: renderResults, args: [_r], view: "results" }); _navPos = _navHistory.length - 1; setTimeout(_updateNavButtons, 0); }
   window.__outreachLoaded = false;
@@ -5954,6 +6270,13 @@ function renderResults(result) {
           <button class="ot-sub-pill" id="ot-sub-signal" onclick="showOutreachSubTab('signal')">Signal outreach</button>
         </div>
         <div class="ot-sub-panel" id="ot-panel-company">
+          <div class="rmss-entry-card">
+            <div>
+              <span>RM pre-meeting brief</span>
+              <strong>Generate a one-page sales sheet before the client call.</strong>
+            </div>
+            <button class="btn btn-primary" type="button" data-rm-sales-sheet="1">Generate RM Sales Sheet</button>
+          </div>
           ${renderClaimsScenarios(result)}
           <div id="outreach-static">${renderFounderPitch(result)}</div>
           <div id="outreach-dynamic">${renderOutreach(result.outreach_fallback || {}, "fallback", null)}</div>
@@ -5977,7 +6300,8 @@ function renderResults(result) {
 
       <!-- ── TAB: Risk scores ── -->
       <div class="tab-panel" id="tab-risk" style="display:none">
-        <div class="result-section">
+        ${renderAIRiskBrief(result)}
+        <div class="result-section" id="airb-comparables">
           <div class="result-section-head">
             <div class="result-section-bar"></div>
             <div class="result-section-title">Risk overview</div>
@@ -6072,6 +6396,8 @@ function renderResults(result) {
   // Store result globally for download
   window.__result = result;
   window.__refineResult = result;
+  syncLiabilityIntelDrawer();
+  loadLiabilityDocRegistry();
 
   // Persist to sessionStorage so Vercel live-reloads don't wipe the session
   try { sessionStorage.setItem("sparc_last_result", JSON.stringify(result)); } catch (_) {}
@@ -6086,10 +6412,14 @@ function renderResults(result) {
   bindRefine();
   bindPolicyWordingUpload();
   bindEstimateQuotePanel(result.profile);
+  bindAIRiskBriefNav();
 
   // Bind outreach buttons (fallback already rendered)
   const outreachDynEl = document.getElementById("outreach-dynamic");
   if (outreachDynEl) _bindOutreachButtons(outreachDynEl);
+  document.querySelectorAll("[data-rm-sales-sheet]").forEach(btn => {
+    btn.addEventListener("click", () => openRMSalesSheet(window.__result || result));
+  });
 
   // Draw radar — deferred so the canvas exists in DOM
   setTimeout(() => drawRadar("risk-radar", result.scores, { maxLabelLength: 16 }), 100);
@@ -6168,6 +6498,312 @@ function closeAdvancedPanel() {
   drawer.addEventListener("transitionend", () => panel.remove(), { once: true });
 }
 
+const AIRB_DIMENSIONS = [
+  { code:"LI", key:"liability", scoreName:"Liability Risk", label:"Liability", desc:"Product, professional, and general liability exposure" },
+  { code:"RC", key:"regulatory_compliance", scoreName:"Regulatory Compliance Risk", label:"Regulatory Compliance", desc:"IRDAI, RBI, SEBI, sector-specific licensing obligations" },
+  { code:"RE", key:"reputation", scoreName:"Reputation Risk", label:"Reputation", desc:"Brand risk, consumer trust, social media exposure" },
+  { code:"PV", key:"policy_velocity", scoreName:"Policy Velocity Risk", label:"Policy Velocity", desc:"Rate of regulatory change impacting this sector" },
+  { code:"ES", key:"esg_climate", scoreName:"ESG & Climate Risk", label:"ESG & Climate", desc:"Environmental, social, governance risk and BRSR obligations" },
+  { code:"CY", key:"cyber_technical", scoreName:"Cyber Technical Risk", label:"Cyber Technical", desc:"System security, breach response, infrastructure resilience" },
+  { code:"DP", key:"data_privacy", scoreName:"Data Privacy Risk", label:"Data Privacy", desc:"PII/PHI handling, DPDP compliance, breach notification" },
+  { code:"GF", key:"governance_fraud", scoreName:"Governance & Fraud Risk", label:"Governance & Fraud", desc:"D&O, board structure, accounting controls, fraud risk" },
+  { code:"PR", key:"property", scoreName:"Property Risk", label:"Property", desc:"Physical assets, equipment, climate and flood exposure" },
+  { code:"GL", key:"gig_labour", scoreName:"Gig & Labour Risk", label:"Gig & Labour", desc:"Contractor liability, POSH compliance, platform labour code" },
+  { code:"GP", key:"geopolitical", scoreName:"Geopolitical Risk", label:"Geopolitical", desc:"Cross-border operations, foreign investment, export controls" },
+  { code:"IP", key:"ip_infringement", scoreName:"IP Infringement Risk", label:"IP Infringement", desc:"Copyright, patent, trademark, and technology IP exposure" },
+  { code:"KP", key:"key_person", scoreName:"Key Person Risk", label:"Key Person", desc:"Founder dependency, leadership continuity, succession risk" },
+];
+
+const AIRB_REG_EVIDENCE = {
+  cyber_technical: [{ source:"CERT-In 2022", section:"CERT-In Directions 2022 · Para 3", body:"Indian entities with digital operations must report cybersecurity incidents within 6 hours. This makes incident response, logs, and cyber insurance wording commercially material.", confidence:0.87, impact:19 }],
+  data_privacy: [{ source:"DPDP Act 2023", section:"DPDP Act 2023 · Sections 4-16", body:"Digital personal data processing creates consent, breach notification, data retention, and fiduciary obligations. Penalty exposure can be material where personal or sensitive data is handled.", confidence:0.92, impact:24 }],
+  regulatory_compliance: [{ source:"IRDAI Regulations", section:"IRDAI File-and-Use / product wording regime", body:"All premium and cover recommendations remain indicative until underwriting confirms filed wordings, limits, exclusions, and insured eligibility.", confidence:0.88, impact:18 }],
+  governance_fraud: [{ source:"Companies Act 2013", section:"Director and officer accountability", body:"Investor-backed companies face higher board oversight, statutory audit, related-party, ESOP, and director-liability exposure as they scale.", confidence:0.84, impact:18 }],
+  gig_labour: [{ source:"POSH Act 2013", section:"Workplace obligations", body:"Growing teams create statutory workplace obligations and employee-liability exposure. Contractor or field-worker models add Employers Compensation and GPA relevance.", confidence:0.84, impact:18 }],
+  property: [{ source:"Profile", section:"Physical operations and asset base", body:"Warehouses, equipment, fleets, stores, factories, or labs convert operational growth into property, fire, theft, machinery, and interruption exposure.", confidence:0.78, impact:16 }],
+  liability: [{ source:"Profile", section:"Customer contracts and third-party exposure", body:"Customer contracts, service failures, products, professional advice, and physical operations can create third-party injury, property damage, or financial loss claims.", confidence:0.82, impact:18 }],
+  policy_velocity: [{ source:"SPARC", section:"Regulatory-change intensity", body:"Fast-changing sectors need mid-term reviews because compliance obligations can crystallise after policy inception and alter exclusions, endorsements, or limits.", confidence:0.79, impact:17 }],
+  reputation: [{ source:"SPARC", section:"Public trust and brand exposure", body:"A public incident, breach, claim dispute, or regulatory notice can amplify sales-cycle and investor-confidence damage beyond the direct insured loss.", confidence:0.76, impact:15 }],
+  esg_climate: [{ source:"ESG Disclosure Landscape", section:"BRSR / climate exposure", body:"Physical climate exposure and ESG disclosure pressure can affect assets, supply chain continuity, directors, and customer procurement requirements.", confidence:0.76, impact:15 }],
+  geopolitical: [{ source:"FEMA 1999 + RBI", section:"Cross-border transactions", body:"Foreign investment, overseas vendors, exports, imports, or international customers introduce currency, sanctions, jurisdiction, and compliance complexity.", confidence:0.78, impact:13 }],
+  ip_infringement: [{ source:"SPARC", section:"Technology and brand IP", body:"Software, AI models, content, product design, or brand assets can create copyright, patent, trademark, or indemnity exposure in customer contracts.", confidence:0.72, impact:12 }],
+  key_person: [{ source:"Profile", section:"Founder and leadership concentration", body:"Early-stage companies often depend on a small set of founders or technical leaders. Loss or exit of a key person can materially impair continuity.", confidence:0.76, impact:13 }],
+};
+
+window.UW_NOTES = window.UW_NOTES || {
+  liability: "Confirm contractual liability caps, indemnity clauses, retroactive date, and whether CGL / PI wording responds to customer disputes.",
+  regulatory_compliance: "Regulatory defence costs should be explicit; standard liability wording may exclude regulator-led investigations.",
+  reputation: "Consider crisis management and PR cost endorsement where brand trust or enterprise sales cycles are material.",
+  policy_velocity: "Use a mid-year review clause for sectors where RBI, MeitY, DGCA, DPDP, FSSAI, or labour rules are actively changing.",
+  esg_climate: "Check ESG liability, BRSR dependency, physical climate peril endorsements, and director exposure for ESG misstatement.",
+  cyber_technical: "Cyber Liability should include incident response, forensics, notification costs, ransomware response, business interruption, and regulatory defence.",
+  data_privacy: "DPDP breach notification costs, data fiduciary defence, and processor/sub-processor obligations should be explicit in wording.",
+  governance_fraud: "D&O and Crime/Fidelity should be reviewed where investors, finance controls, statutory audit, or customer funds are material.",
+  property: "Insure physical assets at replacement value, not book value; check flood, fire, burglary, machinery, and business interruption extensions.",
+  gig_labour: "Employers Compensation, GPA, and workplace-law defence should explicitly address contractors, field teams, and platform workers.",
+  geopolitical: "Verify FEMA, export/import, foreign jurisdiction, and cross-border policy placement requirements before binding.",
+  ip_infringement: "PI / Tech E&O wording should address IP indemnity, defence costs, software infringement, and AI/content disputes.",
+  key_person: "Key Person cover should align to founder dependency, investor covenants, debt obligations, and succession readiness.",
+};
+
+function airbTier(score) {
+  const n = Number(score || 0);
+  if (n >= 90) return "CRITICAL";
+  if (n >= 60) return "HIGH";
+  if (n >= 40) return "ELEVATED";
+  return "WATCH";
+}
+
+function airbScoreFor(result, dim) {
+  const scores = result?.scores || result?.risk_scores || {};
+  const candidates = [dim.scoreName, dim.label, dim.key, dim.key.replace(/_/g, " ")];
+  for (const c of candidates) {
+    if (scores[c] != null && !Number.isNaN(Number(scores[c]))) return Math.round(Number(scores[c]));
+  }
+  return 0;
+}
+
+function computeDimScores(result) {
+  return AIRB_DIMENSIONS
+    .map(dim => ({ ...dim, score: airbScoreFor(result, dim), tier: airbTier(airbScoreFor(result, dim)) }))
+    .sort((a, b) => b.score - a.score);
+}
+window.computeDimScores = window.computeDimScores || computeDimScores;
+
+function airbProfileEvidence(result, dim) {
+  const p = result?.profile || {};
+  const evidence = [];
+  const data = Array.isArray(p.data_handled) ? p.data_handled.filter(v => !String(v).includes("None")) : [];
+  const regs = Array.isArray(p.regulatory) ? p.regulatory.filter(v => !String(v).includes("None")) : [];
+  const assets = Array.isArray(p.physical_assets) ? p.physical_assets.filter(v => !String(v).includes("None")) : [];
+  const signal = result?.signal_context;
+  if (["cyber_technical", "data_privacy"].includes(dim.key) && (data.length || p.data_sensitivity)) evidence.push({ source:"Profile", section:"Data handled", body:`${data.slice(0, 3).join(", ") || p.data_sensitivity || "Digital data"} exposure raises cyber and privacy review priority.`, confidence:0.86, impact: dim.key === "data_privacy" ? 20 : 16 });
+  if (dim.key === "regulatory_compliance" && regs.length) evidence.push({ source:"Profile", section:"Regulatory flags", body:`Declared regulatory exposure: ${regs.slice(0, 4).join(", ")}.`, confidence:0.85, impact:16 });
+  if (dim.key === "property" && assets.length) evidence.push({ source:"Profile", section:"Physical assets", body:`Declared physical exposure: ${assets.slice(0, 4).join(", ")}.`, confidence:0.82, impact:18 });
+  if (dim.key === "gig_labour" && Number(p.team_size || 0) >= 10) evidence.push({ source:"Profile", section:"Team size", body:`${p.team_size} employees creates statutory workplace and employee benefit obligations.`, confidence:0.84, impact:14 });
+  if (dim.key === "governance_fraud" && ["Series A", "Series B+"].includes(p.funding_stage)) evidence.push({ source:"Profile", section:"Funding stage", body:`${p.funding_stage} stage increases investor, board, audit, ESOP, and D&O exposure.`, confidence:0.83, impact:18 });
+  if (dim.key === "key_person" && Number(p.team_size || 0) <= 20) evidence.push({ source:"Profile", section:"Founder dependency", body:"Small team size indicates higher founder and key technical person concentration.", confidence:0.80, impact:16 });
+  if (dim.key === "liability" && (p.operations || p.customer_type || p.sector)) evidence.push({ source:"Profile", section:"Operating model", body:`${p.operations || "Operating"} ${p.sector || "startup"} profile creates third-party and contractual liability review need.`, confidence:0.80, impact:14 });
+  if (dim.key === "reputation" && signal?.headline) evidence.push({ source:"Signal", section:signal.signal || "Public signal", body:`${signal.headline} Public visibility can amplify the reputational cost of a later failure or claim.`, confidence:Number(signal.confidence || 76) / 100, impact:16 });
+  if (dim.key === "ip_infringement" && (p.ai_in_product || p.ai_tier && p.ai_tier !== "None")) evidence.push({ source:"SPARC", section:"AI / product IP", body:"AI in product can create model-bias, explainability, training-data, and IP indemnity exposure.", confidence:0.81, impact:14 });
+  return evidence;
+}
+
+function generateEvidence(result, dim) {
+  const evidence = [...airbProfileEvidence(result, dim), ...(AIRB_REG_EVIDENCE[dim.key] || [])].slice(0, 3);
+  return evidence.length ? evidence : [{ source:"SPARC", section:"Model output", body:"No strong evidence item is available yet. Upload documents or refine profile inputs to produce a more defensible underwriting trail.", confidence:0.55, impact:0 }];
+}
+window.generateEvidence = window.generateEvidence || generateEvidence;
+
+function getRegTriggers(result) {
+  const existing = result?.display_regulatory_triggers || result?.regulatory_triggers_fired || result?.regulatory_triggers || [];
+  const rows = Array.isArray(existing) ? existing.map(t => {
+    if (typeof t === "string") return { severity:"high", title:t, finding:t, action:"Confirm applicability and wording response before quote.", citation:t };
+    return {
+      severity: String(t.severity || t.level || t.priority || "high").toLowerCase(),
+      title: t.title || t.name || t.trigger || t.rule || "Regulatory trigger",
+      finding: t.finding || t.description || t.why || t.reason || t.text || "Regulatory exposure detected from the SPARC profile.",
+      action: t.action || t.next_action || t.recommendation || "Confirm compliance status, documents, and policy wording response.",
+      citation: t.citation || t.rule_citation || t.source || t.regulation || t.title || "SPARC rule",
+    };
+  }) : [];
+  if (rows.length) return rows;
+  const p = result?.profile || {};
+  const regs = Array.isArray(p.regulatory) ? p.regulatory.filter(v => !String(v).includes("None")) : [];
+  return regs.slice(0, 3).map(r => ({ severity:/rbi|sebi|irdai|dpdp|dgca/i.test(r) ? "critical" : "high", title:r, finding:`${p.startup_name || "This company"} has declared ${r} exposure in its SPARC profile.`, action:"Confirm current compliance evidence and make sure defence costs or statutory endorsements are not excluded.", citation:r }));
+}
+window.getRegTriggers = window.getRegTriggers || getRegTriggers;
+
+function airbPremiumRange(result) {
+  const bundle = result?.bundle_match || result?.bundle || {};
+  const quote = result?.bundle_only_pricing_quote || result?.pricing_engine_quote;
+  const verified = bundle.verified_premium_lakh || bundle.premium_lakh;
+  if (verified?.min != null && verified?.max != null) return `₹${verified.min}–${verified.max} L`;
+  if (quote?.display_premium_range_lakh) return `₹${quote.display_premium_range_lakh}`;
+  if (quote?.premium_range_lakh?.min != null && quote?.premium_range_lakh?.max != null) return `₹${quote.premium_range_lakh.min}–${quote.premium_range_lakh.max} L`;
+  if (quote?.gross_premium_lakh != null) return `₹${quote.gross_premium_lakh} L`;
+  if (result?.premium_summary?.min_lakh != null && result?.premium_summary?.max_lakh != null) return `₹${result.premium_summary.min_lakh}–${result.premium_summary.max_lakh} L`;
+  return "Premium estimate pending";
+}
+
+function airbInsuranceStatus(result) {
+  const docs = result?.verified_assessment?.documents_extracted || result?.documents_extracted || {};
+  if (docs.prior_policy || result?.verified_assessment?.prior_policy || result?.profile?.prior_policy) return "Prior cover detected";
+  if (result?.verified_assessment) return "Insurance status unverified";
+  return "Uninsured — greenfield";
+}
+
+function buildAIRiskBriefData(result) {
+  const p = result?.profile || {};
+  const dims = window.computeDimScores(result);
+  const top = dims.slice(0, 3);
+  const bundle = result?.bundle_match || result?.bundle || {};
+  const premium = airbPremiumRange(result);
+  const risks = top.map(d => d.label).join(" and ");
+  const evidenceDriver = [p.data_sensitivity ? `${String(p.data_sensitivity).toLowerCase()} data sensitivity` : "", Array.isArray(p.regulatory) && p.regulatory.length ? p.regulatory.filter(v => !String(v).includes("None")).slice(0, 2).join(" · ") : "", p.operations ? `${String(p.operations).toLowerCase()} operations` : ""].filter(Boolean).join(" · ") || "profile and risk model signals";
+  const prompts = result?.outreach_prompts || {};
+  const firstDraft = prompts.bundle || prompts.primary || prompts[Object.keys(prompts)[0]] || {};
+  const outreachLine = firstDraft.email_subject
+    ? ` Outreach angle: ${firstDraft.email_subject}.`
+    : "";
+  const summary = `${p.startup_name || "This company"} is a ${p.sector || "startup"}${p.funding_stage ? ` at ${p.funding_stage}` : ""}${p.team_size ? ` with ${p.team_size} employees` : ""}. SPARC assigns an overall risk score of ${Math.round(Number(result?.overall || 0))}/100 (${airbTier(result?.overall).toLowerCase()}), with primary risk concentrations in ${risks || "the top SPARC dimensions"} driven by ${evidenceDriver}. Status: ${airbInsuranceStatus(result).toLowerCase()}, with indicative annual premium of ${premium} for ${bundle.name || "the recommended bundle"}.${outreachLine}`;
+  return { result, profile:p, overall:Math.round(Number(result?.overall || 0)), tier:airbTier(result?.overall), summary, dims:dims.map(d => ({ ...d, evidence:window.generateEvidence(result, d), note:window.UW_NOTES[d.key] || "Confirm underwriting wording, exclusions, limits, and evidence before binding." })), top, bundle, premium, triggers:window.getRegTriggers(result), status:airbInsuranceStatus(result) };
+}
+
+function renderAIBriefHeader(data) {
+  return `<section class="airb-header" id="airb-ai-brief">
+    <div class="airb-header-main">
+      <div class="airb-kicker"><span>AI Risk Brief</span><b>● GENERATED</b></div>
+      <h2>${esc(data.profile.startup_name || "Selected company")}</h2>
+      <p>${esc(data.summary)}</p>
+      <div class="airb-top-pills">${data.top.map(d => `<span><b>${esc(d.code)}</b>${esc(d.label)}<strong>${d.score}</strong></span>`).join("")}</div>
+    </div>
+    <div class="airb-scoreplate"><span>Overall score</span><strong>${data.overall}<small>/100</small></strong><b class="tier-badge tier-${data.tier.toLowerCase()}">${data.tier}</b><em>${esc(data.status)}</em></div>
+  </section>`;
+}
+
+function renderEvidenceItem(item) {
+  const conf = Math.max(0, Math.min(1, Number(item.confidence || 0)));
+  return `<div class="evidence-item">
+    <div class="evidence-top"><span class="evidence-source">${esc(item.source || "SPARC")}</span><strong>${esc(item.section || "Evidence")}</strong></div>
+    <p>${esc(item.body || "")}</p>
+    <div class="evidence-metrics"><span>Confidence</span><div class="confidence-bar"><i style="width:${Math.round(conf * 100)}%"></i></div><b>${conf.toFixed(2)}</b><em>Impact +${Math.max(0, Math.round(Number(item.impact || 0)))} pts</em></div>
+  </div>`;
+}
+
+function renderDimensionCard(dim, idx) {
+  return `<details class="dim-card tier-${dim.tier.toLowerCase()}" ${idx < 3 ? "open" : ""}>
+    <summary><span class="dim-code">${esc(dim.code)}</span><span class="dim-title"><strong>${esc(dim.label)}</strong><em>${esc(dim.desc)}</em></span><span class="dim-score"><b>${dim.score}</b><small>/100</small></span><span class="tier-badge tier-${dim.tier.toLowerCase()}">${esc(dim.tier)}</span><span class="dim-chevron">▼</span><span class="dim-fill"><i style="width:${Math.min(100, dim.score)}%"></i></span></summary>
+    <div class="dim-body"><p class="dim-desc">${esc(dim.desc)}</p><div class="evidence-list">${dim.evidence.map(renderEvidenceItem).join("")}</div><div class="uw-note"><strong>UW note:</strong> ${esc(dim.note)}</div></div>
+  </details>`;
+}
+
+function airbCoverRows(data) {
+  const bundle = data.bundle || {};
+  const recs = data.result?.recommendations || [];
+  const recByKey = Object.fromEntries(recs.map(r => [String(r.key || "").toLowerCase(), r]));
+  const keys = [...(bundle.mandatory_covers || []), ...(bundle.optional_covers || [])].filter(Boolean);
+  const rows = keys.length ? keys : recs.slice(0, 4).map(r => r.key || r.name).filter(Boolean);
+  return rows.slice(0, 6).map(k => {
+    const key = String(k || "").toLowerCase();
+    const rec = recByKey[key] || recs.find(r => String(r.name || "").toLowerCase() === key) || {};
+    const name = rec.name || labelize(String(k || "Cover").replace(/_/g, " "));
+    const why = getCoverWhy(key, rec.nudge || rec.why || rec.reason) || rec.nudge || rec.why || "Fires because this cover maps to one or more elevated SPARC dimensions.";
+    const prem = rec.premium ? `₹${Number(rec.premium.min_lakh || 0).toFixed(1)}–${Number(rec.premium.max_lakh || 0).toFixed(1)} L` : (rec.verified_premium_lakh ? `₹${rec.verified_premium_lakh.min}–${rec.verified_premium_lakh.max} L` : "Pending");
+    return { name, why, premium:prem };
+  });
+}
+
+function renderAIBundleCard(data) {
+  const bundle = data.bundle || {};
+  const rows = airbCoverRows(data);
+  const fit = bundle.fit_pct || bundle.coverage_fit || bundle.match_fit;
+  return `<section class="si-card" id="airb-bundle">
+    <div class="airb-section-head"><div><span>Recommended Bundle</span><h3>${esc(bundle.name || "Recommended bundle")}</h3></div><b>${fit ? `${esc(String(fit))}% fit` : "Fit pending"}</b></div>
+    <div class="airb-cover-table">
+      <div class="airb-cover-row airb-cover-head"><span>Cover</span><span>Why it fires</span><span>Indicative premium</span></div>
+      ${rows.length ? rows.map(r => `<div class="airb-cover-row"><strong>${esc(r.name)}</strong><span>${esc(r.why)}</span><b>${esc(r.premium)}</b></div>`).join("") : `<div class="airb-empty">No cover breakdown available for this bundle yet.</div>`}
+      <div class="airb-cover-row airb-cover-total"><strong>Est. annual premium range</strong><span></span><b>${esc(data.premium)}</b></div>
+    </div>
+    <p class="airb-disclaimer">Indicative only under IRDAI File-and-Use detariffed regime. Not a bindable quote. Subject to underwriting confirmation, filed wordings, exclusions, and document verification.</p>
+  </section>`;
+}
+
+function renderAIRegTriggers(data) {
+  const triggers = data.triggers || [];
+  const crit = triggers.filter(t => /critical/i.test(t.severity)).length;
+  const high = triggers.filter(t => /high/i.test(t.severity)).length;
+  return `<section class="rt-card" id="airb-reg-triggers">
+    <div class="airb-section-head"><div><span>RT</span><h3>Regulatory Triggers</h3></div><b>${crit} critical · ${high} high · ${triggers.length} total</b></div>
+    <div class="rt-list">${triggers.length ? triggers.slice(0, 6).map(t => `<div class="rt-trigger-row rt-${esc(String(t.severity || "high").toLowerCase())}"><div class="rt-severity"><i></i><span>${esc(t.severity || "high")}</span></div><div class="rt-main"><strong>${esc(t.title || "Regulatory trigger")}</strong><p>${esc(t.finding || "")}</p><em>Action → ${esc(t.action || "Confirm documents and coverage response.")}</em><b>${esc(t.citation || "SPARC rule")}</b></div></div>`).join("") : `<div class="airb-empty">No major regulatory triggers were detected for this profile.</div>`}</div>
+  </section>`;
+}
+
+function renderAIRiskBriefGenerated(result) {
+  const data = buildAIRiskBriefData(result);
+  return `<section class="ai-risk-brief">
+    <div class="airb-layout">
+      <nav class="airb-rail" aria-label="AI Risk Brief navigation">
+        <button type="button" data-airb-target="airb-ai-brief">AI Brief</button>
+        <button type="button" data-airb-target="airb-bundle">Bundle</button>
+        <button type="button" data-airb-target="airb-reg-triggers">Reg. Triggers</button>
+        <button type="button" data-airb-target="airb-comparables">Comparables</button>
+      </nav>
+      <div class="airb-main">
+        ${renderAIBriefHeader(data)}
+        <section class="airb-dimensions" aria-label="SPARC dimension evidence">${data.dims.map(renderDimensionCard).join("")}</section>
+        ${renderAIBundleCard(data)}
+        ${renderAIRegTriggers(data)}
+      </div>
+    </div>
+  </section>`;
+}
+
+function renderAIRiskBrief(result) {
+  if (result?.outreach_prompts) return renderAIRiskBriefGenerated(result);
+  return `<section class="ai-risk-brief airb-lazy-card" id="airb-lazy-root">
+    <div class="airb-lazy-mark">AI</div>
+    <div class="airb-lazy-copy">
+      <span>Lazy outreach-based brief</span>
+      <strong>Generate AI Risk Brief when the RM needs it.</strong>
+      <p>This keeps Analyse fast and uses the same lazy outreach pipeline. No Gemini tokens are used until this button is clicked.</p>
+    </div>
+    <button class="btn btn-primary" type="button" onclick="generateAIRiskBriefLazy()">Generate AI Risk Brief</button>
+  </section>`;
+}
+
+async function generateAIRiskBriefLazy() {
+  const root = document.getElementById("airb-lazy-root");
+  const result = window.__result;
+  if (!root || !result) return;
+  root.classList.add("airb-lazy-loading");
+  root.innerHTML = `<div class="airb-lazy-mark">AI</div><div class="airb-lazy-copy"><span>Generating</span><strong>Building outreach-backed risk brief…</strong><p>Using SPARC scores, bundle fit, regulatory triggers, and lazy outreach context.</p></div>`;
+  try {
+    if (!result.outreach_prompts) {
+      const res = await fetch("/api/outreach", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          profile: result.profile,
+          scores: result.scores,
+          recommendations: result.recommendations,
+          bundle_match: result.bundle_match,
+          display_regulatory_triggers: result.display_regulatory_triggers,
+          regulatory_triggers_fired: result.regulatory_triggers_fired,
+          signal_context: result.signal_context || {},
+        }),
+      });
+      if (!res.ok) throw new Error(`API ${res.status}`);
+      const data = await res.json();
+      result.outreach_prompts = data.outreach_prompts || result.outreach_fallback || {};
+      result.outreach_source = data.outreach_source || "fallback";
+      result.outreach_error = data.outreach_error || null;
+      result.objection_handlers = data.objection_handlers || result.objection_handlers || [];
+    }
+    root.outerHTML = renderAIRiskBriefGenerated(result);
+    bindAIRiskBriefNav();
+  } catch (err) {
+    result.outreach_prompts = result.outreach_fallback || {};
+    root.outerHTML = renderAIRiskBriefGenerated(result);
+    bindAIRiskBriefNav();
+  }
+}
+window.generateAIRiskBriefLazy = generateAIRiskBriefLazy;
+
+function bindAIRiskBriefNav() {
+  document.querySelectorAll("[data-airb-target]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const target = document.getElementById(btn.dataset.airbTarget || "");
+      if (!target) return;
+      document.querySelectorAll("[data-airb-target]").forEach(b => b.classList.toggle("active", b === btn));
+      const top = target.getBoundingClientRect().top + window.scrollY - 78;
+      window.scrollTo({ top, behavior:"smooth" });
+    });
+  });
+  const first = document.querySelector("[data-airb-target]");
+  if (first) first.classList.add("active");
+}
+
 async function recalcFromAdvanced() {
   const btn = document.getElementById("adv-recalc-btn");
   if (btn) { btn.textContent = "Recalculating…"; btn.disabled = true; }
@@ -6239,6 +6875,374 @@ function _bindSignalOutreachButtons(container, sigCtx, outreachPrompts) {
       openSignalOutreachEmail(sigCtx, item);
     });
   });
+}
+
+function _rmVal(v, fallback = "Not available") {
+  if (v === null || v === undefined || v === "") return fallback;
+  if (Array.isArray(v)) return v.length ? v.join(", ") : fallback;
+  return String(v);
+}
+
+function _rmMoneyRangeFromQuote(q) {
+  if (!q) return "";
+  if (q.display_premium_range_lakh?.min != null && q.display_premium_range_lakh?.max != null) {
+    return `INR ${q.display_premium_range_lakh.min}-${q.display_premium_range_lakh.max}L`;
+  }
+  if (q.gross_premium_lakh != null) return `INR ${q.gross_premium_lakh}L`;
+  if (q.display_premium_lakh != null) return `INR ${q.display_premium_lakh}L`;
+  if (q.min_lakh != null && q.max_lakh != null) return `INR ${q.min_lakh}-${q.max_lakh}L`;
+  if (q.min != null && q.max != null) return `INR ${q.min}-${q.max}L`;
+  if (q.verified_premium_lakh?.min != null && q.verified_premium_lakh?.max != null) {
+    return `INR ${q.verified_premium_lakh.min}-${q.verified_premium_lakh.max}L`;
+  }
+  return "";
+}
+
+function _rmBundlePremium(bundle) {
+  const p = bundle?.verified_premium_lakh || bundle?.premium_lakh || bundle?.base_premium_lakh;
+  if (p?.min != null && p?.max != null) return `INR ${p.min}-${p.max}L`;
+  return "";
+}
+
+function _rmScoreEntries(result) {
+  const scores = result?.scores || result?.risk_scores || {};
+  const labels = {
+    cyber_technical: "Cyber",
+    data_privacy: "Data privacy",
+    liability: "Liability",
+    governance_fraud: "Governance",
+    regulatory_compliance: "Regulatory",
+    key_person: "Key person",
+    property: "Property",
+    ip_infringement: "IP",
+    gig_labour: "Labour",
+    esg_climate: "ESG / climate",
+    geopolitical: "Geopolitical",
+    policy_velocity: "Policy velocity",
+    reputation: "Reputation",
+  };
+  return Object.entries(scores)
+    .map(([key, value]) => ({ key, label: labels[key] || labelize(key), value: Number(value) || 0 }))
+    .filter(x => Number.isFinite(x.value))
+    .sort((a, b) => b.value - a.value);
+}
+
+function deriveWhyNowWithoutSignal(result) {
+  const p = result?.profile || {};
+  const bundle = result?.bundle_match || result?.bundle || {};
+  const verified = result?.verified_assessment || result?.verified || {};
+  const quote = result?.bundle_only_pricing_quote || result?.pricing_engine_quote;
+  const scores = _rmScoreEntries(result);
+  const reasons = [];
+  const stage = String(p.funding_stage || "").toLowerCase();
+  const investorBacked = /series|growth|ipo/.test(stage) || String(p.has_investors || "").toLowerCase() === "yes";
+  const revenue = Number(p.annual_revenue_cr || p.revenue_cr || 0);
+  const team = Number(p.team_size || 0);
+  const data = [
+    ...(Array.isArray(p.data_handled) ? p.data_handled : []),
+    p.data_sensitivity,
+    p.data_sensitivity_level,
+  ].filter(Boolean).join(" ").toLowerCase();
+  const assets = Array.isArray(p.physical_assets) ? p.physical_assets.filter(Boolean) : [];
+  const regs = Array.isArray(p.regulatory) ? p.regulatory.filter(Boolean) : [];
+
+  if (result?.signal_context?.signal) {
+    reasons.push(`Optional public trigger: ${result.signal_context.signal}. Use it only as supporting context, not as the basis for the sales sheet.`);
+  }
+  if (investorBacked) reasons.push("Investor-backed stage increases governance, board, D&O, and cyber diligence relevance.");
+  if (revenue >= 25) reasons.push(`Revenue scale of INR ${revenue} Cr makes uninsured interruption, liability, or cyber loss more material.`);
+  if (team >= 50) reasons.push(`Team size of ${team} creates employee benefit, workplace injury, and HR liability exposure.`);
+  if (scores.some(s => ["cyber_technical", "data_privacy"].includes(s.key) && s.value >= 60) || /data|payment|kyc|aadhaar|health|customer/.test(data)) {
+    reasons.push("Digital operations and customer data make cyber and privacy cover a timely discussion.");
+  }
+  if (assets.length) reasons.push(`Physical operations (${assets.slice(0, 3).join(", ")}) create property, public liability, and business interruption exposure.`);
+  if (regs.length) reasons.push(`Regulatory flags (${regs.slice(0, 3).join(", ")}) increase the value of a documented compliance and liability conversation.`);
+  if (verified?.confidence_band || verified?.ratios || verified?.sum_insured_per_cover) {
+    reasons.push("Uploaded or verified documents make the risk and premium conversation more defensible than a stage-proxy estimate.");
+  }
+  if (_rmMoneyRangeFromQuote(quote) || _rmBundlePremium(bundle)) reasons.push("Premium estimate is available, so the RM can move from education to quote discussion.");
+  if (bundle?.name) reasons.push(`${bundle.name} is already selected as the lead bundle, giving the RM a clear opening recommendation.`);
+
+  return reasons.slice(0, 6);
+}
+
+function deriveTopRiskTalkingPoints(result) {
+  const p = result?.profile || {};
+  const scores = _rmScoreEntries(result);
+  const verified = result?.verified_assessment || result?.verified || {};
+  const points = [];
+  const dataText = [
+    ...(Array.isArray(p.data_handled) ? p.data_handled : []),
+    p.data_sensitivity,
+  ].filter(Boolean).join(", ");
+  const assets = Array.isArray(p.physical_assets) ? p.physical_assets.filter(Boolean) : [];
+  const regs = Array.isArray(p.regulatory) ? p.regulatory.filter(Boolean) : [];
+
+  scores.slice(0, 5).forEach(s => {
+    if (s.key === "cyber_technical") points.push({ risk: "Cyber", evidence: `Cyber score ${Math.round(s.value)}/100${dataText ? ` with ${dataText}` : ""}.`, implication: "Review Cyber Liability, breach response, and security-control requirements." });
+    else if (s.key === "data_privacy") points.push({ risk: "Data privacy", evidence: `Privacy score ${Math.round(s.value)}/100${dataText ? ` and data handled: ${dataText}` : ""}.`, implication: "Discuss DPDP exposure and cyber/privacy sub-limits." });
+    else if (s.key === "liability") points.push({ risk: "Liability", evidence: `Liability score ${Math.round(s.value)}/100 from operating model and customer exposure.`, implication: "Lead into CGL, public liability, product liability, or PI depending on customer contracts." });
+    else if (s.key === "governance_fraud") points.push({ risk: "Governance", evidence: `Governance score ${Math.round(s.value)}/100${p.has_investors ? ` with investor status: ${p.has_investors}` : ""}.`, implication: "Discuss D&O and board-level protection." });
+    else if (s.key === "property") points.push({ risk: "Property", evidence: assets.length ? `Physical assets declared: ${assets.slice(0, 3).join(", ")}.` : `Property score ${Math.round(s.value)}/100.`, implication: "Review property, fire, burglary, IAR, and business interruption adequacy." });
+    else if (s.key === "gig_labour") points.push({ risk: "Workforce", evidence: `Labour score ${Math.round(s.value)}/100 and team size ${p.team_size || "not available"}.`, implication: "Discuss Group Health, Group PA, and Employees Compensation." });
+    else if (s.key === "regulatory_compliance") points.push({ risk: "Regulatory", evidence: regs.length ? `Regulatory flags: ${regs.slice(0, 3).join(", ")}.` : `Regulatory score ${Math.round(s.value)}/100.`, implication: "Position D&O, PI, cyber, and compliance-linked liability protection." });
+  });
+
+  (verified.modifier_reasons || []).slice(0, 2).forEach(m => {
+    points.push({
+      risk: labelize(m.dim || "Document finding"),
+      evidence: m.explanation || "Document-driven modifier applied.",
+      implication: "Use the uploaded document evidence to support cover-limit and loading discussion.",
+    });
+  });
+
+  if (!points.length) {
+    points.push(
+      { risk: "Bundle fit", evidence: "SPARC has completed the 13-dimension risk model.", implication: "Use the recommended bundle as the first structured insurance conversation." },
+      { risk: "Coverage adequacy", evidence: "Profile, sector, stage, and operations are available.", implication: "Validate current policy limits, exclusions, and renewal timing." },
+    );
+  }
+  return points.slice(0, 5);
+}
+
+function buildRMSalesSheetData(result) {
+  const p = result?.profile || {};
+  const bundle = result?.bundle_match || result?.bundle || {};
+  const verified = result?.verified_assessment || result?.verified || {};
+  const recommendations = result?.recommendations || result?.global_products || result?.additional_products || [];
+  const bundleCovers = [
+    ...(bundle.mandatory_covers || []),
+    ...(bundle.optional_covers || []),
+  ].slice(0, 5).map(labelize);
+  const topProducts = recommendations.slice(0, 5).map(r => ({
+    name: r.name || r.il_product_name || labelize(r.key || ""),
+    fit: r.fit_pct || r.coverage_fit || r.score || "",
+    premium: _rmMoneyRangeFromQuote(r.verified_premium || r.premium || r),
+  }));
+  const quote = result?.bundle_only_pricing_quote || result?.pricing_engine_quote;
+  const premium = _rmMoneyRangeFromQuote(quote) || _rmBundlePremium(bundle) || "Premium estimate pending";
+  const verifiedBand = verified.confidence_band?.label || verified.confidence_band?.band || verified.confidence_level || quote?.quote_confidence || "";
+  const docs = [
+    ...(Object.keys(result?.documents_extracted || {})),
+    ...(Object.keys(verified.documents_extracted || {})),
+    ...(verified.score_breakdown?.documents_extracted_keys || []),
+  ].filter(Boolean);
+  const uniqueDocs = [...new Set(docs)].slice(0, 8);
+  const whyNow = deriveWhyNowWithoutSignal(result);
+  const talkingPoints = deriveTopRiskTalkingPoints(result);
+  const openingRisks = talkingPoints.slice(0, 3).map(x => x.risk.toLowerCase()).join(", ") || "risk transfer";
+  const bundleName = bundle.name || "recommended ICICI Lombard bundle";
+  const nextAction = premium === "Premium estimate pending"
+    ? "Generate quote before the client discussion."
+    : uniqueDocs.length < 3
+      ? "Request missing documents to narrow the premium band."
+      : verified?.confidence_band
+        ? "Prepare proposal and book a risk review."
+        : "Send first outreach and book a 20-minute risk review.";
+  const missingDocs = ["Prior policy schedule", "Client contract", "MCA filings", "VAPT report", "Asset register", "GST returns"]
+    .filter(d => !uniqueDocs.join(" ").toLowerCase().includes(d.split(" ")[0].toLowerCase()))
+    .slice(0, 4);
+  const followDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+
+  const meetingScript = `Thanks for taking the time. SPARC reviewed ${p.startup_name || "your company"}'s profile, risk scores, and available insurance/pricing data. The reason I wanted to speak is that your current stage, operating model, and risk profile indicate exposure around ${openingRisks}. I would like to quickly check whether your current cover limits, exclusions, and renewal plan still match where the business is today.`;
+  const questions = {
+    "Business growth": [
+      "What has changed most in the business over the last 6-12 months?",
+      "Are you expecting new geographies, enterprise customers, exports, or physical locations this year?",
+    ],
+    "Existing insurance": [
+      "Which policies are currently active, and when is the next renewal?",
+      "Have any limits, deductibles, exclusions, or warranties become uncomfortable as the business scaled?",
+    ],
+    "Cyber/data": [
+      "What customer, payment, KYC, health, or employee data do you store or process?",
+      "Do customers ask for cyber, PI, D&O, or indemnity limits in contracts?",
+    ],
+    "Assets/operations": [
+      "Which assets, inventory, equipment, or locations would hurt revenue if unavailable for a week?",
+      "Do you use warehouses, field teams, contractors, vehicles, or third-party logistics partners?",
+    ],
+  };
+  const objections = [
+    ["We already have insurance", "Understood. The point is not to replace blindly. The useful step is to check whether current limits, exclusions, and add-ons still match the business profile SPARC is seeing now."],
+    ["No budget", "Fair. We can first identify the highest-severity uncovered exposures and phase the rest. The immediate goal is clarity, not forcing every cover at once."],
+    ["Send details", "Absolutely. I will share a short risk summary with the recommended bundle, premium indication, and documents needed to tighten the quote."],
+    ["We are too small", "That is exactly why limits and deductibles should be right-sized. The discussion is about avoiding one uninsured event that is disproportionate to the current balance sheet."],
+    ["Talk after renewal", "Makes sense. Before renewal, it helps to know whether the current policy wording and limits are still adequate, so renewal does not become a rushed decision."],
+    ["Need CFO/founder approval", "I can prepare a one-page summary focused on exposure, premium range, and decision points so the CFO/founder can evaluate quickly."],
+  ];
+
+  return {
+    snapshot: {
+      company: p.startup_name || "Not available",
+      sector: p.sector || "Not available",
+      stage: p.funding_stage || "Not available",
+      team: p.team_size || "Not available",
+      revenue: p.annual_revenue_cr ? `INR ${p.annual_revenue_cr} Cr` : "Not available",
+      operations: p.operations || p.operating_model || "Not available",
+      data: p.data_sensitivity || (Array.isArray(p.data_handled) ? p.data_handled.slice(0, 3).join(", ") : "Not available"),
+      docs: uniqueDocs.length ? uniqueDocs.map(labelize).join(", ") : "Not available",
+      confidence: verifiedBand || "Not available",
+    },
+    whyNow,
+    talkingPoints,
+    bundle: {
+      name: bundleName,
+      fit: bundle.fit_pct || bundle.coverage_fit || bundle.match_fit || "",
+      covers: bundleCovers,
+      reason: bundle.description || bundle.score_rationale?.coverage || `Lead with ${bundleName} because it gives the RM a structured board-level risk conversation.`,
+      products: topProducts,
+    },
+    premium,
+    confidence: verifiedBand || "Not available",
+    missingDocs,
+    meetingScript,
+    questions,
+    objections,
+    nextAction,
+    followDate,
+  };
+}
+
+function _rmSalesSheetText(data) {
+  const lines = [];
+  lines.push("RM SALES SHEET");
+  lines.push("");
+  lines.push(`Company: ${data.snapshot.company}`);
+  lines.push(`Sector: ${data.snapshot.sector}`);
+  lines.push(`Stage: ${data.snapshot.stage}`);
+  lines.push(`Team: ${data.snapshot.team}`);
+  lines.push(`Revenue: ${data.snapshot.revenue}`);
+  lines.push("");
+  lines.push("WHY THIS ACCOUNT NOW");
+  data.whyNow.forEach(x => lines.push(`- ${x}`));
+  lines.push("");
+  lines.push("TOP RISK TALKING POINTS");
+  data.talkingPoints.forEach(x => lines.push(`- ${x.risk}: ${x.evidence} Insurance angle: ${x.implication}`));
+  lines.push("");
+  lines.push("RECOMMENDED INSURANCE ANGLE");
+  lines.push(`${data.bundle.name}${data.bundle.fit ? ` (${data.bundle.fit}% fit)` : ""}`);
+  lines.push(`Covers: ${data.bundle.covers.join(", ") || "Not available"}`);
+  lines.push(data.bundle.reason);
+  lines.push("");
+  lines.push("PREMIUM OPPORTUNITY");
+  lines.push(`${data.premium}. Confidence: ${data.confidence}. Indicative only. Not a bindable quote.`);
+  lines.push(`Documents to request: ${data.missingDocs.join(", ") || "None"}`);
+  lines.push("");
+  lines.push("MEETING OPENING SCRIPT");
+  lines.push(data.meetingScript);
+  lines.push("");
+  lines.push("DISCOVERY QUESTIONS");
+  Object.entries(data.questions).forEach(([group, qs]) => {
+    lines.push(group);
+    qs.forEach(q => lines.push(`- ${q}`));
+  });
+  lines.push("");
+  lines.push("OBJECTION HANDLING");
+  data.objections.forEach(([o, r]) => lines.push(`- ${o}: ${r}`));
+  lines.push("");
+  lines.push(`NEXT ACTION: ${data.nextAction}`);
+  lines.push(`Follow-up date: ${data.followDate}`);
+  return lines.join("\n");
+}
+
+function renderRMSalesSheetModal(data) {
+  return `
+    <div class="rmss-overlay" id="rmss-overlay" role="dialog" aria-modal="true" aria-labelledby="rmss-title">
+      <div class="rmss-backdrop" data-rmss-close="1"></div>
+      <section class="rmss-modal">
+        <header class="rmss-head">
+          <div>
+            <div class="rmss-kicker">ICICI Lombard RM brief</div>
+            <h2 id="rmss-title">RM Sales Sheet</h2>
+            <p>${esc(data.snapshot.company)} | ${esc(data.snapshot.sector)} | ${esc(data.snapshot.stage)}</p>
+          </div>
+          <button class="rmss-close" type="button" data-rmss-close="1" aria-label="Close">×</button>
+        </header>
+        <div class="rmss-actions">
+          <button class="btn btn-primary" type="button" data-rmss-copy="full">Copy sales sheet</button>
+          <button class="btn btn-ghost" type="button" data-rmss-copy="script">Copy meeting script</button>
+          <button class="btn btn-ghost" type="button" data-rmss-copy="questions">Copy discovery questions</button>
+          <button class="btn btn-ghost" type="button" data-rmss-print="1">Print / Save PDF</button>
+        </div>
+        <div class="rmss-body" id="rmss-print-area">
+          <section class="rmss-section rmss-snapshot">
+            <h3>Account Snapshot</h3>
+            <div class="rmss-grid">
+              ${Object.entries(data.snapshot).map(([k, v]) => `<div><span>${esc(labelize(k))}</span><strong>${esc(v)}</strong></div>`).join("")}
+            </div>
+          </section>
+          <section class="rmss-section">
+            <h3>Why This Account Now</h3>
+            <ul>${data.whyNow.map(x => `<li>${esc(x)}</li>`).join("") || "<li>SPARC has enough profile data to start a structured insurance review.</li>"}</ul>
+          </section>
+          <section class="rmss-section">
+            <h3>Top Risk Talking Points</h3>
+            <div class="rmss-risk-list">
+              ${data.talkingPoints.map(x => `<article><strong>${esc(x.risk)}</strong><p>${esc(x.evidence)}</p><em>${esc(x.implication)}</em></article>`).join("")}
+            </div>
+          </section>
+          <section class="rmss-section">
+            <h3>Recommended Insurance Angle</h3>
+            <div class="rmss-bundle">
+              <div><span>Lead bundle</span><strong>${esc(data.bundle.name)}${data.bundle.fit ? ` (${esc(data.bundle.fit)}% fit)` : ""}</strong></div>
+              <p>${esc(data.bundle.reason)}</p>
+              <div class="rmss-chips">${data.bundle.covers.map(c => `<span>${esc(c)}</span>`).join("")}</div>
+            </div>
+            ${data.bundle.products.length ? `<div class="rmss-products">${data.bundle.products.map(p => `<div><strong>${esc(p.name)}</strong><span>${p.fit ? `${esc(p.fit)}% fit` : "Recommended"}${p.premium ? ` | ${esc(p.premium)}` : ""}</span></div>`).join("")}</div>` : ""}
+          </section>
+          <section class="rmss-section">
+            <h3>Premium Opportunity</h3>
+            <div class="rmss-premium"><strong>${esc(data.premium)}</strong><span>Confidence: ${esc(data.confidence)}. Indicative only. Not a bindable quote.</span></div>
+            <p class="rmss-muted">Documents to request: ${esc(data.missingDocs.join(", ") || "None")}</p>
+          </section>
+          <section class="rmss-section">
+            <h3>Meeting Opening Script</h3>
+            <p class="rmss-script">${esc(data.meetingScript)}</p>
+          </section>
+          <section class="rmss-section">
+            <h3>Discovery Questions</h3>
+            <div class="rmss-question-grid">${Object.entries(data.questions).map(([g, qs]) => `<div><strong>${esc(g)}</strong>${qs.map(q => `<p>${esc(q)}</p>`).join("")}</div>`).join("")}</div>
+          </section>
+          <section class="rmss-section">
+            <h3>Objection Handling</h3>
+            <div class="rmss-objections">${data.objections.map(([o, r]) => `<div><strong>${esc(o)}</strong><p>${esc(r)}</p></div>`).join("")}</div>
+          </section>
+          <section class="rmss-section rmss-next">
+            <h3>Next Best Action</h3>
+            <strong>${esc(data.nextAction)}</strong>
+            <span>Suggested follow-up: ${esc(data.followDate)}</span>
+          </section>
+        </div>
+      </section>
+    </div>`;
+}
+
+function openRMSalesSheet(result = window.__result || {}) {
+  document.getElementById("rmss-overlay")?.remove();
+  const data = buildRMSalesSheetData(result || {});
+  const wrap = document.createElement("div");
+  wrap.innerHTML = renderRMSalesSheetModal(data);
+  document.body.appendChild(wrap.firstElementChild);
+  document.body.classList.add("rmss-open");
+  const close = () => {
+    document.getElementById("rmss-overlay")?.remove();
+    document.body.classList.remove("rmss-open");
+  };
+  document.querySelectorAll("[data-rmss-close]").forEach(el => el.addEventListener("click", close));
+  document.querySelectorAll("[data-rmss-copy]").forEach(btn => btn.addEventListener("click", async () => {
+    const mode = btn.dataset.rmssCopy;
+    let text = _rmSalesSheetText(data);
+    if (mode === "script") text = data.meetingScript;
+    if (mode === "questions") {
+      text = Object.entries(data.questions).map(([g, qs]) => `${g}\n${qs.map(q => `- ${q}`).join("\n")}`).join("\n\n");
+    }
+    await navigator.clipboard?.writeText(text);
+    const old = btn.textContent;
+    btn.textContent = "Copied";
+    setTimeout(() => btn.textContent = old, 1400);
+  }));
+  document.querySelector("[data-rmss-print]")?.addEventListener("click", () => window.print());
 }
 
 async function loadOutreachTab(result) {
@@ -7776,6 +8780,7 @@ function renderProductCards(recs, mapping, why = {}) {
         </div>
         <div class="product-card-il"><strong>ICICI Lombard:</strong> ${esc(p.il_product||"")}</div>
         <div class="product-card-nudge">${esc(getProductWhy(p, why) || p.nudge || "")}</div>
+        ${renderIntelActionButtons(p.key || p.name || p.il_product || "")}
         ${p.premium ? `
           <div class="product-premium">
             <div class="product-premium-amount">INR ${p.premium.min_lakh.toFixed(1)} - ${p.premium.max_lakh.toFixed(1)}L</div>
@@ -8308,6 +9313,7 @@ function renderBundleHero(bundle, recs, why = {}) {
           <div class="bundle-hero-eyebrow">${eyebrow}</div>
           <div class="bundle-hero-name">${esc(bundle.name)}</div>
           <div class="bundle-hero-il">${esc(bundle.il_product_name || "")}</div>
+          ${renderIntelActionButtons(bundle.key || bundle.name || "")}
           <div class="bundle-hero-badges">
             <span class="bundle-badge-crit">${esc(bundle.criticality || "High")} Priority</span>
             <span class="bundle-badge ${isOfficial ? "real" : "curated"}">${isOfficial ? "Official IL Product" : "Curated Cover Set"}</span>
@@ -8335,6 +9341,7 @@ function renderBundleHero(bundle, recs, why = {}) {
             <div>
               <div class="bundle-companion-name">${esc(companion.name)}</div>
               <div class="bundle-companion-desc">${esc(why?.companion_bundle || bundle.companion_note || "Group Safeguard handles workforce benefits; this second package addresses the startup's sector and operating risks.")}</div>
+              ${renderIntelActionButtons(companion.key || companion.name || "")}
             </div>
             <div class="bundle-companion-fit">${companion.fit_pct || 0}% fit</div>
           </div>
@@ -8347,6 +9354,7 @@ function renderBundleHero(bundle, recs, why = {}) {
                 <div>
                   <div class="bundle-cover-name">${esc(labelize(key))}</div>
                   <div class="bundle-cover-blurb">${esc(getCoverWhy(key, why, "companion_covers"))}</div>
+                  ${renderLiabilityIntelActions(key)}
                 </div>
               </div>`;
             }).join("")}
@@ -8370,6 +9378,7 @@ function renderBundleHero(bundle, recs, why = {}) {
                 <div>
                   <div class="bundle-cover-name">${esc(labelize(key))}</div>
                   <div class="coverage-type">${type === "optional" ? "Optional add-on" : "Mandatory cover"}</div>
+                  ${renderIntelActionButtons(key)}
                 </div>
               </div>
               <div class="coverage-exposure">${esc(coverExposureLabel(key))}</div>
@@ -8392,14 +9401,15 @@ function renderBundleAlternatives(bundles) {
       <div class="expander-body">
         <div class="products-grid-2col">
           ${bundles.map(b => `
-            <div class="product-card">
+              <div class="product-card">
               <div class="product-card-flag">${statusLabel(b)} · Rank ${b.rank}</div>
               <div class="product-card-name">${esc(b.name)} <span class="product-tag score">${b.fit_pct || 0}% fit</span></div>
               <div class="product-card-desc">${esc(b.description || "")}</div>
               <div class="product-card-il">${esc(b.il_product_name || "")}</div>
               <div class="cover-pills" style="margin-top:8px;">
-                ${(b.mandatory_covers || []).slice(0, 4).map(c => `<span class="cover-pill">${esc(labelize(c))}</span>`).join("")}
+                ${(b.mandatory_covers || []).slice(0, 4).map(c => `<span class="cover-pill">${esc(labelize(c))}</span>${renderIntelActionButtons(c)}`).join("")}
               </div>
+              ${renderIntelActionButtons(b.key || b.name || "")}
             </div>`).join("")}
         </div>
       </div>
@@ -8411,6 +9421,3559 @@ function pct(v) {
   const n = Number(v);
   if (!Number.isFinite(n)) return esc(v);
   return `${Math.round(n * 100)}%`;
+}
+
+const LIABILITY_INTEL = {
+  cyber_liability: {
+    label: "Cyber Liability",
+    summary: "Best for data-heavy, API-first, and customer-facing businesses where breach response, outage, and regulatory notification can become the first claim, not the last.",
+    tone: "blue",
+    pressure: 92,
+    claim_frequency: 78,
+    claim_severity: 92,
+    rm: {
+      headline: "Lead with breach response, continuity, and trust preservation.",
+      loss_ratio_view: "High loss-ratio pressure because one event can trigger forensics, notification, legal defence, and outage costs at once.",
+      bullets: [
+        "Use when the account handles customer data, payments, health data, or relies on always-on digital operations.",
+        "The commercial hook is fast response funding: forensics, legal counsel, notification, and restoration without disrupting cash flow.",
+        "Cross-sell naturally into DPDP-driven data privacy cover logic, PI / Tech E&O, and Crime / Fidelity if controls are weak.",
+      ],
+      proof_points: ["Handles PII / PHI", "CERT-In reporting clock", "Ransomware / outage response", "Business interruption risk"],
+      watch_for: ["MFA", "EDR / endpoint controls", "Backup and RTO discipline", "Vendor access and incident process"],
+      cross_sell: ["PI / Tech E&O", "Crime / Fidelity", "D&O"],
+    },
+    uw: {
+      headline: "Check controls, response readiness, and sub-limit adequacy before quoting.",
+      loss_ratio_view: "Severity is high because breach response is immediate and expensive, and recurring incidents compound retention pressure.",
+      bullets: [
+        "Verify security controls, data inventory, vendor access, and incident response ownership.",
+        "Confirm that breach notification, forensic, ransomware, and regulatory defence costs are covered explicitly.",
+        "Watch the wording around social engineering, outsourcing, and any first-party business interruption trigger.",
+      ],
+      proof_points: ["Incident response plan", "MFA / EDR evidence", "Backup and recovery tests", "Breach notification workflow"],
+      watch_for: ["Low control maturity", "No tested backup recovery", "Undefined data flows", "Unclear notification obligations"],
+      levers: ["Higher retentions", "Specific sub-limits", "Security warranties", "Network / data exclusions if needed"],
+    },
+  },
+  dno_liability: {
+    label: "Directors & Officers",
+    summary: "Board accountability cover for investor disputes, regulatory scrutiny, governance claims, and securities-style allegations.",
+    tone: "violet",
+    pressure: 84,
+    claim_frequency: 46,
+    claim_severity: 95,
+    rm: {
+      headline: "Use this when the company is funded, regulated, or making material governance decisions.",
+      loss_ratio_view: "Lower frequency than cyber, but severity is very high because one claim can involve multiple directors and a long defence cycle.",
+      bullets: [
+        "Strongest fit once investors, creditors, regulators, or board governance become material.",
+        "The RM message is personal asset protection and defence-cost funding from day one.",
+        "Pairs well with funding rounds, new board seats, debt, or any disclosure-sensitive environment.",
+      ],
+      proof_points: ["Investor-backed company", "Board / advisory structure", "Debt or covenants", "Material regulatory exposure"],
+      watch_for: ["Side A / B / C structure", "Pending transactions", "Prior notices", "Securities-style claims"],
+      cross_sell: ["Crime / Fidelity", "Cyber Liability", "Professional Indemnity"],
+    },
+    uw: {
+      headline: "Treat as a governance and disclosure review, not just a checkbox product.",
+      loss_ratio_view: "Claim severity is the main driver: legal defence, settlement, and multi-director defence can all attach to one event.",
+      bullets: [
+        "Review board composition, investor rights, financing history, and any prior notices or disputes.",
+        "Confirm entity coverage, defense costs, investigation costs, and any securities or insolvency carve-outs.",
+        "Check whether the company is raising, restructuring, or carrying creditor pressure.",
+      ],
+      proof_points: ["Board minutes / cap table", "Financing docs", "Prior claims or notices", "Disclosure controls"],
+      watch_for: ["Securities risk", "Pending M&A", "Insolvency signals", "Director conflicts"],
+      levers: ["Higher retentions", "Separate entity cover", "Expanded defence costs", "Claims-made retro clarity"],
+    },
+  },
+  professional_indemnity: {
+    label: "Professional Indemnity",
+    summary: "Best for service, software, and advisory businesses where the client can sue for financial loss caused by an error, omission, or delayed delivery.",
+    tone: "indigo",
+    pressure: 79,
+    claim_frequency: 55,
+    claim_severity: 88,
+    rm: {
+      headline: "Sell the client-facing error shield, not just the policy wording.",
+      loss_ratio_view: "Moderate-to-high pressure because disputes can be frequent in contract-heavy businesses and legal defence starts early.",
+      bullets: [
+        "Lead when the account delivers software, advice, integrations, or regulated professional services.",
+        "Works especially well when contracts include liability caps, SLA penalties, or indemnity obligations.",
+        "Cross-sell to Cyber when the service failure also touches data, and to D&O when governance risk is elevated.",
+      ],
+      proof_points: ["Client contracts", "SLA penalties", "Delivery criticality", "Advice / services revenue"],
+      watch_for: ["Unlimited liability clauses", "Retroactive date", "Contractual caps", "AI / IP exposure"],
+      cross_sell: ["Cyber Liability", "D&O", "IP / media covers"],
+    },
+    uw: {
+      headline: "Check contracts, retro date, scope of work, and any unlimited liability language.",
+      loss_ratio_view: "Severity is driven by contract size and claim tails, especially where a service failure cascades into client loss.",
+      bullets: [
+        "Review scope of services, contractual caps, indemnity wording, and jurisdiction.",
+        "Check whether the policy should respond to defence costs before negligence is proven.",
+        "Confirm whether IP, data, and subcontractor exposures need to be included or carved out.",
+      ],
+      proof_points: ["Client agreements", "Project scope", "Retro date evidence", "Prior claims / errors"],
+      watch_for: ["Unlimited indemnity", "Unclear deliverables", "High client concentration", "Unknown subcontractor reliance"],
+      levers: ["Higher deductibles", "Sub-limits for IP / data", "Specific exclusions", "Referral for contract-heavy accounts"],
+    },
+  },
+  public_liability: {
+    label: "Public Liability",
+    summary: "Covers third-party injury or property damage arising from premises or operations, which is often a clean RM conversation and a straightforward UW check.",
+    tone: "orange",
+    pressure: 58,
+    claim_frequency: 60,
+    claim_severity: 52,
+    rm: {
+      headline: "Use when physical footfall, visitors, deliveries, or on-site operations create third-party exposure.",
+      loss_ratio_view: "Frequency can be steady, but severity jumps quickly if bodily injury or third-party property damage escalates into litigation.",
+      bullets: [
+        "Best for offices, warehouses, cloud kitchens, labs, showrooms, and service locations with visitors.",
+        "The RM angle is simple: if someone gets hurt on site, this protects operating cash from a legal claim.",
+        "Pairs naturally with Property and Machinery Breakdown where the business has physical premises.",
+      ],
+      proof_points: ["Visitor access", "Operational premises", "Delivery handoffs", "Third-party interaction"],
+      watch_for: ["High footfall", "Hazardous premises", "Contractual liability", "Local venue obligations"],
+      cross_sell: ["Property Fire", "Machinery Breakdown", "Product Liability"],
+    },
+    uw: {
+      headline: "Check premises risk, hazard controls, and any contractual assumption of liability.",
+      loss_ratio_view: "Severity is usually moderate, but poor premises controls can create tail claims and legal defence costs.",
+      bullets: [
+        "Confirm nature of operations, visitor volume, and any hazardous materials or slip-and-fall exposure.",
+        "Review whether the insured assumes liability beyond standard third-party bodily injury or property damage.",
+        "Look for jurisdictional or event-specific exposures if the business is not a normal office setting.",
+      ],
+      proof_points: ["Site nature", "Visitor volume", "Risk controls", "Contract wording"],
+      watch_for: ["Warehouses / kitchens", "Public access areas", "Event operations", "Third-party contractor activity"],
+      levers: ["Higher excess", "Site-specific conditions", "Hazard exclusions", "Operational controls"],
+    },
+  },
+  product_liability: {
+    label: "Product Liability",
+    summary: "For manufacturers and consumer brands where product defects can trigger bodily injury, property damage, recall cost, and consumer disputes.",
+    tone: "red",
+    pressure: 88,
+    claim_frequency: 50,
+    claim_severity: 91,
+    rm: {
+      headline: "Lead with recall, consumer protection, and brand protection.",
+      loss_ratio_view: "Severity is very high because one defective batch can create multiple claims, recall spend, and reputational damage.",
+      bullets: [
+        "Use for D2C, manufacturing, devices, components, packaged goods, and any product that can harm a third party.",
+        "The commercial story is faster than litigation: recall, defence, and customer compensation come from one policy.",
+        "Cross-sell with Public Liability if the business also has premises risk, and with Cyber if devices or software are connected.",
+      ],
+      proof_points: ["Manufacturing / sourcing", "Consumer channels", "Recall risk", "Distribution chain"],
+      watch_for: ["Batch quality controls", "Supplier concentration", "Consumer warranty language", "Regulatory recalls"],
+      cross_sell: ["Public Liability", "Property Fire", "Cyber Liability"],
+    },
+    uw: {
+      headline: "Focus on QA, batch controls, product lifecycle, and recall readiness.",
+      loss_ratio_view: "Severity can be extreme when a defect affects many units, particularly in consumer or health-linked products.",
+      bullets: [
+        "Review manufacturing controls, certification, product testing, and supplier quality assurance.",
+        "Check whether recall costs, defence costs, and product-related third-party injury are explicitly contemplated.",
+        "Look closely at exports, multi-channel distribution, and any regulated product class.",
+      ],
+      proof_points: ["QA / QC evidence", "Supplier contracts", "Recall process", "Product certification"],
+      watch_for: ["No quality documentation", "Unclear recall procedure", "New or untested product", "Regulated product line"],
+      levers: ["Higher deductibles", "Recall sub-limits", "Batch control requirements", "Referral for regulated goods"],
+    },
+  },
+  crime_fidelity: {
+    label: "Crime / Fidelity",
+    summary: "Covers direct financial loss from employee dishonesty, fraud, and unauthorised funds movement where the bank or counterparty may not be the payer.",
+    tone: "amber",
+    pressure: 66,
+    claim_frequency: 52,
+    claim_severity: 70,
+    rm: {
+      headline: "Use when finance, treasury, vendor payments, or cash handling create a straight fraud-loss story.",
+      loss_ratio_view: "Losses are less frequent than cyber, but fraud can be immediate, concentrated, and hard to recover.",
+      bullets: [
+        "The RM message is direct: if a team member diverts funds, the business may bear the loss even if the transfer was authorised.",
+        "Strong fit for payment-heavy, vendor-heavy, or cash-handling companies.",
+        "Pairs well with governance-heavy accounts where board and controls scrutiny is increasing.",
+      ],
+      proof_points: ["Finance controls", "Payment workflows", "Cash / treasury", "Vendor management"],
+      watch_for: ["Weak segregation of duties", "Unmonitored bank access", "Limited review controls", "Treasury concentration"],
+      cross_sell: ["D&O", "Cyber Liability", "Public Liability"],
+    },
+    uw: {
+      headline: "Check controls, segregation of duties, and who can move money.",
+      loss_ratio_view: "The claim profile is control-sensitive: a weak finance process can create a fast, high-severity loss.",
+      bullets: [
+        "Review sign-off thresholds, dual control, vendor master governance, and bank access logs.",
+        "Assess employee access rights and whether the business has indemnified itself against authorised-transfer fraud.",
+        "Ask for fraud controls before quoting a larger limit.",
+      ],
+      proof_points: ["SoD matrix", "Banking controls", "Audit trails", "Vendor approval process"],
+      watch_for: ["No dual control", "Single-admin banking access", "Weak audit trail", "Related-party risk"],
+      levers: ["Higher excess", "Fidelity sub-limit", "Mandatory controls", "Referral for payment platforms"],
+    },
+  },
+  employment_practices: {
+    label: "Employment Practices",
+    summary: "Useful when hiring, termination, discrimination, harassment, or workplace dispute exposure can become a defence-cost issue.",
+    tone: "green",
+    pressure: 54,
+    claim_frequency: 57,
+    claim_severity: 58,
+    rm: {
+      headline: "Sell it as HR dispute protection, not a legal lecture.",
+      loss_ratio_view: "Frequency tends to rise with headcount, but the individual claim size is often moderate compared with cyber or D&O.",
+      bullets: [
+        "Most relevant once the company has meaningful headcount, managers, and formal termination processes.",
+        "Useful for protecting founders from employee dispute legal costs and settlement pressure.",
+        "Often sits alongside broader governance and people-risk conversations.",
+      ],
+      proof_points: ["Headcount growth", "HR policy maturity", "Manager layers", "POSH / grievance handling"],
+      watch_for: ["Rapid hiring", "Restructuring", "Manager turnover", "Insufficient HR process"],
+      cross_sell: ["D&O", "Crime / Fidelity", "Group Health"],
+    },
+    uw: {
+      headline: "Check employment policies, grievance procedures, and litigation appetite.",
+      loss_ratio_view: "Claim severity is usually lower than D&O, but repeat disputes can push cumulative loss pressure higher.",
+      bullets: [
+        "Review HR handbook, termination process, POSH policy, and complaint escalation workflow.",
+        "Check the company’s recent hiring / layoff activity and whether there are known disputes.",
+        "Assess whether the product needs explicit defence-cost wording and settlement handling.",
+      ],
+      proof_points: ["HR handbook", "Termination process", "POSH policy", "Open disputes"],
+      watch_for: ["Recent layoffs", "Missing HR policies", "High churn", "Founder-led informal people management"],
+      levers: ["Higher retention", "Employment-only wording", "Settlement controls", "Referral if disputes are active"],
+    },
+  },
+  healthcare_pi: {
+    label: "Healthcare PI",
+    summary: "For medical, clinical, telehealth, and health-tech settings where professional judgement or clinical workflows can lead to patient harm allegations.",
+    tone: "rose",
+    pressure: 90,
+    claim_frequency: 43,
+    claim_severity: 96,
+    rm: {
+      headline: "Position it as patient-harm and clinical-failure protection.",
+      loss_ratio_view: "Severity is extremely high because bodily injury and regulatory investigation can attach to the same event.",
+      bullets: [
+        "Best for clinics, telehealth, medical devices, diagnostic platforms, and healthcare services with direct clinical exposure.",
+        "The RM story is patient safety, defence funding, and partner confidence.",
+        "This often needs sharper wording than standard PI because the claims context is more sensitive.",
+      ],
+      proof_points: ["Patient interaction", "Clinical decision support", "Partner doctors", "Regulatory scrutiny"],
+      watch_for: ["Clinical responsibility split", "AI-assisted triage", "Patient data overlap", "Regulated medical workflow"],
+      cross_sell: ["Cyber Liability", "Professional Indemnity", "D&O"],
+    },
+    uw: {
+      headline: "Treat as a medical negligence review with clinical governance checks.",
+      loss_ratio_view: "Claim severity is the key issue: patient compensation, regulatory action, and defence can all stack.",
+      bullets: [
+        "Confirm who provides clinical judgement, who owns the medical record, and who is responsible for triage or diagnosis.",
+        "Check regulatory approvals, partner contracts, and whether AI or software is part of the clinical decision process.",
+        "Confirm the policy can respond to defence costs and patient claim handling explicitly.",
+      ],
+      proof_points: ["Clinical governance", "Partner agreements", "Approvals / licences", "Patient workflow"],
+      watch_for: ["Unclear liability split", "AI-assisted diagnosis", "High patient volume", "Missing clinical governance"],
+      levers: ["Higher retention", "Sub-limits", "Clinical exclusions or endorsements", "Referral for novel models"],
+    },
+  },
+  financial_services_pi: {
+    label: "Financial Services PI",
+    summary: "For lending, payments, wealth, broking, and regulated advisory businesses where advice or platform failure can create financial loss claims.",
+    tone: "violet",
+    pressure: 85,
+    claim_frequency: 61,
+    claim_severity: 89,
+    rm: {
+      headline: "Lead with client loss, advice risk, and regulatory scrutiny.",
+      loss_ratio_view: "Commercially dense because contracts, advice, and regulated workflows can all create claims from one service failure.",
+      bullets: [
+        "Strong fit for fintech, brokers, advisors, payment platforms, and regulated financial intermediaries.",
+        "RM should stress defence funding and client confidence rather than only indemnity wording.",
+        "Pairs well with cyber and D&O when the business has data, investor, or board exposure too.",
+      ],
+      proof_points: ["Regulated services", "Client funds or advice", "Transaction criticality", "SLA obligations"],
+      watch_for: ["Regulated advice", "Client money handling", "Operating licenses", "Securities-style obligations"],
+      cross_sell: ["Cyber Liability", "D&O", "Crime / Fidelity"],
+    },
+    uw: {
+      headline: "Check the regulatory perimeter, advice scope, and any client-loss language.",
+      loss_ratio_view: "Severity is shaped by transaction volume, regulated conduct, and whether advice failures can trigger large claims.",
+      bullets: [
+        "Review licenses, client contracts, advice scope, and whether the business touches client money or regulated transactions.",
+        "Check if the wording should include SLAs, breach of duty, and financial loss caused by service failure.",
+        "Assess concentration risk and prior complaints or notices.",
+      ],
+      proof_points: ["Licensing", "Client agreements", "Complaint history", "Transaction volumes"],
+      watch_for: ["Advice exposure", "Client funds", "Regulated workflow", "Unbounded liability clauses"],
+      levers: ["Higher deductibles", "Sub-limits", "Specific exclusions", "Referral for regulated services"],
+    },
+  },
+  comprehensive_general_liability: {
+    label: "Comprehensive General Liability",
+    summary: "The umbrella third-party liability layer for bodily injury, property damage, and personal injury from operations where the exposure is broad rather than niche.",
+    tone: "slate",
+    pressure: 61,
+    claim_frequency: 58,
+    claim_severity: 63,
+    rm: {
+      headline: "Use when the account needs broad operational liability protection.",
+      loss_ratio_view: "More balanced than cyber or product liability, but still important where physical operations and third-party exposure overlap.",
+      bullets: [
+        "Useful for businesses with broad on-site, delivery, or service operations where public liability alone is too narrow.",
+        "Works well as a base liability conversation before sector-specific layers are added.",
+        "Often complements product, cyber, and professional lines rather than replacing them.",
+      ],
+      proof_points: ["Mixed operations", "Third-party interaction", "Site / service exposure", "Contractual obligations"],
+      watch_for: ["Overbroad assumptions", "Excess liability assumptions", "Contract wording", "Operational hazard"],
+      cross_sell: ["Public Liability", "Product Liability", "Property Fire"],
+    },
+    uw: {
+      headline: "Check operational scope, exclusions, and whether this is really the right umbrella liability layer.",
+      loss_ratio_view: "Severity depends heavily on operational context, so the product is often acceptable only with the right exclusions and limits.",
+      bullets: [
+        "Review premises, operations, and any special hazard lists before binding.",
+        "Confirm whether this should be paired with a sector-specific liability cover instead of standing alone.",
+        "Watch for contracts that expand liability beyond ordinary third-party claims.",
+      ],
+      proof_points: ["Operational scope", "Hazard list", "Contract review", "Limit / deductible choices"],
+      watch_for: ["Hazardous operations", "Broad contract liability", "Unclear exposure type", "High third-party footfall"],
+      levers: ["Special exclusions", "Higher excess", "Hazard schedule", "Referral for mixed operations"],
+    },
+  },
+  business_shield_sme: {
+    label: "Business Shield SME",
+    summary: "Bundle-level view for Business Shield 1010, where the topline is holding but earnings quality, expense control, and metro loss discipline have deteriorated materially.",
+    tone: "slate",
+    pressure: 69,
+    claim_frequency: 58,
+    claim_severity: 78,
+    source_label: "bundled.md · Business Shield 1010",
+    rm: {
+      headline: "Sell selectively into the cleaner pockets and stay away from poor-quality metro growth.",
+      loss_ratio_view: "Business Shield moved from COR 81% to 115% even though GWP was down only 6.6%, so RM growth should be judged on earnings quality, not on premium alone.",
+      bullets: [
+        "Scale Bangalore, Hyderabad, Chennai, and the Retail turnaround pockets where profitability actually improved.",
+        "Keep Delhi and Mumbai out of any scale-first narrative; the book is showing weak NEP conversion and cost-heavy growth there.",
+        "Use segment-led selling into Corporate and Retail recovery pockets rather than broad startup-heavy SME expansion.",
+      ],
+      proof_points: ["COR moved to 115%", "NEP down 29%", "Expense ratio up to 50%", "Bangalore and Retail improved"],
+      watch_for: ["Mumbai collapse", "Delhi cost leakage", "SME growth at 116% COR", "Reserve-supported prior-year profit"],
+      cross_sell: ["Comprehensive General Liability", "Cyber Liability", "Product Liability"],
+    },
+    uw: {
+      headline: "Treat Business Shield as a repair portfolio until the metro loss pockets and expense base are brought back under control.",
+      loss_ratio_view: "Underlying claims improved in rupee terms, but ILR still worsened because NEP collapsed and expense ratio jumped sharply, so the underwriting issue is structural.",
+      bullets: [
+        "Correct Mumbai immediately: reprice, prune, add deductibles, and review how treaty support is masking the real operating result.",
+        "Tighten SME filters and reset branch guardrails around ILR, COR, acquisition cost, and referral thresholds.",
+        "Review RI economics and reserve dependence before reading any apparent turnaround as genuine underwriting recovery.",
+      ],
+      proof_points: ["Mumbai COR 283%", "IBNR down 87%", "RI commission down 24%", "Expense ratio up 10 points"],
+      watch_for: ["Reserve-driven profit illusion", "Claims volatility by branch", "Expense inflation despite lower GWP", "Loss-making SME scaling"],
+      levers: ["Rate increase", "Deductibles", "Portfolio pruning", "RI redesign"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "Key portfolio message", tone: "elevated", text: "The core issue is earnings compression plus cost inflation, not just claims. NEP fell 29%, expense ratio rose from 40% to 50%, and the book moved from COR 81% to 115%." },
+        { title: "Where RM should grow", tone: "high", items: ["Bangalore and Hyderabad as the cleanest branch pockets", "Chennai as selective profitable scale", "Retail turnaround pockets where UW result improved from -45 to +19"] },
+        { title: "Where RM should pull back", tone: "critical", items: ["Mumbai, where UW flipped from +119 to -94 and COR hit 283%", "Delhi and Kolkata where expense leakage is eroding book quality", "Startup-heavy SME expansion until profitability is repaired"] },
+      ],
+      uw: [
+        { title: "Underwriting message", tone: "critical", text: "Prior-year profit was flattered by reserves and RI support. Current-year results show the true book quality: cost-heavy, reserve-sensitive, and highly polarised by branch." },
+        { title: "Immediate underwriting actions", tone: "critical", items: ["Tighten Mumbai exposure immediately", "Reprice SME and apply stricter filters", "Review RI structure and reserve adequacy", "Move branch reviews to NEP, ILR, and COR instead of GWP"] },
+        { title: "Profitability anchors", tone: "watch", items: ["Scale Bangalore and Chennai with discipline", "Use Corporate and recovering Retail pockets as the cleaner mix", "Track claims volatility and NEP-to-GWP conversion monthly"] },
+      ],
+    },
+  },
+  industrial_all_risk_policy: {
+    label: "Industrial All Risk (IAR) Policy",
+    summary: "Bundle-level view for the IAR product family, where reported profit improved sharply but the underlying claims and cost picture remained weaker and reserve-dependent.",
+    tone: "indigo",
+    pressure: 73,
+    claim_frequency: 64,
+    claim_severity: 86,
+    source_label: "bundled.md · Industrial All Risk Policy",
+    rm: {
+      headline: "Push quality-led growth only in the branches and segments where the underlying operating result is actually holding up.",
+      loss_ratio_view: "Reported profitability improved, but the bundled analysis shows the turnaround was heavily reserve-driven and the core book quality is weaker underneath.",
+      bullets: [
+        "Focus growth on Hyderabad, SME Broking, and Chennai-type pockets where quality is cleaner.",
+        "Avoid rewarding scale in Delhi, Pune, Retail, and Emerging until the book stops destroying value.",
+        "Use the account conversation around property, deductible, and retained profitability rather than only broad premium size.",
+      ],
+      proof_points: ["Reported UW sharply improved", "Incurred LR worsened to 73%", "Delhi and Pune turned deeply stressed", "SME Broking stayed relatively clean"],
+      watch_for: ["Reserve-led Mumbai turnaround", "Retail deterioration", "Delhi value destruction", "Expense and acquisition drag"],
+      cross_sell: ["Business Interruption", "Machinery Breakdown", "Marine Transit"],
+    },
+    uw: {
+      headline: "Price off the underlying claim emergence, not the booked reserve-driven result.",
+      loss_ratio_view: "The key underwriting error would be reading FY26 as a real recovery. Pre-IBNR claim emergence worsened materially and several branches turned sharply adverse.",
+      bullets: [
+        "Rebase performance reviews on NIC before IBNR and pre-IBNR ILR, not just reported COR.",
+        "Correct Delhi and Pune with pricing, wording, deductible, and account-level referral changes.",
+        "Separate reserve-driven profitability from operating underwriting profit in the review packs before widening appetite anywhere.",
+      ],
+      proof_points: ["IBNR swing drove the turnaround", "Delhi and Pune deteriorated sharply", "Retail and Emerging worsened", "Hyderabad is the cleanest genuine recovery"],
+      watch_for: ["Reserve dependence", "Weak reinsurance economics", "Acquisition inefficiency", "Concentration in Mumbai and Corporate"],
+      levers: ["Deductibles", "Wording tightening", "Referral thresholds", "Reserve adequacy review"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "Commercial message", tone: "elevated", text: "The book is not a broad-based growth story. Treat it as selective quality-led expansion into Hyderabad, SME Broking, and disciplined Chennai pockets." },
+        { title: "Scale now", tone: "high", items: ["Hyderabad - Punjagutta", "SME Broking", "Chennai with tighter underwriting discipline"] },
+        { title: "Do not chase", tone: "critical", items: ["Delhi - Narain Manzil", "Pune - Metro House", "Retail and Emerging volume that is profitable only because of reserve effects"] },
+      ],
+      uw: [
+        { title: "Underwriting message", tone: "critical", text: "Do not call this a clean recovery. Incurred LR moved from 49% to 73% and the portfolio still needs reserve-aware review discipline." },
+        { title: "Immediate actions", tone: "critical", items: ["Correct Delhi and Pune immediately", "Run reserve adequacy review in Ahmedabad and Mumbai", "Rebalance away from stressed Retail and Emerging pockets"] },
+        { title: "Protect and scale", tone: "watch", items: ["Hyderabad recovery", "SME Broking quality", "Selected Chennai growth with pricing discipline intact"] },
+      ],
+    },
+  },
+  employee_health: {
+    label: "Group Health Insurance",
+    summary: "Heuristic RM/UW intelligence for group health within bundled recommendations, used because the loaded bundle-analysis source does not provide a dedicated quantified group-health portfolio cut here.",
+    tone: "green",
+    pressure: 54,
+    claim_frequency: 74,
+    claim_severity: 41,
+    source_label: "Heuristic · workforce benefits / headcount basis",
+    rm: {
+      headline: "Lead with retention, hiring competitiveness, and day-one workforce protection.",
+      loss_ratio_view: "Group health is frequency-heavy rather than severity-heavy, so the commercial conversation should focus on employee value, not on catastrophic claim narratives.",
+      bullets: [
+        "Best fit once the team is large enough that medical cover becomes a retention and hiring expectation.",
+        "Use headcount, city spread, and workforce mix as the first RM qualification points.",
+        "Position it as the anchor people-risk cover that can sit alongside PA, critical illness, and EPL.",
+      ],
+      proof_points: ["Headcount growth", "Hiring intensity", "Metro employee footprint", "Benefit competitiveness"],
+      watch_for: ["Young versus family-heavy mix", "Multi-city concentration", "Dependent coverage expectations", "Claims-sensitive workforce cohorts"],
+      cross_sell: ["Group PA", "Employment Practices", "Group Critical Illness"],
+    },
+    uw: {
+      headline: "Underwrite like a census-led health pool, not like a liability line.",
+      loss_ratio_view: "Use a heuristic risk view only until you have census, age-band, city-band, claims history, and policy design details. Frequency will dominate before severity does.",
+      bullets: [
+        "Confirm employee count, age mix, geography, dependent inclusion, and prior claims experience before relying on any price indication.",
+        "Watch for adverse selection in small groups, family-heavy populations, and concentration in high-medical-cost metros.",
+        "Treat headcount-only estimates as directional and keep the wording, room-rent, maternity, and disease sub-limit design explicit.",
+      ],
+      proof_points: ["Employee census", "Claims history", "Plan design", "City mix"],
+      watch_for: ["Adverse selection", "High family load", "Rich benefits without claims data", "Small-group volatility"],
+      levers: ["Benefit design", "Co-pay / deductible", "Waiting periods", "Census validation"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "Commercial lens", tone: "elevated", text: "Treat group health as a people-risk and hiring tool. It is most intuitive when linked to headcount scale, retention pressure, and metro workforce concentration." },
+        { title: "What RM should confirm", tone: "high", items: ["Employee count and growth plan", "Single city or multi-city workforce", "Whether dependants are expected", "Whether the client already offers any medical benefits"] },
+      ],
+      uw: [
+        { title: "Underwriting lens", tone: "watch", text: "The current values are heuristic only. A real underwriting stance needs census, age bands, family mix, claims experience, and benefit design details." },
+        { title: "What UW should demand", tone: "critical", items: ["Census and age split", "Prior insurer and claims ratio", "Benefit grid and room-rent rules", "City distribution and dependent participation"] },
+      ],
+    },
+  },
+  group_safeguard_insurance_policy: {
+    label: "Group Safeguard Insurance Policy",
+    summary: "Bundle-level workforce protection route, anchored by group health and group accident with heuristic metrics because the current loaded analysis does not give a dedicated quantified bundle review for this package.",
+    tone: "green",
+    pressure: 52,
+    claim_frequency: 71,
+    claim_severity: 39,
+    source_label: "Heuristic · workforce bundle",
+    rm: {
+      headline: "Use as the first structured workforce protection bundle once employee count and retention expectations are real.",
+      loss_ratio_view: "This is a people-benefit conversation first. Losses are driven by frequency and benefit design more than by one-off catastrophe severity.",
+      bullets: [
+        "Lead with retention, employee experience, and employer-brand protection.",
+        "Works best for scaling teams, distributed workforces, and clients formalising benefits for the first time.",
+        "Pair it with a sector bundle when the account also has cyber, property, or liability concentration.",
+      ],
+      proof_points: ["Team size", "Attrition / hiring pressure", "Metro footprint", "Benefit maturity"],
+      watch_for: ["Headcount changes", "Family cover expectations", "Existing uninsured workforce", "Need for companion sector bundle"],
+      cross_sell: ["Group Health Insurance", "Group PA", "Employment Practices"],
+    },
+    uw: {
+      headline: "Treat it as a heuristic workforce bundle until census and claims history are provided.",
+      loss_ratio_view: "The bundle is only directionally scored here. Pricing and underwriting confidence should stay conservative without employee census, age-band, and claims data.",
+      bullets: [
+        "Require census, prior policy data, city mix, and claims history before committing to any firm pricing stance.",
+        "Separate pure benefit design risk from liability-driven covers; do not let the workforce bundle inherit unrelated property or liability assumptions.",
+        "Use benefit design, waiting periods, and participation rules as the main underwriting levers.",
+      ],
+      proof_points: ["Census", "Claims history", "Participation ratio", "Plan design"],
+      watch_for: ["Adverse selection", "Underpriced family-heavy pools", "No prior claims data", "Over-rich plan design"],
+      levers: ["Benefit caps", "Waiting periods", "Deductibles / co-pay", "Census validation"],
+    },
+  },
+  msme_suraksha_kavach: {
+    label: "MSME Suraksha Kavach",
+    summary: "The MSME bundle is scaling fast, but the bundled analysis shows it is still loss-making and highly uneven by metro and segment.",
+    tone: "amber",
+    pressure: 88,
+    claim_frequency: 72,
+    claim_severity: 84,
+    source_label: "bundled.md · MSME Suraksha Kavach",
+    rm: {
+      headline: "Sell the growth story only where the branch economics are actually improving.",
+      loss_ratio_view: "The portfolio doubled in scale, but the combined ratio stayed far above break-even, so premium growth is not the same as value creation.",
+      bullets: [
+        "Use the Corporate and Bangalore-type recovery pockets as your quality-led pitch points.",
+        "Push Delhi, Mumbai, and SME Broking out of any broad growth narrative until profitability improves.",
+        "Frame the conversation around NEP quality, expense discipline, and retained economics rather than raw GWP.",
+      ],
+      proof_points: ["GWP +109%", "COR still 170%", "Bangalore and Corporate improved", "SME Broking deteriorated"],
+      watch_for: ["Mumbai 288% COR", "Delhi 195% COR", "SME Broking 314% COR", "Expense base doubled"],
+      cross_sell: ["Corporate Cover II", "Property Fire", "Public Liability"],
+    },
+    uw: {
+      headline: "Treat the book as selective-scale only until the loss pockets are reset.",
+      loss_ratio_view: "Loss ratio improved, but the book is still above 100% incurred LR and remains structurally dependent on reserve movement and RI support.",
+      bullets: [
+        "Reprice Delhi, Mumbai, SME Broking, and Emerging-style growth pockets immediately.",
+        "Separate reserve-supported improvement from actual underwriting recovery in branch reviews.",
+        "Move the monthly pack to NEP, ILR, and COR instead of GWP-first reporting.",
+      ],
+      proof_points: ["NEP +173%", "IBNR down 39%", "RI commission down 24%", "Bangalore and Corporate improved"],
+      watch_for: ["Reserve-driven profit illusion", "Metro loss concentration", "Cost inflation despite lower GWP", "Unprofitable startup-heavy growth"],
+      levers: ["Rate increase", "Deductibles", "Portfolio pruning", "RI redesign"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "Key portfolio message", tone: "elevated", text: "Growth is real, but economics are still weak. The book is expanding faster than it is becoming profitable, so RM focus should move to branch quality rather than scale at any cost." },
+        { title: "Where RM should push", tone: "high", items: ["Corporate pockets with cleaner economics", "Bangalore-type turnaround branches", "Retail areas where conversion and profit improved"] },
+        { title: "Where RM should pull back", tone: "critical", items: ["Mumbai, which remains structurally broken", "Delhi where scale is destroying value", "SME Broking and Emerging-style growth until pricing discipline is fixed"] },
+      ],
+      uw: [
+        { title: "Underwriting message", tone: "critical", text: "The portfolio is improving from a weak base, but the remaining loss position is still too large to call it stable. Use branch-level pricing and referral thresholds aggressively." },
+        { title: "Immediate underwriting actions", tone: "critical", items: ["Reprice severe loss zones", "Tighten referral gates for early-stage and volume-led growth", "Track NEP, ILR, COR, and expense leakage by branch"] },
+      ],
+    },
+  },
+  corporate_cover_ii: {
+    label: "Corporate Cover II",
+    summary: "A small corporate bundle that is currently profitable and low-loss, but still needs disciplined growth because the book is tiny and can turn quickly if selection slips.",
+    tone: "green",
+    pressure: 42,
+    claim_frequency: 18,
+    claim_severity: 34,
+    source_label: "bundled.md · Corporate Cover II",
+    rm: {
+      headline: "Use this as a disciplined corporate relationship product, not as a volume game.",
+      loss_ratio_view: "The book is profitable with negative incurred loss ratio, which makes it a clean sales conversation for selected corporate accounts.",
+      bullets: [
+        "Best positioned when the client wants a compact, corporate-friendly protection pack.",
+        "Because the book is small, the RM focus should be on retention and careful account selection.",
+        "Use it as a cross-sell anchor when the customer wants broad operational protection without a complex bundle.",
+      ],
+      proof_points: ["COR negative", "Low claim activity", "Small but profitable book", "Acquisition cost contained"],
+      watch_for: ["Tiny base effect", "Any deterioration in Chennai", "Expense ratio creep", "Book concentration risk"],
+      cross_sell: ["Public Liability", "Property Fire", "Business Interruption"],
+    },
+    uw: {
+      headline: "Keep underwriting firm because a small profitable book can deteriorate quickly if selection loosens.",
+      loss_ratio_view: "Claim experience is light, but the book size is tiny, so the right stance is disciplined growth with clear referral checks.",
+      bullets: [
+        "Watch the Chennai pocket closely because the only visible deterioration in the snippet sits there.",
+        "Confirm the client's operating profile before broadening wordings or limits.",
+        "Maintain retention discipline so the book doesn't become loss-prone as it scales.",
+      ],
+      proof_points: ["Low claims", "Small exposure base", "Clean overall COR", "Geographic concentration"],
+      watch_for: ["Chennai deterioration", "Inappropriate growth push", "Low absolute premium base", "Unclear risk spread"],
+      levers: ["Limit discipline", "Wording clarity", "Retained line review", "Referral on mixed operations"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "Commercial message", tone: "elevated", text: "This is a clean, small corporate package. Use it where the buyer wants a simple, low-friction bundle and not a highly customised programme." },
+        { title: "RM guidance", tone: "high", items: ["Keep the conversation account-specific", "Prioritise retention over aggressive new volume", "Use it with corporate accounts that need a compact package"] },
+      ],
+      uw: [
+        { title: "Underwriting message", tone: "watch", text: "The portfolio is profitable, but the base is too small to be complacent. Maintain selection discipline and avoid diluting it with low-quality growth." },
+        { title: "Watch points", tone: "critical", items: ["Avoid broadening into weak geographies without controls", "Keep an eye on expense ratio drift", "Review any expansion carefully before approval"] },
+      ],
+    },
+  },
+  i_select_liability_insurance: {
+    label: "I Select Liability Insurance",
+    summary: "A low-loss liability package with a clean overall result, but the customer-specific view shows that the same product can turn in certain metros if underwriting discipline slips.",
+    tone: "blue",
+    pressure: 56,
+    claim_frequency: 36,
+    claim_severity: 52,
+    source_label: "bundled.md · I Select Liability Insurance",
+    rm: {
+      headline: "Lead with clarity, coverage breadth, and the fact that this book is still comfortably profitable.",
+      loss_ratio_view: "The overall book remains profitable at COR 46%, which makes it easy to explain as a disciplined liability product with manageable loss pressure.",
+      bullets: [
+        "Use this when the client wants a straightforward liability package instead of a complex stack.",
+        "The clean overall result lets the RM focus on breadth of protection and ease of placement.",
+        "Where local results are weak, use the product more selectively and avoid generic blanket selling.",
+      ],
+      proof_points: ["COR 46%", "Overall UW result positive", "Very low claims in many zones", "Small, manageable premium base"],
+      watch_for: ["Chennai weakness", "Any metro-specific COR drift", "Overpromising on breadth", "Need for limits discipline"],
+      cross_sell: ["Public Liability", "Professional Indemnity", "Product Liability"],
+    },
+    uw: {
+      headline: "Underwrite the clean book hard enough to keep it clean.",
+      loss_ratio_view: "This is one of the better-behaved liability products in the file, but the Chennai result shows that selection and pricing still matter.",
+      bullets: [
+        "Keep the product disciplined in weaker locations and do not let a good overall ratio hide local deterioration.",
+        "Use claims history and operating context to decide where the product can be placed liberally.",
+        "Maintain careful wording and limit control before broadening appetite.",
+      ],
+      proof_points: ["Low overall COR", "Positive UW result", "Localized deterioration in Chennai", "Otherwise stable branch picture"],
+      watch_for: ["Branch-level outliers", "Wording creep", "Premature broadening", "Expense leakage in small books"],
+      levers: ["Selective appetite", "Higher deductible", "Claims review", "Referral by geography"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "Commercial message", tone: "elevated", text: "This is a neat, profitable liability package. Lead with the fact that the overall book is healthy and keep the pitch simple for smaller or mid-market customers." },
+        { title: "Where to use it", tone: "high", items: ["Customers wanting a compact liability offer", "Accounts with straightforward third-party exposure", "Commercial situations where ease of sale matters"] },
+      ],
+      uw: [
+        { title: "Underwriting message", tone: "watch", text: "The product looks clean overall, but branch-level deterioration can appear quickly. Keep discipline around geography and limits." },
+        { title: "Watch points", tone: "critical", items: ["Chennai-style deterioration", "Limit creep", "Loose wording assumptions", "Any attempt to treat it as a generic liability add-on"] },
+      ],
+    },
+  },
+  property_fire: {
+    label: "Property Fire",
+    summary: "The core fire/property cover in the bundle family, used when physical assets and downtime matter more than a pure liability conversation.",
+    tone: "orange",
+    pressure: 74,
+    claim_frequency: 62,
+    claim_severity: 82,
+    source_label: "bundled.md · Fire Segment",
+    rm: {
+      headline: "Lead with asset reinstatement and keeping operations alive after a fire event.",
+      loss_ratio_view: "Fire is a severity-driven cover: a single event can destroy assets and halt operations, so the RM should speak in terms of continuity and working-capital protection.",
+      bullets: [
+        "Best for businesses with stock, fit-out, machinery, or a single critical operating location.",
+        "Use it as the base before adding BI, burglary, machinery, or electronic equipment if the client has the assets.",
+        "The RM story is cash preservation: rebuild without draining working capital.",
+      ],
+      proof_points: ["Asset replacement", "Reinstatement value", "Downtime risk", "Warehouse / kitchen / office exposure"],
+      watch_for: ["Occupancy risk", "Monsoon / flood linkage", "Asset values", "Business interruption need"],
+      cross_sell: ["Business Interruption", "Electronic Equipment", "Machinery Breakdown"],
+    },
+    uw: {
+      headline: "Check occupancy, protection, and reinstatement basis before you quote.",
+      loss_ratio_view: "The severity is high because fire claims hit assets, stock, and downtime together, so underwriting quality depends heavily on location and protection standards.",
+      bullets: [
+        "Verify sum insured basis, protection class, and any special hazards before accepting the risk.",
+        "Look for flood / fire concentration and any signs that the asset values are overstated or underinsured.",
+        "Confirm whether the insured also needs BI, burglary, or equipment breakdown at the same time.",
+      ],
+      proof_points: ["Occupancy review", "Protection systems", "Asset valuation", "Downtime exposure"],
+      watch_for: ["High hazard occupancy", "Unclear asset basis", "Underinsured stock", "No BI companion cover"],
+      levers: ["Higher excess", "Wording controls", "Protection warranties", "Referral for mixed occupancy"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "Commercial message", tone: "elevated", text: "Use fire as the anchor cover where the business owns meaningful physical assets. It is easiest to explain when the customer can picture the cost of rebuilding." },
+        { title: "RM focus", tone: "high", items: ["Asset-heavy sites", "Single-location operations", "Customers who need downtime protection alongside physical damage cover"] },
+      ],
+      uw: [
+        { title: "Underwriting message", tone: "critical", text: "Fire is a severity product. Do not underwrite it as a generic rate card item; underwrite the asset, the occupancy, and the recovery plan." },
+        { title: "Watch points", tone: "critical", items: ["Protection level", "Occupancy hazards", "Sum insured accuracy", "Flood and allied perils"] },
+      ],
+    },
+  },
+  property_all_risk: {
+    label: "Property All Risk",
+    summary: "The broader property package for clients who need more than fire - especially where accidental damage, theft, and wider asset protection matter.",
+    tone: "orange",
+    pressure: 72,
+    claim_frequency: 64,
+    claim_severity: 80,
+    source_label: "bundled.md · Property All Risk",
+    rm: {
+      headline: "Use PAR when the buyer needs the broader asset shield, not just a fire policy.",
+      loss_ratio_view: "PAR is broader than plain fire, so the RM conversation should focus on total asset protection and how downtime or theft can break operations.",
+      bullets: [
+        "Strongest fit for warehouse, manufacturing, and equipment-heavy businesses.",
+        "A clean upgrade path when the client already understands fire but wants a broader safety net.",
+        "Works well with BI when a shut-down would hurt revenue more than just the asset book value.",
+      ],
+      proof_points: ["Broader than fire", "Theft and accidental damage", "Reinstatement basis", "BI companion potential"],
+      watch_for: ["Asset-heavy mix", "Better-fit zones", "Need for BI companion", "Underinsurance risk"],
+      cross_sell: ["Business Interruption", "Electronic Equipment", "Machinery Breakdown"],
+    },
+    uw: {
+      headline: "Confirm the insured really needs the broader wording and not just a fire policy.",
+      loss_ratio_view: "PAR usually prices above simple fire because the perils are broader, so weak occupancy discipline can quickly erode margin.",
+      bullets: [
+        "Check whether accidental damage and theft are genuinely needed for the account's operations.",
+        "Validate occupancy, protection, and valuation - the broad wording should not hide weak risk selection.",
+        "Review whether the account should be split into property and equipment lines instead of one broad wrapper.",
+      ],
+      proof_points: ["Broader peril set", "Asset and theft exposure", "Downtime linkage", "Valuation discipline"],
+      watch_for: ["Overbroad assumptions", "Weak protection class", "Mixed occupancies", "Poor asset disclosure"],
+      levers: ["Excess", "Special conditions", "Risk survey", "Referral on mixed hazards"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "Commercial message", tone: "elevated", text: "Position this as the broader property option when the buyer wants theft and accidental damage in addition to fire protection." },
+        { title: "RM focus", tone: "high", items: ["Asset-heavy businesses", "Warehouse and equipment pools", "Customers who want a broader property envelope"] },
+      ],
+      uw: [
+        { title: "Underwriting message", tone: "critical", text: "The broader wording can create hidden loss pressure if occupancy and protection are weak. Keep the review strict." },
+        { title: "Watch points", tone: "critical", items: ["Accidental damage assumptions", "Theft exposure", "Asset valuation", "Mixed occupancies"] },
+      ],
+    },
+  },
+  electronic_equipment: {
+    label: "Electronic Equipment Insurance",
+    summary: "A noisy but improving portfolio in the file: still loss-making, but the cleanest pockets and the most stressed metros are now visible enough to guide the RM and UW split.",
+    tone: "amber",
+    pressure: 68,
+    claim_frequency: 73,
+    claim_severity: 66,
+    source_label: "bundled.md · Electronic Equipment Insurance (5002)",
+    rm: {
+      headline: "Lead with uptime, replacement speed, and protecting tech-intensive assets from breakdown and accidental damage.",
+      loss_ratio_view: "The portfolio is still not clean, but improvement is visible enough to use the product for the right asset-heavy accounts.",
+      bullets: [
+        "Best for labs, offices, servers, and businesses where device downtime hurts revenue or service quality.",
+        "Sell it where a single failed asset can block operations or customer delivery.",
+        "The value proposition is speed of replacement and continuity, not just reimbursement.",
+      ],
+      proof_points: ["Improving loss profile", "Asset-heavy exposure", "Downtime linkage", "Cleaner zones visible"],
+      watch_for: ["Mumbai / Delhi stress", "Corporate concentration", "Need for better asset data", "Accidental damage vs maintenance gap"],
+      cross_sell: ["Business Interruption", "Property Fire", "Machinery Breakdown"],
+    },
+    uw: {
+      headline: "Underwrite the asset, the maintenance culture, and the replacement cycle.",
+      loss_ratio_view: "The cover remains sensitive because equipment claims are frequent and can be severity-heavy when downtime and replacement delays stack up.",
+      bullets: [
+        "Confirm equipment list, age profile, maintenance records, and any dependent business interruption need.",
+        "Use geography and vertical quality to separate the cleaner pockets from the stress branches.",
+        "Avoid letting the product become a generic add-on to every property submission without a real equipment basis.",
+      ],
+      proof_points: ["Age / maintenance cycle", "Asset list", "Downtime dependency", "Zone quality split"],
+      watch_for: ["Old equipment", "High downtime sensitivity", "Weak maintenance evidence", "Stress metros"],
+      levers: ["Age-based loading", "Maintenance warranty", "Deductible", "Survey for larger sites"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "Commercial message", tone: "elevated", text: "This cover is strongest when the account owns hardware that is central to operations. It is less compelling when devices are easily replaceable commodity items." },
+        { title: "RM focus", tone: "high", items: ["Labs and offices with meaningful device spend", "Businesses where server uptime matters", "Clients who need fast repair and replacement support"] },
+      ],
+      uw: [
+        { title: "Underwriting message", tone: "critical", text: "The book is still learning to behave. Keep close watch on the stressed metros and underwrite to replacement and maintenance evidence." },
+        { title: "Watch points", tone: "critical", items: ["Device age", "Maintenance records", "Metro concentration", "Accidental damage wording"] },
+      ],
+    },
+  },
+  machinery_breakdown: {
+    label: "Machinery Breakdown",
+    summary: "A plant-and-equipment cover for businesses where a single machine failure can stop the line, not just create a repair ticket.",
+    tone: "orange",
+    pressure: 76,
+    claim_frequency: 60,
+    claim_severity: 79,
+    source_label: "bundled.md · Machinery Breakdown",
+    rm: {
+      headline: "Lead with production continuity and the cost of downtime from a single machine failure.",
+      loss_ratio_view: "MB is a continuity cover: the commercial story is not just repair cost, but the production and order impact of breakdown.",
+      bullets: [
+        "Best for manufacturing, kitchen equipment, and any site where output depends on one or two critical machines.",
+        "Works well when the client has replacement lead-time risk or expensive spare parts.",
+        "Pair with fire or PAR when the same asset base also needs physical damage cover.",
+      ],
+      proof_points: ["Production dependency", "Spare-part lead time", "Downtime exposure", "Equipment age"],
+      watch_for: ["Aged machinery", "No maintenance trail", "Critical single points of failure", "Replacement delays"],
+      cross_sell: ["Property Fire", "Business Interruption", "Electronic Equipment"],
+    },
+    uw: {
+      headline: "Underwrite the machine life cycle and the downtime path, not just the repair ticket.",
+      loss_ratio_view: "Severity can jump quickly when parts are delayed or the machine is production-critical, so the booking should reflect the operating dependence.",
+      bullets: [
+        "Review age, maintenance, OEM support, and spare-part lead time before quoting.",
+        "Check whether the client really needs BI alongside MB because downtime often dominates the final loss.",
+        "Use referral discipline where the machinery is old, highly specialised, or part of a single-line operation.",
+      ],
+      proof_points: ["Age profile", "OEM support", "Maintenance logs", "Production criticality"],
+      watch_for: ["Old assets", "Single-line failure risk", "No service history", "Long part replacement time"],
+      levers: ["Age loading", "Maintenance warranty", "Higher deductible", "Survey for critical equipment"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "Commercial message", tone: "elevated", text: "This is a clear continuity product for equipment-driven businesses. Sell it where a breakdown can halt delivery, production, or kitchen service immediately." },
+        { title: "RM focus", tone: "high", items: ["Manufacturing lines", "Cloud kitchens", "Critical plant / equipment sites", "Spare-part dependent operations"] },
+      ],
+      uw: [
+        { title: "Underwriting message", tone: "critical", text: "The machine lifecycle matters more than the headline premium. Age, supportability, and maintenance evidence should drive the quote." },
+        { title: "Watch points", tone: "critical", items: ["Equipment age", "Spare-part delays", "Maintenance evidence", "Production dependency"] },
+      ],
+    },
+  },
+  business_interruption: {
+    label: "Business Interruption",
+    summary: "The downtime layer that turns a physical loss into a revenue and fixed-cost problem, and should almost always be discussed with property-heavy accounts.",
+    tone: "orange",
+    pressure: 78,
+    claim_frequency: 58,
+    claim_severity: 85,
+    source_label: "bundled.md · Business Interruption",
+    rm: {
+      headline: "Sell the cashflow shield, not just the property extension.",
+      loss_ratio_view: "BI is severity-heavy because a shutdown affects revenue, fixed costs, and customer commitments all at once.",
+      bullets: [
+        "Use when one location or one production node drives most of the business.",
+        "Best explained in working-capital terms: rent and payroll still run while revenue pauses.",
+        "Pair it with fire or property all risk whenever the client cannot easily absorb downtime.",
+      ],
+      proof_points: ["Lost revenue risk", "Fixed cost continuity", "Single-site dependency", "Recovery period exposure"],
+      watch_for: ["Weak gross-profit basis", "Long repair lead time", "No formal recovery plan", "Single-node operations"],
+      cross_sell: ["Property Fire", "Property All Risk", "Machinery Breakdown"],
+    },
+    uw: {
+      headline: "Confirm the gross-profit basis, indemnity period, and recovery assumptions.",
+      loss_ratio_view: "BI can blow out quickly if the gross-profit basis is too generous or the recovery period is too long for the actual operations.",
+      bullets: [
+        "Confirm gross-profit basis, indemnity period, and whether the client has documented recovery planning.",
+        "Check that the property / asset cover underneath BI is genuinely adequate.",
+        "Watch for businesses that can reroute operations quickly and therefore do not need a long BI period.",
+      ],
+      proof_points: ["Gross profit basis", "Indemnity period", "Recovery plan", "Underlying property adequacy"],
+      watch_for: ["Overstated BI basis", "Long recovery assumptions", "Fast reroute businesses", "No documented continuity plan"],
+      levers: ["Shorter indemnity period", "Higher deductible", "Verification of profit basis", "Referral for complex operations"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "Commercial message", tone: "elevated", text: "BI is the cover that keeps the business breathing after a fire, flood, or breakdown. Make the conversation about payroll and rent staying covered during downtime." },
+        { title: "RM focus", tone: "high", items: ["One-site businesses", "Revenue that stops when the site stops", "Clients with high fixed-cost pressure"] },
+      ],
+      uw: [
+        { title: "Underwriting message", tone: "critical", text: "The basis of cover matters more than the headline limit. If the gross-profit basis is wrong, the BI premium can be misleading." },
+        { title: "Watch points", tone: "critical", items: ["Gross profit basis", "Indemnity period", "Dependence on one site", "Recovery planning"] },
+      ],
+    },
+  },
+  public_liability: {
+    label: "Public Liability",
+    summary: "Third-party injury and property damage cover that should be placed wherever customers, visitors, delivery staff, or the public physically interact with the business.",
+    tone: "amber",
+    pressure: 67,
+    claim_frequency: 71,
+    claim_severity: 63,
+    source_label: "bundled.md · Public Liability",
+    rm: {
+      headline: "Lead with third-party harm protection and premises reassurance.",
+      loss_ratio_view: "PL is frequency-heavy where footfall is meaningful, but severity can spike fast when injury or property damage becomes a legal claim.",
+      bullets: [
+        "Best for offices, pickup points, kitchens, warehouses, and any public-facing premises.",
+        "The RM message is simple: a slip, fall, or premises incident should not become a cashflow event.",
+        "Use it as the cover that turns visitor risk into an insured cost instead of a founder distraction.",
+      ],
+      proof_points: ["Visitor / public exposure", "Premises injury risk", "Legal defence funding", "Operations reassurance"],
+      watch_for: ["High footfall", "Hazardous premises", "Contractual liability", "Mixed site use"],
+      cross_sell: ["Property Fire", "Product Liability", "Business Interruption"],
+    },
+    uw: {
+      headline: "Check the premises hazard, traffic pattern, and whether contractual liability is being assumed.",
+      loss_ratio_view: "The product can look benign until a serious injury or property-damage event forces a legal claim, so hazard and operations matter more than headline premium.",
+      bullets: [
+        "Review footfall, hazard controls, signage, and whether the client assumes broader liability than the standard wording.",
+        "Check the venue, yard, kitchen, or warehouse layout rather than relying on a generic office assumption.",
+        "Use tighter limits and conditions if the account is physically open to the public in a risky way.",
+      ],
+      proof_points: ["Footfall", "Hazard controls", "Contractual assumption", "Venue layout"],
+      watch_for: ["High visitor traffic", "Dangerous premises", "Broad indemnities", "Unclear operations"],
+      levers: ["Higher excess", "Hazard schedule", "Referral for mixed use", "Special conditions"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "Commercial message", tone: "elevated", text: "Public liability is the reassurance cover for anyone dealing with people on site. It turns a premises incident into a policy response instead of a business interruption event." },
+        { title: "RM focus", tone: "high", items: ["Customer-facing sites", "Delivery and pickup locations", "Warehouse / logistics yards", "Food and beverage operations"] },
+      ],
+      uw: [
+        { title: "Underwriting message", tone: "critical", text: "The physical layout and traffic exposure matter. Underwrite the premises, the controls, and the real-world interaction pattern." },
+        { title: "Watch points", tone: "critical", items: ["Visitor traffic", "Hazardous areas", "Contractual liability", "Public-facing operations"] },
+      ],
+    },
+  },
+  group_personal_accident: {
+    label: "Group Personal Accident",
+    summary: "An employee accident benefit cover that works as a low-friction people shield when the workforce is exposed to travel, field work, or physical risk.",
+    tone: "green",
+    pressure: 46,
+    claim_frequency: 63,
+    claim_severity: 40,
+    source_label: "bundled.md · Group Personal Accident",
+    rm: {
+      headline: "Use GPA as the quick employee protection layer where accidents are a real operational risk.",
+      loss_ratio_view: "GPA is frequency-heavy, but the severity is usually capped and understandable, which makes it a good employee benefit conversation.",
+      bullets: [
+        "Especially relevant for field staff, delivery teams, and any workforce that travels or works on-site.",
+        "It is often the easiest first people-benefit to explain because the benefit is direct and visible.",
+        "Pairs naturally with group health and employee compensation in a broader workforce bundle.",
+      ],
+      proof_points: ["Travel exposure", "Field workforce", "Accident benefit", "Employee goodwill"],
+      watch_for: ["High travel intensity", "Physical work", "Benefit alignment", "Coverage overlap with EC / ESIC"],
+      cross_sell: ["Group Health Insurance", "Employees' Compensation", "Employment Practices"],
+    },
+    uw: {
+      headline: "Confirm the population mix and whether the benefit design matches the workforce risk.",
+      loss_ratio_view: "GPA is simpler than health, but the claim pattern still rises with physical work and travel-heavy teams.",
+      bullets: [
+        "Check workforce composition, accident exposure, and whether the proposed sum insured is consistent with the employee cohort.",
+        "Avoid letting the benefit become a generic add-on without understanding actual field risk.",
+        "Use clear waiting periods and benefit structure where the workforce is not uniform.",
+      ],
+      proof_points: ["Workforce exposure", "Accident history", "Benefit design", "Cohort mix"],
+      watch_for: ["Travel-heavy staff", "Physical work", "Mismatch in benefit design", "Overlapping employee covers"],
+      levers: ["Benefit tiers", "Waiting periods", "Cohort segmentation", "Population validation"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "Commercial message", tone: "elevated", text: "GPA is a clean employee-benefit message for businesses with field teams or physical exposure. It is easy to explain and easy to position alongside health." },
+        { title: "RM focus", tone: "high", items: ["Travel-heavy teams", "Delivery staff", "On-site workforce", "Employers trying to formalise a quick employee benefit"] },
+      ],
+      uw: [
+        { title: "Underwriting message", tone: "watch", text: "The underwriting question is simple: who is actually at risk, and is the benefit design consistent with that population?" },
+        { title: "Watch points", tone: "critical", items: ["Field exposure", "Travel exposure", "Cohort mix", "Overlap with statutory benefits"] },
+      ],
+    },
+  },
+  employees_compensation: {
+    label: "Employees' Compensation",
+    summary: "Statutory employee injury protection for work-related accidents and occupational injury exposure.",
+    tone: "green",
+    pressure: 49,
+    claim_frequency: 66,
+    claim_severity: 44,
+    source_label: "bundled.md · Employees' Compensation",
+    rm: {
+      headline: "Lead with statutory compliance and clean employee protection.",
+      loss_ratio_view: "Employees' Compensation is best sold as a compliance and workforce protection cover where injury exposure is real.",
+      bullets: [
+        "Best for physically active teams, logistics, warehousing, kitchens, and on-site workforces.",
+        "The RM pitch is straightforward: statutory obligations should not become an uninsured cash outflow.",
+        "Pairs well with GPA and broader people-bundle discussions.",
+      ],
+      proof_points: ["Statutory obligation", "Work-related injury", "Labour compliance", "Field / warehouse exposure"],
+      watch_for: ["Workforce injury risk", "Compliance gaps", "Physical operations", "Benefit overlap with GPA"],
+      cross_sell: ["Group Personal Accident", "Group Health Insurance", "Employment Practices"],
+    },
+    uw: {
+      headline: "Check the workforce type and the operational injury exposure, not just the payroll number.",
+      loss_ratio_view: "The product is driven by physical work and statutory injury risk, so the loss pattern can jump when the workforce is active and dispersed.",
+      bullets: [
+        "Confirm the population at risk and whether the business uses contractors, delivery staff, or warehouse staff heavily.",
+        "Review the operating pattern and any prior injury / labour issues before writing.",
+        "Watch for coverage overlap and ensure the employee classes are correctly represented.",
+      ],
+      proof_points: ["Workforce mix", "Injury exposure", "Prior claims", "Statutory compliance"],
+      watch_for: ["Misclassified workforce", "High physical exposure", "Contractor mix", "No injury controls"],
+      levers: ["Class segmentation", "Wage / payroll validation", "Referral by risk class", "Benefit alignment"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "Commercial message", tone: "elevated", text: "This is the statutory employee-protection layer. It is most compelling where the workforce is active, mobile, or physically exposed." },
+        { title: "RM focus", tone: "high", items: ["Warehousing and logistics", "Kitchen and delivery teams", "Any employer wanting statutory employee protection"] },
+      ],
+      uw: [
+        { title: "Underwriting message", tone: "critical", text: "Underwrite the injury exposure by workforce class. Do not let payroll alone decide the risk." },
+        { title: "Watch points", tone: "critical", items: ["Workforce class", "Physical exposure", "Contractor mix", "Prior injury history"] },
+      ],
+    },
+  },
+  money_insurance: {
+    label: "Money Insurance",
+    summary: "A cash-handling protection cover for theft or loss in transit and on premises.",
+    tone: "green",
+    pressure: 40,
+    claim_frequency: 48,
+    claim_severity: 35,
+    source_label: "bundled.md · Money Insurance",
+    rm: {
+      headline: "Use when cash handling is real, not hypothetical.",
+      loss_ratio_view: "Money is a smaller but practical cover when the business still handles physical cash, floats, or couriered cash collections.",
+      bullets: [
+        "Best for food, retail, field sales, and any business with cash-in-transit or cash-on-premises exposure.",
+        "The story is simple: the policy reimburses cash loss rather than creating a fight about liability.",
+        "Works as a small but useful operational-protection add-on in cash-handling businesses.",
+      ],
+      proof_points: ["Cash float", "Transit exposure", "Cash handling", "Operational convenience"],
+      watch_for: ["Low cash handling controls", "High petty cash use", "Courier / transit gaps", "Weak reconciliation"],
+      cross_sell: ["Public Liability", "Property Fire", "Crime / Fidelity"],
+    },
+    uw: {
+      headline: "Check the cash controls and the transit process before writing.",
+      loss_ratio_view: "Money claims are often small in size but become messy when cash handling controls are weak, so underwriting is really about the control environment.",
+      bullets: [
+        "Confirm whether cash is held, transported, or only handled rarely.",
+        "Check the cash reconciliation process, safe controls, and who owns the transit chain.",
+        "Avoid overpricing small controlled exposures, but do not ignore weak controls.",
+      ],
+      proof_points: ["Cash controls", "Safe usage", "Transit chain", "Reconciliation process"],
+      watch_for: ["Poor controls", "High cash turnover", "Unclear transit responsibility", "Weak documentation"],
+      levers: ["Cash limits", "Safe requirements", "Transit conditions", "Control validation"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "Commercial message", tone: "elevated", text: "Money insurance is a practical cash-protection add-on for businesses that still touch physical cash. It is easy to explain and often easy to close." },
+        { title: "RM focus", tone: "high", items: ["Retail and food businesses", "Cash floats", "Cash-in-transit exposure", "Businesses with frequent petty cash use"] },
+      ],
+      uw: [
+        { title: "Underwriting message", tone: "watch", text: "The key question is whether the cash-handling controls are strong enough to keep the exposure small." },
+        { title: "Watch points", tone: "critical", items: ["Cash handling controls", "Transit chain", "Documentation quality", "Safe / reconciliation processes"] },
+      ],
+    },
+  },
+};
+
+const RM_INTEL_ENRICHMENTS = {
+  electronic_equipment: {
+    label: "Electronic Equipment Insurance",
+    source_label: "Engineering standalone.docx",
+    summary: "Engineering electronics cover should be sold as controlled uptime protection, not a broad discount-led equipment product.",
+    pressure: 82,
+    claim_frequency: 74,
+    claim_severity: 78,
+    rm: {
+      headline: "Use EEI for quality corporate/Bangalore-type electronics risks; do not chase weak SME/Emerging volume.",
+      loss_ratio_view: "The RM issue is growth quality. Chennai shows volume growth but remains loss-making, while Corporate is the cleaner deployment segment. Sales should push only where equipment quality, maintenance discipline, and claim history support profitable GWP.",
+      bullets: [
+        "Lead with business continuity for servers, control panels, medical/electronic assets, and critical office equipment.",
+        "Prioritise Corporate and Bangalore-style risks where underwriting quality is stronger.",
+        "Treat Chennai as conditional growth only after pricing and deductible correction.",
+        "Avoid Emerging and weak SME Broking accounts until claims and expense leakage are understood.",
+      ],
+      watch_for: ["Delhi concentration", "High-loss SME/Emerging pockets", "Low deductibles", "Weak maintenance records"],
+      cross_sell: ["Machinery Breakdown", "Property Fire", "Business Interruption", "Cyber for digital operations"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "RM commercial lens", tone: "high", text: "The product is useful when electronic assets are mission-critical, but sales should avoid treating it as a small add-on sold purely for premium volume. The document points to a quality gap: some growth pockets add GWP without improving underwriting value." },
+        { title: "Where to grow", tone: "low", items: ["Corporate is the best RM deployment segment.", "Bangalore-type quality accounts are acceptable if maintenance and loss history are clean.", "Chennai can be pursued selectively only after pricing and deductible correction."] },
+        { title: "Where to control", tone: "critical", items: ["Emerging business where GWP is down but losses rise.", "SME Broking with flat GWP and high losses.", "Delhi concentration where claim-type and policy-size breakdowns are needed before more push."] },
+        { title: "RM talking points", tone: "elevated", items: ["Protect uptime for critical electronics.", "Bundle with engineering/property accounts rather than selling as a price-led standalone.", "Use account-level claim history and maintenance documentation as proof of quality."] },
+      ],
+    },
+  },
+  machinery_breakdown: {
+    label: "Machinery Breakdown",
+    source_label: "Engineering standalone.docx",
+    summary: "Machinery Breakdown has a clear profitable-growth problem: some segments are improving, but Retail, Delhi, Chennai, Hyderabad, and Kolkata destroy margin.",
+    pressure: 90,
+    claim_frequency: 84,
+    claim_severity: 88,
+    rm: {
+      headline: "Shift RM targets from GWP to profitable GWP; defend Corporate/Bangalore/Indore and stop Retail-led growth.",
+      loss_ratio_view: "Retail Machinery Breakdown grew GWP from ₹52 Mn to ₹71 Mn, but UW loss worsened to ₹38 Mn and COR worsened to 259%. Delhi remains large at ₹97 Mn GWP but produces ₹29 Mn UW loss and 186% COR. This is not a volume problem; it is a retained-profitability problem.",
+      bullets: [
+        "Defend profitable Corporate renewals and rebuild only similar-quality accounts.",
+        "Push Bangalore and Indore selectively because COR improved to 97% and 9% respectively.",
+        "Stop aggressive Retail acquisition; growth there is value destructive.",
+        "Use Delhi renewals for correction: deductible increase, rate repair, referral, or exit.",
+      ],
+      watch_for: ["Retail 259% COR", "Delhi scale without profit", "Chennai 215% COR", "Hyderabad 206% COR", "Kolkata structural weakness"],
+      cross_sell: ["CAR/EAR ALOP", "Property Fire", "Electronic Equipment", "Business Interruption"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "RM commercial lens", tone: "critical", text: "The Machinery Breakdown portfolio should not be sold on gross premium targets. The document explicitly says sales incentives must shift from GWP to underwriting-adjusted growth because Retail and Delhi are absorbing RM effort without producing profit." },
+        { title: "Priority pockets", tone: "low", items: ["Corporate: UW moved from loss to profit; defend renewals and rebuild pipeline.", "Bangalore: growth came with better claims outcome and COR below 100%.", "Indore: small but profitable; build pipeline carefully without rate dilution."] },
+        { title: "Stop / correct pockets", tone: "critical", items: ["Retail: GWP increased 36.5%, but incurred LR worsened to 228% and COR to 259%.", "Delhi: largest zone but ₹29 Mn UW loss and 186% COR.", "Chennai and Hyderabad: growth coincided with severe COR deterioration.", "Kolkata: not a growth market until renewal correction is complete."] },
+        { title: "RM action matrix", tone: "high", items: ["Retain only adequately priced renewals.", "Increase deductibles on repeated-loss accounts.", "Mandate underwriting referral for large or loss-making accounts.", "Reward RM teams on COR/UW result and not just GWP retention."] },
+      ],
+    },
+  },
+  car_ear_advanced_loss_of_profit: {
+    label: "CAR/EAR Advanced Loss of Profit",
+    source_label: "Engineering standalone.docx",
+    summary: "CAR/EAR ALOP is the clean engineering growth lever, especially Corporate, Mumbai, and Delhi, but low-scale high-expense pockets need control.",
+    pressure: 58,
+    claim_frequency: 46,
+    claim_severity: 70,
+    rm: {
+      headline: "Prioritise CAR/EAR ALOP in Corporate, Mumbai, and Delhi where the document shows profitable growth.",
+      loss_ratio_view: "CAR/EAR ALOP Corporate delivered ₹24 Mn UW profit, Mumbai delivered ₹19 Mn, and Delhi delivered ₹5 Mn. This is a better RM growth story than weak Machinery Breakdown volume.",
+      bullets: [
+        "Lead with project-delay revenue protection for large engineering and infrastructure accounts.",
+        "Prioritise Corporate, Mumbai, and Delhi opportunities.",
+        "Avoid Emerging/Retail pockets where near-zero premium creates expense and ratio volatility.",
+        "Pair the sale with CAR/EAR, Property, Machinery Breakdown, and Business Interruption conversations.",
+      ],
+      watch_for: ["Low-scale Emerging/Retail volatility", "Project delay documentation", "Contract terms", "Dependency on principal project cover"],
+      cross_sell: ["Contractors All Risk", "Erection All Risk", "Machinery Breakdown", "Business Interruption"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "RM commercial lens", tone: "low", text: "This is the engineering portfolio's cleaner growth lever. It should be positioned as delay-income protection attached to project and engineering accounts, not as a mass-market volume product." },
+        { title: "Where to push", tone: "high", items: ["Corporate CAR/EAR ALOP: ₹24 Mn UW profit.", "Mumbai: ₹19 Mn UW profit.", "Delhi: ₹5 Mn UW profit with controlled expansion potential."] },
+        { title: "Where to avoid", tone: "watch", items: ["Emerging and Retail where premium is negligible and COR/expense volatility is high.", "Accounts without clear project timelines, indemnity period logic, or dependency mapping."] },
+        { title: "RM talking points", tone: "elevated", items: ["Protect expected project revenue when physical damage delays completion.", "Use with contractor, infrastructure, energy, and industrial project clients.", "Do not dilute margin because profitability comes from disciplined selection."] },
+      ],
+    },
+  },
+  fire_allied_perils: {
+    label: "ICICI Lombard Fire and Allied Perils Insurance Policy",
+    source_label: "fire standalone.docx",
+    summary: "The 1001/BASE fire book is high-scale but dangerous; RMs should de-risk and move growth toward cleaner fire products.",
+    pressure: 94,
+    claim_frequency: 82,
+    claim_severity: 95,
+    rm: {
+      headline: "Senior-underwriting-controlled growth only; do not let RMs use 1001/BASE for target achievement.",
+      loss_ratio_view: "The fire document says 1001/BASE contributed ₹4,421 Mn GWP but created ₹633 Mn UW loss and 169% COR. GWP grew ₹71 Mn, while UW result deteriorated by ₹1,795 Mn. This is the clearest fire red flag.",
+      bullets: [
+        "Stop broad volume push in Delhi, Bangalore, Indore, Pune, and Hyderabad.",
+        "Renew only after occupancy, catastrophe accumulation, claims, and rate adequacy review.",
+        "Use senior UW sign-off for large-risk renewals.",
+        "Redirect RM pipeline toward Property Fire and Property All Risk where retained profitability is better.",
+      ],
+      watch_for: ["169% COR", "₹633 Mn UW loss", "Large account pricing", "Cat accumulation", "Acquisition cost without profit"],
+      cross_sell: ["Property Fire", "Property All Risk", "Business Interruption", "Risk engineering services"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "RM commercial lens", tone: "critical", text: "1001/BASE is a target-risk product, not a growth product. The document explicitly says it is high-scale but dangerous, with ₹4,421 Mn GWP and ₹633 Mn UW loss. RM targets should not reward expansion here unless underwriting correction is already locked in." },
+        { title: "Where to stop / restrict", tone: "critical", items: ["Delhi, Bangalore, Indore, Pune, and Hyderabad.", "Emerging business where GWP grew but UW moved into loss.", "Large fire renewals without senior UW sign-off."] },
+        { title: "RM correction actions", tone: "high", items: ["Reprice weak renewals.", "Add deductible and occupancy-risk correction.", "Review claim load and catastrophe accumulation before renewal defence.", "Move pipeline share to Property Fire and Property All Risk."] },
+        { title: "Leadership message", tone: "elevated", text: "RMs should not be measured only on GWP. The current portfolio shows ₹71 Mn GWP growth in 1001/BASE created ₹1,795 Mn underwriting deterioration." },
+      ],
+    },
+  },
+  bharat_sookshma_fire: {
+    label: "Bharat Sookshma Udyam Suraksha",
+    source_label: "fire standalone.docx",
+    summary: "Bharat Sookshma is high-scale but margin-poor; RM focus is expense discipline, pricing correction, and selective growth in cleaner pockets.",
+    pressure: 88,
+    claim_frequency: 79,
+    claim_severity: 86,
+    rm: {
+      headline: "Correct the book before scaling Retail; use Emerging and Hyderabad selectively as quality pockets.",
+      loss_ratio_view: "Bharat Sookshma contributes ₹1,649 Mn GWP, but the document flags ₹194 Mn UW loss and 162% COR. Retail alone is ₹1,485 Mn GWP with ₹162 Mn UW loss, and acquisition cost stayed at ₹281 Mn despite lower GWP.",
+      bullets: [
+        "Do not push Retail without rate, deductible, and acquisition-cost correction.",
+        "Prioritise Emerging and Hyderabad selectively because they show better-quality pockets.",
+        "Control Delhi, Kolkata, Bangalore, and Pune until loss drivers are fixed.",
+        "Move RM scorecards toward acquisition efficiency and retained profitability.",
+      ],
+      watch_for: ["Retail loss concentration", "162% COR", "Flat acquisition cost", "Weak pricing in small accounts"],
+      cross_sell: ["Property Fire", "Property All Risk", "Business Interruption", "Money Insurance"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "RM commercial lens", tone: "critical", text: "Bharat Sookshma is large enough to matter but not healthy enough for broad push. The sales problem is not lack of scale; it is high acquisition cost and weak retained profitability." },
+        { title: "Selective growth pockets", tone: "low", items: ["Emerging: small but better-quality pocket.", "Hyderabad: turnaround pocket with COR improving from 264% to 67% and UW moving to profit."] },
+        { title: "Control pockets", tone: "critical", items: ["Retail: ₹1,485 Mn GWP but ₹162 Mn UW loss.", "Delhi, Kolkata, Bangalore, and Pune need repricing and expense correction.", "Any account where commission sensitivity overwhelms retained margin."] },
+        { title: "RM action", tone: "high", items: ["Improve expense leakage before scaling.", "Use renewal correction rather than premium preservation.", "Shift incentives to UW profit, COR, acquisition efficiency, and claims-adjusted growth."] },
+      ],
+    },
+  },
+  property_fire: {
+    label: "Property Fire",
+    source_label: "fire standalone.docx",
+    summary: "Property Fire is the preferred fire RM push product, but reported profitability needs reserve validation before aggressive scaling.",
+    pressure: 52,
+    claim_frequency: 42,
+    claim_severity: 64,
+    rm: {
+      headline: "Push Mumbai, Delhi, and Corporate selectively; validate reserve quality before broad expansion.",
+      loss_ratio_view: "Property Fire is the strongest reported fire product with UW profit of ₹135 Mn and COR of -25%. Mumbai and Delhi are the best RM zones, but negative NIC/IBNR credit means sales should not assume all profit is structural.",
+      bullets: [
+        "Push Mumbai and Delhi because they show profitable growth.",
+        "Use Corporate as the strongest vertical-product combination.",
+        "Maintain rate discipline; do not buy volume with discounting.",
+        "Monitor Delhi acquisition cost increase and reserve sustainability.",
+      ],
+      watch_for: ["Reserve-credit dependence", "Negative NIC distortion", "Delhi acquisition cost", "Large fire occupancy risk"],
+      cross_sell: ["Property All Risk", "Business Interruption", "Bharat Sookshma", "Risk engineering"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "RM commercial lens", tone: "low", text: "Property Fire is the best RM productivity product in the fire portfolio. It has ₹468 Mn GWP, ₹135 Mn UW profit, and strong reported COR, but reserve-credit sustainability must be validated before aggressive scaling." },
+        { title: "Best RM zones", tone: "high", items: ["Mumbai: GWP up ₹51 Mn / 44.3%, UW profit ₹54 Mn, COR 21%.", "Delhi: GWP up ₹66 Mn / 169.2%, UW profit ₹18 Mn, COR 27%.", "Corporate: GWP ₹453 Mn, UW profit ₹134 Mn, COR -30%."] },
+        { title: "Controls", tone: "watch", items: ["Do not make RM decisions based only on distorted ratios where NWP is near zero.", "Validate IBNR/reserve release before setting aggressive sales targets.", "Keep pricing discipline and acquisition cost control."] },
+        { title: "RM action", tone: "elevated", items: ["Push Mumbai, Delhi, and Corporate.", "Use Property Fire as the anchor for cleaner fire pipeline.", "Reward profitable retained NWP, not just GWP."] },
+      ],
+    },
+  },
+  property_all_risk: {
+    label: "Property All Risk",
+    source_label: "fire standalone.docx",
+    summary: "Property All Risk is the most sustainable fire growth product, but only in Bangalore, Delhi, Mumbai, and Corporate.",
+    pressure: 64,
+    claim_frequency: 54,
+    claim_severity: 70,
+    rm: {
+      headline: "Grow selectively in Bangalore, Delhi, Mumbai, and Corporate; stop Ahmedabad, Pune, and Retail until repriced.",
+      loss_ratio_view: "Property All Risk has lower scale but better quality: COR worsened from 52% to 79% but remained profitable. Bangalore is the best growth-quality pocket with GWP up 225% and COR at 11%.",
+      bullets: [
+        "Scale Bangalore where GWP rose from ₹12 Mn to ₹39 Mn and COR improved to 11%.",
+        "Rebuild Delhi only with disciplined selection after profitable pruning.",
+        "Keep Mumbai growth controlled because margin is weakening but still profitable.",
+        "Stop Ahmedabad, Pune, and Retail loss-making growth until price correction.",
+      ],
+      watch_for: ["Ahmedabad 226% COR", "Pune 155% COR", "Retail 141% COR", "Margin weakening in Mumbai"],
+      cross_sell: ["Property Fire", "Business Interruption", "Risk engineering", "Machinery Breakdown"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "RM commercial lens", tone: "high", text: "Property All Risk is a lower-scale but higher-quality product. RMs should grow it selectively where COR remains below 80%, rather than using it as an indiscriminate fire growth lever." },
+        { title: "Best pockets", tone: "low", items: ["Bangalore: GWP up ₹27 Mn / 225%, UW profit up ₹7 Mn, COR 11%.", "Delhi: profitable pruning, COR improved to 60%.", "Mumbai: still profitable with COR 60%, but margin is weakening.", "Corporate: profitable but margin needs guardrails."] },
+        { title: "Caution pockets", tone: "critical", items: ["Ahmedabad: GWP grew but UW loss worsened and COR reached 226%.", "Pune: shrinkage did not fix quality; COR 155%.", "Retail: growth is destroying profitability, COR 141%."] },
+        { title: "RM action", tone: "elevated", items: ["Push Bangalore, Delhi, Mumbai, and Corporate.", "Stop Ahmedabad/Pune loss-making pockets.", "Reprice Retail before any further growth.", "Track monthly COR threshold by RM and branch."] },
+      ],
+    },
+  },
+  dno_liability: {
+    label: "Directors and Officers Liability",
+    source_label: "Management and Fin lines - standalone products (1).docx",
+    summary: "D&O looks materially stronger, but RM growth should be selective because reported recovery may be reserve-led.",
+    pressure: 48,
+    claim_frequency: 38,
+    claim_severity: 66,
+    rm: {
+      headline: "Prioritise Mumbai, Hyderabad, and Delhi renewals/cross-sell; validate reserve-led profit before scaling.",
+      loss_ratio_view: "The D&O document shows a dramatic reported improvement, with COR moving from 66% to -5% and Financial LR from 34% to -26%. RM growth is best where premium growth and profit both improved, but reserve-release-driven pockets should not be treated as normalized earning power.",
+      bullets: [
+        "Use D&O for funded, board-led, regulated, investor-backed, and transaction-heavy companies.",
+        "Prioritise renewals and cross-sell in Mumbai, Hyderabad, and Delhi.",
+        "Treat Mumbai and Corporate strength as high priority but validate reserve release before aggressive new-business targets.",
+        "Judge RM effort on profit-quality, not just top line.",
+      ],
+      watch_for: ["Reserve release", "Corporate concentration", "Flat GWP with profit jump", "Sales growth faster than underwriting quality"],
+      cross_sell: ["Crime / Fidelity", "Cyber Liability", "Employment Practices Liability", "Professional Indemnity"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "RM commercial lens", tone: "high", text: "D&O is a strong commercial conversation for board accountability and investor confidence, but FY26 profit should be treated carefully because the document flags reserve-led earnings risk." },
+        { title: "Where to prioritise", tone: "low", items: ["Mumbai and Corporate are the largest source of reported recovery.", "Hyderabad and Delhi are good renewal/cross-sell priorities.", "Use profitable renewals rather than indiscriminate acquisition as the main RM motion."] },
+        { title: "Quality caveat", tone: "watch", items: ["Validate FY26 reserve release by zone and vertical.", "Confirm accident-year pricing adequacy.", "Do not over-read negative loss ratios as permanent underwriting quality."] },
+        { title: "RM action", tone: "elevated", items: ["Prioritise renewals and cross-sell in Mumbai / Hyderabad / Delhi.", "Use D&O to open Crime, Cyber, EPLI, and PI conversations.", "Add renewal retention, new business mix, and average premium per case to RM quality review."] },
+      ],
+    },
+  },
+  crime_fidelity: {
+    label: "Crime / Fidelity",
+    source_label: "Management and Fin lines - standalone products (1).docx",
+    summary: "Crime/Fidelity is deteriorating materially; RMs should rebuild toward cleaner Retail/SME pockets and avoid weak Corporate volume.",
+    pressure: 92,
+    claim_frequency: 78,
+    claim_severity: 91,
+    rm: {
+      headline: "Move from volume-led sales to quality-led renewal triage and selective new business.",
+      loss_ratio_view: "The document says deterioration is claims-led first, reinsurance-led second, and cost-led third. Corporate business is structurally weak, while Mumbai and Chennai are cleaner protection pockets. RMs should not treat this as a volume shortfall.",
+      bullets: [
+        "Protect profitable Mumbai and Chennai business, but validate sustainability.",
+        "Rebuild toward Retail and cleaner SME business.",
+        "De-risk Corporate and any account with high claims, high commission, and poor retained economics.",
+        "Use stronger discovery, notification, and internal-control discussions in every pitch.",
+      ],
+      watch_for: ["Corporate UW loss", "Non-prop reinsurance cost jump", "Weak internal controls", "Discovery / loss notification gaps"],
+      cross_sell: ["D&O", "Cyber Liability", "Employment Practices Liability", "Money Insurance"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "RM commercial lens", tone: "critical", text: "Crime/Fidelity should be sold only where internal controls and retained economics are credible. The document is explicit: this portfolio has materially deteriorated, and the issue is not insufficient volume." },
+        { title: "Where to defend/grow", tone: "low", items: ["Mumbai and Chennai profitable books, subject to sustainability checks.", "Retail and cleaner SME business where controls are stronger and claims are lower.", "Hyderabad as healthy small-scale expansion if cost discipline remains intact."] },
+        { title: "Where to de-risk", tone: "critical", items: ["Corporate vertical where UW loss widened materially.", "Any account carrying high claims + high commission + high acquisition cost.", "Accounts with weak fraud controls, poor loss notification, or negative NWP/NEP economics."] },
+        { title: "RM action", tone: "high", items: ["Run renewal triage account-by-account.", "Rework reinsurance economics before chasing volume.", "Tighten wording conversations around discovery, notification, employee/vendor fraud, and sub-limits.", "Move sales to quality-led renewal and selective new business."] },
+      ],
+    },
+  },
+  trade_credit: {
+    label: "Trade Credit Insurance",
+    source_label: "Management and Fin lines - standalone products (1).docx",
+    summary: "Trade Credit is withdrawn in the document; RM intelligence should be heuristic and conservative.",
+    pressure: 86,
+    claim_frequency: 62,
+    claim_severity: 94,
+    rm: {
+      headline: "Use only as a strategic credit-risk conversation; avoid treating withdrawn cover as a standard sales product.",
+      loss_ratio_view: "Because the document notes Trade Credit as withdrawn, the RM values are heuristic. The right RM use is advisory: identify receivable concentration, buyer default exposure, and sector stress, then route to approved alternatives or specialist referral.",
+      bullets: [
+        "Discuss only with companies exposed to large B2B receivables, export buyers, or concentrated debtor risk.",
+        "Frame the need around balance-sheet protection and working-capital continuity.",
+        "Do not promise product availability without underwriting/product confirmation.",
+        "Capture debtor concentration, ageing, credit control, and top-buyer exposure for referral.",
+      ],
+      watch_for: ["Withdrawn product status", "Buyer concentration", "Overdue receivables", "Weak credit control"],
+      cross_sell: ["D&O", "Crime / Fidelity", "Cyber Liability", "Business Interruption"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "RM commercial lens", tone: "watch", text: "Trade Credit is flagged as withdrawn, so RM intelligence must remain conservative. Use it to qualify receivable-risk pain and escalate, not to promise a live placement." },
+        { title: "Heuristic target accounts", tone: "high", items: ["B2B businesses with large receivables.", "Exporters or companies selling to a few large buyers.", "Companies with working-capital stress from delayed payments.", "Businesses in sectors with buyer insolvency or payment-delay risk."] },
+        { title: "RM discovery checklist", tone: "elevated", items: ["Top 5 buyer concentration.", "Receivable ageing and overdue trend.", "Credit-control process.", "Bad-debt history and payment dispute pattern."] },
+        { title: "Risk caveat", tone: "critical", text: "Because availability is not confirmed in the document, the RM should position this as specialist referral/need discovery rather than a standard quote path." },
+      ],
+    },
+  },
+  key_person: {
+    label: "Key Person Insurance",
+    source_label: "Management and Fin lines - standalone products (1).docx",
+    summary: "Key Person values are heuristic; use the cover as founder/executive continuity protection for dependency-heavy businesses.",
+    pressure: 58,
+    claim_frequency: 28,
+    claim_severity: 88,
+    rm: {
+      headline: "Use a heuristic RM lens: sell continuity where revenue, funding, or operations depend on one or two key people.",
+      loss_ratio_view: "The document notes Key Person exists with ICICI Pru and provides heuristic values. RM positioning should focus on business continuity, debt protection, investor confidence, and replacement cost rather than portfolio loss-ratio claims.",
+      bullets: [
+        "Target founder-led, expert-led, or relationship-led businesses.",
+        "Use when lenders, investors, or succession risk make key-person dependency explicit.",
+        "Frame as continuity funding if a founder, CEO, CTO, rainmaker, or guarantor is lost.",
+        "Pair with D&O, Cyber, Crime, and Employee Benefits for leadership-risk coverage.",
+      ],
+      watch_for: ["Founder dependency", "Loan guarantees", "No succession plan", "Revenue concentration by person"],
+      cross_sell: ["D&O", "Group Health", "Personal Accident", "Crime / Fidelity"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "RM commercial lens", tone: "elevated", text: "Key Person is a continuity conversation. The RM should identify whether the business has a person whose absence would damage revenue, funding, operations, or lender confidence." },
+        { title: "Heuristic target accounts", tone: "high", items: ["Founder-led startups.", "Professional firms dependent on one rainmaker.", "Tech businesses dependent on a CTO/architect.", "Borrower businesses where a founder has given personal guarantees."] },
+        { title: "RM talking points", tone: "low", items: ["Funds replacement hiring and transition cost.", "Protects lender/investor confidence.", "Reduces disruption if a key executive is unavailable.", "Complements D&O and employee benefits."] },
+        { title: "Risk caveat", tone: "watch", text: "Use heuristic guidance only; final product availability, underwriting, and insurer placement should be checked before making a firm recommendation." },
+      ],
+    },
+  },
+  business_shield_sme: {
+    label: "Business Shield",
+    source_label: "Bundled products Ratios.docx",
+    summary: "Business Shield is a correction-first bundle: Bangalore-style quality can be mined, but Mumbai/SME/Emerging need de-risking.",
+    pressure: 86,
+    claim_frequency: 76,
+    claim_severity: 84,
+    rm: {
+      headline: "Do not chase Business Shield volume until branch and SME quality are fixed.",
+      loss_ratio_view: "The bundled-ratios document flags Business Shield as shrinking while cost increased. Bangalore recovered strongly with LR dropping from 213% to 13%, but Mumbai shows LR 253% and COR 283%, making it an immediate de-risk pocket.",
+      bullets: [
+        "Use Business Shield for better-selected Bangalore-type SME accounts.",
+        "Treat Ahmedabad as recovery but small-scale and volatile.",
+        "Stop broad Mumbai and weak SME push until repricing and selection controls are in place.",
+        "Explain the bundle as practical multi-cover protection, but qualify fire/liability/expense quality before closing.",
+      ],
+      watch_for: ["Mumbai LR 253% / COR 283%", "SME Broking weakness", "Expense + commission spike", "Reserve-driven improvement"],
+      cross_sell: ["Property Fire", "Public Liability", "Money Insurance", "Crime / Fidelity"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "RM commercial lens", tone: "critical", text: "Business Shield should be repositioned from packaged-volume acquisition to branch-quality acquisition. The document says cost increased while business shrank, so more GWP alone will not fix the economics." },
+        { title: "Where to push", tone: "low", items: ["Bangalore-type accounts after better risk selection.", "Ahmedabad selectively, with volatility monitoring.", "Existing SME customers only where claims, occupancy, and cost structure are acceptable."] },
+        { title: "Where to de-risk", tone: "critical", items: ["Mumbai: LR 253%, COR 283%.", "SME Broking and low-quality Emerging business.", "Any account where acquisition cost rises faster than retained profitability."] },
+        { title: "RM action", tone: "high", items: ["Reprice weak renewals.", "Reduce dependency on reinsurance commissions.", "Separate profitable SME cohorts from broad SME volume.", "Tie RM push to branch COR and UW result."] },
+      ],
+    },
+  },
+  industrial_all_risk_policy: {
+    label: "Industrial All Risk Policy",
+    source_label: "Bundled products Ratios.docx",
+    summary: "Industrial All Risk can be grown only after reserve validation; reported recovery depends heavily on IBNR movement.",
+    pressure: 80,
+    claim_frequency: 62,
+    claim_severity: 88,
+    rm: {
+      headline: "Grow IAR selectively in cleaner Corporate/MID cohorts; do not treat FY26 as a clean recovery.",
+      loss_ratio_view: "The bundled-ratios document warns that management should not interpret FY26 as true underwriting recovery because reported recovery depends heavily on reserve movement. Chennai delivered healthy growth but quality softened.",
+      bullets: [
+        "Prioritise Corporate and MID risks only in better-performing cohorts.",
+        "Use IAR for industrial customers with strong risk engineering, occupancy control, and deductible discipline.",
+        "Do not chase deteriorating branches without referral and reserve validation.",
+        "Position the cover as broad industrial asset protection, not as a discount-led fire alternative.",
+      ],
+      watch_for: ["Reserve movement", "Deteriorating branches", "Large-risk volatility", "Weak deductible adequacy"],
+      cross_sell: ["Business Interruption", "Machinery Breakdown", "Property All Risk", "Risk engineering"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "RM commercial lens", tone: "watch", text: "Industrial All Risk is attractive commercially, but the document is clear that FY26 recovery may be reserve-driven. RM expansion should be controlled until claims and reserve quality are validated." },
+        { title: "Where to grow", tone: "high", items: ["Corporate only in better-performing risk cohorts.", "MID industrial accounts with strong controls.", "Branches where growth is supported by margin, not just reserve release."] },
+        { title: "Where to control", tone: "critical", items: ["Deteriorating branches requiring referral.", "Large risks with soft terms or weak deductibles.", "Accounts where IBNR reduction is masking current-year claims quality."] },
+        { title: "RM action", tone: "elevated", items: ["Ask for engineering controls and occupancy details early.", "Use referral for large/deteriorating branch accounts.", "Cross-sell Business Interruption and Machinery Breakdown only where base property quality is sound."] },
+      ],
+    },
+  },
+  corporate_cover_ii: {
+    label: "Corporate Cover II",
+    source_label: "Bundled products Ratios.docx",
+    summary: "Corporate Cover II needs quality-led growth: acquisition spend is justified only where it buys profitable business.",
+    pressure: 78,
+    claim_frequency: 64,
+    claim_severity: 82,
+    rm: {
+      headline: "Push only profitable corporate cohorts; avoid high-claim/high-commission growth.",
+      loss_ratio_view: "The bundled-ratios document says incremental FY26 business was lower quality than the existing portfolio. Acquisition spend is justified only where it is buying profitable business, not simply where it produces scale.",
+      bullets: [
+        "Prioritise corporate accounts where claim history, retention, and margin are visible.",
+        "Avoid business carrying high claims, high commission, and high acquisition cost.",
+        "Use renewal profitability and account-level quality before offering bundle discounts.",
+        "Route Delhi-like claim/cost patterns to mandatory referral.",
+      ],
+      watch_for: ["Lower-quality incremental business", "High acquisition cost", "Delhi-like claims pattern", "Retail concentration"],
+      cross_sell: ["D&O", "Cyber Liability", "Public Liability", "Property Fire"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "RM commercial lens", tone: "high", text: "Corporate Cover II should be sold as a curated corporate package, not as a blanket acquisition product. The document flags lower-quality incremental FY26 business, so RM selection discipline matters." },
+        { title: "Where to push", tone: "low", items: ["Corporate renewals with proven margin.", "Accounts with favourable claim history and acceptable acquisition economics.", "Segments where bundle breadth improves retention without eroding pricing."] },
+        { title: "Where to avoid", tone: "critical", items: ["High claims + high commission + high acquisition cost accounts.", "Delhi-like risks that show high growth plus claims emergence.", "Retail concentration unless profitability is separated by cohort."] },
+        { title: "RM action", tone: "elevated", items: ["Track new business vs renewal profitability separately.", "Use referral triggers for claim-prone sectors.", "Justify acquisition spend only when UW result supports it."] },
+      ],
+    },
+  },
+  i_select_liability_insurance: {
+    label: "I Select Liability Insurance",
+    source_label: "Bundled products Ratios.docx",
+    summary: "I Select Liability requires controlled RM deployment where reinsurance support and retained economics remain favourable.",
+    pressure: 72,
+    claim_frequency: 58,
+    claim_severity: 76,
+    rm: {
+      headline: "Use I Select as a curated liability bundle; prioritise profitable cohorts over broad volume.",
+      loss_ratio_view: "The bundled-ratios document links the product with reinsurance support and warns that growth quality, acquisition cost, and liability triggers must be reviewed. RMs should shift from volume to quality where claims/costs are rising.",
+      bullets: [
+        "Position as modular liability protection for customers needing multiple liability covers.",
+        "Prioritise cohorts with clean loss history and reasonable retained economics.",
+        "Avoid pushing Pune/Kolkata-type low-cost issues unless acquisition economics are fixed.",
+        "Use wording and sub-limit discipline as part of the sales conversation.",
+      ],
+      watch_for: ["Reinsurance economics", "Coverage trigger breadth", "Defence cost treatment", "High acquisition cost"],
+      cross_sell: ["CGL", "Public Liability", "D&O", "Cyber Liability"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "RM commercial lens", tone: "watch", text: "I Select Liability should be a quality-led modular liability sale. The RM needs to prove the bundle is buying better retention or risk quality, not just adding liability exposure." },
+        { title: "Where to push", tone: "high", items: ["Clean corporate/SME cohorts needing multiple liability covers.", "Accounts where retention and reinsurance economics are favourable.", "Renewals where wording and sub-limits are already understood."] },
+        { title: "Where to control", tone: "critical", items: ["High claims plus high selling cost accounts.", "Branches where acquisition cost cannot be justified.", "Risks needing broad liability triggers without adequate premium."] },
+        { title: "RM action", tone: "elevated", items: ["Review liability triggers, defence cost treatment, extensions, and sub-limits.", "Make claim-prone industries referral-mandatory.", "Use profitability, not premium, as the expansion filter."] },
+      ],
+    },
+  },
+  employee_health: {
+    label: "Group Health Insurance",
+    source_label: "Bundled products Ratios.docx - heuristic because detailed ratios unavailable",
+    summary: "Group Health is heuristic in this pack; use it as a retention and employee-value lever with medical-cost controls.",
+    pressure: 74,
+    claim_frequency: 82,
+    claim_severity: 62,
+    rm: {
+      headline: "Use Group Health as a retention-led employee-benefits anchor, but price for utilization and demographics.",
+      loss_ratio_view: "The user specified that Group Health information is unavailable, so the RM values are heuristic. Health portfolios usually face higher frequency and utilization pressure, while severity depends on sum insured, demographics, room rent, maternity, and network usage.",
+      bullets: [
+        "Lead with hiring, retention, and employee wellbeing for startups and SMEs.",
+        "Qualify employee count, average age, dependents, maternity, room rent, and prior claims before promising pricing.",
+        "Cross-sell GPA, WC/Employee Compensation, Cyber, and D&O around employer-risk protection.",
+        "Use wellness, network discipline, co-pay/deductible design, and claims analytics as control levers.",
+      ],
+      watch_for: ["High utilization", "Maternity load", "Dependent mix", "Older employee base", "Adverse claim history"],
+      cross_sell: ["Group Personal Accident", "Employees Compensation", "Key Person", "D&O"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "RM commercial lens", tone: "high", text: "Because the ratio document does not provide product-specific Group Health data, this view is heuristic. Treat Group Health as the employee-benefits anchor, but do not quote aggressively without utilization and demographic checks." },
+        { title: "Where to push", tone: "low", items: ["Startups competing for talent.", "SMEs formalising benefits.", "Companies with stable headcount and low prior claims.", "Accounts where benefits can improve retention and cross-sell stickiness."] },
+        { title: "Where to control", tone: "watch", items: ["Older demographics.", "High dependent ratio.", "Maternity-heavy cohorts.", "Known high utilization or adverse claim history."] },
+        { title: "RM action", tone: "elevated", items: ["Collect census and prior claims upfront.", "Discuss wellness/network controls.", "Bundle with GPA, Employee Compensation, Key Person, and D&O.", "Explain that pricing confidence depends on claims data quality."] },
+      ],
+    },
+  },
+};
+
+Object.entries(RM_INTEL_ENRICHMENTS).forEach(([key, enrichment]) => {
+  LIABILITY_INTEL[key] = {
+    ...(LIABILITY_INTEL[key] || {}),
+    ...enrichment,
+    rm: {
+      ...(LIABILITY_INTEL[key]?.rm || {}),
+      ...(enrichment.rm || {}),
+    },
+    uw: LIABILITY_INTEL[key]?.uw || enrichment.uw || {},
+    manual_sections: {
+      ...(LIABILITY_INTEL[key]?.manual_sections || {}),
+      ...(enrichment.manual_sections || {}),
+    },
+  };
+});
+
+const UW_INTEL_ENRICHMENTS = {
+  electronic_equipment: {
+    uw: {
+      headline: "Check equipment age, maintenance, power quality, and deductible adequacy before accepting EEI growth.",
+      loss_ratio_view: "The engineering document points to weak quality in SME/Emerging and concentration concerns. EEI underwriting should separate critical, well-maintained electronic assets from low-premium, high-frequency equipment risks.",
+      bullets: [
+        "Verify asset schedule, age, serial numbers, location controls, and maintenance contracts.",
+        "Check power protection, surge controls, HVAC, dust/moisture exposure, and backup arrangements.",
+        "Refer Delhi concentration, SME/Emerging loss pockets, and low-deductible schedules.",
+        "Use higher deductibles or exclusions for obsolete, poorly maintained, or portable high-theft equipment.",
+      ],
+      watch_for: ["Obsolete equipment", "Poor maintenance proof", "Power fluctuation", "Low deductible schedules", "Delhi concentration"],
+      levers: ["Age-based acceptance", "Higher deductibles", "Maintenance warranty", "Surge/power exclusions", "Location-level referral"],
+    },
+    manual_sections: {
+      uw: [
+        { title: "UW decision", tone: "high", text: "EEI should be accepted only where equipment condition, maintenance discipline, and power/environment controls are documented. The risk is not just equipment value; it is frequent small-to-mid claims from weak controls." },
+        { title: "Accept / expand", tone: "low", items: ["Corporate and Bangalore-style risks with maintenance documentation.", "Critical fixed equipment with clear location controls.", "Accounts with clean claim history and adequate deductibles."] },
+        { title: "Refer / tighten", tone: "critical", items: ["SME/Emerging poor-quality pockets.", "Delhi concentration without policy-size and claim-type breakdown.", "Obsolete or poorly maintained assets.", "Portable electronics with theft or transit ambiguity."] },
+        { title: "UW levers", tone: "elevated", items: ["Age/condition warranty.", "Power fluctuation and surge-control requirements.", "Higher deductibles for frequent-loss assets.", "Asset schedule validation before quote."] },
+      ],
+    },
+  },
+  machinery_breakdown: {
+    uw: {
+      headline: "Triage Machinery Breakdown by segment; Retail, Delhi, Chennai, Hyderabad, and Kolkata need referral controls.",
+      loss_ratio_view: "Retail Machinery Breakdown has 259% COR and Delhi has 186% COR. The underwriting issue is selection, machinery age, maintenance quality, and deductible adequacy. Corporate, Bangalore, and Indore can be considered with controls.",
+      bullets: [
+        "Mandate technical inspection for large, old, critical, or repeated-loss machinery.",
+        "Restrict Retail 5003 and Delhi unless renewal correction is accepted.",
+        "Check machinery age, maintenance logs, spares availability, and downtime exposure.",
+        "Separate acceptable Corporate/Bangalore/Indore risks from weak Chennai/Hyderabad/Kolkata cohorts.",
+      ],
+      watch_for: ["Retail 259% COR", "Delhi 186% COR", "Repeated breakdown claims", "Old machinery", "Weak maintenance"],
+      levers: ["Technical inspection", "Higher deductibles", "Rate correction", "Referral triggers", "Age/maintenance warranties"],
+    },
+    manual_sections: {
+      uw: [
+        { title: "UW decision", tone: "critical", text: "Machinery Breakdown needs corrective underwriting, not broad appetite expansion. Retail and Delhi show severe loss-ratio stress, while Chennai, Hyderabad, and Kolkata require immediate control." },
+        { title: "Accept / expand", tone: "low", items: ["Corporate 5003 where UW moved from loss to profit.", "Bangalore where COR improved below 100%.", "Indore where COR is low but scale remains small."] },
+        { title: "Refer / restrict", tone: "critical", items: ["Retail 5003: 259% COR.", "Delhi: largest zone but 186% COR.", "Chennai 215% COR and Hyderabad 206% COR.", "Kolkata structurally weak even without growth."] },
+        { title: "UW levers", tone: "elevated", items: ["Technical inspection for large/critical machinery.", "Deductible increase and rate correction.", "Loss-making renewals split into retain-with-correction, refer, or exit.", "Claim-history review before renewal defence."] },
+      ],
+    },
+  },
+  car_ear_advanced_loss_of_profit: {
+    uw: {
+      headline: "Profitable engineering opportunity, but underwrite dependency, indemnity period, and project controls tightly.",
+      loss_ratio_view: "CAR/EAR ALOP is cleaner than Machinery Breakdown in the document, with Corporate, Mumbai, and Delhi producing UW profit. Severity can still be high because delay claims depend on project critical path and revenue assumptions.",
+      bullets: [
+        "Check principal CAR/EAR cover, project schedule, critical path, and delay triggers.",
+        "Validate indemnity period, sum insured basis, standing charges, and revenue assumptions.",
+        "Prefer Corporate, Mumbai, and Delhi where profitability is evidenced.",
+        "Refer low-scale Emerging/Retail pockets where expense and ratio volatility distort results.",
+      ],
+      watch_for: ["Unclear delay trigger", "Weak project controls", "Long indemnity period", "Revenue assumption inflation"],
+      levers: ["Indemnity period cap", "Waiting period", "Project-control warranty", "Critical-path documentation", "Referral for complex projects"],
+    },
+    manual_sections: {
+      uw: [
+        { title: "UW decision", tone: "high", text: "CAR/EAR ALOP is acceptable for controlled expansion, but only where the underlying project risk and delay-income basis are technically defensible." },
+        { title: "Accept / expand", tone: "low", items: ["Corporate with documented project controls.", "Mumbai and Delhi where UW profit is visible.", "Accounts attached to strong CAR/EAR placements."] },
+        { title: "Refer / restrict", tone: "watch", items: ["Emerging/Retail low-premium pockets.", "Projects without critical-path clarity.", "Long indemnity periods or inflated gross profit basis."] },
+        { title: "UW levers", tone: "elevated", items: ["Waiting period and indemnity period controls.", "Project schedule validation.", "Dependency mapping.", "Sum insured and standing-charge review."] },
+      ],
+    },
+  },
+  fire_allied_perils: {
+    uw: {
+      headline: "1001/BASE requires corrective underwriting; large-risk renewals need senior referral.",
+      loss_ratio_view: "The fire document flags 1001/BASE as high-scale but dangerous: ₹4,421 Mn GWP, ₹633 Mn UW loss, and 169% COR. UW result deteriorated by ₹1,795 Mn despite only ₹71 Mn GWP growth.",
+      bullets: [
+        "Make Delhi, Bangalore, Indore, Pune, and Hyderabad large-risk renewals referral controlled.",
+        "Review occupancy, fire protection, catastrophe accumulation, claim load, and rate adequacy.",
+        "Do not accept new weak risks without deductible and price correction.",
+        "Shift appetite toward Property Fire and Property All Risk when risk quality is demonstrably stronger.",
+      ],
+      watch_for: ["169% COR", "₹633 Mn UW loss", "Cat accumulation", "Large-risk pricing", "Reserve deterioration"],
+      levers: ["Senior UW sign-off", "Occupancy referral", "Deductible correction", "Rate correction", "Risk engineering requirement"],
+    },
+    manual_sections: {
+      uw: [
+        { title: "UW decision", tone: "critical", text: "1001/BASE is a de-risk/correct product. Its scale is not a reason to expand; the current book has severe underwriting deterioration and needs senior authority control." },
+        { title: "Referral zones", tone: "critical", items: ["Delhi, Bangalore, Indore, Pune, and Hyderabad.", "Emerging business with GWP growth and UW loss.", "Large-risk renewals with inadequate claim-load pricing."] },
+        { title: "Technical checks", tone: "high", items: ["Occupancy hazard.", "Fire protection and risk engineering compliance.", "Catastrophe accumulation.", "Deductible adequacy.", "Reserve and claim-load adequacy."] },
+        { title: "UW levers", tone: "elevated", items: ["Senior sign-off for large risks.", "Mandatory risk engineering.", "Rate and deductible correction.", "Coverage restrictions where controls are weak."] },
+      ],
+    },
+  },
+  bharat_sookshma_fire: {
+    uw: {
+      headline: "Correct Bharat Sookshma Retail and high-loss zones before allowing growth.",
+      loss_ratio_view: "Bharat Sookshma has ₹1,649 Mn GWP but ₹194 Mn UW loss and 162% COR. Retail carries ₹1,485 Mn GWP and ₹162 Mn UW loss, so underwriting must address pricing, small-account quality, and expense leakage.",
+      bullets: [
+        "Restrict Retail expansion until rates, deductibles, and loss drivers are corrected.",
+        "Use Emerging and Hyderabad as controlled pockets only after confirming sustainability.",
+        "Review Delhi, Kolkata, Bangalore, and Pune for claim pattern and expense leakage.",
+        "Avoid retaining underpriced small accounts solely for premium scale.",
+      ],
+      watch_for: ["Retail concentration", "162% COR", "Flat acquisition cost", "Small-account underpricing"],
+      levers: ["Retail referral threshold", "Rate correction", "Deductible increase", "Expense monitoring", "Zone-level claim review"],
+    },
+    manual_sections: {
+      uw: [
+        { title: "UW decision", tone: "critical", text: "Bharat Sookshma needs corrective underwriting. The large Retail base is producing underwriting loss, so renewal acceptance should depend on rate, deductible, and claims correction." },
+        { title: "Accept / monitor", tone: "low", items: ["Emerging as a small better-quality pocket.", "Hyderabad turnaround, subject to claims validation.", "Accounts with adequate protection and clean losses."] },
+        { title: "Refer / correct", tone: "critical", items: ["Retail: ₹1,485 Mn GWP but ₹162 Mn UW loss.", "Delhi, Kolkata, Bangalore, and Pune.", "Accounts with weak pricing and high expense leakage."] },
+        { title: "UW levers", tone: "elevated", items: ["Rate and deductible correction.", "Zone-level renewal authority limits.", "Expense-to-premium monitoring.", "Risk-quality filters for small businesses."] },
+      ],
+    },
+  },
+  property_fire: {
+    uw: {
+      headline: "Reportedly profitable, but validate reserve release before broad underwriting appetite expansion.",
+      loss_ratio_view: "Property Fire shows strong reported performance with ₹135 Mn UW profit and -25% COR, but the document warns that negative NIC/IBNR credit can distort ratios. Underwriting should confirm whether profitability is structural.",
+      bullets: [
+        "Support Mumbai, Delhi, and Corporate, but require reserve-quality validation.",
+        "Check whether negative NIC/IBNR credit is driving apparent profitability.",
+        "Keep rate discipline and monitor acquisition cost, especially Delhi.",
+        "Do not treat near-zero NWP ratio distortions as clean underwriting quality.",
+      ],
+      watch_for: ["Reserve-credit dependence", "Negative NIC", "Near-zero NWP distortion", "Delhi acquisition cost"],
+      levers: ["Reserve validation", "Rate discipline", "Acquisition cost guardrail", "Large-risk referral", "Occupancy controls"],
+    },
+    manual_sections: {
+      uw: [
+        { title: "UW decision", tone: "watch", text: "Property Fire is the cleanest reported fire performer, but underwriting should validate reserve releases before expanding appetite aggressively." },
+        { title: "Accept / expand", tone: "low", items: ["Mumbai with UW profit and COR 21%.", "Delhi with UW profit and COR 27%, subject to acquisition cost control.", "Corporate with UW profit and strong reported COR."] },
+        { title: "Validate before scaling", tone: "high", items: ["Negative NIC/IBNR credit.", "Near-zero NWP distortion.", "Reserve release sustainability.", "Large fire occupancy and accumulation."] },
+        { title: "UW levers", tone: "elevated", items: ["Keep pricing discipline.", "Validate reserves monthly.", "Use risk engineering for large exposures.", "Track acquisition cost against UW result."] },
+      ],
+    },
+  },
+  property_all_risk: {
+    uw: {
+      headline: "Grow PAR only in profitable zones; Ahmedabad, Pune, and Retail need corrective underwriting.",
+      loss_ratio_view: "Property All Risk remains profitable at 79% COR, but deterioration is visible. Bangalore is strongest with 11% COR, while Ahmedabad is 226%, Pune 155%, and Retail 141%.",
+      bullets: [
+        "Accept Bangalore, Delhi, Mumbai, and Corporate with margin guardrails.",
+        "Refer Ahmedabad, Pune, and Retail until rate and deductible correction are agreed.",
+        "Monitor margin weakening in Mumbai despite profitability.",
+        "Use exposure, occupancy, and deductible adequacy to avoid silent broad-form loss creep.",
+      ],
+      watch_for: ["Ahmedabad 226% COR", "Pune 155% COR", "Retail 141% COR", "Broad-form coverage creep"],
+      levers: ["Zone referral", "Deductible correction", "Occupancy limits", "Sub-limit review", "Rate adequacy threshold"],
+    },
+    manual_sections: {
+      uw: [
+        { title: "UW decision", tone: "high", text: "Property All Risk can be grown selectively, but deterioration in specific pockets means appetite must be zone- and vertical-specific." },
+        { title: "Accept / expand", tone: "low", items: ["Bangalore: COR 11%.", "Delhi: COR improved to 60% after profitable pruning.", "Mumbai: still profitable, but margin weakening.", "Corporate with margin guardrails."] },
+        { title: "Refer / correct", tone: "critical", items: ["Ahmedabad: COR 226%.", "Pune: COR 155%.", "Retail: COR 141%.", "Any broad-form account with weak deductible or occupancy controls."] },
+        { title: "UW levers", tone: "elevated", items: ["Zone-specific rate adequacy.", "Deductible increase.", "Sub-limit and extension control.", "Monthly COR threshold by branch/RM."] },
+      ],
+    },
+  },
+  dno_liability: {
+    uw: {
+      headline: "Validate reserve-led profitability before expanding D&O appetite.",
+      loss_ratio_view: "D&O reported COR improved from 66% to -5% and Financial LR from 34% to -26%, but the document warns against over-reading negative loss ratios before reserve release and accident-year pricing are validated.",
+      bullets: [
+        "Validate FY26 reserve release by zone and vertical.",
+        "Confirm accident-year pricing adequacy before scaling Mumbai/Corporate.",
+        "Review securities, insolvency, regulatory, and employment-practice extensions.",
+        "Use referral for high-limit, listed, regulated, or distressed accounts.",
+      ],
+      watch_for: ["Negative LR distortion", "Reserve release", "Corporate concentration", "High-limit D&O"],
+      levers: ["Limit management", "Retention increase", "Regulatory exclusion/sub-limit", "Prior acts review", "Referral for distressed accounts"],
+    },
+    manual_sections: {
+      uw: [
+        { title: "UW decision", tone: "watch", text: "D&O looks strong on reported metrics, but underwriting leadership should not treat reserve-led improvement as normalized profitability without validation." },
+        { title: "Validate before scaling", tone: "high", items: ["FY26 reserve release by zone and vertical.", "Accident-year pricing adequacy.", "Corporate and Mumbai concentration.", "Negative loss-ratio sustainability."] },
+        { title: "Referral triggers", tone: "critical", items: ["Listed or IPO-bound companies.", "Distressed balance sheet or layoffs.", "High regulatory exposure.", "Large limits or broad Side C/security extensions."] },
+        { title: "UW levers", tone: "elevated", items: ["Retention increase.", "Limit layering.", "Prior/pending litigation review.", "Regulatory investigation sub-limits.", "Exclusion cleanup."] },
+      ],
+    },
+  },
+  crime_fidelity: {
+    uw: {
+      headline: "Crime/Fidelity is in repair mode; tighten controls, wording, and reinsurance economics.",
+      loss_ratio_view: "The management/financial-lines document says Crime/Fidelity deterioration is claims-led first, reinsurance-led second, and cost-led third. Corporate is structurally weak and non-prop cost needs review.",
+      bullets: [
+        "Require control evidence: maker-checker, vendor onboarding, bank mandate, reconciliation, and audit trails.",
+        "Tighten discovery, loss notification, social engineering, vendor fraud, and sub-limit wording.",
+        "De-risk Corporate and accounts with high claims plus high commission/acquisition cost.",
+        "Review non-prop reinsurance economics before expanding retained exposure.",
+      ],
+      watch_for: ["Corporate UW loss", "Weak fraud controls", "Late discovery", "Non-prop cost jump", "Vendor fraud"],
+      levers: ["Control warranties", "Discovery/notification conditions", "Social engineering sub-limits", "Higher retentions", "Corporate referral"],
+    },
+    manual_sections: {
+      uw: [
+        { title: "UW decision", tone: "critical", text: "Crime/Fidelity needs tightening. Underwriting should repair the book through controls, wording, and reinsurance review rather than accepting more Corporate volume." },
+        { title: "Accept / monitor", tone: "low", items: ["Mumbai and Chennai profitable books after sustainability checks.", "Retail and cleaner SME accounts with strong controls.", "Hyderabad small-scale expansion if cost discipline remains intact."] },
+        { title: "Refer / de-risk", tone: "critical", items: ["Corporate vertical where UW loss widened materially.", "Accounts with high claims, high commission, and high acquisition cost.", "Weak internal controls or late discovery history."] },
+        { title: "UW levers", tone: "elevated", items: ["Tighten discovery/loss notification wording.", "Apply social engineering and vendor fraud sub-limits.", "Increase retentions.", "Review non-prop reinsurance cost structure."] },
+      ],
+    },
+  },
+  trade_credit: {
+    uw: {
+      headline: "Treat Trade Credit as specialist referral because the document flags withdrawal.",
+      loss_ratio_view: "Trade Credit is marked withdrawn in the source, so underwriting guidance is heuristic and conservative. If evaluated, severity is high because buyer default can create concentrated receivable loss.",
+      bullets: [
+        "Do not issue standard appetite guidance without product confirmation.",
+        "Collect buyer concentration, overdue ageing, credit controls, and loss history.",
+        "Refer export, stressed-sector, and concentrated debtor exposures.",
+        "Use limits, buyer caps, waiting periods, and exclusions if product is available.",
+      ],
+      watch_for: ["Withdrawn status", "Buyer concentration", "Overdue receivables", "Sector stress", "Weak credit control"],
+      levers: ["Specialist referral", "Buyer limits", "Waiting period", "Aggregate limit", "Excluded debtor list"],
+    },
+    manual_sections: {
+      uw: [
+        { title: "UW decision", tone: "critical", text: "Because Trade Credit is flagged as withdrawn, UW should not treat it as a normal quote path. Use specialist referral and product-availability confirmation first." },
+        { title: "Data required", tone: "high", items: ["Top debtor exposure.", "Receivable ageing.", "Bad-debt history.", "Credit-control process.", "Sector and buyer-country risk."] },
+        { title: "Referral triggers", tone: "critical", items: ["Single-buyer concentration.", "Export receivables.", "Stressed sectors.", "Overdue trend deterioration."] },
+        { title: "UW levers", tone: "elevated", items: ["Buyer caps.", "Aggregate limit.", "Waiting period.", "Debtor exclusions.", "Specialist approval only."] },
+      ],
+    },
+  },
+  key_person: {
+    uw: {
+      headline: "Heuristic underwriting: validate insurable interest, financial justification, and person dependency.",
+      loss_ratio_view: "Key Person values are heuristic in the source. Underwriting should focus on objective financial dependency, role criticality, medical underwriting, and sum insured justification.",
+      bullets: [
+        "Confirm key-person dependency through revenue, debt, investor covenant, or operational continuity evidence.",
+        "Validate sum insured against replacement cost, debt exposure, and business interruption impact.",
+        "Require medical, occupation, age, and financial underwriting as applicable.",
+        "Avoid over-insurance where person-dependency evidence is weak.",
+      ],
+      watch_for: ["Over-insurance", "Weak insurable interest", "Founder medical risk", "No succession plan"],
+      levers: ["Financial underwriting", "Medical underwriting", "Sum-insured cap", "Exclusions", "Policy ownership validation"],
+    },
+    manual_sections: {
+      uw: [
+        { title: "UW decision", tone: "watch", text: "Key Person underwriting is heuristic here. Acceptability depends on insurable interest, medical/financial underwriting, and whether the person is genuinely critical to business continuity." },
+        { title: "Evidence required", tone: "high", items: ["Role criticality.", "Revenue/debt/investor dependency.", "Succession plan.", "Financial justification for sum insured.", "Medical and occupation details."] },
+        { title: "Referral triggers", tone: "critical", items: ["High sum insured without financial basis.", "Known medical concern.", "Speculative startup valuation with weak revenue support.", "No clear business dependency."] },
+        { title: "UW levers", tone: "elevated", items: ["Sum-insured cap.", "Medical underwriting.", "Financial underwriting.", "Exclusion and waiting-period controls.", "Policy ownership validation."] },
+      ],
+    },
+  },
+  business_shield_sme: {
+    uw: {
+      headline: "Business Shield needs branch and SME triage; Mumbai and weak SME cohorts are immediate correction pockets.",
+      loss_ratio_view: "Business Shield has a clear deterioration signal: Mumbai LR 253% and COR 283%, while Bangalore recovered from 213% LR to 13%. Underwriting should segment aggressively rather than accept bundle volume uniformly.",
+      bullets: [
+        "De-risk Mumbai and weak SME/Emerging business immediately.",
+        "Treat Bangalore-type accounts as acceptable only after confirming risk-selection controls.",
+        "Review expense and commission spike where business shrank but cost increased.",
+        "Use reinsurance redesign and branch-level authority controls.",
+      ],
+      watch_for: ["Mumbai 283% COR", "SME weakness", "Expense/commission spike", "Reserve-driven improvement"],
+      levers: ["Branch referral", "Rate correction", "Deductible reset", "Reinsurance review", "SME selection filters"],
+    },
+    manual_sections: {
+      uw: [
+        { title: "UW decision", tone: "critical", text: "Business Shield should be underwritten by branch/segment quality, not as a uniform packaged product. Mumbai and weak SME/Emerging cohorts need immediate correction." },
+        { title: "Accept / monitor", tone: "low", items: ["Bangalore-type accounts after risk-selection validation.", "Ahmedabad recovery accounts with volatility tracking.", "Existing accounts with clean loss history and adequate pricing."] },
+        { title: "Refer / de-risk", tone: "critical", items: ["Mumbai: LR 253%, COR 283%.", "SME Broking weakness.", "Low-quality Emerging business.", "Accounts where cost increased while premium shrank."] },
+        { title: "UW levers", tone: "elevated", items: ["Branch-level referral.", "Pricing reset.", "Deductible correction.", "Reinsurance redesign.", "Expense and commission guardrails."] },
+      ],
+    },
+  },
+  industrial_all_risk_policy: {
+    uw: {
+      headline: "Do not read IAR recovery as structural until reserve movement and large-risk quality are validated.",
+      loss_ratio_view: "The bundled-ratios document warns that IAR recovery depends heavily on reserve movement. Underwriting should validate IBNR, current-year claims, large-risk terms, and branch deterioration before growing.",
+      bullets: [
+        "Validate reserve movement before appetite expansion.",
+        "Make large risks from deteriorating branches referral-mandatory.",
+        "Check occupancy, fire protection, deductible adequacy, and reinsurance attachment.",
+        "Grow only Corporate/MID cohorts where current-year loss quality is credible.",
+      ],
+      watch_for: ["Reserve dependency", "Large-risk volatility", "Soft deductibles", "Deteriorating branches"],
+      levers: ["Reserve audit", "Large-risk referral", "Deductible increase", "Occupancy controls", "Reinsurance attachment review"],
+    },
+    manual_sections: {
+      uw: [
+        { title: "UW decision", tone: "watch", text: "Industrial All Risk is not a clean recovery story until reserve movement is separated from genuine underwriting improvement." },
+        { title: "Accept / expand", tone: "low", items: ["Corporate/MID cohorts with credible current-year loss quality.", "Accounts with strong engineering controls.", "Branches where growth is not reserve-led."] },
+        { title: "Refer / tighten", tone: "critical", items: ["Large risks from deteriorating branches.", "Weak deductible or broad extension requests.", "Accounts where IBNR movement masks claims deterioration."] },
+        { title: "UW levers", tone: "elevated", items: ["Reserve validation.", "Large-risk referral.", "Occupancy and protection review.", "Deductible adequacy.", "Reinsurance structure review."] },
+      ],
+    },
+  },
+  corporate_cover_ii: {
+    uw: {
+      headline: "Quality-gate Corporate Cover II; incremental FY26 business was lower quality.",
+      loss_ratio_view: "The bundled-ratios document states incremental FY26 business was lower quality than the existing portfolio. Underwriting must gate accounts with high claims, high commission, and weak retained economics.",
+      bullets: [
+        "Review new business versus renewal profitability separately.",
+        "Refer Delhi-like high-growth/high-claim patterns.",
+        "Check liability trigger breadth, defence cost treatment, and sub-limits.",
+        "Do not approve acquisition-cost-heavy business without UW margin support.",
+      ],
+      watch_for: ["Lower-quality new business", "High acquisition cost", "Retail concentration", "Delhi-like claims emergence"],
+      levers: ["New/renewal split", "Referral thresholds", "Sub-limit control", "Defence cost treatment", "Commission guardrail"],
+    },
+    manual_sections: {
+      uw: [
+        { title: "UW decision", tone: "high", text: "Corporate Cover II requires underwriting gatekeeping because the document flags poorer-quality incremental business. Growth is acceptable only where account economics are visible." },
+        { title: "Accept / monitor", tone: "low", items: ["Corporate renewals with proven profitability.", "Accounts with clean claims and acceptable acquisition cost.", "Segments where bundle breadth improves retention without weakening terms."] },
+        { title: "Refer / tighten", tone: "critical", items: ["High claims + high commission + high acquisition cost.", "Delhi-like claim emergence.", "Retail concentration without cohort-level profitability."] },
+        { title: "UW levers", tone: "elevated", items: ["Mandatory referral for high-risk cohorts.", "Deductible/sub-limit review.", "Defence-cost wording control.", "Commission and acquisition-cost thresholds."] },
+      ],
+    },
+  },
+  i_select_liability_insurance: {
+    uw: {
+      headline: "Underwrite I Select through liability-trigger, defence-cost, and reinsurance controls.",
+      loss_ratio_view: "I Select Liability depends on disciplined wording and retained economics. Underwriting should review liability triggers, defence cost treatment, extensions, and reinsurance before accepting broad modular exposure.",
+      bullets: [
+        "Check liability triggers, retroactive dates, defence cost, extensions, and sub-limits.",
+        "Confirm reinsurance support and retained economics.",
+        "Refer claim-prone industries and high acquisition-cost branches.",
+        "Avoid broad bundled liability where premium does not match trigger breadth.",
+      ],
+      watch_for: ["Broad liability trigger", "Defence cost ambiguity", "High selling cost", "Reinsurance mismatch"],
+      levers: ["Sub-limits", "Retention increase", "Industry referral", "Extension control", "Reinsurance review"],
+    },
+    manual_sections: {
+      uw: [
+        { title: "UW decision", tone: "high", text: "I Select Liability should not be accepted as generic bundle volume. The key underwriting issue is whether liability trigger breadth, defence costs, and reinsurance economics are priced correctly." },
+        { title: "Accept / monitor", tone: "low", items: ["Clean corporate/SME cohorts.", "Renewals with known wording and loss history.", "Accounts where retained economics are favourable."] },
+        { title: "Refer / restrict", tone: "critical", items: ["Claim-prone industries.", "Broad extension requests without premium.", "Branches where acquisition cost cannot be justified.", "High defence-cost ambiguity."] },
+        { title: "UW levers", tone: "elevated", items: ["Specific sub-limits.", "Higher retentions.", "Industry referral triggers.", "Reinsurance support check.", "Defence cost wording clarification."] },
+      ],
+    },
+  },
+  employee_health: {
+    uw: {
+      headline: "Heuristic Group Health UW: price for utilization, demographics, dependents, and benefit design.",
+      loss_ratio_view: "Group Health ratios are unavailable in the source, so the UW view is heuristic. Frequency pressure is usually high; severity depends on age mix, dependents, maternity, sum insured, room rent, network, and prior claims.",
+      bullets: [
+        "Require census, age bands, dependent mix, prior claims, and benefit design before quote.",
+        "Check maternity, room rent, pre-existing disease terms, disease caps, and network usage.",
+        "Use co-pay, deductibles, sub-limits, wellness, and network controls for high-utilization groups.",
+        "Refer older demographics, adverse claims, and small groups with anti-selection risk.",
+      ],
+      watch_for: ["High utilization", "Older age mix", "Dependent load", "Maternity load", "Adverse claims"],
+      levers: ["Co-pay", "Deductible", "Room rent cap", "Network control", "Wellness/claims analytics"],
+    },
+    manual_sections: {
+      uw: [
+        { title: "UW decision", tone: "watch", text: "Because detailed Group Health ratios are unavailable, the UW view is heuristic. Do not price without census and prior-claims quality." },
+        { title: "Data required", tone: "high", items: ["Employee and dependent census.", "Age bands.", "Prior claims and utilization.", "Maternity and PED requirements.", "Benefit design and sum insured."] },
+        { title: "Referral triggers", tone: "critical", items: ["Older demographics.", "High dependent ratio.", "Adverse prior claims.", "Small group anti-selection.", "Rich benefits without controls."] },
+        { title: "UW levers", tone: "elevated", items: ["Co-pay or deductible.", "Room rent and disease sub-limits.", "Network discipline.", "Wellness and claims analytics.", "Renewal rate correction."] },
+      ],
+    },
+  },
+};
+
+Object.entries(UW_INTEL_ENRICHMENTS).forEach(([key, enrichment]) => {
+  LIABILITY_INTEL[key] = {
+    ...(LIABILITY_INTEL[key] || {}),
+    ...enrichment,
+    rm: LIABILITY_INTEL[key]?.rm || enrichment.rm || {},
+    uw: {
+      ...(LIABILITY_INTEL[key]?.uw || {}),
+      ...(enrichment.uw || {}),
+    },
+    manual_sections: {
+      ...(LIABILITY_INTEL[key]?.manual_sections || {}),
+      rm: LIABILITY_INTEL[key]?.manual_sections?.rm || enrichment.manual_sections?.rm || [],
+      uw: [
+        ...(LIABILITY_INTEL[key]?.manual_sections?.uw || []),
+        ...(enrichment.manual_sections?.uw || []),
+      ],
+    },
+  };
+});
+
+const MARKDOWN_DEEP_INTEL_ENRICHMENTS = {};
+
+function mergeMarkdownDeepIntel(entries) {
+  Object.entries(entries).forEach(([key, enrichment]) => {
+    const current = LIABILITY_INTEL[key] || {};
+    LIABILITY_INTEL[key] = {
+      ...current,
+      ...enrichment,
+      rm: {
+        ...(current.rm || {}),
+        ...(enrichment.rm || {}),
+      },
+      uw: {
+        ...(current.uw || {}),
+        ...(enrichment.uw || {}),
+      },
+      manual_sections: {
+        ...(current.manual_sections || {}),
+        ...(enrichment.manual_sections || {}),
+      },
+    };
+    MARKDOWN_DEEP_INTEL_ENRICHMENTS[key] = LIABILITY_INTEL[key];
+  });
+}
+
+mergeMarkdownDeepIntel({
+  electronic_equipment: {
+    source_label: "Engineering.md",
+    summary: "Electronic Equipment Insurance improved but is still loss-making overall: COR moved 179% to 154%, GWP fell Rs 74m to Rs 70m, and Delhi/Retail remain major stress pools.",
+    pressure: 86,
+    claim_frequency: 80,
+    claim_severity: 82,
+    rm: {
+      headline: "Sell EEI only as quality-controlled uptime protection; Corporate, Bangalore, and conditional Chennai are the commercial targets.",
+      loss_ratio_view: "Engineering.md shows claims improvement is real rather than purely reserve-driven, but COR is still 154%. RM growth must move from volume to pricing discipline and avoid weak SME/Emerging plus loss-making Delhi/Retail pockets.",
+      bullets: [
+        "Push Corporate aggressively because it is the only segment turning profitable and has the best RM deployment quality.",
+        "Push Bangalore selectively because COR is 51%, making it the best zone on current data.",
+        "Use Chennai only after pricing correction: GWP grew Rs 4m to Rs 15m, but the pocket is still loss-making.",
+        "Avoid SME, Emerging, Delhi, Hyderabad, Kolkata, and low-margin Retail expansion until pricing and selection are corrected.",
+      ],
+      watch_for: ["Overall COR 154%", "Delhi COR 206%", "Hyderabad COR 401%", "Kolkata COR 345%", "Retail still loss-making", "Reinsurance support weakened"],
+      cross_sell: ["Machinery Breakdown", "Business Interruption", "Property Fire", "Cyber for digitally dependent equipment"],
+    },
+    uw: {
+      headline: "Correct Delhi/Retail and de-risk SME/Emerging; scale only Corporate and controlled stable zones.",
+      loss_ratio_view: "The underwriting message in Engineering.md is that improvement is real claims-driven with minimal reserve distortion, but pricing adequacy remains weak. Delhi, Hyderabad, Kolkata, Retail, SME, and Emerging require correction or de-risking while Corporate can be selectively scaled.",
+      bullets: [
+        "Scale Corporate only with disciplined pricing because COR improved from 156% to 84%.",
+        "Use selective growth for Bangalore and Chennai, but only where equipment controls and price correction are evidenced.",
+        "Correct Retail and Delhi; Delhi remains a concentration risk and needs tighter underwriting.",
+        "De-risk SME and Emerging because growth/retention is not translating into underwriting quality.",
+      ],
+      watch_for: ["Weak pricing discipline", "High COR pockets", "Delhi concentration", "Policy size and risk type gaps", "Deductible weakness"],
+      levers: ["Technical pricing", "Deductible band control", "Asset age condition", "Maintenance evidence", "Zone-level referral"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "Source portfolio read", tone: "critical", text: "Engineering.md shows EEI is better but not fixed: GWP fell Rs 74m to Rs 70m, UW loss improved from Rs 26m to Rs 18m, and COR improved from 179% to 154%. This is still above a healthy profitability threshold." },
+        { title: "RM growth thesis", tone: "high", items: ["Corporate is the best RM deployment segment and should be pushed aggressively.", "Bangalore is the best zone with COR 51% and can be scaled selectively.", "Chennai has high growth but remains loss-making, so pricing must be fixed before scale.", "Retail and Corporate together are 82% of portfolio, but Corporate is the cleaner story."] },
+        { title: "Where RM must stop pushing", tone: "critical", items: ["Delhi: action is correct urgently; concentration risk remains high.", "Hyderabad: worst quality with COR 401%.", "Kolkata: de-risk; high loss ratio and weak scale.", "SME and Emerging: high-risk/de-risk because losses remain weak despite lower GWP."] },
+        { title: "Commercial script", tone: "elevated", items: ["Lead with uptime and replacement-cost protection for electronic assets.", "Ask for asset schedule, maintenance, power protection, and location controls early.", "Do not sell EEI as a cheap add-on if the account sits in a red zone.", "Cross-sell only when the main equipment risk is priced and selected properly."] },
+        { title: "RM dashboard watch", tone: "watch", items: ["COR heatmap by zone and vertical.", "GWP versus UW result bubble chart.", "NIC before/after IBNR split.", "RM/channel and deductible-band tracking."] },
+      ],
+      uw: [
+        { title: "UW decision", tone: "critical", text: "EEI is not ready for broad appetite expansion. The improvement is claims-driven, not just reserve distortion, but the portfolio remains materially loss-making with 154% COR." },
+        { title: "Scale / selective growth", tone: "low", items: ["Scale Corporate: COR improved 156% to 84%.", "Selective growth in Bangalore and Chennai where pricing is corrected.", "Monitor Indore and Mumbai: reported improvement exists, but scale and sustainability need validation."] },
+        { title: "Correct / de-risk", tone: "critical", items: ["Correct Retail and Delhi.", "De-risk SME and Emerging.", "Tighten Delhi underwriting and improve risk selection.", "Stop SME volume push until policy-level profitability is visible."] },
+        { title: "Technical checks", tone: "high", items: ["Asset age, type, and maintenance quality.", "Power fluctuation and surge controls.", "Deductible band adequacy.", "Policy size and claim-type breakdown.", "Location-level exposure concentration."] },
+        { title: "UW levers", tone: "elevated", items: ["Higher deductibles in high-frequency segments.", "Maintenance and protection warranties.", "Referral triggers for Delhi/SME/Emerging.", "Technical pricing by risk type and equipment criticality."] },
+      ],
+    },
+  },
+  machinery_breakdown: {
+    source_label: "Engineering.md",
+    summary: "Machinery Breakdown remains the main engineering stress product: UW loss improved from Rs 62m to Rs 33m, but COR remains 151% and incurred LR worsened to 156%.",
+    pressure: 94,
+    claim_frequency: 88,
+    claim_severity: 90,
+    rm: {
+      headline: "Do not chase Machinery Breakdown volume; rebuild Corporate/Bangalore/Indore and stop Retail/Delhi/Kolkata/Chennai/Hyderabad growth.",
+      loss_ratio_view: "Engineering.md says the portfolio does not have a growth problem; it has a growth-quality problem. Retail GWP grew 36.5% but COR worsened to 259% and UW loss deepened to Rs 38m. Delhi has Rs 97m GWP but Rs 29m UW loss and 186% COR.",
+      bullets: [
+        "Defend Corporate Machinery Breakdown because UW moved from Rs 10m loss to Rs 7m profit and COR improved to 68%.",
+        "Grow Bangalore and Indore carefully: Bangalore improved to 97% COR; Indore improved to 9% COR but remains low-scale.",
+        "Stop Retail growth: GWP rose Rs 52m to Rs 71m, but COR reached 259%.",
+        "Use Delhi renewals for remediation: retain with correction, deductible increase, referral, or exit.",
+      ],
+      watch_for: ["Retail COR 259%", "Delhi COR 186%", "Kolkata COR 283%", "Chennai COR 215%", "Hyderabad COR 206%", "Reserve-led Mumbai/SME turnaround"],
+      cross_sell: ["CAR/EAR ALOP", "Electronic Equipment", "Property Fire", "Business Interruption"],
+    },
+    uw: {
+      headline: "Machinery Breakdown stays in correction mode; only Corporate/Bangalore/Indore can grow with technical filters.",
+      loss_ratio_view: "The underwriting section says the UW result improvement is reserve-sensitive: NIC before IBNR increased Rs 98m to Rs 103m, while IBNR moved Rs 18m to negative Rs 8m. That makes the headline improvement insufficient for broad appetite.",
+      bullets: [
+        "Put Retail Machinery Breakdown into correction mode immediately.",
+        "Remediate Delhi account-by-account: repricing, deductible increase, referral triggers, and risk exits.",
+        "De-risk Kolkata because COR is 283% and incurred LR is 292%.",
+        "Validate Mumbai and SME Broking reserve benefit before any scale-up.",
+      ],
+      watch_for: ["Reserve-sensitive improvement", "Flat acquisition cost despite lower GWP", "Older machinery", "Repeated breakdown claims", "Poor maintenance"],
+      levers: ["Technical inspection", "Machinery age limits", "Maintenance warranty", "Higher deductibles", "Loss-making renewal referral"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "Core RM message", tone: "critical", text: "Engineering.md is direct: move from 'How much GWP did we write?' to 'Which GWP is producing retained underwriting profit?' Machinery Breakdown cannot be managed by top-line volume." },
+        { title: "Good RM growth", tone: "low", items: ["Corporate: GWP fell Rs 89m to Rs 72m, but UW moved from Rs 10m loss to Rs 7m profit and COR improved to 68%.", "Bangalore: GWP grew Rs 9m to Rs 11m and COR improved to 97%.", "Indore: COR improved to 9%, UW profit around Rs 3m, but scale is only Rs 8m."] },
+        { title: "Worst RM growth", tone: "critical", items: ["Retail: GWP grew 36.5%, UW loss worsened to Rs 38m, COR 259%.", "Delhi: Rs 97m GWP, flat Rs 29m UW loss, COR 186%.", "Kolkata: no premium growth, worsening ratios, persistent underwriting loss.", "Chennai/Hyderabad: growth came with claims deterioration."] },
+        { title: "RM action plan", tone: "high", items: ["Stop blind growth in Retail.", "Correct Delhi account-level renewals.", "Push CAR/EAR ALOP Corporate, Mumbai and Delhi.", "Rebuild Machinery Breakdown Corporate selectively.", "Tie RM credit to corrected profitability and UW result."] },
+        { title: "RM scorecard", tone: "elevated", items: ["Rate adequacy achieved.", "Renewal correction completed.", "UW-positive GWP, not total GWP.", "COR and UW result by product-zone-vertical.", "Referral discipline for large/loss-making accounts."] },
+      ],
+      uw: [
+        { title: "Core underwriting message", tone: "critical", text: "Machinery Breakdown has improved from Rs 62m UW loss to Rs 33m UW loss, but it remains materially loss-making. COR is 151%, incurred LR is 156%, and improvement is materially helped by favourable IBNR movement." },
+        { title: "Underwriting classification", tone: "high", items: ["Scale only if repeatable: Indore with COR 9%.", "Selective growth: Bangalore and Corporate.", "Validate before growth: SME Broking and Mumbai because reserve movement influenced results.", "Correct urgently: Retail, Delhi, Chennai, Hyderabad.", "De-risk: Kolkata and repeated-loss accounts."] },
+        { title: "Immediate UW controls", tone: "critical", items: ["Retail correction mode: pricing, deductibles, risk selection, and claims-cause review.", "Delhi remediation: renewal repricing, deductible increase, referral triggers, and exits.", "Kolkata de-risking because COR 283% and incurred LR 292%.", "Monthly reserve-development review for negative IBNR pockets."] },
+        { title: "Technical filters", tone: "elevated", items: ["Machinery age and maintenance quality.", "Critical production-line exposure.", "Large sum insured machinery.", "Prior breakdown frequency.", "Industry/equipment type sub-segmentation."] },
+        { title: "Reinsurance and reserving", tone: "watch", items: ["Test Machinery Breakdown under normalized claims rather than negative IBNR benefit.", "Review ceding structure for volatile machinery accounts.", "Do not relax filters after reserve-supported turnarounds."] },
+      ],
+    },
+  },
+  car_ear_advanced_loss_of_profit: {
+    source_label: "Engineering.md",
+    summary: "CAR/EAR ALOP is the clean engineering opportunity: UW result improved from Rs 7m to Rs 23m, COR improved from 23% to 6%, and Corporate/Mumbai/Delhi dominate profitability.",
+    pressure: 52,
+    claim_frequency: 38,
+    claim_severity: 74,
+    rm: {
+      headline: "Prioritise CAR/EAR ALOP Corporate, Mumbai, and Delhi as the profitable engineering growth engine.",
+      loss_ratio_view: "Engineering.md identifies CAR/EAR ALOP as the cleanest RM opportunity. Corporate delivered Rs 24m UW profit and 0% COR; Mumbai delivered Rs 19m UW profit and -12% COR; Delhi improved to Rs 5m UW profit and 3% COR.",
+      bullets: [
+        "Defend Corporate CAR/EAR ALOP pricing and expand selectively.",
+        "Protect Mumbai renewals with similar risk quality because GWP fell but profitability improved.",
+        "Push Delhi CAR/EAR ALOP, but avoid using that as permission to push weak Machinery Breakdown.",
+        "Avoid low-scale Emerging/Retail ALOP where ratio and expense volatility are not meaningful growth engines.",
+      ],
+      watch_for: ["Expense ratio rose 24% to 31%", "Low/negative claims may normalize", "Project delay dependency", "Weak underlying project controls"],
+      cross_sell: ["CAR", "EAR", "Machinery Breakdown", "Business Interruption", "Property All Risk"],
+    },
+    uw: {
+      headline: "Selective expansion allowed, but do not dilute pricing just because recent claims are favourable.",
+      loss_ratio_view: "CAR/EAR ALOP is profitable on reported basis, but underwriting should monitor expense load and test profitability under normalized claims. It can expand in profitable zones and verticals with project-control discipline.",
+      bullets: [
+        "Scale Corporate selectively: Rs 24m UW profit and 0% COR.",
+        "Grow Mumbai and Delhi selectively with renewal pricing discipline.",
+        "Validate project delay assumptions, indemnity period, standing charges, and critical path.",
+        "Avoid low-premium ALOP placements where expense volatility overwhelms signal.",
+      ],
+      watch_for: ["Claims-favourable result may not normalize", "Expense ratio increase", "Inflated delay income", "Weak project critical path"],
+      levers: ["Waiting period", "Indemnity period cap", "Project-control warranty", "Sum insured validation", "Critical-path documentation"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "Source growth thesis", tone: "low", text: "Engineering.md calls CAR/EAR ALOP the cleanest RM opportunity. RMs should defend renewals and selectively acquire new business because profitability is strong even though top line declined." },
+        { title: "Where to push", tone: "high", items: ["Corporate: Rs 24m UW profit, 0% COR, Rs 23m NEP.", "Mumbai: Rs 19m UW profit, -12% COR.", "Delhi: GWP +15%, UW profit +Rs 5m, COR 3%."] },
+        { title: "How to sell", tone: "elevated", items: ["Position as revenue-delay protection for project accounts.", "Use strong profitability to deepen relationships, not dilute margin.", "Bundle with CAR/EAR, Property, Machinery Breakdown and BI where project controls are credible."] },
+        { title: "Where not to push", tone: "watch", items: ["Retail and Emerging ALOP with negligible premium and volatile ratios.", "Accounts without project timelines, dependencies, or indemnity period clarity.", "Any placement where pricing is diluted because recent claims are favourable."] },
+      ],
+      uw: [
+        { title: "UW decision", tone: "low", text: "CAR/EAR ALOP can be selectively expanded, particularly in Corporate, Mumbai, and Delhi, but underwriting should not permit pricing dilution simply because the recent claims result is strong." },
+        { title: "Strong blocks", tone: "high", items: ["Corporate: strongest underwriting block, Rs 24m UW profit.", "Mumbai: key zone, Rs 19m UW profit.", "Delhi: profitable growth pocket at 3% COR."] },
+        { title: "UW controls", tone: "elevated", items: ["Validate indemnity period and sum insured basis.", "Check critical path and project-control documents.", "Apply waiting periods and dependency definitions.", "Monitor expense ratio increase from 24% to 31%."] },
+        { title: "Referral triggers", tone: "watch", items: ["Long indemnity period.", "Inflated projected revenue.", "Weak project governance.", "Underlying CAR/EAR risk not technically priced."] },
+      ],
+    },
+  },
+});
+
+mergeMarkdownDeepIntel({
+  business_shield_sme: {
+    source_label: "bundled.md",
+    summary: "Business Shield declined from Rs 1,359m to Rs 1,270m GWP, NEP fell harder from Rs 376m to Rs 267m, and UW moved from Rs 69m profit to Rs 35m loss with COR worsening 81% to 115%.",
+    pressure: 88,
+    claim_frequency: 76,
+    claim_severity: 84,
+    rm: {
+      headline: "Business Shield is not a volume product right now; sell Bangalore/Chennai/Hyderabad quality and de-risk Mumbai/SME.",
+      loss_ratio_view: "bundled.md shows the main issue is earning conversion, expense and selection quality. Bangalore recovered from 249% COR to 53%, but Mumbai moved to LR 253% / COR 283%, creating the biggest de-risk need.",
+      bullets: [
+        "Push Bangalore-style accounts because UW moved from Rs 52m loss to Rs 26m profit and COR dropped to 53%.",
+        "Use Chennai and Hyderabad as selective quality pockets, but monitor expense creep.",
+        "Do not defend Mumbai volume: GWP fell but claims worsened; LR 253% and COR 283%.",
+        "Treat SME and startup-heavy cohorts as risky until underwriting filters are tightened.",
+      ],
+      watch_for: ["Mumbai LR 253% / COR 283%", "NEP collapse", "Acquisition cost increased while GWP shrank", "Expense ratio 40% to 50%", "Reserve-driven improvement"],
+      cross_sell: ["Property Fire", "Public Liability", "Money Insurance", "Crime/Fidelity", "Cyber"],
+    },
+    uw: {
+      headline: "Immediate portfolio pruning in Mumbai and SME; accept only Bangalore-type better-selected risks.",
+      loss_ratio_view: "Business Shield needs corrective underwriting: GWP shrank, NEP reduced more sharply, acquisition cost rose, and UW moved into loss. Underwriting should not allow more packaged SME volume without pricing and risk-selection repair.",
+      bullets: [
+        "De-risk Mumbai immediately with pricing reset, risk selection, and account pruning.",
+        "Reprice and tighten SME underwriting filters, especially early-stage/startup-heavy risks.",
+        "Validate whether Bangalore improvement is repeatable or reserve/large-loss driven.",
+        "Reduce dependency on reinsurance commission support and monitor expense ratio by branch.",
+      ],
+      watch_for: ["Mumbai claims emergence", "SME early-stage risk", "Expense/commission spike", "NEP/GWP deterioration", "IBNR sustainability"],
+      levers: ["Portfolio pruning", "Pricing reset", "Stricter SME filters", "Branch referral", "Reinsurance redesign"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "Portfolio read", tone: "critical", text: "Business Shield moved from Rs 69m UW profit to Rs 35m UW loss. GWP declined by Rs 89m, but acquisition cost increased from Rs 214m to Rs 231m and expense ratio rose from 40% to 50%." },
+        { title: "RM push pockets", tone: "low", items: ["Bangalore: GWP Rs 206m to Rs 212m; UW Rs 52m loss to Rs 26m profit; COR 249% to 53%.", "Chennai: still profitable with COR 65%, but LR rose 6% to 35%.", "Hyderabad: COR 76%, UW profit Rs 4m, but expense remains high."] },
+        { title: "RM avoid pockets", tone: "critical", items: ["Mumbai: LR 253%, COR 283%, immediate de-risk.", "SME: startup-heavy segment flagged risky.", "Kolkata: expense ratio rose 34% to 73%.", "Any account where cost rises while premium shrinks."] },
+        { title: "Sales strategy", tone: "elevated", items: ["Shift from volume to quality and renewal correction.", "Use Business Shield only when customer controls and occupancy are visible.", "Separate profitable SME cohorts from broad SME volume.", "Tie RM incentives to COR and UW result."] },
+        { title: "Dashboard watch", tone: "watch", items: ["GWP to NEP conversion.", "Branch-level COR and expense ratio.", "Acquisition cost as percent of GWP.", "IBNR movement and reserve dependency.", "New business versus renewal profitability."] },
+      ],
+      uw: [
+        { title: "UW decision", tone: "critical", text: "Business Shield requires corrective underwriting. bundled.md points to Mumbai pruning, SME repricing, stricter risk selection, and reduced dependency on reinsurance commissions." },
+        { title: "De-risk immediately", tone: "critical", items: ["Mumbai: LR 253%, COR 283%.", "SME and startup-heavy business.", "Accounts with high acquisition cost and weak NEP conversion.", "Branches showing expense spike without profit."] },
+        { title: "Can accept selectively", tone: "low", items: ["Bangalore-type risks after better selection validation.", "Chennai/Hyderabad with expense controls.", "Ahmedabad recovery accounts only with volatility monitoring."] },
+        { title: "UW levers", tone: "elevated", items: ["Portfolio pruning.", "Rate reset.", "Deductible correction.", "SME referral filters.", "Reinsurance redesign and commission dependency review."] },
+      ],
+    },
+  },
+  msme_suraksha_kavach: {
+    source_label: "bundled.md",
+    summary: "MSME Suraksha Kavach is scaling fast, but growth remains loss-making and partly reserve-driven. The source recommends de-risking Mumbai, SME Broking and Hyderabad.",
+    pressure: 87,
+    claim_frequency: 78,
+    claim_severity: 82,
+    rm: {
+      headline: "Use MSME Suraksha only for controlled SME growth; do not chase fast scaling without profitability filters.",
+      loss_ratio_view: "bundled.md states MSME Suraksha Kavach is scaling fast but growth remains loss-making. RM success must be measured on clean renewal quality, not just SME acquisition.",
+      bullets: [
+        "Prioritise only segments where fire/property risk selection and pricing are demonstrably improving.",
+        "Avoid Mumbai, SME Broking, and Hyderabad until repricing and stricter selection are complete.",
+        "Treat reserve-driven improvements as provisional; do not convert them into aggressive sales targets.",
+        "Use the product as an MSME protection bundle only after occupancy, sum insured, and claims history are validated.",
+      ],
+      watch_for: ["Loss-making growth", "Reserve-driven improvement", "Mumbai", "SME Broking", "Hyderabad", "Fire segment quality"],
+      cross_sell: ["Property Fire", "Money Insurance", "Public Liability", "Employees Compensation"],
+    },
+    uw: {
+      headline: "Tighten MSME Suraksha selection: reserve validation, fire-segment controls, and branch-level referral are required.",
+      loss_ratio_view: "The source points to fast scaling with weak underwriting economics. UW should separate good MSME business from volume written without adequate risk selection.",
+      bullets: [
+        "De-risk Mumbai, SME Broking, and Hyderabad.",
+        "Validate reserve-driven improvements before expanding authority.",
+        "Apply stricter fire occupancy and sum-insured checks.",
+        "Require referral for fast-growing branches with adverse COR or IBNR movement.",
+      ],
+      watch_for: ["Fast growth with loss", "Reserve dependency", "Weak occupancy data", "Underpriced SME accounts"],
+      levers: ["Branch authority limits", "Fire occupancy filters", "Deductible increase", "Reserve validation", "SME rate correction"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "Portfolio read", tone: "critical", text: "bundled.md describes MSME Suraksha Kavach as scaling fast but still loss-making. The RM problem is growth-quality: the product may fit MSME customers, but not every MSME account is worth writing." },
+        { title: "RM growth guardrails", tone: "high", items: ["Push only after fire segment and occupancy quality are understood.", "Track GWP growth against UW result, not just premium issued.", "Treat reserve-driven improvement as unproven until claims development is validated.", "Use selective renewal and better-risk upsell rather than broad acquisition."] },
+        { title: "RM avoid / correct", tone: "critical", items: ["Mumbai.", "SME Broking.", "Hyderabad.", "Any account with high acquisition cost, weak sum insured adequacy, or poor fire controls."] },
+        { title: "Commercial script", tone: "elevated", items: ["Position as MSME continuity protection.", "Ask for occupancy, industry, sum insured, fire protection, and claims history.", "Do not discount to win poor-quality small business.", "Cross-sell employee and liability covers only after property risk is controlled."] },
+      ],
+      uw: [
+        { title: "UW decision", tone: "critical", text: "MSME Suraksha needs stricter risk selection. The product can remain commercially relevant, but underwriting should not allow growth until loss-making pockets are corrected." },
+        { title: "Correct / de-risk", tone: "critical", items: ["Mumbai.", "SME Broking.", "Hyderabad.", "Fast-growing branches where reserve movement masks claim quality."] },
+        { title: "Technical checks", tone: "high", items: ["Occupancy and fire-segment classification.", "Sum insured adequacy.", "Claims history and IBNR movement.", "Deductible adequacy.", "Commission/acquisition cost versus margin."] },
+        { title: "UW levers", tone: "elevated", items: ["Referral threshold for risky MSME occupancies.", "Rate correction.", "Deductible reset.", "Reserve validation.", "Branch-level authority limits."] },
+      ],
+    },
+  },
+  industrial_all_risk_policy: {
+    source_label: "bundled.md",
+    summary: "Industrial All Risk remains reinsurance-heavy and reserve-sensitive; FY26 should not be treated as a clean underwriting recovery.",
+    pressure: 82,
+    claim_frequency: 62,
+    claim_severity: 90,
+    rm: {
+      headline: "Grow IAR only in better-performing Corporate/MID cohorts; stop defending deteriorating risks broadly.",
+      loss_ratio_view: "bundled.md says management should be careful not to interpret FY26 as a true underwriting recovery. The portfolio remains heavily reinsured, net margin is thin and volatile, and Chennai growth quality softened.",
+      bullets: [
+        "Use Corporate only in better-performing risk cohorts, not broad-brush.",
+        "Maintain Chennai growth through renewal and better-risk upsell rather than aggressive new business.",
+        "Do not broadly defend underpriced/deteriorating Corporate risks.",
+        "Avoid deteriorating branches until reserve issue and claims quality are understood.",
+      ],
+      watch_for: ["Reserve movement", "Heavy reinsurance", "Thin net margin", "Large risks", "Deteriorating branches"],
+      cross_sell: ["Business Interruption", "Machinery Breakdown", "Property All Risk", "Risk engineering"],
+    },
+    uw: {
+      headline: "Referral-mandate large IAR risks from deteriorating branches; validate reserve and wording before scaling.",
+      loss_ratio_view: "Industrial All Risk is not a clean recovery story. The source asks for large risks from deteriorating branches to be referral-mandatory and for broad extensions, debris removal, BI attachments, escalation clauses, and claims triggers to be reviewed.",
+      bullets: [
+        "Validate whether recovery is reserve-led before appetite expansion.",
+        "Make large risks from deteriorating branches referral-mandatory.",
+        "Review broad extensions, debris removal, BI attachments, escalation clauses, and claims triggers.",
+        "Revisit reinsurance economics because retained net margin is thin.",
+      ],
+      watch_for: ["IBNR/reserve issue", "Broad wording", "Large fire/industrial exposure", "Reinsurance economics"],
+      levers: ["Large-risk referral", "Wording review", "Deductible increase", "BI attachment review", "Reinsurance structure review"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "Portfolio read", tone: "watch", text: "bundled.md warns that IAR recovery is heavily reserve-dependent and should not be read as true underwriting recovery. Commercial growth should be controlled and cohort-specific." },
+        { title: "Where RM can grow", tone: "high", items: ["Corporate only in better-performing risk cohorts.", "Chennai renewals and better-risk upsell, not aggressive new business.", "MID industrial accounts with strong controls and pricing discipline."] },
+        { title: "Where RM should not push", tone: "critical", items: ["Deteriorating branches.", "Underpriced Corporate risks.", "Large industrial accounts where terms are broad and margin is thin.", "Any account where recovery depends mainly on reserve movement."] },
+        { title: "Commercial script", tone: "elevated", items: ["Sell broad industrial protection only with engineering controls.", "Use risk engineering and deductible adequacy as value arguments.", "Cross-sell BI only after base property quality is acceptable.", "Do not trade wording breadth for volume."] },
+      ],
+      uw: [
+        { title: "UW decision", tone: "watch", text: "Industrial All Risk requires reserve validation and referral discipline. It is heavily reinsured and net margin is thin, so large-risk volatility must be controlled." },
+        { title: "Referral triggers", tone: "critical", items: ["Large risks from deteriorating branches.", "Broad extensions or BI attachments.", "Weak deductible adequacy.", "Claims trigger ambiguity.", "Escalation/debris removal-heavy wording requests."] },
+        { title: "Accept selectively", tone: "low", items: ["Better-performing Corporate cohorts.", "MID industrial accounts with risk engineering compliance.", "Renewals where current-year claims quality is clear."] },
+        { title: "UW levers", tone: "elevated", items: ["Reserve audit.", "Wording and extension review.", "Deductible/retention correction.", "Reinsurance economics review.", "Branch authority control."] },
+      ],
+    },
+  },
+});
+
+mergeMarkdownDeepIntel({
+  corporate_cover_ii: {
+    source_label: "bundled.md",
+    summary: "Corporate Cover II / I Select Liability shows lower-quality incremental business; acquisition spend is justified only where it buys profitable business.",
+    pressure: 80,
+    claim_frequency: 66,
+    claim_severity: 84,
+    rm: {
+      headline: "Treat Corporate Cover II as quality-led corporate retention, not blanket package growth.",
+      loss_ratio_view: "bundled.md says incremental FY26 business was lower quality than the existing portfolio. Extra acquisition spend is justified only where it buys profitable business.",
+      bullets: [
+        "Prioritise profitable Corporate renewals and cleaner liability cohorts.",
+        "Avoid business with high claims, high commission, and high acquisition cost.",
+        "Track new business versus renewal profitability separately.",
+        "Do not let Retail concentration or Delhi-like high-claim patterns hide inside the bundle.",
+      ],
+      watch_for: ["Lower-quality new business", "High acquisition cost", "Delhi-like claims emergence", "Retail concentration", "Defence cost ambiguity"],
+      cross_sell: ["D&O", "Cyber", "Public Liability", "Property Fire"],
+    },
+    uw: {
+      headline: "Gate Corporate Cover II by account economics, liability trigger breadth, and referral discipline.",
+      loss_ratio_view: "The underwriting issue is not reinsurance alone. The source points to underlying business quality, with Delhi-like risks needing mandatory referral and liability triggers/defence costs requiring review.",
+      bullets: [
+        "Make Delhi-like high-claim/high-cost accounts referral-mandatory.",
+        "Review liability triggers, defence cost treatment, extensions, and sub-limits.",
+        "Separate renewal from new business profitability.",
+        "Do not approve high acquisition-cost business without UW margin support.",
+      ],
+      watch_for: ["Trigger breadth", "Defence cost treatment", "High commission", "Retail concentration", "IBNR adequacy"],
+      levers: ["Mandatory referral", "Sub-limit review", "Deductible/retention increase", "New/renewal split", "Commission guardrail"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "RM commercial lens", tone: "high", text: "Corporate Cover II should be used to deepen profitable corporate relationships. The source warns that incremental business written in FY26 was lower quality than the existing portfolio." },
+        { title: "Where RM should push", tone: "low", items: ["Profitable corporate renewals.", "Accounts where bundle breadth improves retention without softening terms.", "Cohorts with clean claims and acceptable retained economics."] },
+        { title: "Where RM should stop", tone: "critical", items: ["Any account carrying high claims, high commission and high acquisition cost.", "Delhi-like high-growth plus claims emergence patterns.", "Retail concentration if cohort profitability is not visible."] },
+        { title: "RM controls", tone: "elevated", items: ["Separate new business and renewal profitability.", "Justify acquisition spend with UW result.", "Use cross-sell only where base account quality is positive.", "Move from volume to quality-led corporate retention."] },
+      ],
+      uw: [
+        { title: "UW decision", tone: "high", text: "Corporate Cover II requires account-level gatekeeping. The problem is lower-quality incremental business, not just treaty structure." },
+        { title: "Underwriting checks", tone: "elevated", items: ["Liability triggers.", "Defence cost treatment.", "Extensions and sub-limits.", "Deductible/retention adequacy.", "New business versus renewal profitability."] },
+        { title: "Referral / tighten", tone: "critical", items: ["Delhi-like high-claim risks.", "High commission and high acquisition cost accounts.", "Retail concentration with inadequate cohort data.", "Any account where retained economics are negative post-reinsurance."] },
+        { title: "UW levers", tone: "high", items: ["Mandatory referral by industry/premium band/claim-prone occupation.", "Sub-limit and extension control.", "Reinsurance adequacy test.", "Commission guardrails."] },
+      ],
+    },
+  },
+  i_select_liability_insurance: {
+    source_label: "bundled.md",
+    summary: "I Select Liability needs disciplined wording, referral, and reinsurance review; Retail concentration and Delhi-like risks require tight control.",
+    pressure: 78,
+    claim_frequency: 64,
+    claim_severity: 82,
+    rm: {
+      headline: "Sell I Select Liability only where liability mix and retained economics are visible.",
+      loss_ratio_view: "bundled.md flags concentration risk, data integrity risk, and the need to review liability triggers, defence costs, extensions and sub-limits. RM growth should be selective and not broad modular liability selling.",
+      bullets: [
+        "Use the product for customers needing curated liability protection, not generic cover stacking.",
+        "Avoid broad Retail push unless customer mix and profitability are separated.",
+        "Treat Delhi-like growth plus claims emergence as a referral trigger.",
+        "Sell value through retention, wording clarity, and risk controls rather than discounting.",
+      ],
+      watch_for: ["Retail concentration", "Data integrity risk", "Delhi pattern", "High acquisition cost", "Wording breadth"],
+      cross_sell: ["CGL", "Public Liability", "D&O", "Cyber"],
+    },
+    uw: {
+      headline: "Mandatory referral for broad liability triggers, Delhi-like risks, and weak reinsurance economics.",
+      loss_ratio_view: "The source calls for review of liability triggers, defence cost treatment, extensions, sub-limits, IBNR/case reserve adequacy, and treaty protection around Delhi/Retail risk profile.",
+      bullets: [
+        "Review liability triggers, defence cost treatment, extensions, and sub-limits.",
+        "Recheck IBNR/case reserve adequacy because the line is liability-natured.",
+        "Test whether treaty structure protects the emerging Delhi/Retail profile.",
+        "Mandate referral for renewals and new risks in weak cohorts.",
+      ],
+      watch_for: ["Defence cost ambiguity", "Reserve adequacy", "Retail concentration", "Treaty mismatch", "High-growth claim emergence"],
+      levers: ["Sub-limits", "Referral", "Retention increase", "Treaty review", "Wording cleanup"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "RM commercial lens", tone: "watch", text: "I Select Liability should be a curated liability product. The source warns against treating Retail as uniformly healthy and calls for more segmentation." },
+        { title: "RM push criteria", tone: "high", items: ["Clean liability history.", "Clear customer mix.", "Known renewal profitability.", "Coverage need that matches sub-limits and wording."] },
+        { title: "RM avoid criteria", tone: "critical", items: ["Delhi-like high growth plus claims emergence.", "Retail concentration without profitability split.", "Any business showing high claims plus high acquisition cost.", "Customers demanding broad triggers without premium."] },
+        { title: "RM action", tone: "elevated", items: ["Track new business versus renewal profitability.", "Use wording clarity as part of the pitch.", "Avoid pure volume push.", "Route claim-prone industries to underwriting early."] },
+      ],
+      uw: [
+        { title: "UW decision", tone: "high", text: "I Select Liability needs wording-first underwriting. The product can work only if trigger breadth, defence costs, reserves and treaty protection are controlled." },
+        { title: "Technical checks", tone: "elevated", items: ["Liability trigger wording.", "Defence cost treatment.", "Extensions and sub-limits.", "IBNR and case reserve adequacy.", "Treaty protection for Delhi/Retail risk."] },
+        { title: "Referral triggers", tone: "critical", items: ["Delhi-like risk pattern.", "High premium bands with claim-prone occupations.", "Broad extension requests.", "Retail concentration without data split."] },
+        { title: "UW levers", tone: "high", items: ["Mandatory referral.", "Sub-limit reset.", "Higher retentions.", "Reinsurance review.", "Claims-year/underwriting-year monitoring."] },
+      ],
+    },
+  },
+  fire_allied_perils: {
+    source_label: "Fire.md",
+    summary: "1001/BASE is the largest and most dangerous Fire product: GWP Rs 4,421m, UW loss Rs 633m, COR 169%, and UW result deteriorated by Rs 1,795m.",
+    pressure: 98,
+    claim_frequency: 88,
+    claim_severity: 98,
+    rm: {
+      headline: "Do not let 1001/BASE drive RM target achievement; senior-UW-controlled correction only.",
+      loss_ratio_view: "Fire.md says RMs may be prioritising large-ticket corporate/fire placements without adequate pricing correction. 1001/BASE contributes 63.6% of GWP but produces the largest UW loss.",
+      bullets: [
+        "Reduce RM dependence on 1001/BASE for target achievement.",
+        "Stop/restrict Delhi, Bangalore, Indore, Pune and Hyderabad.",
+        "Reprice Corporate and Emerging before any new push.",
+        "Move pipeline toward Property Fire and Property All Risk where retained profitability is stronger.",
+      ],
+      watch_for: ["UW deterioration Rs 1,795m", "COR 169%", "Delhi UW loss Rs 533m", "Corporate underpricing", "Cat exposure"],
+      cross_sell: ["Property Fire", "Property All Risk", "Business Interruption", "Risk engineering"],
+    },
+    uw: {
+      headline: "Critical UW stress: no growth without technical pricing approval and senior sign-off.",
+      loss_ratio_view: "Fire.md says 1001/BASE is the largest underwriting risk. Delhi, Bangalore, Indore, Pune and Hyderabad require senior UW approval; Corporate and Emerging should be frozen until pricing review.",
+      bullets: [
+        "Immediate senior UW approval for Delhi, Bangalore, Indore, Pune and Hyderabad.",
+        "Freeze aggressive growth in Corporate and Emerging.",
+        "Apply rate correction based on incurred plus reserve-adjusted loss ratio.",
+        "Revisit deductibles, occupancy loading, catastrophe exposure and risk engineering compliance.",
+      ],
+      watch_for: ["High-scale loss concentration", "Reserve deterioration", "Large account underpricing", "Poor risk engineering compliance"],
+      levers: ["Senior UW sign-off", "Technical pricing approval", "Occupancy loading", "Cat accumulation review", "Deductible correction"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "RM read", tone: "critical", text: "1001/BASE delivers the highest GWP but the worst underwriting impact. Fire.md says RMs writing this product should be measured on risk-adjusted profitability, not top line." },
+        { title: "Red RM zones", tone: "critical", items: ["Delhi: GWP Rs 1,256m, UW loss Rs 533m, COR 275%.", "Bangalore: severe reserve and claims deterioration.", "Indore: unprofitable growth.", "Pune: shrinkage did not improve quality.", "Corporate: GWP growth but UW moved to loss."] },
+        { title: "RM action", tone: "high", items: ["Stop/restrict red zones.", "Require senior UW approval for large renewals.", "Do not defend deteriorating risks just to preserve GWP.", "Shift mix toward Property Fire and Property All Risk."] },
+        { title: "Leadership message", tone: "elevated", text: "RMs should not be measured only on GWP. Rs 71m GWP growth in 1001/BASE created Rs 1,795m UW deterioration." },
+      ],
+      uw: [
+        { title: "UW decision", tone: "critical", text: "1001/BASE is critical underwriting stress. Final UW call in Fire.md: de-risk/correct/no growth without technical pricing approval." },
+        { title: "Critical red zones", tone: "critical", items: ["Delhi: UW moved Rs 917m profit to Rs 533m loss.", "Bangalore: UW moved Rs 349m profit to Rs 304m loss.", "Indore: UW moved Rs 284m profit to Rs 197m loss.", "Pune: UW moved Rs 203m profit to Rs 161m loss.", "Corporate: high-scale but underpriced/claim-stressed."] },
+        { title: "Immediate controls", tone: "high", items: ["Senior UW approval.", "Reserve audit and account-level claim review.", "Rate correction on incurred plus IBNR-adjusted LR.", "Deductible, occupancy and catastrophe loading review.", "Risk engineering compliance before renewal."] },
+        { title: "Portfolio direction", tone: "elevated", items: ["Reduce dependence on 1001/BASE.", "Correct or exit weak accounts.", "Do not increase retention on volatile large-risk accounts without reinsurance review."] },
+      ],
+    },
+  },
+});
+
+mergeMarkdownDeepIntel({
+  bharat_sookshma_fire: {
+    source_label: "Fire.md and bundled.md",
+    summary: "Bharat Sookshma is high-scale but weak-margin: GWP Rs 1,649m, UW loss Rs 194m, COR 162%, and expense ratio rose 90% to 114%.",
+    pressure: 92,
+    claim_frequency: 82,
+    claim_severity: 88,
+    rm: {
+      headline: "Correct Bharat Sookshma quality and expense leakage before scaling Retail or weak zones.",
+      loss_ratio_view: "Fire.md says Bharat Sookshma is large enough to matter but unattractive because expense and claim burden are making it weak. Retail has Rs 1,485m GWP but Rs 162m UW loss and 157% COR.",
+      bullets: [
+        "Control Retail: high scale but weak profitability.",
+        "Grow Hyderabad and Emerging selectively as better-quality pockets.",
+        "Correct Delhi, Kolkata, Bangalore, Pune and Retail.",
+        "Fix acquisition and expense leakage before sales expansion.",
+      ],
+      watch_for: ["Retail Rs 162m UW loss", "COR 162%", "Expense ratio 114%", "Delhi/Kolkata/Bangalore/Pune", "Reserve sensitivity"],
+      cross_sell: ["Property Fire", "Property All Risk", "Money Insurance", "Public Liability"],
+    },
+    uw: {
+      headline: "Correct underwriting and expense leakage; selective growth only after reserve and pricing validation.",
+      loss_ratio_view: "Fire.md says Bharat Sookshma moved from Rs 37m underwriting profit to Rs 194m underwriting loss. Delhi, Kolkata, Bangalore, Pune and Retail require correction.",
+      bullets: [
+        "Improve pricing load, acquisition cost, expense allocation and minimum premium adequacy.",
+        "Apply stricter occupancy/risk-category selection.",
+        "Validate Hyderabad and Indore turnarounds before scale.",
+        "Correct Retail, Delhi, Kolkata, Bangalore and Pune with deductible and rate action.",
+      ],
+      watch_for: ["Expense-led COR deterioration", "High-scale Retail", "IBNR credit changes", "Weak minimum premium", "Occupancy risk"],
+      levers: ["Minimum premium adequacy", "Deductible increase", "Expense allocation review", "Occupancy filters", "Reserve validation"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "RM read", tone: "critical", text: "Bharat Sookshma remains a high-scale book, but Fire.md says RMs are managing scale that is not consistently creating underwriting value. Acquisition cost stayed flat despite GWP decline." },
+        { title: "RM can grow carefully", tone: "low", items: ["Hyderabad: COR improved from 264% to 67%, UW moved from Rs 17m loss to Rs 4m profit.", "Emerging: UW profit Rs 9m, COR 63%, low-scale but good-quality.", "Indore: profitable but reserve-credit validation required."] },
+        { title: "RM must control", tone: "critical", items: ["Retail: Rs 1,485m GWP, Rs 162m UW loss, COR 157%.", "Delhi, Kolkata, Bangalore, Pune.", "Accounts where commission sensitivity overwhelms retained margin."] },
+        { title: "RM action", tone: "high", items: ["Improve expense leakage before scaling.", "Shift incentives to UW profit, COR, acquisition efficiency and retained profitability.", "Use renewal correction instead of premium preservation.", "Reduce weak-zone exposure."] },
+      ],
+      uw: [
+        { title: "UW decision", tone: "critical", text: "Bharat Sookshma should be correct/selective growth only. UW result moved Rs 37m profit to Rs 194m loss, while expense ratio rose to 114%." },
+        { title: "Critical zones / verticals", tone: "critical", items: ["Delhi: immediate correction required.", "Kolkata: very high loss-making zone.", "Bangalore: do not grow without claim diagnosis.", "Retail: high-scale but weak-margin book.", "Corporate: reserve-sensitive, needs review before growth."] },
+        { title: "Better-quality pockets", tone: "low", items: ["Hyderabad: possible turnaround, validate reserve and claims sustainability.", "Indore: profitable but supported by IBNR credit.", "Emerging: better-quality pocket, grow selectively."] },
+        { title: "UW levers", tone: "elevated", items: ["Minimum premium adequacy.", "Deductible reset.", "Occupancy selection.", "Expense and acquisition cost review.", "Reserve-quality validation."] },
+      ],
+    },
+  },
+  property_fire: {
+    source_label: "Fire.md",
+    summary: "Property Fire is the strongest reported Fire product: GWP Rs 468m, UW profit Rs 135m, COR -25%, but reserve-credit sustainability must be validated.",
+    pressure: 58,
+    claim_frequency: 42,
+    claim_severity: 72,
+    rm: {
+      headline: "Push Property Fire selectively in Mumbai, Delhi and Corporate, but never ignore reserve validation.",
+      loss_ratio_view: "Fire.md identifies Property Fire as best RM productivity at +28.8% UW result/GWP. Mumbai and Delhi are profitable growth pockets, while Corporate is strongest reported vertical.",
+      bullets: [
+        "Push Mumbai: GWP +Rs 51m, UW profit Rs 54m, COR 21%.",
+        "Push Delhi with acquisition control: GWP +Rs 66m, UW profit Rs 18m, COR 27%.",
+        "Use Corporate as the strongest reported vertical, but validate reserve impact before scale.",
+        "Keep pricing discipline because negative NIC/IBNR credit may distort reported profitability.",
+      ],
+      watch_for: ["Reserve credit", "Negative claims distortion", "Delhi acquisition cost", "Large fire exposure"],
+      cross_sell: ["Property All Risk", "Business Interruption", "Bharat Sookshma", "Risk engineering"],
+    },
+    uw: {
+      headline: "Scale selectively subject to reserve validation; strongest reported result does not mean unrestricted appetite.",
+      loss_ratio_view: "Property Fire improved UW result Rs 46m to Rs 135m, but Fire.md warns improvement is strongly supported by claim/reserve credit. Normalised underwriting profitability may be lower.",
+      bullets: [
+        "Validate reserve release and negative claims before full-scale expansion.",
+        "Maintain pricing discipline despite strong reported COR.",
+        "Expand Corporate selectively with account-level technical pricing.",
+        "Review Ahmedabad data quality and reinsurance treatment.",
+      ],
+      watch_for: ["Negative NIC/IBNR", "Reserve release", "Treaty/ceding data quality", "Acquisition cost growth"],
+      levers: ["Reserve validation", "Technical pricing", "Risk engineering", "Acquisition guardrail", "Large-risk referral"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "RM growth thesis", tone: "low", text: "Property Fire is the preferred RM push product after reserve validation. It is smaller than 1001/BASE but much more productive, with Rs 135m UW profit and best RM productivity." },
+        { title: "Best RM zones", tone: "high", items: ["Mumbai: GWP up 44.3%, UW profit Rs 54m, COR 21%.", "Delhi: GWP up 169.2%, UW profit Rs 18m, COR 27%.", "Kolkata: low-scale, COR 17%, UW profit Rs 5m, selectively mine."] },
+        { title: "Best verticals", tone: "high", items: ["Corporate: GWP Rs 453m, UW profit Rs 134m, COR -30%.", "SME Broking: GWP Rs 13m, UW profit Rs 2m, COR 44%, test and expand."] },
+        { title: "RM guardrails", tone: "watch", items: ["Validate claim-credit sustainability.", "Maintain rate discipline.", "Monitor Delhi acquisition cost increase.", "Reward profitable retained NWP, not only GWP."] },
+      ],
+      uw: [
+        { title: "UW decision", tone: "watch", text: "Property Fire is the strongest product on reported underwriting numbers, but reserve validation is mandatory before aggressive growth." },
+        { title: "Strong UW zones", tone: "low", items: ["Mumbai: strongest scalable zone.", "Delhi: strong profitable growth with acquisition-cost watch.", "Kolkata: low-scale but good-quality."] },
+        { title: "Strong verticals", tone: "high", items: ["Corporate: strongest vertical, reserve-credit validation required.", "SME Broking: small but promising, can be tested selectively."] },
+        { title: "UW levers", tone: "elevated", items: ["Validate reserve release and negative claims.", "Maintain pricing discipline.", "Review Ahmedabad data quality and reinsurance treatment.", "Account-level technical pricing for Corporate."] },
+      ],
+    },
+  },
+  property_all_risk: {
+    source_label: "Fire.md",
+    summary: "Property All Risk is the most stable profitable Fire book: UW profit Rs 32m and COR 79%, but margins weakened by 27 points and Retail/Ahmedabad/Pune are weak.",
+    pressure: 68,
+    claim_frequency: 56,
+    claim_severity: 76,
+    rm: {
+      headline: "Grow Property All Risk selectively in Bangalore, Delhi, Mumbai and Corporate; stop Retail/Ahmedabad/Pune until corrected.",
+      loss_ratio_view: "Fire.md calls Property All Risk the best sustainable RM growth product. Bangalore is the best growth-quality pocket with COR 11%; Delhi is profitable pruning; Mumbai remains profitable but margin is weakening.",
+      bullets: [
+        "Scale Bangalore: GWP up Rs 27m / 225%, UW profit Rs 8m, COR 11%.",
+        "Rebuild Delhi with discipline: COR improved to 60% and UW profit improved.",
+        "Keep Mumbai and Corporate under margin guardrails.",
+        "Stop Retail, Ahmedabad and Pune until pricing correction.",
+      ],
+      watch_for: ["Ahmedabad COR 226%", "Pune COR 155%", "Retail COR 141%", "Margin weakening", "Broad-form coverage creep"],
+      cross_sell: ["Property Fire", "Business Interruption", "Machinery Breakdown", "Risk engineering"],
+    },
+    uw: {
+      headline: "Most stable profitable UW book, but protect margin and stop weak pockets.",
+      loss_ratio_view: "Property All Risk remains profitable, but UW profit declined Rs 41m to Rs 32m and COR worsened to 79%. Bangalore/Delhi/Mumbai are acceptable; Retail, Ahmedabad and Pune require correction.",
+      bullets: [
+        "Grow Bangalore, Delhi and Mumbai selectively.",
+        "Stop Retail growth until pricing correction.",
+        "Stop/reprice Ahmedabad and Pune immediately.",
+        "Monitor Corporate margin erosion despite profitability.",
+      ],
+      watch_for: ["Retail growth with UW loss", "Ahmedabad/Pune loss", "Corporate margin erosion", "Extension/sub-limit drift"],
+      levers: ["Zone-specific referral", "Deductible increase", "Sub-limit control", "Rate adequacy threshold", "Occupancy filters"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "RM growth thesis", tone: "high", text: "Property All Risk is smaller but structurally better than 1001/BASE and Bharat Sookshma. It is the best sustainable RM growth product if sold only in profitable zones." },
+        { title: "RM push pockets", tone: "low", items: ["Bangalore: GWP up 225%, COR 11%, UW profit Rs 8m.", "Delhi: COR improved to 60%, profitable pruning.", "Mumbai: stable and scalable, but margin weakening.", "Corporate: profitable but margin reduced."] },
+        { title: "RM stop pockets", tone: "critical", items: ["Ahmedabad: COR 226%, unprofitable growth.", "Pune: COR 155%, shrinkage did not fix quality.", "Retail: GWP up 37.1%, but UW moved to Rs 11m loss and COR 141%."] },
+        { title: "RM action", tone: "elevated", items: ["Push Bangalore, Delhi, Mumbai and Corporate.", "Reprice Retail before further growth.", "Stop Ahmedabad/Pune loss-making pockets.", "Track monthly COR by RM and branch."] },
+      ],
+      uw: [
+        { title: "UW decision", tone: "high", text: "Property All Risk is the preferred stable UW book, but margins weakened. The final UW call is grow selectively/protect margin." },
+        { title: "Strong UW zones", tone: "low", items: ["Bangalore: best growth-quality pocket.", "Delhi: profitable pruning.", "Mumbai: stable but margins weakening."] },
+        { title: "Weak UW zones / verticals", tone: "critical", items: ["Ahmedabad: stop or reprice immediately.", "Pune: remaining book is poor quality and needs re-underwriting.", "Retail: clear unprofitable growth.", "Corporate: still profitable but margin erosion significant."] },
+        { title: "UW levers", tone: "elevated", items: ["Zone-specific technical pricing.", "Retail growth stop until repriced.", "Deductible and extension control.", "Monthly COR threshold by branch/RM.", "Margin guardrails for Corporate."] },
+      ],
+    },
+  },
+});
+
+mergeMarkdownDeepIntel({
+  dno_liability: {
+    source_label: "Management financial lines.md",
+    summary: "D&O reported profitability surged, but the improvement is heavily reserve-release dependent: COR moved 66% to -5%, Financial LR 34% to -26%, and IBNR moved Rs 78m to negative Rs 111m.",
+    pressure: 56,
+    claim_frequency: 42,
+    claim_severity: 74,
+    rm: {
+      headline: "Push Bangalore, Delhi and Retail growth; protect Hyderabad/Mumbai, but do not oversell reserve-led Corporate/Mumbai profit.",
+      loss_ratio_view: "Management financial lines.md says sales growth is concentrated and quality is best where premium growth and profit improved together. Bangalore and Delhi are strong; Hyderabad is defend-and-renew; Corporate and SME need selective push.",
+      bullets: [
+        "Push Bangalore and Delhi because both GWP and profit improved.",
+        "Use Retail as a priority expansion pocket but retain cost discipline.",
+        "Protect Hyderabad and profitable Mumbai relationships through renewals and cross-sell.",
+        "Be selective in Corporate and SME Broking; do not chase Chennai/Ahmedabad until cost/quality improves.",
+      ],
+      watch_for: ["Reserve-release-driven profit", "Mumbai concentration", "Corporate concentration", "Chennai cost deterioration", "SME margin not improving"],
+      cross_sell: ["Crime/Fidelity", "Cyber", "EPLI", "Professional Indemnity", "Key Person"],
+    },
+    uw: {
+      headline: "Validate reserve release and accident-year pricing before expanding D&O appetite.",
+      loss_ratio_view: "The underwriting message says reported performance improved dramatically, but quality is not fully clean because NIC before IBNR and IBNR movements explain a large part of the margin lift.",
+      bullets: [
+        "Isolate prior-year reserve release before treating margins as normalized.",
+        "Confirm FY26 accident-year pricing adequacy.",
+        "Scale/defend Bangalore, Hyderabad, Delhi and selected Retail.",
+        "De-risk or validate reserve-release-driven parts of Mumbai and Corporate before scaling.",
+      ],
+      watch_for: ["Negative loss ratios", "IBNR release", "Mumbai 61.6% GWP concentration", "Corporate 84.3% GWP concentration"],
+      levers: ["Reserve validation", "Limit/retention management", "Prior acts review", "Referral for high-limit/distressed accounts", "Regulatory sub-limits"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "Portfolio read", tone: "watch", text: "D&O GWP increased Rs 961m to Rs 983m, but UW result surged Rs 111m to Rs 470m. The source says this is materially stronger in reported metrics but must be validated for reserve-release sustainability." },
+        { title: "RM push pockets", tone: "low", items: ["Bangalore: GWP +Rs 22m, UW +Rs 26m, COR improved by 35 pts.", "Delhi: GWP +Rs 19m, UW +Rs 83m, COR improved by 90 pts.", "Retail: GWP +Rs 19m, UW improved Rs 62m.", "Hyderabad: defend-and-renew book, COR 21%."] },
+        { title: "RM caution pockets", tone: "critical", items: ["Mumbai: strongest result but reserve-led and expense ratio worsened.", "Corporate: dominant profit contributor but improvement materially reserve-led.", "Chennai: cost-led deterioration.", "SME Broking: growth without margin expansion."] },
+        { title: "RM actions", tone: "elevated", items: ["Prioritise renewals and cross-sell in Mumbai/Hyderabad/Delhi.", "Stop volume-first behavior in Chennai/Ahmedabad.", "Add renewal retention, new business mix, and average premium per case for RM quality review.", "Judge RMs on profit-quality, not top line."] },
+      ],
+      uw: [
+        { title: "UW decision", tone: "watch", text: "D&O profitability is impressive but not clean enough for broad appetite expansion. IBNR moved from Rs 78m to negative Rs 111m, so reserve release must be isolated." },
+        { title: "Scale / defend", tone: "low", items: ["Bangalore.", "Hyderabad.", "Delhi.", "Retail selectively.", "Strong Mumbai sub-book renewals after reserve validation."] },
+        { title: "Correct / validate", tone: "critical", items: ["Reserve-release-driven Mumbai and Corporate.", "Chennai cost leakage.", "SME Broking margin quality.", "Large Corporate accounts with high concentration."] },
+        { title: "UW levers", tone: "elevated", items: ["Reserve-release adjusted COR/LR monthly.", "Accident-year versus prior-year split.", "Limit and retention control.", "Referral for high-limit/listed/distressed accounts.", "Reinsurance strategy review."] },
+      ],
+    },
+  },
+  crime_fidelity: {
+    source_label: "Management financial lines.md",
+    summary: "Crime/Fidelity is materially deteriorating: the source describes contraction with worsening retained economics, severe underwriting losses, and claims-led stress first, reinsurance-led second, cost-led third.",
+    pressure: 96,
+    claim_frequency: 84,
+    claim_severity: 94,
+    rm: {
+      headline: "Stop volume-led Crime/Fidelity production in Delhi, Bangalore, Pune and stressed Corporate accounts; rebuild toward Retail/Hyderabad/selected SME.",
+      loss_ratio_view: "The source says this is not profitable growth. Retail is the best scalable growth area, Hyderabad is clean small book, and Mumbai/Chennai improved but need reserve-quality validation.",
+      bullets: [
+        "Shift RM strategy from GWP-led to retained-margin-led.",
+        "Prioritise Retail, Hyderabad, Ahmedabad and selected SME where claims-clean growth is visible.",
+        "Protect profitable renewals in Mumbai/Chennai but validate sustainability.",
+        "Stop pushing Delhi, Bangalore, Pune, and Corporate until forensic review and repricing are complete.",
+      ],
+      watch_for: ["Corporate UW loss widened by 1,016m", "Delhi severe reserve shock", "Bangalore structurally weak", "Pune cost economics", "Kolkata growth without profit"],
+      cross_sell: ["D&O", "Cyber", "Money Insurance", "Key Person"],
+    },
+    uw: {
+      headline: "Crime/Fidelity needs forensic repair, Corporate reset, and reinsurance economics review.",
+      loss_ratio_view: "Management financial lines.md says claims-led stress remains severe, particularly in Delhi and Corporate. Delhi is the single largest underwriting failure point; Retail, Hyderabad and selected SME are the only clear quality pockets.",
+      bullets: [
+        "Launch urgent forensic review for Delhi and Bangalore.",
+        "Reset Corporate portfolio appetite with technical repricing, tighter appetite and stricter deductibles.",
+        "Separate reserve-release benefit from underlying current-year profitability.",
+        "Rework non-prop reinsurance economics and add account-level GWP to UW bridge.",
+      ],
+      watch_for: ["Adverse claims emergence", "IBNR shock", "Corporate vertical breakdown", "Negative NWP/NEP distortions", "Non-prop cost jump"],
+      levers: ["Forensic claim review", "Tighter line size", "Higher deductibles", "Control warranties", "Reinsurance cost bridge"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "Portfolio read", tone: "critical", text: "Crime/Fidelity is not a volume shortfall. The source says GWP declined 38% from Rs 1,040m to Rs 647m, while retained economics and UW result worsened sharply." },
+        { title: "RM growth quality", tone: "low", items: ["Retail: best scalable growth-quality vertical; GWP +23%, UW improved to +Rs 29m, COR 66%.", "Hyderabad: clean small book, UW +Rs 14m and COR improved to 9%.", "Ahmedabad: growth acceptable if cost ratios are controlled.", "Selected SME: attractive but reserve-sensitive."] },
+        { title: "RM stop list", tone: "critical", items: ["Delhi: severe reserve/claims shock.", "Bangalore: unacceptable retained economics.", "Pune: COR worsened to 207% despite GWP falling 67%; Acq Cost % rose to 32%.", "Corporate: economically broken and core drag.", "Kolkata: premium growth without underwriting profit."] },
+        { title: "RM action plan", tone: "elevated", items: ["Stop volume-led production in weak zones.", "Shift scorecards to repricing success, renewal quality and claims-clean growth.", "Protect profitable renewals in Mumbai/Chennai but avoid assuming reserve-led improvement is sustainable.", "Rebuild toward Retail and cleaner SME."] },
+      ],
+      uw: [
+        { title: "UW decision", tone: "critical", text: "Crime/Fidelity needs repair mode. The source identifies adverse claims emergence, reserve shock in Delhi, Corporate breakdown, and reinsurance cost issues." },
+        { title: "Forensic priorities", tone: "critical", items: ["Delhi and Bangalore forensic review.", "Corporate portfolio reset.", "Monthly reserve watchlist for Delhi, Bangalore and large Corporate accounts.", "Account-level bridge from GWP to NWP to NEP to NIC to UW."] },
+        { title: "Accept / grow selectively", tone: "low", items: ["Retail.", "Hyderabad.", "Selected SME.", "Mumbai/Chennai only after reserve-quality validation."] },
+        { title: "UW levers", tone: "high", items: ["Technical repricing.", "Tighter risk appetite.", "Stricter deductibles.", "Line-size reduction.", "Non-prop reinsurance economics review.", "Exit repeated adverse reserve accounts."] },
+      ],
+    },
+  },
+  employee_health: {
+    source_label: "bundled.md - Group Health heuristic because ratios unavailable",
+    summary: "Group Health lacks detailed ratio data in the provided pack, so this intelligence is intentionally heuristic and marked as lower-confidence.",
+    pressure: 78,
+    claim_frequency: 86,
+    claim_severity: 66,
+    rm: {
+      headline: "Use Group Health as the employee-benefits anchor, but collect census and claims data before pricing confidence.",
+      loss_ratio_view: "Because bundled.md does not provide detailed Group Health ratios, the commercial lens is heuristic. Group Health usually has high frequency/utilization pressure; RM should sell retention and wellbeing value while respecting medical-cost controls.",
+      bullets: [
+        "Target startups/SMEs competing for talent or formalising employee benefits.",
+        "Collect census, dependents, prior claims, maternity, PED, room rent and sum insured before making pricing promises.",
+        "Use Group Health as an anchor to cross-sell GPA, Employee Compensation, Key Person and D&O.",
+        "Explain that pricing confidence depends on claims and demographic quality.",
+      ],
+      watch_for: ["Older age mix", "High dependent ratio", "Maternity load", "Prior claims", "Small group anti-selection"],
+      cross_sell: ["Group Personal Accident", "Employees Compensation", "Key Person", "D&O"],
+    },
+    uw: {
+      headline: "Heuristic UW: underwrite census, utilization and benefit design before quote.",
+      loss_ratio_view: "Without ratio data, UW should assume high frequency pressure and classify by group demographics, dependents, benefits and claims history.",
+      bullets: [
+        "Require census and prior claims data.",
+        "Review age bands, dependent ratio, maternity, PED, room rent, disease caps and network design.",
+        "Use co-pay, deductibles, sub-limits, wellness and network controls for high-utilization groups.",
+        "Refer older demographics, adverse claims and small groups with anti-selection risk.",
+      ],
+      watch_for: ["High utilization", "Adverse claims", "Rich benefits without controls", "Small groups", "Dependent/maternity load"],
+      levers: ["Co-pay", "Deductible", "Room rent cap", "Disease sub-limits", "Network controls", "Renewal rate correction"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "Heuristic caveat", tone: "watch", text: "The supplied bundle pack does not contain detailed Group Health ratios. This view is deliberately heuristic and should be treated as lower-confidence until census and claims data are available." },
+        { title: "RM use case", tone: "high", items: ["Employee retention.", "Founder/team reassurance.", "SME benefit formalisation.", "Cross-sell anchor for employee risk and leadership risk covers."] },
+        { title: "RM data needed", tone: "elevated", items: ["Employee count.", "Age bands.", "Dependents.", "Prior claims.", "Maternity/PED expectations.", "Current benefit design."] },
+        { title: "RM risk controls", tone: "watch", items: ["Avoid quoting aggressively without claims data.", "Flag older/high-dependent groups early.", "Use wellness/network controls as part of value pitch."] },
+      ],
+      uw: [
+        { title: "UW decision", tone: "watch", text: "Do not quote Group Health from generic assumptions. Census, benefit design and prior claims are the underwriting base." },
+        { title: "Required data", tone: "high", items: ["Census by age and relationship.", "Prior claims and utilization.", "Benefit structure.", "Maternity and PED requirements.", "Network preference."] },
+        { title: "Referral triggers", tone: "critical", items: ["Older group profile.", "High dependent ratio.", "Adverse claims.", "Small group anti-selection.", "Rich benefits without co-pay/deductible."] },
+        { title: "UW levers", tone: "elevated", items: ["Co-pay/deductible.", "Room rent and disease caps.", "Network control.", "Wellness/claims analytics.", "Renewal correction."] },
+      ],
+    },
+  },
+});
+
+mergeMarkdownDeepIntel({
+  trade_credit: {
+    source_label: "Management financial lines.md - withdrawn product heuristic",
+    summary: "Trade Credit is flagged as withdrawn in the source, so RM/UW intelligence is conservative and specialist-referral-led.",
+    pressure: 88,
+    claim_frequency: 58,
+    claim_severity: 96,
+    rm: {
+      headline: "Use Trade Credit only as receivables-risk discovery unless product availability is confirmed.",
+      loss_ratio_view: "The markdown says Trade Credit is withdrawn and values are predicted. RM should not promise a live product; use it to identify debtor concentration and working-capital risk.",
+      bullets: [
+        "Discuss with B2B firms with large receivables or buyer concentration.",
+        "Capture top buyer exposure, overdue ageing, bad-debt history and credit-control process.",
+        "Frame as balance-sheet and working-capital continuity protection.",
+        "Escalate to specialist/product confirmation before quoting.",
+      ],
+      watch_for: ["Withdrawn status", "Buyer concentration", "Overdue ageing", "Export debtor risk", "Weak credit control"],
+      cross_sell: ["D&O", "Crime/Fidelity", "Cyber", "Business Interruption"],
+    },
+    uw: {
+      headline: "Specialist referral only; validate product status before underwriting.",
+      loss_ratio_view: "Because the source flags withdrawal, UW should treat all guidance as heuristic. If evaluated, severity can be very high due to concentrated debtor default.",
+      bullets: [
+        "Confirm product availability and authority first.",
+        "Require debtor ageing, buyer limits, sector/country risk and credit procedures.",
+        "Refer single-buyer concentration and stressed-sector debtors.",
+        "Use buyer caps, aggregate limits, waiting periods and exclusions if available.",
+      ],
+      watch_for: ["Product not live", "Single debtor exposure", "Overdue receivables", "Weak credit procedures"],
+      levers: ["Specialist referral", "Buyer caps", "Aggregate limit", "Waiting period", "Debtor exclusions"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "Source caveat", tone: "critical", text: "Management financial lines.md flags Trade Credit as withdrawn and asks to predict values. Therefore this should be handled as discovery/referral, not a confirmed sales route." },
+        { title: "RM discovery", tone: "high", items: ["Top 5 debtors.", "Receivable ageing.", "Bad-debt losses.", "Credit-control process.", "Export and sector concentration."] },
+        { title: "Commercial use", tone: "elevated", items: ["Open working-capital risk discussion.", "Identify concentration exposure.", "Route to specialist/product team.", "Do not promise quote availability."] },
+      ],
+      uw: [
+        { title: "UW decision", tone: "critical", text: "Specialist referral and product availability check come before any underwriting decision." },
+        { title: "UW data", tone: "high", items: ["Debtor schedule.", "Ageing and overdue trend.", "Buyer financial strength.", "Sector/country risk.", "Historical default and dispute rate."] },
+        { title: "UW levers", tone: "elevated", items: ["Buyer limits.", "Aggregate caps.", "Waiting period.", "Debtor exclusions.", "Specialist approval."] },
+      ],
+    },
+  },
+  key_person: {
+    source_label: "Management financial lines.md - heuristic",
+    summary: "Key Person is heuristic in the source; use it for founder/executive dependency, continuity funding and investor/lender confidence.",
+    pressure: 60,
+    claim_frequency: 28,
+    claim_severity: 90,
+    rm: {
+      headline: "Sell Key Person where one founder/executive materially affects revenue, funding, debt or operations.",
+      loss_ratio_view: "The source notes Key Person exists with ICICI Pru and uses heuristic values. RM should focus on dependency mapping rather than portfolio ratio claims.",
+      bullets: [
+        "Target founder-led, expert-led and relationship-led businesses.",
+        "Use for lender/investor covenant, debt guarantee and succession risk conversations.",
+        "Frame as cash runway for replacement hiring and continuity.",
+        "Bundle with D&O, Group Health, GPA and Crime/Fidelity.",
+      ],
+      watch_for: ["Founder dependency", "No succession plan", "Loan guarantees", "Revenue tied to one person"],
+      cross_sell: ["D&O", "Group Health", "Group Personal Accident", "Crime/Fidelity"],
+    },
+    uw: {
+      headline: "Validate insurable interest, financial justification and medical/occupation risk.",
+      loss_ratio_view: "Key Person underwriting is individual-risk and financial-justification driven. The biggest underwriting risk is over-insurance or weak dependency evidence.",
+      bullets: [
+        "Confirm person criticality through revenue, debt, investor or operational dependency.",
+        "Validate sum insured against replacement cost, debt exposure and continuity need.",
+        "Apply medical, occupation and financial underwriting.",
+        "Avoid speculative valuation-based over-insurance.",
+      ],
+      watch_for: ["Over-insurance", "Weak insurable interest", "Medical risk", "Speculative valuation"],
+      levers: ["Financial underwriting", "Medical underwriting", "Sum insured cap", "Policy ownership validation", "Exclusions"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "RM commercial lens", tone: "high", text: "Key Person is a dependency conversation. It is valuable when the absence of one person can damage revenue, funding, lender confidence or delivery continuity." },
+        { title: "Best targets", tone: "elevated", items: ["Founder-led startups.", "Technical businesses dependent on a CTO/architect.", "Professional firms dependent on one rainmaker.", "Borrower businesses with founder guarantees."] },
+        { title: "RM discovery", tone: "high", items: ["Who signs the biggest customers?", "Who owns investor/lender confidence?", "Who can operate the product if the founder exits?", "What is the replacement cost and runway need?"] },
+      ],
+      uw: [
+        { title: "UW decision", tone: "watch", text: "Acceptability depends on insurable interest, medical/financial underwriting, and clear dependency evidence." },
+        { title: "Evidence required", tone: "high", items: ["Role criticality.", "Revenue/debt dependency.", "Succession plan.", "Financial justification for sum insured.", "Medical and occupation details."] },
+        { title: "UW levers", tone: "elevated", items: ["Sum insured cap.", "Medical underwriting.", "Financial underwriting.", "Exclusion/waiting controls.", "Policy ownership validation."] },
+      ],
+    },
+  },
+  group_personal_accident: {
+    source_label: "additional product heuristic",
+    summary: "GPA is a frequency-controlled employee-benefits add-on; treat it as workforce accident protection with occupation and benefit-limit discipline.",
+    pressure: 58,
+    claim_frequency: 64,
+    claim_severity: 54,
+    rm: {
+      headline: "Use GPA as a low-friction employee protection add-on for field, operations, delivery and travel-heavy teams.",
+      loss_ratio_view: "GPA is commercially useful when employees travel, work on-site, or perform operational duties. RM should sell breadth and employee assurance, but not ignore occupation mix.",
+      bullets: ["Target field teams, delivery teams, manufacturing operations, travel-heavy sales roles and startups formalising benefits.", "Bundle with Group Health and Employee Compensation.", "Ask for employee classes, travel pattern, payroll and benefit limits.", "Avoid underpriced high-hazard occupational classes."],
+      watch_for: ["High-hazard occupations", "Temporary workforce", "Field travel", "Benefit limits", "Claim documentation"],
+      cross_sell: ["Group Health", "Employees Compensation", "Key Person"],
+    },
+    uw: {
+      headline: "Price by occupation class, benefit schedule and exposure hours.",
+      loss_ratio_view: "UW focus is occupation hazard and benefit design. Frequency can rise quickly if temporary, field or travel-heavy groups are priced like office-only employees.",
+      bullets: ["Segment employees by occupation class.", "Review death/PTD/TTD/medical extension limits.", "Apply exclusions for high-risk activity where needed.", "Check temporary/contract workforce definitions."],
+      watch_for: ["High-risk occupations", "Large TTD benefits", "Contractor ambiguity", "Travel exposure"],
+      levers: ["Occupation class loading", "Benefit sub-limits", "Temporary worker definition", "Hazard exclusions"],
+    },
+  },
+  employees_compensation: {
+    source_label: "additional product heuristic",
+    summary: "Employee Compensation is statutory/workforce liability protection; underwriting depends on payroll, occupation, location and contractor exposure.",
+    pressure: 66,
+    claim_frequency: 58,
+    claim_severity: 72,
+    rm: {
+      headline: "Sell EC wherever workforce injury liability, contractors, factories, warehouses or field operations exist.",
+      loss_ratio_view: "EC is compliance-led and liability-led. RM should position it as mandatory workforce protection, not optional benefit spend.",
+      bullets: ["Target manufacturing, logistics, construction, warehousing, field service and factory operations.", "Collect payroll split, employee categories, contractor count and locations.", "Cross-sell GPA and Group Health but keep EC as statutory liability anchor.", "Escalate hazardous occupations early."],
+      watch_for: ["Contract labour", "Hazardous work", "Payroll under-declaration", "Multi-location operations"],
+      cross_sell: ["GPA", "Group Health", "Public Liability", "Property Fire"],
+    },
+    uw: {
+      headline: "Validate payroll, employee class, contractor exposure and statutory jurisdiction.",
+      loss_ratio_view: "UW pressure comes from severe workplace injury claims and under-declared payroll. Pricing must reflect occupation and contractor exposure.",
+      bullets: ["Check payroll by occupation class.", "Clarify contractor/subcontractor inclusion.", "Review safety controls and prior injury history.", "Apply loading for hazardous operations."],
+      watch_for: ["Payroll mismatch", "Contractor ambiguity", "Poor safety controls", "Severe injury exposure"],
+      levers: ["Payroll audit", "Occupation loading", "Contractor endorsement", "Safety warranty"],
+    },
+  },
+  money_insurance: {
+    source_label: "additional product heuristic",
+    summary: "Money Insurance is a practical cash-exposure add-on; UW quality depends on cash limits, transit controls, reconciliation and custody chain.",
+    pressure: 54,
+    claim_frequency: 50,
+    claim_severity: 48,
+    rm: {
+      headline: "Sell Money Insurance to cash-handling businesses as a simple operational protection add-on.",
+      loss_ratio_view: "Commercial value is strongest where cash in safe, counter cash, cash in transit or petty cash is material. RM should not oversell if the business is fully digital.",
+      bullets: ["Target retail, food, clinics, distribution points and cash collection operations.", "Ask for cash limit, frequency of transit, custody process and safe details.", "Bundle with Burglary/Property and Fidelity where employee handling risk exists.", "Keep limits practical and control-led."],
+      watch_for: ["High cash floats", "Unescorted transit", "Weak safe controls", "Poor reconciliation"],
+      cross_sell: ["Crime/Fidelity", "Property Fire", "Burglary", "Business Shield"],
+    },
+    uw: {
+      headline: "Underwrite custody chain, safe controls and transit pattern.",
+      loss_ratio_view: "UW risk is control failure rather than complex severity. Exposure should be capped by location, safe, counter and transit limits.",
+      bullets: ["Verify safe type and cash limit.", "Check transit frequency, route and escort controls.", "Review reconciliation and cash-handling SOP.", "Apply location/transit sub-limits."],
+      watch_for: ["No safe", "Unescorted cash transit", "High limits", "Poor records"],
+      levers: ["Per-transit limit", "Safe warranty", "Escort requirement", "Location limit"],
+    },
+  },
+});
+
+mergeMarkdownDeepIntel({
+  bharat_laghu_udyam_suraksha: {
+    label: "ICICI Bharat Laghu Udyam Suraksha",
+    source_label: "bundled.md",
+    summary: "Bharat Laghu moved from Rs 161m underwriting profit to Rs 99m loss, with COR worsening from -7% to 161%; deterioration is mainly reserve-normalisation plus expense inflation.",
+    pressure: 90,
+    claim_frequency: 74,
+    claim_severity: 88,
+    rm: {
+      headline: "Shift Bharat Laghu RM strategy from GWP defence to NEP plus UWR quality gates.",
+      loss_ratio_view: "bundled.md says RM quality is mixed and there is very little clean profitable growth at scale. Mumbai grew premium and retained premium, but profit disappeared; Delhi is a classic case of defending business without underwriting quality.",
+      bullets: [
+        "Do not chase Kolkata premium; the market is not producing value.",
+        "Stop defending Delhi business purely for GWP because UWR moved from Rs 57m profit to Rs 72m loss.",
+        "Use Corporate, Emerging, and selective Chennai/Pune as cleaner commercial focus areas.",
+        "Track acquisition effectiveness in SME Broking, Emerging and Kolkata because acquisition cost ratios worsened.",
+      ],
+      watch_for: ["Delhi COR 273%", "Kolkata COR 531%", "Retail COR 111%", "Mumbai profit disappearance", "SME/Emerging acquisition cost creep"],
+      cross_sell: ["Property Fire", "Business Interruption", "Public Liability", "Money Insurance"],
+    },
+    uw: {
+      headline: "Run reserve-adjusted underwriting review by zone; Delhi, Kolkata and Retail require immediate correction.",
+      loss_ratio_view: "The source says headline deterioration is primarily reserve-driven, not gross-claims-driven. IBNR moved from negative Rs 211m to positive Rs 83m, creating a Rs 294m adverse swing and moving NIC after IBNR from negative Rs 16m to Rs 195m.",
+      bullets: [
+        "Review Delhi: NEP improved slightly but UW moved Rs 57m profit to Rs 72m loss and COR reached 273%.",
+        "Review Kolkata: UW moved Rs 70m profit to Rs 71m loss and COR reached 531%.",
+        "Correct Retail: UWR moved Rs 52m profit to Rs 17m loss and COR worsened to 111%.",
+        "Protect Corporate because it remains the strongest vertical with UWR Rs 38m and COR -26%.",
+      ],
+      watch_for: ["IBNR adverse swing Rs 294m", "Expense ratio 91%", "Delhi reserve shock", "Kolkata reserve shock", "Retail expense ratio 100%"],
+      levers: ["Reserve-adjusted review", "Zone referral", "Expense control", "Retail repricing", "Corporate retention guardrails"],
+    },
+    manual_sections: {
+      rm: [
+        { title: "RM portfolio read", tone: "critical", text: "Bharat Laghu is not a premium-retention problem. GWP fell 8.4%, but NWP and NEP improved; profit deteriorated because reserve benefit reversed and expenses inflated." },
+        { title: "RM focus areas", tone: "high", items: ["Corporate: cleaner economics.", "Emerging: selective opportunity.", "Chennai/Pune: selective recovery zones.", "Mumbai: gross and retained growth, but profit disappeared; defend only corrected accounts."] },
+        { title: "RM stop / correct", tone: "critical", items: ["Delhi: RM defence did not protect margin.", "Kolkata: not a market where more premium should be chased.", "Retail: meaningful scale but turned loss-making.", "SME Broking/Emerging/Kolkata: acquisition effectiveness weakening."] },
+        { title: "RM action", tone: "elevated", items: ["Move from GWP defence to NEP plus UWR gates.", "Use reserve-adjusted profit in renewal decisions.", "Separate clean growth from reserve-assisted improvement.", "Escalate Delhi/Kolkata renewals early."] },
+      ],
+      uw: [
+        { title: "UW decision", tone: "critical", text: "Bharat Laghu needs reserve-adjusted underwriting review. Underlying claims before IBNR improved, but reserve support disappeared and expense inflation weakened the book." },
+        { title: "Critical zones / verticals", tone: "critical", items: ["Delhi: COR 273%, UW moved to Rs 72m loss.", "Kolkata: COR 531%, UW moved to Rs 71m loss.", "Retail: COR 111%, expense ratio 100%."] },
+        { title: "Better-quality pockets", tone: "low", items: ["Corporate: strongest technical vertical, UWR Rs 38m, COR -26%.", "Pune: strongest turnaround, COR 426% to -113%, but partly reserve-assisted.", "Chennai: clean positive turnaround, COR 139% to -81%."] },
+        { title: "UW levers", tone: "high", items: ["Reserve-adjusted COR by zone.", "Expense-ratio correction.", "Retail repricing.", "Delhi/Kolkata referral.", "Corporate retention with margin guardrails."] },
+      ],
+    },
+  },
+});
+
+function normalizeLiabilityIntelKey(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const aliased = COVER_ALIASES[raw] || COVER_ALIASES[raw.toUpperCase()] || COVER_ALIASES[raw.toLowerCase()] || raw;
+  const k = String(aliased || raw).toLowerCase();
+  if (/business.*shield|^1010$/.test(k)) return "business_shield_sme";
+  if (/msme.*suraksha.*kavach|suraksha.*kavach|msme.*suraksha/.test(k)) return "msme_suraksha_kavach";
+  if (/industrial.*all.*risk|\biar\b|^1003$/.test(k)) return "industrial_all_risk_policy";
+  if (/corporate.*cover.*ii|cover.*ii|^4646$/.test(k)) return "corporate_cover_ii";
+  if (/i.?select.*liability/.test(k)) return "i_select_liability_insurance";
+  if (/group.*safeguard/.test(k)) return "group_safeguard_insurance_policy";
+  if (/group.*health|employee.*health/.test(k)) return "employee_health";
+  if (/car.*ear.*advanced.*loss|advanced.*loss.*profit|alop/.test(k)) return "car_ear_advanced_loss_of_profit";
+  if (/1001|base.*fire|fire.*allied|allied.*perils/.test(k)) return "fire_allied_perils";
+  if (/bharat.*laghu|laghu.*udyam|1017/.test(k)) return "bharat_laghu_udyam_suraksha";
+  if (/bharat.*sookshma|sookshma.*udyam/.test(k)) return "bharat_sookshma_fire";
+  if (/property.*all.*risk|iar/.test(k)) return "property_all_risk";
+  if (/property.*fire|bharat.*laghu/.test(k)) return "property_fire";
+  if (/electronic.*equipment|eei/.test(k)) return "electronic_equipment";
+  if (/machinery.*breakdown|\bmb\b/.test(k)) return "machinery_breakdown";
+  if (/business.*interruption|\bbi\b/.test(k)) return "business_interruption";
+  if (/public.*liabil/.test(k)) return "public_liability";
+  if (/employees?.*comp/.test(k)) return "employees_compensation";
+  if (/group.*personal.*accident|gpa/.test(k)) return "group_personal_accident";
+  if (/money.*insurance/.test(k)) return "money_insurance";
+  if (/cyber/.test(k)) return "cyber_liability";
+  if (/d.?o|director|officer/.test(k)) return "dno_liability";
+  if (/trade.*credit/.test(k)) return "trade_credit";
+  if (/key.*person/.test(k)) return "key_person";
+  if (/healthcare.*pi|medical.*pi|clinical/.test(k)) return "healthcare_pi";
+  if (/financial.*services.*pi|fintech.*pi|regulated.*advis/.test(k)) return "financial_services_pi";
+  if (/pi|professional.*indem|tech.*eo|e&o/.test(k)) return "professional_indemnity";
+  if (/comprehensive.*general|cgl|general.*liability/.test(k)) return "comprehensive_general_liability";
+  if (/public/.test(k)) return "public_liability";
+  if (/product/.test(k)) return "product_liability";
+  if (/crime|fidelity|fraud/.test(k)) return "crime_fidelity";
+  if (/employment|epli/.test(k)) return "employment_practices";
+  return k;
+}
+
+function getLiabilityIntel(value) {
+  const key = normalizeLiabilityIntelKey(value);
+  return LIABILITY_INTEL[key] || null;
+}
+
+function isBundledIntelKey(value) {
+  const key = normalizeLiabilityIntelKey(value);
+  return Boolean(LIABILITY_INTEL[key]?.source_label && /bundled\.md/i.test(LIABILITY_INTEL[key].source_label));
+}
+
+function isBundleFamilyKey(value) {
+  const key = normalizeLiabilityIntelKey(value);
+  return [
+    "business_shield_sme",
+    "msme_suraksha_kavach",
+    "industrial_all_risk_policy",
+    "group_safeguard_insurance_policy",
+    "employee_health",
+    "corporate_cover_ii",
+    "i_select_liability_insurance",
+    "bharat_laghu_udyam_suraksha",
+  ].includes(key);
+}
+
+const LIABILITY_DOC_TITLE_BY_KEY = {
+  comprehensive_general_liability: "CGL – Comprehensive General Liability",
+  public_liability: "PUBLIC LIABILITY",
+  product_liability: "PRODUCT LIABILITY – IMPLY HEURISTICALLY FROM GLO",
+  professional_indemnity: "PROFESSIONAL INDEMNITY",
+  healthcare_pi: "Professional Indemnity: Healthcare and Medical Professional Liability",
+  financial_services_pi: "Financial Services / Institutions Professional Indemnity (4024)",
+  professional_indemnity_engineers: "PROFESSIONAL INDEMNITY (ENGINEERS)",
+  technology_eo: "E&O :",
+  employment_practices: "EMPLOYMENT PRACTICES LIABILITY",
+  cyber_liability: "4056, 4056/IIO, 4056/LT CYBER LIABILITY INSURANCE",
+};
+
+function getLiabilityDocTitle(key) {
+  return LIABILITY_DOC_TITLE_BY_KEY[normalizeLiabilityIntelKey(key)] || null;
+}
+
+function loadLiabilityDocRegistry() {
+  if (window.__liabilityDocRegistry) return Promise.resolve(window.__liabilityDocRegistry);
+  if (window.__liabilityDocRegistryPromise) return window.__liabilityDocRegistryPromise;
+  window.__liabilityDocRegistryPromise = fetch("liability_intelligence_registry.json")
+    .then(res => {
+      if (!res.ok) throw new Error(`Registry load failed: ${res.status}`);
+      return res.json();
+    })
+    .then(data => {
+      window.__liabilityDocRegistry = data;
+      return data;
+    })
+    .catch(err => {
+      window.__liabilityDocRegistryError = err;
+      return null;
+    });
+  return window.__liabilityDocRegistryPromise;
+}
+
+function getLiabilityDocProduct(key) {
+  const registry = window.__liabilityDocRegistry;
+  if (!registry?.products?.length) return null;
+  const norm = normalizeLiabilityIntelKey(key);
+  const title = getLiabilityDocTitle(norm);
+  return registry.products.find(p =>
+    p.key === norm ||
+    (title && p.title === title) ||
+    (p.title || "").toLowerCase().includes((norm || "").replace(/_/g, " "))
+  ) || null;
+}
+
+function flattenDocText(content) {
+  return (content || []).map(item => {
+    if (!item) return "";
+    if (item.type === "paragraph") return item.text || "";
+    if (item.type === "table") {
+      return (item.rows || []).map(row => (row || []).join(" | ")).join("\n");
+    }
+    return "";
+  }).filter(Boolean).join("\n");
+}
+
+function docNodePreview(node, maxParas = 3) {
+  if (!node) return "";
+  const lines = [];
+  for (const item of node.content || []) {
+    if (item.type === "paragraph" && item.text) {
+      lines.push(item.text);
+      if (lines.length >= maxParas) break;
+    }
+    if (item.type === "table" && (item.rows || []).length) {
+      const first = item.rows.slice(0, 4).map(row => (row || []).filter(Boolean).join(" | ")).join(" · ");
+      if (first) {
+        lines.push(first);
+        if (lines.length >= maxParas) break;
+      }
+    }
+  }
+  return lines.join(" ");
+}
+
+function renderDocTable(rows) {
+  if (!rows?.length) return "";
+  return `
+    <div class="li-doc-table-wrap">
+      <table class="li-doc-table">
+        <tbody>
+          ${rows.map(row => `<tr>${(row || []).map(cell => `<td>${annotateLiabilityText(cell || "")}</td>`).join("")}</tr>`).join("")}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function renderDocContentItem(item) {
+  if (!item) return "";
+  if (item.type === "paragraph") {
+    return `<p class="li-doc-p">${annotateLiabilityText(item.text || "")}</p>`;
+  }
+  if (item.type === "table") {
+    return renderDocTable(item.rows || []);
+  }
+  return "";
+}
+
+function annotateLiabilityText(value) {
+  return esc(value || "")
+    .replace(/\b(\d+(?:\.\d+)?\s?%|\d+(?:\.\d+)?x|\d+(?:\.\d+)?\s?(?:cr|crore|lakh|lac|mn|days|locations|claims?|policies|employees|contracts?|limits?|deductibles?))\b/gi, '<strong class="li-mark-number">$1</strong>')
+    .replace(/\b(ILR|COR|GWP|NWP|NEP|UW|RM|CGL|IBNR|POSH|DPDPA|IRDAI|premium|claim|claims|loss ratio|referral|refer|deductible|exclusion|warranty|endorsement|cross-sell|renewal|high risk|low risk|very high|moderate|critical|red flag)\b/gi, '<strong class="li-mark-keyword">$1</strong>');
+}
+
+function docSectionMeta(title) {
+  const text = String(title || "").toLowerCase();
+  if (/underwriting/.test(text)) return { tag: "UW decision", tone: "critical" };
+  if (/geography|segment|vertical|channel/.test(text)) return { tag: "Heat map", tone: "high" };
+  if (/risk|red flag|watch/.test(text)) return { tag: "Risk signal", tone: "critical" };
+  if (/action|recommend/.test(text)) return { tag: "Action", tone: "elevated" };
+  if (/dashboard|conclusion|final/.test(text)) return { tag: "Outcome", tone: "watch" };
+  if (/rm|sales|distribution/.test(text)) return { tag: "RM lens", tone: "elevated" };
+  if (/ranked/.test(text)) return { tag: "Ranked list", tone: "high" };
+  return { tag: "Section", tone: "watch" };
+}
+
+function renderDocNode(node, options = {}) {
+  if (!node) return "";
+  const depth = Number(options.depth || 0);
+  const openByDefault = options.openByDefault ?? (depth < 1);
+  const className = depth === 0 ? "li-doc-node root" : `li-doc-node depth-${depth}`;
+  const preview = docNodePreview(node, 2);
+  const meta = docSectionMeta(node.title || "");
+  const children = (node.children || []).map(child => renderDocNode(child, { depth: depth + 1, openByDefault: false })).join("");
+  const body = (node.content || []).map(renderDocContentItem).join("");
+  return `
+    <details class="${className}" ${openByDefault ? "open" : ""}>
+      <summary>
+        <div class="li-doc-node-head">
+          <span class="li-doc-node-chip li-doc-node-chip-${esc(meta.tone)}">${esc(meta.tag)}</span>
+          <span class="li-doc-node-title">${esc(node.title || "")}</span>
+        </div>
+        ${preview ? `<span class="li-doc-node-preview">${annotateLiabilityText(preview)}</span>` : ""}
+      </summary>
+      <div class="li-doc-node-body">
+        ${body}
+        ${children}
+      </div>
+    </details>`;
+}
+
+function findDocNode(node, predicate) {
+  if (!node) return null;
+  if (predicate(node)) return node;
+  for (const child of node.children || []) {
+    const found = findDocNode(child, predicate);
+    if (found) return found;
+  }
+  return null;
+}
+
+function findDocNodeByTitle(node, patterns) {
+  const list = Array.isArray(patterns) ? patterns : [patterns];
+  return findDocNode(node, n => list.some(p => p.test ? p.test(n.title || "") : String(n.title || "").toLowerCase().includes(String(p).toLowerCase())));
+}
+
+function renderDocSubsectionCards(sectionNode) {
+  if (!sectionNode?.children?.length) return "";
+  return `
+    <div class="li-doc-subgrid">
+      ${sectionNode.children.map(child => `
+        <details class="li-doc-subcard">
+          <summary>
+            <span class="li-doc-subcard-head">
+              <span class="li-doc-node-chip li-doc-node-chip-${esc(docSectionMeta(child.title || "").tone)}">${esc(docSectionMeta(child.title || "").tag)}</span>
+              <strong>${esc(child.title || "")}</strong>
+            </span>
+            <span>${annotateLiabilityText(docNodePreview(child, 1) || "Open to read the exact section text.")}</span>
+          </summary>
+          <div class="li-doc-subcard-body">
+            ${(child.content || []).map(renderDocContentItem).join("")}
+            ${(child.children || []).map(grand => renderDocNode(grand, { depth: 2, openByDefault: false })).join("")}
+          </div>
+        </details>`).join("")}
+    </div>`;
+}
+
+function renderManualIntelDocument(productKey, role) {
+  const intel = getLiabilityIntel(productKey);
+  const sections = intel?.manual_sections?.[role] || [];
+  if (!sections.length) return "";
+  const exactLabel = /bundled\.md/i.test(intel?.source_label || "") ? "Exact bundled extracts" : "Curated bundle intelligence";
+  return `
+    <section class="li-doc-connector">
+      <div class="li-doc-connector-head">
+        <div>
+          <div class="li-doc-connector-kicker">${esc(exactLabel)}</div>
+          <h4>${esc(intel.label || labelize(productKey || "Product"))}</h4>
+          <div class="li-doc-connector-sub">
+            <span>Source: ${esc(intel.source_label || "bundled.md")}</span>
+            <span>Mode: ${esc(role === "uw" ? "Underwriter" : "Relationship manager")}</span>
+            <span>Type: Structured summary</span>
+          </div>
+        </div>
+        <span class="li-doc-connector-badge">${esc(role === "uw" ? "UW prioritised" : "RM prioritised")}</span>
+      </div>
+      <div class="li-doc-subgrid">
+        ${sections.map(section => `
+          <article class="li-doc-subcard li-doc-manual-card li-doc-manual-${esc(section.tone || "watch")}">
+            <div class="li-doc-subcard-body">
+              <span class="li-doc-node-chip li-doc-node-chip-${esc(section.tone || "watch")}">${esc(section.title || "Section")}</span>
+              ${section.text ? `<p class="li-doc-p">${annotateLiabilityText(section.text)}</p>` : ""}
+              ${section.items?.length ? `<ul class="li-intel-list">${section.items.map(item => `<li><span class="li-list-marker"></span><span>${annotateLiabilityText(item)}</span></li>`).join("")}</ul>` : ""}
+            </div>
+          </article>
+        `).join("")}
+      </div>
+    </section>`;
+}
+
+function renderProductExactIntel(productKey, role) {
+  const key = normalizeLiabilityIntelKey(productKey);
+  const manual = renderManualIntelDocument(key, role);
+  if (manual) return manual;
+  const docProduct = getLiabilityDocProduct(key);
+  if (docProduct) return renderExactLiabilityDocIntel(key, role);
+  const intel = getLiabilityIntel(key);
+  if (!intel) return `<div class="li-doc-loading">No intelligence source loaded for ${esc(key || "this product")}.</div>`;
+  return `
+    <section class="li-doc-connector">
+      <div class="li-doc-connector-head">
+        <div>
+          <div class="li-doc-connector-kicker">${esc(isBundleFamilyKey(key) ? "Bundle intelligence" : "Product intelligence")}</div>
+          <h4>${esc(intel.label || labelize(key || "Product"))}</h4>
+          <div class="li-doc-connector-sub">
+            <span>Source: ${esc(intel.source_label || "registry")}</span>
+            <span>Mode: ${esc(role === "uw" ? "Underwriter" : "Relationship manager")}</span>
+            <span>Type: Summary view</span>
+          </div>
+        </div>
+        <span class="li-doc-connector-badge">${esc(role === "uw" ? "UW prioritised" : "RM prioritised")}</span>
+      </div>
+      <div class="li-doc-subgrid">
+        <article class="li-doc-subcard li-doc-manual-card li-doc-manual-${esc(role === "uw" ? "critical" : "high")}">
+          <div class="li-doc-subcard-body">
+            <span class="li-doc-node-chip li-doc-node-chip-${esc(role === "uw" ? "critical" : "high")}">${esc(role === "uw" ? "UW decision" : "RM lens")}</span>
+            <p class="li-doc-p">${annotateLiabilityText(intel?.[role]?.loss_ratio_view || intel.summary || "Summary not available yet.")}</p>
+          </div>
+        </article>
+      </div>
+    </section>`;
+}
+
+function renderLiabilityIntelHero(role, intel, roleData, productPath, color) {
+  const roleLabel = role === "uw" ? "Underwriter cockpit" : "RM commercial lens";
+  const chipClass = role === "uw" ? "li-doc-hero-chip-critical" : "li-doc-hero-chip-high";
+  const checks = (roleData.bullets || []).slice(0, 3);
+  const watchList = (roleData.watch_for || []).slice(0, 4);
+  const levers = role === "uw" ? (roleData.levers || []).slice(0, 4) : (roleData.cross_sell || []).slice(0, 4);
+  const riskItems = [
+    ["Loss-ratio", intel?.pressure],
+    ["Frequency", intel?.claim_frequency],
+    ["Severity", intel?.claim_severity],
+  ];
+  return `
+    <section class="li-doc-hero li-doc-hero-${role}">
+      <div class="li-doc-hero-main">
+        <div class="li-doc-hero-kicker">${esc(roleLabel)}</div>
+        <h4>${esc(roleData.headline || intel?.summary || "")}</h4>
+        <p>${annotateLiabilityText(roleData.loss_ratio_view || "No role-specific summary available yet.")}</p>
+        <div class="li-doc-hero-chip-row">
+          <span class="li-doc-hero-chip ${chipClass}">Band: ${esc(riskBandLabel(intel?.pressure))}</span>
+          <span class="li-doc-hero-chip">Product: ${esc(productPath)}</span>
+          <span class="li-doc-hero-chip">Mode: ${esc(role.toUpperCase())}</span>
+        </div>
+        <div class="li-risk-snapshot" aria-label="Risk snapshot">
+          ${riskItems.map(([label, value]) => {
+            const pct = Math.max(0, Math.min(100, Number(value || 0)));
+            const tone = riskBandTone(pct);
+            return `
+              <div class="li-risk-snapshot-card li-risk-snapshot-${tone}">
+                <span class="li-risk-dot li-risk-dot-${tone}"></span>
+                <div>
+                  <span>${esc(label)}</span>
+                  <strong>${pct}% ${esc(riskBandLabel(pct))}</strong>
+                </div>
+              </div>`;
+          }).join("")}
+        </div>
+        ${checks.length ? `
+          <div class="li-doc-hero-checklist">
+            <div class="li-doc-hero-mini-title">${role === "uw" ? "What the UW should check" : "What the RM should say"}</div>
+            <ul>
+              ${checks.map(item => `<li><span>${annotateLiabilityText(item)}</span></li>`).join("")}
+            </ul>
+          </div>` : ""}
+      </div>
+      <div class="li-doc-hero-rail">
+        <div class="li-doc-hero-meter-grid">
+          ${renderLiabilityIntelMeter("Loss-ratio pressure", intel?.pressure, color, riskBandLabel(intel?.pressure))}
+          ${renderLiabilityIntelMeter("Claim frequency", intel?.claim_frequency, color, riskBandLabel(intel?.claim_frequency))}
+          ${renderLiabilityIntelMeter("Claim severity", intel?.claim_severity, color, riskBandLabel(intel?.claim_severity))}
+        </div>
+        <div class="li-doc-hero-panel">
+          <div class="li-doc-hero-mini-title">${role === "uw" ? "Watch list" : "Cross-sell / watch list"}</div>
+          <div class="li-doc-hero-pill-grid">
+            ${watchList.length ? watchList.map(item => `<span>${annotateLiabilityText(item)}</span>`).join("") : `<span>No watch items found in the loaded extract.</span>`}
+          </div>
+        </div>
+        <div class="li-doc-hero-panel">
+          <div class="li-doc-hero-mini-title">${role === "uw" ? "UW levers" : "Commercial levers"}</div>
+          <div class="li-doc-hero-pill-grid">
+            ${levers.length ? levers.map(item => `<span>${annotateLiabilityText(item)}</span>`).join("") : `<span>No lever items found in the loaded extract.</span>`}
+          </div>
+        </div>
+      </div>
+    </section>`;
+}
+
+function renderExactLiabilityDocIntel(productKey, role) {
+  const registry = window.__liabilityDocRegistry;
+  const product = getLiabilityDocProduct(productKey);
+  if (!registry?.products?.length || !product) {
+    const pending = window.__liabilityDocRegistryError ? `Could not load the document registry: ${window.__liabilityDocRegistryError.message}` : "Loading exact document extracts…";
+    return `<div class="li-doc-loading">${esc(pending)}</div>`;
+  }
+
+  const root = product.root;
+  const secExecutive = findDocNodeByTitle(root, [/Executive Summary/i]);
+  const secUW = findDocNodeByTitle(root, [/Underwriting Perspective/i]);
+  const secRM = findDocNodeByTitle(root, [/RM \/ Sales \/ Distribution Perspective/i]);
+  const secGeo = findDocNodeByTitle(root, [/Geography \/ Segment \/ Channel \/ Product Deep Dive/i]);
+  const secRanked = findDocNodeByTitle(root, [/Ranked Lists/i]);
+  const secRisks = findDocNodeByTitle(root, [/Key Risks and Red Flags/i]);
+  const secActions = findDocNodeByTitle(root, [/Recommended Actions/i]);
+  const secFinal = findDocNodeByTitle(root, [/Final Conclusion/i]);
+  const secDash = findDocNodeByTitle(root, [/Dashboard Recommendation/i]);
+
+  const primarySections = role === "uw"
+    ? [secUW, secGeo, secRisks, secActions, secDash, secFinal]
+    : [secRM, secGeo, secActions, secDash, secFinal, secExecutive];
+
+  const cards = primarySections.filter(Boolean).map(node => renderDocNode(node, { depth: 0, openByDefault: node === secGeo || node === secRM || node === secUW })).join("");
+  const chapterRail = primarySections.filter(Boolean).map((node, idx) => {
+    const meta = docSectionMeta(node.title || "");
+    return `
+      <button type="button" class="li-doc-chapter-chip li-doc-chapter-chip-${esc(meta.tone)}" onclick="const root=this.closest('.li-doc-connector'); const target=root?root.querySelectorAll('details.root')[${idx}]:null; if(target) target.open=true;">
+        <span>${String(idx + 1).padStart(2, "0")}</span>
+        <strong>${esc(node.title || "")}</strong>
+      </button>`;
+  }).join("");
+
+  let geoContent = "";
+  if (secGeo) {
+    const geoNode = findDocNodeByTitle(secGeo, [/Geography.*Deep Dive/i]);
+    const verticalNode = findDocNodeByTitle(secGeo, [/Vertical.*Deep Dive/i]);
+    geoContent = `
+      <div class="li-doc-two-col">
+        ${geoNode ? `<section class="li-doc-mini-block"><div class="li-doc-mini-title">Region Wise Intelligence</div>${renderDocSubsectionCards(geoNode)}</section>` : ""}
+        ${verticalNode ? `<section class="li-doc-mini-block"><div class="li-doc-mini-title">Vertical Grouping Wise Intelligence</div>${renderDocSubsectionCards(verticalNode)}</section>` : ""}
+      </div>`;
+  }
+
+  return `
+    <section class="li-doc-connector">
+      <div class="li-doc-connector-head">
+        <div>
+          <div class="li-doc-connector-kicker">Exact document extracts</div>
+          <h4>${esc(product.title || "")}</h4>
+          <div class="li-doc-connector-sub">
+            <span>Source: liability DOCX registry</span>
+            <span>Mode: ${esc(role === "uw" ? "Underwriter" : "Relationship manager")}</span>
+            <span>Open sections: ${esc(primarySections.filter(Boolean).length)}</span>
+          </div>
+        </div>
+        <span class="li-doc-connector-badge">${esc(role === "uw" ? "UW prioritised" : "RM prioritised")}</span>
+      </div>
+      <div class="li-doc-chapter-rail" aria-label="Document chapter map">
+        ${chapterRail}
+      </div>
+      <div class="li-doc-tree">
+        ${cards}
+      </div>
+      ${geoContent}
+    </section>`;
+}
+
+function riskBandLabel(v) {
+  const n = Number(v || 0);
+  if (n >= 85) return "Very high";
+  if (n >= 70) return "High";
+  if (n >= 45) return "Moderate";
+  return "Low";
+}
+
+function riskBandTone(v) {
+  const n = Number(v || 0);
+  if (n >= 85) return "very-high";
+  if (n >= 70) return "high";
+  if (n >= 45) return "moderate";
+  return "low";
+}
+
+function renderLiabilityIntelMeter(label, value, accent, hint) {
+  const pct = Math.max(0, Math.min(100, Number(value || 0)));
+  const tone = riskBandTone(pct);
+  const band = hint || riskBandLabel(pct);
+  return `
+    <div class="li-intel-meter li-intel-meter-${tone}">
+      <div class="li-intel-meter-head">
+        <span>${esc(label)}</span>
+        <strong>${pct}%</strong>
+      </div>
+      <div class="li-intel-risk-scale" aria-hidden="true">
+        <span>L</span><span>M</span><span>H</span>
+      </div>
+      <div class="li-intel-meter-bar" aria-hidden="true" style="--li-risk-pct:${pct}%;">
+        <i style="width:${pct}%;background:${accent};"></i>
+      </div>
+      <div class="li-intel-meter-hint">
+        <span class="li-risk-dot li-risk-dot-${tone}"></span>
+        <strong>${esc(band)}</strong>
+        <span>${tone === "low" ? "Controlled exposure" : tone === "moderate" ? "Needs review" : "Elevated attention"}</span>
+      </div>
+    </div>`;
+}
+
+function renderLiabilityIntelList(items, className) {
+  if (!items?.length) return "";
+  return `<ul class="${className}">
+    ${items.map(item => `<li><span class="li-list-marker"></span><span>${annotateLiabilityText(item)}</span></li>`).join("")}
+  </ul>`;
+}
+
+function renderLiabilityIntelSection(title, items, className = "li-intel-list") {
+  if (!items?.length) return "";
+  return `
+    <section class="li-intel-section">
+      <div class="li-intel-section-title">${esc(title)}</div>
+      ${renderLiabilityIntelList(items, className)}
+    </section>`;
+}
+
+function renderIntelActionButtons(productKey) {
+  const key = normalizeLiabilityIntelKey(productKey);
+  if (!getLiabilityIntel(key)) return "";
+  return `
+    <div class="li-intel-actions">
+      <button type="button" class="li-intel-action rm" data-li-intel-product="${esc(key)}" data-li-intel-role="rm">RM Intelligence</button>
+      <button type="button" class="li-intel-action uw" data-li-intel-product="${esc(key)}" data-li-intel-role="uw">UW Intelligence</button>
+    </div>`;
+}
+
+function renderLiabilityIntelActions(productKey) {
+  return renderIntelActionButtons(productKey);
+}
+
+function parseLiabilityRouteFromLocation() {
+  const hash = String(window.location.hash || "").replace(/^#/, "");
+  if (!hash) return null;
+  const [path] = hash.split("?");
+  const segments = path.split("/").filter(Boolean);
+  if (!segments.length || segments[0] !== "liability") return null;
+  const productKey = normalizeLiabilityIntelKey(decodeURIComponent(segments[1] || ""));
+  const role = segments[2] === "uw" ? "uw" : "rm";
+  return { productKey, role };
+}
+
+function buildLiabilityRouteHash(productKey, role = "rm") {
+  const key = normalizeLiabilityIntelKey(productKey);
+  return `#liability/${encodeURIComponent(key)}/${role === "uw" ? "uw" : "rm"}`;
+}
+
+function renderLiabilityRouteFlow(role, intel, color, productPath) {
+  const steps = [
+    {
+      label: "1. Ingest",
+      title: "Load the source pack",
+      body: "DOCX extracts, markdown summaries, and the live IIB schema are merged into one working set.",
+    },
+    {
+      label: "2. Normalize",
+      title: "Map raw fields to the route",
+      body: "Clean keys, missing fields, and inferred values are separated so the recommendation stays auditable.",
+    },
+    {
+      label: "3. Retrieve",
+      title: "Pull the exact RM and UW passages",
+      body: "The route opens the precise product sections, region clusters, and vertical groupings for the selected cover.",
+    },
+    {
+      label: "4. Decide",
+      title: "Show the recommendation with rationale",
+      body: `${role === "uw" ? "The underwriter view highlights control gaps, referral triggers, and wording risk." : "The RM view highlights pitch angles, proof points, and the strongest commercial levers."}`,
+    },
+  ];
+
+  return `
+    <section class="li-route-flow" aria-label="Liability intelligence flow">
+      ${steps.map((step, index) => `
+        <article class="li-route-flow-card" style="--li-route-accent:${color};--li-route-delay:${index * 90}ms;">
+          <div class="li-route-flow-label">${esc(step.label)}</div>
+          <h4>${esc(step.title)}</h4>
+          <p>${esc(step.body)}</p>
+          <div class="li-route-flow-foot">${esc(productPath)}</div>
+        </article>
+      `).join("")}
+    </section>`;
+}
+
+function renderLiabilityRouteRegistry(intel, role, key) {
+  const familyLabel = isBundleFamilyKey(key) ? "Bundled covers" : "Liability only";
+  const schemaRows = [
+    ["Product key", key],
+    ["Current mode", role === "uw" ? "Underwriter" : "Relationship manager"],
+    ["Registry status", window.__liabilityDocRegistry?.products?.length ? "Loaded" : "Loading"],
+    ["Supported today", familyLabel],
+    ["Future families", "Fire, Engineering, Health, Bundle"],
+  ];
+  const calibrationRows = [
+    ["Loss-ratio pressure", riskBandLabel(intel?.pressure), riskBandTone(intel?.pressure)],
+    ["Claim frequency", riskBandLabel(intel?.claim_frequency), riskBandTone(intel?.claim_frequency)],
+    ["Claim severity", riskBandLabel(intel?.claim_severity), riskBandTone(intel?.claim_severity)],
+    ["Decision confidence", intel?.tone === "red" ? "Conservative" : "Balanced", intel?.tone === "red" ? "high" : "moderate"],
+  ];
+  const expansion = [
+    { label: "Fire", note: "Planned adapter slot for property and deductible logic." },
+    { label: "Engineering", note: "Planned adapter slot for project, equipment, and CAR/EAR logic." },
+    { label: "Health", note: "Planned adapter slot for group health and employee benefit logic." },
+    { label: "Bundle", note: "Planned adapter slot for multi-cover package assembly." },
+  ];
+
+  return `
+    <section class="li-route-side">
+      <article class="li-route-panel">
+        <div class="li-route-panel-kicker">Schema registry</div>
+        <h3>How this route stays dynamic</h3>
+        <p>The route reads the live IIB schema and the current product registry together, so the same screen can adapt as new covers arrive.</p>
+        <div class="li-route-kv-grid">
+          ${schemaRows.map(([label, value]) => `
+            <div class="li-route-kv">
+              <span>${esc(label)}</span>
+              <strong>${esc(value)}</strong>
+            </div>
+          `).join("")}
+        </div>
+      </article>
+      <article class="li-route-panel">
+        <div class="li-route-panel-kicker">Outcome calibration</div>
+        <h3>What the route learns from</h3>
+        <p>When the result set fills in more claims, reserve, and bind data, the route can calibrate the guidance with real outcomes instead of just document structure.</p>
+        <div class="li-route-calibration">
+          ${calibrationRows.map(([label, value, tone]) => `
+            <div class="li-route-cal-row li-route-cal-${esc(tone)}">
+              <span>${esc(label)}</span>
+              <strong><i class="li-risk-dot li-risk-dot-${esc(tone)}"></i>${esc(value)}</strong>
+            </div>
+          `).join("")}
+        </div>
+      </article>
+      <article class="li-route-panel">
+        <div class="li-route-panel-kicker">Cross-line expansion</div>
+        <h3>Ready for the next product families</h3>
+        <div class="li-route-expansion">
+          ${expansion.map(item => `
+            <div class="li-route-expansion-card">
+              <strong>${esc(item.label)}</strong>
+              <span>${esc(item.note)}</span>
+            </div>
+          `).join("")}
+        </div>
+      </article>
+    </section>`;
+}
+
+function renderLiabilityIntelRoute() {
+  const state = window.__liabilityIntelState || { open: false, productKey: null, role: "rm" };
+  const key = normalizeLiabilityIntelKey(state.productKey);
+  const intel = getLiabilityIntel(key) || getLiabilityIntel("comprehensive_general_liability");
+  const role = state.role === "uw" ? "uw" : "rm";
+  const color = getCoverColor(key || "liability");
+  const title = intel?.label || labelize(key || "Liability");
+  const productPath = key ? key.replace(/_/g, " ") : "liability";
+  const result = window.__result || {};
+  const companyName = result?.profile?.startup_name || "Current account";
+  const routeFamilyLabel = isBundleFamilyKey(key) ? "Bundle intelligence route" : "Liability intelligence route";
+
+  const roleData = role === "uw" ? (intel?.uw || {}) : (intel?.rm || {});
+  const alternate = role === "uw" ? (intel?.rm || {}) : (intel?.uw || {});
+  const routeHash = buildLiabilityRouteHash(key, role);
+  const routeModeLabel = role === "uw" ? "UW Intelligence" : "RM Intelligence";
+
+  return `
+    <div class="li-route-shell" data-liability-route="${esc(routeHash)}">
+      <header class="li-route-nav">
+        <div class="li-route-nav-left">
+          <button class="li-route-back" type="button" onclick="closeLiabilityIntel()">← Back to analysis</button>
+          <div class="li-route-nav-copy">
+            <div class="li-route-kicker">${esc(routeFamilyLabel)}</div>
+            <h2>${esc(title)}</h2>
+            <p>${esc(intel?.summary || "Role-specific guidance for the selected liability cover.")}</p>
+          </div>
+        </div>
+        <div class="li-route-nav-right">
+          <div class="li-route-context">
+            <span>Account</span>
+            <strong>${esc(companyName)}</strong>
+          </div>
+          <div class="li-route-switch" role="tablist" aria-label="Liability intelligence modes">
+            <button type="button" class="${role === "rm" ? "is-active" : ""}" onclick="openLiabilityIntel(${JSON.stringify(key)}, 'rm')">RM Intelligence</button>
+            <button type="button" class="${role === "uw" ? "is-active" : ""}" onclick="openLiabilityIntel(${JSON.stringify(key)}, 'uw')">UW Intelligence</button>
+          </div>
+        </div>
+      </header>
+
+      ${renderLiabilityIntelHero(role, intel, roleData, productPath, color)}
+      ${renderLiabilityRouteFlow(role, intel, color, productPath)}
+
+      <section class="li-route-stack">
+        <div class="li-route-main">
+          <div class="li-route-main-head">
+            <div>
+              <div class="li-route-panel-kicker">${esc(isBundleFamilyKey(key) ? "Exact bundled extracts" : "Exact document extracts")}</div>
+              <h3>${esc(routeModeLabel)} wired to the source registry</h3>
+            </div>
+            <div class="li-route-main-badges">
+              <span>${esc(productPath)}</span>
+              <span>${esc(role.toUpperCase())}</span>
+              <span>${esc(result?.profile?.sector || "Liability")}</span>
+            </div>
+          </div>
+          ${renderProductExactIntel(key, role)}
+        </div>
+        ${renderLiabilityRouteRegistry(intel, role, key)}
+      </section>
+    </div>`;
+}
+
+function syncLiabilityIntelDrawer() {
+  const route = parseLiabilityRouteFromLocation();
+  const stateRoute = window.__liabilityIntelState?.open ? {
+    productKey: window.__liabilityIntelState.productKey,
+    role: window.__liabilityIntelState.role,
+  } : null;
+  if (!route && !stateRoute) return false;
+  const mount = $("main-content");
+  if (!mount) return;
+  if (route) {
+    window.__liabilityIntelState = { open: true, productKey: route.productKey, role: route.role };
+  }
+  mount.innerHTML = renderLiabilityIntelRoute();
+  window.scrollTo?.({ top: 0, behavior: "auto" });
+  return true;
+}
+
+function ensureLiabilityIntelMount() {
+  return $("main-content");
+}
+
+function openLiabilityIntel(productKey, role = "rm") {
+  const key = normalizeLiabilityIntelKey(productKey);
+  const nextRole = role === "uw" ? "uw" : "rm";
+  window.__liabilityIntelState = {
+    open: true,
+    productKey: key,
+    role: nextRole,
+  };
+  const nextHash = buildLiabilityRouteHash(key, nextRole);
+  if (window.location.hash !== nextHash) {
+    window.location.hash = nextHash;
+  } else {
+    syncLiabilityIntelDrawer();
+  }
+  loadLiabilityDocRegistry().then(() => {
+    const route = parseLiabilityRouteFromLocation();
+    if (route?.productKey === key && route?.role === nextRole) syncLiabilityIntelDrawer();
+  });
+}
+
+function closeLiabilityIntel() {
+  const current = window.__liabilityIntelState || {};
+  window.__liabilityIntelState = { ...current, open: false };
+  if (String(window.location.hash || "").startsWith("#liability/")) {
+    window.location.hash = "";
+    return;
+  }
+  const result = window.__result;
+  if (result?.profile?.startup_name) renderResults(result);
+  else renderRoleSelection();
+}
+
+window.openLiabilityIntel = window.openLiabilityIntel || openLiabilityIntel;
+window.closeLiabilityIntel = window.closeLiabilityIntel || closeLiabilityIntel;
+
+if (!window.__liabilityRouteHashBound) {
+  window.__liabilityRouteHashBound = true;
+  window.addEventListener("hashchange", () => {
+    const route = parseLiabilityRouteFromLocation();
+    if (route) {
+      window.__liabilityIntelState = { open: true, productKey: route.productKey, role: route.role };
+      syncLiabilityIntelDrawer();
+      loadLiabilityDocRegistry().then(() => {
+        const current = parseLiabilityRouteFromLocation();
+        if (current?.productKey === route.productKey && current?.role === route.role) syncLiabilityIntelDrawer();
+      });
+      return;
+    }
+    window.__liabilityIntelState = { ...(window.__liabilityIntelState || {}), open: false };
+    if (window.__result?.profile?.startup_name) {
+      renderResults(window.__result);
+    } else {
+      renderRoleSelection();
+    }
+  });
+}
+
+if (!window.__liabilityIntelDelegatedClickBound) {
+  window.__liabilityIntelDelegatedClickBound = true;
+  document.addEventListener("click", (event) => {
+    const trigger = event.target.closest?.("[data-li-intel-product]");
+    if (!trigger) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openLiabilityIntel(trigger.dataset.liIntelProduct, trigger.dataset.liIntelRole || "rm");
+  });
 }
 
 const SIGNAL_LABELS = {
@@ -8641,6 +13204,7 @@ function renderProductRows(recs, mapping, why = {}) {
         <div class="product-row-right">
           ${p.premium ? `<div class="product-row-premium">INR ${p.premium.min_lakh.toFixed(1)}-${p.premium.max_lakh.toFixed(1)}L</div>
           <div style="font-size:11px;color:var(--ink-faint);text-align:right;">${esc(p.premium.basis)}</div>` : ""}
+          ${renderLiabilityIntelActions(normalizeLiabilityIntelKey(p.key || p.name || p.il_product))}
           <button class="product-row-expand" onclick="toggleProductRow(${i})" title="Expand">›</button>
         </div>
       </div>`;
@@ -10436,6 +15000,78 @@ async function claimFundingLead(leadId) {
 }
 
 /* ── Import CSV modal ────────────────────────────────────────── */
+let _fundingImportFactTimer = null;
+const FUNDING_IMPORT_FACTS = [
+  {
+    stat: "Lead-to-GWP in one step",
+    text: "Every imported startup is immediately analysed, bundled, and valued, so RMs see premium opportunity before deciding who to call."
+  },
+  {
+    stat: "8-12% GWP uplift potential",
+    text: "Earlier prioritisation of funded startups can lift startup-line revenue by focusing RM time on accounts with fresh buying triggers."
+  },
+  {
+    stat: "Faster RM allocation",
+    text: "Auto-valued leads reduce manual research time and help route high-premium accounts to the right RM sooner."
+  },
+  {
+    stat: "Bundle-led selling",
+    text: "A single imported funding event can reveal D&O, Cyber, Key Person, Group Health, and liability opportunities instead of one isolated policy."
+  },
+  {
+    stat: "Better pipeline hygiene",
+    text: "CSV ingest turns raw market news into tracked accounts, making follow-up, conversion, and RM performance measurable."
+  },
+  {
+    stat: "Profit focus",
+    text: "SPARC ranks opportunities by expected GWP and risk fit, helping ICICI Lombard avoid low-intent accounts and protect sales productivity."
+  },
+];
+
+function stopFundingImportFacts() {
+  if (_fundingImportFactTimer) {
+    clearInterval(_fundingImportFactTimer);
+    _fundingImportFactTimer = null;
+  }
+}
+
+function renderFundingImportLoader(rowCount = 0) {
+  return `
+    <div class="cmx-import-loader" role="status" aria-live="polite">
+      <div class="cmx-import-orbit" aria-hidden="true">
+        <span></span><span></span><span></span>
+      </div>
+      <div class="cmx-import-load-copy">
+        <div class="cmx-import-load-kicker">Commerce engine running</div>
+        <strong>Ingesting + auto-analysing${rowCount ? ` ${rowCount} row${rowCount === 1 ? "" : "s"}` : ""}</strong>
+        <p>SPARC is converting each company into a risk profile, matching ICICI Lombard bundles, and estimating GWP.</p>
+        <div class="cmx-import-progress" aria-hidden="true"><i></i></div>
+        <div class="cmx-import-fact" id="cmx-import-fact"></div>
+      </div>
+    </div>`;
+}
+
+function startFundingImportFacts(rowCount = 0) {
+  stopFundingImportFacts();
+  const status = document.getElementById("cmx-import-status");
+  if (!status) return;
+  status.innerHTML = renderFundingImportLoader(rowCount);
+  let index = Math.floor(Math.random() * FUNDING_IMPORT_FACTS.length);
+  const renderFact = () => {
+    const fact = FUNDING_IMPORT_FACTS[index % FUNDING_IMPORT_FACTS.length];
+    index += 1;
+    const node = document.getElementById("cmx-import-fact");
+    if (!node) return;
+    node.classList.remove("is-visible");
+    setTimeout(() => {
+      node.innerHTML = `<span>${esc(fact.stat)}</span><p>${esc(fact.text)}</p>`;
+      node.classList.add("is-visible");
+    }, 120);
+  };
+  renderFact();
+  _fundingImportFactTimer = setInterval(renderFact, 4200);
+}
+
 function openFundingImportModal() {
   if (document.getElementById("cmx-import-modal")) return;
   const overlay = document.createElement("div");
@@ -10478,6 +15114,7 @@ Acme HealthTech,Bengaluru,HealthTech,Series A,450000000,Series A,VCCircle,2026-0
 }
 
 function closeFundingImportModal() {
+  stopFundingImportFacts();
   const node = document.getElementById("cmx-import-modal");
   if (node) node.remove();
 }
@@ -10486,7 +15123,8 @@ async function submitFundingImport() {
   const status = document.getElementById("cmx-import-status");
   const csv = (document.getElementById("cmx-import-textarea").value || "").trim();
   if (!csv) { if (status) status.textContent = "Paste CSV content or choose a file first."; return; }
-  if (status) status.textContent = "Ingesting + auto-analysing (this can take a few seconds per row)…";
+  const rowCount = Math.max(0, csv.split(/\r?\n/).filter(Boolean).length - 1);
+  startFundingImportFacts(rowCount);
   let data;
   try {
     const res = await fetch("/api/commerce/funding", {
@@ -10496,16 +15134,63 @@ async function submitFundingImport() {
     });
     data = await res.json();
   } catch (e) {
+    stopFundingImportFacts();
     if (status) status.textContent = "Ingest failed: " + e;
     return;
   }
   if (data.error) {
+    stopFundingImportFacts();
     if (status) status.textContent = "Ingest failed: " + data.error;
     return;
   }
   const sumLo = (data.leads || []).reduce((a, x) => a + (x.est_gwp_low_inr || 0), 0);
   const sumHi = (data.leads || []).reduce((a, x) => a + (x.est_gwp_high_inr || 0), 0);
   if (status) status.textContent = `Ingested ${data.ingested} lead${data.ingested === 1 ? "" : "s"} · ${fmtInrRange(sumLo, sumHi)} surfaced GWP.`;
+  setTimeout(() => {
+    closeFundingImportModal();
+    refreshFundingFeed();
+  }, 1200);
+}
+
+async function submitFundingImport() {
+  const status = document.getElementById("cmx-import-status");
+  const textarea = document.getElementById("cmx-import-textarea");
+  const csv = (textarea?.value || "").trim();
+  if (!csv) {
+    if (status) status.textContent = "Paste CSV content or choose a file first.";
+    return;
+  }
+  const rowCount = Math.max(0, csv.split(/\r?\n/).filter(Boolean).length - 1);
+  startFundingImportFacts(rowCount);
+  let data;
+  try {
+    const res = await fetch("/api/commerce/funding", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ action: "import", csv }),
+    });
+    data = await res.json();
+  } catch (e) {
+    stopFundingImportFacts();
+    if (status) status.textContent = "Ingest failed: " + e;
+    return;
+  }
+  if (data.error) {
+    stopFundingImportFacts();
+    if (status) status.textContent = "Ingest failed: " + data.error;
+    return;
+  }
+  const sumLo = (data.leads || []).reduce((a, x) => a + (x.est_gwp_low_inr || 0), 0);
+  const sumHi = (data.leads || []).reduce((a, x) => a + (x.est_gwp_high_inr || 0), 0);
+  stopFundingImportFacts();
+  if (status) {
+    status.innerHTML = `
+      <div class="cmx-import-success">
+        <span>Ready for RM action</span>
+        <strong>Ingested ${data.ingested} lead${data.ingested === 1 ? "" : "s"}</strong>
+        <p>${fmtInrRange(sumLo, sumHi)} surfaced GWP added to the funding feed.</p>
+      </div>`;
+  }
   setTimeout(() => {
     closeFundingImportModal();
     refreshFundingFeed();

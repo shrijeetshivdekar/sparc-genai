@@ -399,14 +399,15 @@ def _augment_with_verified_premium(
     per_cover_confidence: dict | None = None,
 ) -> list:
     """For each product/cover, add verified_si_inr, verified_loading, and a
-    verified_premium computed as base × loading.
+    verified_premium.
 
-    If item.premium isn't populated but the cover maps to a known
-    premium_estimator key, fall back to estimate_premium(key, size_bucket).
+    When SI is available from financial extraction, premium is computed as:
+        point = (si_inr / 1_00_00_000) × rate_lakh_per_cr × loading
+    and the band is ±plus_minus_pct from per_cover_confidence (tight).
 
-    When per_cover_doc_modifiers is supplied, doc-driven multipliers and
-    SI-floor overrides are merged into each item.
+    Falls back to PREMIUM_RANGES × loading only when SI is unavailable.
     """
+    from pricing_engine import COVER_SPECS
     per_cover_doc_modifiers = per_cover_doc_modifiers or {}
     per_cover_confidence = per_cover_confidence or {}
     out = []
@@ -415,7 +416,7 @@ def _augment_with_verified_premium(
         key = item.get("key", "")
         name = item.get("name") or item.get("il_product_name", "")
 
-        # Resolve / fetch base premium
+        # Resolve / fetch base premium (heuristic fallback only)
         base_prem = item.get("premium")
         if not isinstance(base_prem, dict) or not (base_prem.get("min_lakh") or base_prem.get("max_lakh")):
             est = _estimate_cover_premium(key, size_bucket)
@@ -425,7 +426,6 @@ def _augment_with_verified_premium(
 
         # Find ratio-engine SI counterpart
         si_entry, si_cover_name = _find_si_cover(key, name, si_dict)
-        # Doc-modifier lookup: try item key first, then the uppercase cover key if known
         doc_agg = per_cover_doc_modifiers.get(key) or per_cover_doc_modifiers.get(key.upper()) or {}
         doc_multiplier = float(doc_agg.get("multiplier", 1.0))
         si_floor_inr = doc_agg.get("si_floor_inr")
@@ -447,13 +447,29 @@ def _augment_with_verified_premium(
             new_item["doc_modifiers_applied"] = doc_agg.get("applied", [])
             if conf:
                 new_item["confidence"] = conf
-            if isinstance(base_prem, dict):
+
+            # ── Deterministic pricing when SI + rate are available ──────────
+            spec = COVER_SPECS.get(key)
+            si_cr = base_si / 1_00_00_000 if base_si else 0.0
+            if spec and spec.rate_lakh_per_cr and si_cr > 0:
+                point = round(si_cr * spec.rate_lakh_per_cr * loading, 2)
+                half = (float((conf or {}).get("plus_minus_pct") or 15.0)) / 100.0
+                new_item["verified_premium"] = {
+                    "min_lakh": round(point * (1 - half), 2),
+                    "max_lakh": round(point * (1 + half), 2),
+                    "point_lakh": point,
+                    "loading_applied": loading,
+                    "pricing_basis": "si_rate_deterministic",
+                }
+            elif isinstance(base_prem, dict):
+                # Fallback: heuristic range × loading
                 lo = float(base_prem.get("min_lakh", 0.0) or 0)
                 hi = float(base_prem.get("max_lakh", 0.0) or 0)
                 new_item["verified_premium"] = {
                     "min_lakh": round(lo * loading, 2),
                     "max_lakh": round(hi * loading, 2),
                     "loading_applied": loading,
+                    "pricing_basis": "range_estimate",
                 }
         out.append(new_item)
     return out
@@ -627,18 +643,33 @@ def _build_response(payload: dict) -> dict:
         si_floor_inr = doc_agg.get("si_floor_inr")
         loading = round(risk_loading * doc_multiplier, 4)
         # Apply SI floor override from doc-driven loadings (e.g., unlimited liability contract)
+        from pricing_engine import COVER_SPECS as _CS
         si_cr = None
+        base_si_inr = 0
         if si_entry:
-            base_si = si_entry["si_inr"]
-            if si_floor_inr and si_floor_inr > base_si:
-                base_si = si_floor_inr
-            si_cr = round(base_si / 1_00_00_000, 2)
+            base_si_inr = si_entry["si_inr"]
+            if si_floor_inr and si_floor_inr > base_si_inr:
+                base_si_inr = si_floor_inr
+            si_cr = round(base_si_inr / 1_00_00_000, 2)
         elif si_floor_inr:
+            base_si_inr = si_floor_inr
             si_cr = round(si_floor_inr / 1_00_00_000, 2)
-        lo = float(base.get("min_lakh", 0.0) or 0)
-        hi = float(base.get("max_lakh", 0.0) or 0)
-        v_lo = round(lo * loading, 2)
-        v_hi = round(hi * loading, 2)
+
+        # Deterministic: SI × rate × loading when SI + rate available
+        conf_entry = per_cover_confidence.get(cover_key)
+        spec = _CS.get(prem_key) or _CS.get(cover_key)
+        if spec and spec.rate_lakh_per_cr and si_cr and si_cr > 0:
+            point = round(si_cr * spec.rate_lakh_per_cr * loading, 2)
+            half = float((conf_entry or {}).get("plus_minus_pct") or 15.0) / 100.0
+            v_lo = round(point * (1 - half), 2)
+            v_hi = round(point * (1 + half), 2)
+            lo = hi = point  # base also becomes the point estimate
+        else:
+            lo = float(base.get("min_lakh", 0.0) or 0)
+            hi = float(base.get("max_lakh", 0.0) or 0)
+            v_lo = round(lo * loading, 2)
+            v_hi = round(hi * loading, 2)
+
         bundle_base_lo += lo
         bundle_base_hi += hi
         bundle_verified_lo += v_lo
@@ -655,7 +686,7 @@ def _build_response(payload: dict) -> dict:
             "premium_lakh": {"min": round(lo, 2), "max": round(hi, 2)},
             "verified_premium_lakh": {"min": v_lo, "max": v_hi},
             "doc_modifiers_applied": doc_agg.get("applied", []),
-            "confidence": per_cover_confidence.get(cover_key),
+            "confidence": conf_entry,
         })
 
     bundle_with_premium["base_premium_lakh"]     = {"min": round(bundle_base_lo, 2),  "max": round(bundle_base_hi, 2)}

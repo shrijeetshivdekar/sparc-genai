@@ -1,0 +1,177 @@
+se these as quick JSON paste demos. They avoid advanced fields but still give enough signal for scoring.
+
+{
+  "startup_name": "RazorFlow Pay",
+  "sector": "Fintech",
+  "sub_sector": "Fintech.PA_PG",
+  "funding_stage": "Series B+",
+  "team_size": 180,
+  "operations": "Hybrid",
+  "data_sensitivity": "High",
+  "product_description": "Payment gateway and payout API for SMB merchants.",
+  "customer_type": ["B2B Enterprise", "SMB / MSME"],
+  "data_handled": ["Payments / financial transactions", "Personal identity data (KYC / Aadhaar)", "Sensitive personal data (DPDP Act)"],
+  "regulatory": ["RBI / SEBI / IRDAI licensed", "DPDP Act obligations", "IT Act / CERT-In obligations"],
+  "physical_assets": ["Office / coworking space", "Data centre / server room"],
+  "has_investors": "Yes",
+  "biggest_fear": "Payment data breach or RBI audit issue."
+}
+{
+  "startup_name": "MediLink AI",
+  "sector": "Healthtech",
+  "sub_sector": "Healthtech.Telemedicine",
+  "funding_stage": "Series A",
+  "team_size": 72,
+  "operations": "Hybrid",
+  "data_sensitivity": "High",
+  "product_description": "Telemedicine platform with AI-assisted triage and doctor consultations.",
+  "customer_type": ["B2C Consumers", "B2B Enterprise"],
+  "data_handled": ["Health / medical records", "Personal identity data (KYC / Aadhaar)", "Sensitive personal data (DPDP Act)"],
+  "regulatory": ["DPDP Act obligations", "IT Act / CERT-In obligations", "NMC / telemedicine regulations"],
+  "physical_assets": ["Office / coworking space", "Medical devices / diagnostic equipment"],
+  "has_investors": "Yes",
+  "biggest_fear": "Patient data breach or wrong clinical recommendation."
+}
+{
+  "startup_name": "CloudDesk Systems",
+  "sector": "SaaS / Enterprise Software",
+  "funding_stage": "Series A",
+  "team_size": 95,
+  "operations": "Digital-only",
+  "data_sensitivity": "Medium",
+  "product_description": "Workflow automation SaaS for enterprise finance and operations teams.",
+  "customer_type": ["B2B Enterprise"],
+  "data_handled": ["Customer behavioural / usage data", "Intellectual property / source code", "Employee / HR data (payroll, biometrics)"],
+  "regulatory": ["DPDP Act obligations", "IT Act / CERT-In obligations"],
+  "physical_assets": ["None - fully cloud"],
+  "has_investors": "Yes",
+  "biggest_fear": "Enterprise outage or customer data incident."
+}
+{
+  "startup_name": "FreshCart Foods",
+  "sector": "Foodtech / Cloud Kitchen",
+  "funding_stage": "Seed",
+  "team_size": 42,
+  "operations": "Hybrid",
+  "data_sensitivity": "Medium",
+  "product_description": "Cloud kitchen brand selling packaged ready-to-eat meals through marketplaces.",
+  "customer_type": ["B2C Consumers", "D2C / Marketplace"],
+  "data_handled": ["Customer behavioural / usage data", "Physical inventory / goods"],
+  "regulatory": ["FSSAI / food safety", "Labour Codes / gig worker regulations"],
+  "physical_assets": ["Kitchen / food processing", "Cold chain / refrigeration"],
+  "has_investors": "Yes",
+  "biggest_fear": "Food contamination claim or kitchen fire."
+}
+{
+  "startup_name": "VoltFleet Mobility",
+  "sector": "Logistics / Mobility",
+  "funding_stage": "Series B+",
+  "team_size": 220,
+  "operations": "Hybrid",
+  "data_sensitivity": "Medium",
+  "product_description": "EV last-mile delivery fleet for ecommerce and grocery platforms.",
+  "customer_type": ["B2B Enterprise", "D2C / Marketplace"],
+  "data_handled": ["Location / GPS tracking data", "Employee / HR data (payroll, biometrics)"],
+  "regulatory": ["MV Act / transport regulations", "Labour Codes / gig worker regulations", "EPR / environmental compliance"],
+  "physical_assets": ["Vehicles / delivery fleet", "Warehouse / fulfilment centre"],
+  "has_investors": "Yes",
+  "biggest_fear": "Fleet accident, vehicle fire, or gig-worker claim."
+}
+{
+  "startup_name": "RoboFab Labs",
+  "sector": "Deeptech / AI / Robotics",
+  "sub_sector": "Deeptech.Hardware_Robotics",
+  "funding_stage": "Series A",
+  "team_size": 58,
+  "operations": "Hybrid",
+  "data_sensitivity": "Medium",
+  "product_description": "Robotics startup building warehouse automation arms and AI control software.",
+  "customer_type": ["B2B Enterprise"],
+  "data_handled": ["Intellectual property / source code", "Customer behavioural / usage data"],
+  "regulatory": ["BIS / QCO product certification"],
+  "physical_assets": ["Lab / R&D equipment", "Manufacturing plant / factory"],
+  "has_investors": "Yes",
+  "biggest_fear": "Prototype failure causing customer loss or equipment damage."
+}
+{
+  "startup_name": "LearnLoop Kids",
+  "sector": "Edtech",
+  "sub_sector": "Edtech.K12_Children",
+  "funding_stage": "Seed",
+  "team_size": 36,
+  "operations": "Digital-only",
+  "data_sensitivity": "High",
+  "product_description": "Online learning app for school children with adaptive assessments.",
+  "customer_type": ["B2C Consumers"],
+  "data_handled": ["Minors' / children's data", "Customer behavioural / usage data", "Sensitive personal data (DPDP Act)"],
+  "regulatory": ["DPDP Act obligations"],
+  "physical_assets": ["None - fully cloud"],
+  "has_investors": "Yes",
+  "biggest_fear": "Child data privacy complaint or platform outage during exams."
+}
+{
+  "startup_name": "GreenGrid Solar",
+  "sector": "Cleantech / Climatetech",
+  "funding_stage": "Series A",
+  "team_size": 88,
+  "operations": "Hybrid",
+  "data_sensitivity": "Low",
+  "product_description": "Commercial rooftop solar installation and monitoring platform.",
+  "customer_type": ["B2B Enterprise", "SMB / MSME"],
+  "data_handled": ["Customer behavioural / usage data"],
+  "regulatory": ["EPR / environmental compliance", "SEBI BRSR / ESG reporting"],
+  "physical_assets": ["Solar / clean energy infrastructure", "Vehicles / delivery fleet"],
+  "has_investors": "Yes",
+  "biggest_fear": "Solar asset damage, contractor injury, or performance dispute."
+}
+{
+  "startup_name": "StyleNest D2C",
+  "sector": "D2C / Consumer Brands",
+  "sub_sector": "D2C.Apparel_Footwear",
+  "funding_stage": "Series A",
+  "team_size": 64,
+  "operations": "Hybrid",
+  "data_sensitivity": "Medium",
+  "product_description": "D2C fashion brand selling through own website and marketplaces.",
+  "customer_type": ["B2C Consumers", "D2C / Marketplace"],
+  "data_handled": ["Customer behavioural / usage data", "Physical inventory / goods"],
+  "regulatory": ["BIS / QCO product certification", "Labour Codes / gig worker regulations"],
+  "physical_assets": ["Warehouse / fulfilment centre", "Retail stores / kiosks"],
+  "has_investors": "Yes",
+  "biggest_fear": "Warehouse fire, product quality claim, or marketplace disruption."
+}
+{
+  "startup_name": "CreatorPlay Studios",
+  "sector": "Gaming / Media / Content",
+  "sub_sector": "Gaming.Casual_Esports",
+  "funding_stage": "Seed",
+  "team_size": 28,
+  "operations": "Digital-only",
+  "data_sensitivity": "Medium",
+  "product_description": "Casual mobile gaming studio with creator-led live tournaments.",
+  "customer_type": ["B2C Consumers"],
+  "data_handled": ["Customer behavioural / usage data", "Intellectual property / source code"],
+  "regulatory": ["IT Act / CERT-In obligations"],
+  "physical_assets": ["None - fully cloud"],
+  "has_investors": "Yes",
+  "biggest_fear": "IP dispute, game outage, or user data incident."
+}
+
+
+
+
+9:49 AM
+
+
+
+
+
+Auto-review
+
+5.5
+Medium
+
+IDE context
+
+
+Work locally

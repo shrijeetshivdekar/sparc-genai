@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta name="format-detection" content="telephone=no,address=no,email=no,date=no,url=no">
+  <title>ICICI Lombard — Insurance Recommendation</title>
+  <!--[if mso]>
+  <noscript>
+    <xml>
+      <o:OfficeDocumentSettings>
+        <o:AllowPNG/>
+        <o:PixelsPerInch>96</o:PixelsPerInch>
+      </o:OfficeDocumentSettings>
+    </xml>
+  </noscript>
+  <![endif]-->
+  <style type="text/css">
+    /* ── Reset ────────────────────────────────────────────────── */
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse; }
+    img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
+    body { margin: 0; padding: 0; width: 100% !important; min-width: 100%; }
+
+    /* ── Responsive ───────────────────────────────────────────── */
+    @media screen and (max-width: 600px) {
+      .email-wrapper  { width: 100% !important; }
+      .email-body     { width: 100% !important; padding: 24px 20px !important; }
+      .email-header   { padding: 20px 20px !important; }
+      .email-footer   { padding: 24px 20px !important; }
+      .logo-cell      { padding: 0 !important; }
+      .cta-table      { width: 100% !important; }
+      .cta-td         { width: 100% !important; display: block !important; }
+    }
+  </style>
+</head>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     BODY — outer wrapper forces full-width on all clients
+     ════════════════════════════════════════════════════════════ -->
+<body style="margin:0;padding:0;background-color:#F4F4F0;font-family:Arial,Helvetica,sans-serif;">
+
+  <!-- Preheader text: visible in inbox preview, hidden in email body -->
+  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#F4F4F0;">
+    A tailored insurance cover recommendation from ICICI Lombard — {{PREHEADER_TEXT}}
+  </div>
+
+  <!-- ── Outer container ──────────────────────────────────────── -->
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+         style="background-color:#F4F4F0;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+
+        <!-- ── Inner card — max 600px, auto-height ────────────── -->
+        <table role="presentation" class="email-wrapper" width="600" cellpadding="0"
+               cellspacing="0" border="0"
+               style="max-width:600px;width:100%;background-color:#FFFFFF;
+                      border-radius:4px;overflow:hidden;
+                      box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+
+          <!-- ════════════════════════════════════════════════════
+               SECTION 1 — HEADER
+               Background: #931914 (ICICI Lombard deep red)
+               Contains: logo + optional tagline
+               ════════════════════════════════════════════════ -->
+          <tr>
+            <td class="email-header" align="left" valign="middle"
+                style="background-color:#931914;padding:24px 32px;">
+
+              <table role="presentation" width="100%" cellpadding="0"
+                     cellspacing="0" border="0">
+                <tr>
+                  <!-- Logo cell: swap the img src for the real hosted logo URL -->
+                  <td class="logo-cell" valign="middle" style="padding-right:16px;">
+                    <!--
+                      LOGO PLACEHOLDER
+                      Replace src with the actual hosted logo (white/transparent PNG recommended).
+                      Width/height keep layout stable while image loads.
+                    -->
+                    <img src="https://placehold.co/160x40/931914/FFFFFF?text=ICICI+Lombard"
+                         alt="ICICI Lombard General Insurance"
+                         width="160" height="40"
+                         style="display:block;border:0;outline:none;
+                                text-decoration:none;max-width:160px;">
+                  </td>
+
+                  <!-- Optional right-aligned tagline / date -->
+                  <td align="right" valign="middle"
+                      style="font-family:Arial,Helvetica,sans-serif;
+                             font-size:11px;color:rgba(255,255,255,0.70);
+                             white-space:nowrap;letter-spacing:0.04em;
+                             text-transform:uppercase;">
+                    Commercial Lines
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- ════════════════════════════════════════════════════
+               SECTION 2 — SUBJECT / TITLE BAND
+               Thin accent strip below the header carrying the
+               email subject line so it reads at a glance.
+               ════════════════════════════════════════════════ -->
+          <tr>
+            <td align="left"
+                style="background-color:#F9F0EF;border-left:4px solid #931914;
+                       padding:14px 32px;">
+              <p style="margin:0;font-family:Arial,Helvetica,sans-serif;
+                        font-size:13px;font-weight:bold;color:#931914;
+                        letter-spacing:0.02em;text-transform:uppercase;">
+                {{EMAIL_SUBJECT}}
+                <!-- e.g. "Cyber Insurance — a tailored recommendation for Zepto" -->
+              </p>
+            </td>
+          </tr>
+
+          <!-- ════════════════════════════════════════════════════
+               SECTION 3 — BODY
+               Flexible height — expands to fit any content.
+               Typography: Arial 15px / #333333 / 1.7 line-height
+               ════════════════════════════════════════════════ -->
+          <tr>
+            <td class="email-body" align="left" valign="top"
+                style="background-color:#FFFFFF;padding:36px 32px;">
+
+              <!-- Salutation -->
+              <p style="margin:0 0 20px 0;
+                        font-family:Arial,Helvetica,sans-serif;
+                        font-size:15px;color:#333333;line-height:1.7;">
+                Dear <strong>{{COMPANY_NAME}} team</strong>,<br>
+                Greetings from ICICI Lombard!
+              </p>
+
+              <!-- ── Bullet 1: Why it matters ── -->
+              <table role="presentation" width="100%" cellpadding="0"
+                     cellspacing="0" border="0"
+                     style="margin-bottom:16px;">
+                <tr>
+                  <td width="28" valign="top"
+                      style="padding-top:3px;font-family:Arial,Helvetica,sans-serif;
+                             font-size:18px;color:#931914;font-weight:bold;
+                             line-height:1.4;">
+                    •
+                  </td>
+                  <td valign="top"
+                      style="font-family:Arial,Helvetica,sans-serif;
+                             font-size:15px;color:#333333;line-height:1.7;">
+                    <strong style="color:#222222;">Why it matters for you:</strong>
+                    {{BULLET_WHY}}
+                    <!-- e.g. "As a Series B Fintech processing card payments, you are
+                         directly within scope of PCI-DSS and CERT-In breach reporting." -->
+                  </td>
+                </tr>
+              </table>
+
+              <!-- ── Bullet 2: If uninsured ── -->
+              <table role="presentation" width="100%" cellpadding="0"
+                     cellspacing="0" border="0"
+                     style="margin-bottom:16px;">
+                <tr>
+                  <td width="28" valign="top"
+                      style="padding-top:3px;font-family:Arial,Helvetica,sans-serif;
+                             font-size:18px;color:#931914;font-weight:bold;
+                             line-height:1.4;">
+                    •
+                  </td>
+                  <td valign="top"
+                      style="font-family:Arial,Helvetica,sans-serif;
+                             font-size:15px;color:#333333;line-height:1.7;">
+                    <strong style="color:#222222;">If uninsured:</strong>
+                    {{BULLET_RISK}}
+                    <!-- e.g. "A ransomware attack exposing 50,000 customer records can
+                         trigger ₹2–8 Cr in forensics, CERT-In notification, and
+                         regulatory penalties under the DPDP Act — all landing directly
+                         on your balance sheet." -->
+                  </td>
+                </tr>
+              </table>
+
+              <!-- ── Bullet 3: What it covers ── -->
+              <table role="presentation" width="100%" cellpadding="0"
+                     cellspacing="0" border="0"
+                     style="margin-bottom:16px;">
+                <tr>
+                  <td width="28" valign="top"
+                      style="padding-top:3px;font-family:Arial,Helvetica,sans-serif;
+                             font-size:18px;color:#931914;font-weight:bold;
+                             line-height:1.4;">
+                    •
+                  </td>
+                  <td valign="top"
+                      style="font-family:Arial,Helvetica,sans-serif;
+                             font-size:15px;color:#333333;line-height:1.7;">
+                    <strong style="color:#222222;">What it covers:</strong>
+                    {{BULLET_COVER}}
+                    <!-- e.g. "Cyber Insurance pays forensic investigation costs,
+                         breach notification expenses, regulatory defence, and
+                         third-party customer claims under a single policy." -->
+                  </td>
+                </tr>
+              </table>
+
+              <!-- ── Bullet 4: Next step ── -->
+              <table role="presentation" width="100%" cellpadding="0"
+                     cellspacing="0" border="0"
+                     style="margin-bottom:32px;">
+                <tr>
+                  <td width="28" valign="top"
+                      style="padding-top:3px;font-family:Arial,Helvetica,sans-serif;
+                             font-size:18px;color:#931914;font-weight:bold;
+                             line-height:1.4;">
+                    •
+                  </td>
+                  <td valign="top"
+                      style="font-family:Arial,Helvetica,sans-serif;
+                             font-size:15px;color:#333333;line-height:1.7;">
+                    <strong style="color:#222222;">Next step:</strong>
+                    We would love to walk you through this — no pressure, just a
+                    friendly conversation.
+                  </td>
+                </tr>
+              </table>
+
+              <!-- ── Divider ── -->
+              <table role="presentation" width="100%" cellpadding="0"
+                     cellspacing="0" border="0"
+                     style="margin-bottom:32px;">
+                <tr>
+                  <td style="border-top:1px solid #E8E8E8;font-size:0;line-height:0;">
+                    &nbsp;
+                  </td>
+                </tr>
+              </table>
+
+              <!-- ════════════════════════════════════════════════
+                   CTA BUTTON
+                   Table-based padding technique — works in Outlook
+                   without VML. Background: #E36819 (ICICI orange).
+                   ════════════════════════════════════════════ -->
+              <table role="presentation" class="cta-table" cellpadding="0"
+                     cellspacing="0" border="0"
+                     style="margin:0 auto 32px auto;">
+                <tr>
+                  <td class="cta-td" align="center"
+                      style="background-color:#E36819;border-radius:4px;">
+                    <!--
+                      The link wraps a table so Outlook respects the padding.
+                      Do NOT use display:block on <a> — Outlook ignores it.
+                    -->
+                    <a href="{{CTA_URL}}"
+                       target="_blank"
+                       style="text-decoration:none;display:inline-block;">
+                      <table role="presentation" cellpadding="0" cellspacing="0"
+                             border="0">
+                        <tr>
+                          <td style="padding:14px 36px;
+                                     font-family:Arial,Helvetica,sans-serif;
+                                     font-size:15px;font-weight:bold;
+                                     color:#FFFFFF;white-space:nowrap;
+                                     letter-spacing:0.02em;">
+                            {{CTA_TEXT}}
+                            <!-- e.g. "Schedule a 20-minute call" -->
+                          </td>
+                        </tr>
+                      </table>
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              <!-- END CTA -->
+
+              <!-- Closing line -->
+              <p style="margin:0;font-family:Arial,Helvetica,sans-serif;
+                        font-size:15px;color:#333333;line-height:1.7;">
+                Looking forward to connecting,
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- ════════════════════════════════════════════════════
+               SECTION 4 — FOOTER
+               Background: #2B4461 (deep navy)
+               Contains: RM signature + contact + compliance note
+               ════════════════════════════════════════════════ -->
+          <tr>
+            <td class="email-footer" align="left"
+                style="background-color:#2B4461;padding:28px 32px;">
+
+              <!-- RM Name & Title -->
+              <p style="margin:0 0 4px 0;
+                        font-family:Arial,Helvetica,sans-serif;
+                        font-size:15px;font-weight:bold;
+                        color:#FFFFFF;line-height:1.5;">
+                {{RM_NAME}}
+              </p>
+              <p style="margin:0 0 16px 0;
+                        font-family:Arial,Helvetica,sans-serif;
+                        font-size:13px;color:rgba(255,255,255,0.75);
+                        line-height:1.5;">
+                {{RM_TITLE}} — ICICI Lombard General Insurance Co. Ltd.
+              </p>
+
+              <!-- Contact row -->
+              <table role="presentation" width="100%" cellpadding="0"
+                     cellspacing="0" border="0"
+                     style="margin-bottom:20px;">
+                <tr>
+                  <!-- Phone -->
+                  <td style="font-family:Arial,Helvetica,sans-serif;
+                             font-size:13px;color:rgba(255,255,255,0.85);
+                             line-height:1.6;padding-right:24px;
+                             white-space:nowrap;vertical-align:top;">
+                    <span style="color:rgba(255,255,255,0.50);
+                                 text-transform:uppercase;font-size:11px;
+                                 letter-spacing:0.05em;display:block;">
+                      Mobile
+                    </span>
+                    <a href="tel:{{RM_PHONE}}"
+                       style="color:#FFFFFF;text-decoration:none;">
+                      {{RM_PHONE}}
+                    </a>
+                  </td>
+                  <!-- Email -->
+                  <td style="font-family:Arial,Helvetica,sans-serif;
+                             font-size:13px;color:rgba(255,255,255,0.85);
+                             line-height:1.6;vertical-align:top;">
+                    <span style="color:rgba(255,255,255,0.50);
+                                 text-transform:uppercase;font-size:11px;
+                                 letter-spacing:0.05em;display:block;">
+                      Email
+                    </span>
+                    <a href="mailto:{{RM_EMAIL}}"
+                       style="color:#FFFFFF;text-decoration:none;">
+                      {{RM_EMAIL}}
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Divider -->
+              <table role="presentation" width="100%" cellpadding="0"
+                     cellspacing="0" border="0"
+                     style="margin-bottom:16px;">
+                <tr>
+                  <td style="border-top:1px solid rgba(255,255,255,0.15);
+                             font-size:0;line-height:0;">&nbsp;</td>
+                </tr>
+              </table>
+
+              <!-- Compliance disclaimer -->
+              <p style="margin:0;font-family:Arial,Helvetica,sans-serif;
+                        font-size:11px;color:rgba(255,255,255,0.50);
+                        line-height:1.6;">
+                ICICI Lombard General Insurance Company Limited.
+                Registered Office: ICICI Lombard House, 414, Veer Savarkar Marg,
+                Near Siddhi Vinayak Temple, Prabhadevi, Mumbai — 400 025.
+                CIN: L67200MH2000PLC129408. IRDAI Registration No. 115.<br><br>
+
+                This email and any attachments are intended solely for the named
+                recipient(s) and may contain confidential or proprietary information.
+                Insurance is the subject matter of solicitation. For more details on
+                risk factors, terms, conditions, and exclusions, please read the
+                product brochure and policy document carefully before concluding a
+                sale. IRDAI is not involved in activities like selling insurance
+                policies, announcing bonus, or investment of premiums.<br><br>
+
+                To unsubscribe from commercial communications, please reply with
+                "Unsubscribe" in the subject line.
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- ── Bottom micro-bar ──────────────────────────────── -->
+          <tr>
+            <td align="center"
+                style="background-color:#1E3149;padding:10px 32px;">
+              <p style="margin:0;font-family:Arial,Helvetica,sans-serif;
+                        font-size:11px;color:rgba(255,255,255,0.35);
+                        line-height:1.5;">
+                © 2025 ICICI Lombard General Insurance Co. Ltd. All rights reserved.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+        <!-- END inner card -->
+
+      </td>
+    </tr>
+  </table>
+  <!-- END outer container -->
+
+</body>
+</html>

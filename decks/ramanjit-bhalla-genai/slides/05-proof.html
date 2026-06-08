@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Proof in Repo</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+</head>
+<body>
+  <section class="slide dark">
+    <div class="topbar">
+      <div class="brand"><span class="brand-mark"></span>SPARC / Proof</div>
+      <div class="eyebrow">What is now observable</div>
+    </div>
+    <div class="grid-2" style="flex:1; gap:28px;">
+      <div class="terminal">
+        <div class="terminal-title">Response-level evidence</div>
+        <pre>{
+  "recommendation_mode": "primary",
+  "genai_enabled": true,
+  "genai_source": "gemini",
+  "genai_error": null,
+  "genai_recommendations": [...],
+  "genai_bundle_match": {...},
+  "genai_audit": {...},
+  "genai_shadow_diff": {...}
+}</pre>
+      </div>
+      <div class="panel" style="padding:28px;">
+        <div class="section-title">Operational proof points</div>
+        <div class="impact-list">
+          <div class="impact-item">
+            <div class="impact-number">1</div>
+            <div>
+              <div class="impact-title">Structured parsing</div>
+              <div class="impact-copy">GenAI output is parsed against allowed shortlisted products and bundles. Ineligible recommendations are rejected.</div>
+            </div>
+          </div>
+          <div class="impact-item">
+            <div class="impact-number">2</div>
+            <div>
+              <div class="impact-title">Shadow logging</div>
+              <div class="impact-copy">When the app runs in `shadow`, the diff between deterministic and GenAI order is persisted without changing the served answer.</div>
+            </div>
+          </div>
+          <div class="impact-item">
+            <div class="impact-number">3</div>
+            <div>
+              <div class="impact-title">Tested end-to-end</div>
+              <div class="impact-copy">The repo currently passes `145` tests, including GenAI parsing, hard-gate enforcement, fallback behavior, and shadow diff checks.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="grid-3" style="margin-top:24px;">
+      <div class="card">
+        <div class="small-label">Outreach alignment</div>
+        <div class="card-copy">Bundle outreach now explains fit through the sub-products inside the bundle, not generic bundle copy alone.</div>
+      </div>
+      <div class="card">
+        <div class="small-label">Pricing alignment</div>
+        <div class="card-copy">Pricing and underwriter checks stay deterministic, even when recommendation ranking is GenAI-influenced.</div>
+      </div>
+      <div class="card">
+        <div class="small-label">Presentation alignment</div>
+        <div class="card-copy">The repo claim is now tied to a real ranking path, not only to generated explanation or outreach text.</div>
+      </div>
+    </div>
+    <div class="footer">
+      <div>The evidence is visible in API fields, tests, and runtime mode behavior.</div>
+      <div class="page">05 / 06</div>
+    </div>
+  </section>
+</body>
+</html>

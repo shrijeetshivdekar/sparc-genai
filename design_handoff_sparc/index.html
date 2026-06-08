@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en" data-persona="rm">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>SPARC · Startup Insurance Risk Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css" />
+<style>
+  /* Landing-only styles */
+  .ld-shell { min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
+  .ld-top {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 22px 48px;
+    border-bottom: 1px solid var(--border);
+  }
+  .ld-brand { display: flex; align-items: center; gap: 14px; }
+  .ld-mark {
+    width: 32px; height: 32px;
+    border-radius: 6px;
+    background: var(--brand);
+    color: #FFFFFF;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: -0.02em;
+  }
+  .ld-name { font-family: var(--font-display); font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
+  .ld-sub  { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.18em; color: var(--ink-3); margin-top: 2px; }
+  .ld-top-right { display: flex; gap: 8px; font-size: 12px; color: var(--ink-2); }
+  .ld-top-right span { padding: 0 10px; }
+  .ld-top-right span + span { border-left: 1px solid var(--border); }
+
+  .ld-body {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: center;
+    padding: 60px 48px;
+    max-width: 1280px;
+    margin: 0 auto;
+    width: 100%;
+  }
+  .ld-hero { max-width: 760px; margin-bottom: 64px; }
+  .ld-eyebrow {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em;
+    color: var(--brand); font-weight: 600; margin-bottom: 20px;
+  }
+  .ld-h1 {
+    font-family: var(--font-display); font-weight: 700;
+    font-size: 64px; line-height: 1.02; letter-spacing: -0.035em;
+    margin: 0 0 20px;
+  }
+  .ld-h1 em { font-style: normal; color: var(--brand); }
+  .ld-lede {
+    font-size: 18px; line-height: 1.55; color: var(--ink-2);
+    max-width: 620px;
+  }
+
+  /* Persona triptych */
+  .ld-personas {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+  .ld-persona {
+    display: block;
+    text-align: left;
+    padding: 32px 28px 28px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    transition: all 0.18s cubic-bezier(.2,0,.2,1);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    text-decoration: none;
+    color: inherit;
+  }
+  .ld-persona:hover {
+    border-color: var(--accent);
+    transform: translateY(-3px);
+    box-shadow: var(--shadow);
+  }
+  .ld-persona::after {
+    content: "";
+    position: absolute;
+    top: 0; right: 0;
+    width: 80px; height: 80px;
+    background: radial-gradient(circle at top right, var(--accent-soft), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.18s;
+    pointer-events: none;
+  }
+  .ld-persona:hover::after { opacity: 1; }
+  .ld-p-num {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-3);
+    letter-spacing: 0.06em;
+    margin-bottom: 18px;
+  }
+  .ld-p-role {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 26px;
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+  }
+  .ld-p-tag {
+    font-size: 12px; color: var(--brand); text-transform: uppercase;
+    letter-spacing: 0.12em; font-weight: 600;
+    margin-bottom: 18px;
+  }
+  .ld-p-desc {
+    font-size: 14px; color: var(--ink-2); line-height: 1.55;
+    margin-bottom: 24px;
+    max-width: 320px;
+  }
+  .ld-p-stats {
+    display: flex; flex-direction: column; gap: 0;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+    font-size: 12.5px;
+  }
+  .ld-p-stat {
+    display: flex; justify-content: space-between;
+    padding: 7px 0;
+    color: var(--ink-2);
+  }
+  .ld-p-stat-v { color: var(--ink); font-weight: 500; }
+  .ld-p-cta {
+    margin-top: 22px;
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: var(--ink); font-weight: 500;
+  }
+  .ld-p-cta svg { transition: transform 0.18s; }
+  .ld-persona:hover .ld-p-cta svg { transform: translateX(4px); color: var(--accent); }
+
+  .ld-foot {
+    border-top: 1px solid var(--border);
+    padding: 20px 48px;
+    display: flex; justify-content: space-between;
+    font-size: 11.5px; color: var(--ink-3);
+  }
+
+  @media (max-width: 920px) {
+    .ld-h1 { font-size: 44px; }
+    .ld-personas { grid-template-columns: 1fr; }
+    .ld-body { padding: 32px 24px; }
+    .ld-top, .ld-foot { padding-left: 24px; padding-right: 24px; }
+  }
+</style>
+</head>
+<body>
+<div class="ld-shell">
+
+  <header class="ld-top">
+    <div class="ld-brand">
+      <div class="ld-mark">SP</div>
+      <div>
+        <div class="ld-name">SPARC</div>
+        <div class="ld-sub">Startup Protection &amp; Risk Classification</div>
+      </div>
+    </div>
+    <div class="ld-top-right">
+      <span>v2026.05</span>
+      <span>Underwriting desk</span>
+      <span>Build 412</span>
+    </div>
+  </header>
+
+  <main class="ld-body">
+    <section class="ld-hero">
+      <div class="ld-eyebrow">ICICI Lombard · Internal tool</div>
+      <h1 class="ld-h1">
+        One engine.<br /><em>Three jobs to do.</em>
+      </h1>
+      <p class="ld-lede">
+        SPARC scores risk across 13 dimensions, matches startups to ICICI Lombard bundles, and produces the artefacts each role actually uses. Pick your view.
+      </p>
+    </section>
+
+    <section class="ld-personas">
+
+      <a href="SPARC Redesign.html" class="ld-persona">
+        <div class="ld-p-num">01 · Sales</div>
+        <div class="ld-p-role">Relationship Manager</div>
+        <div class="ld-p-tag">Primary view</div>
+        <p class="ld-p-desc">Walk into the founder call with the bundle, the talking points, and the email already drafted.</p>
+        <div class="ld-p-stats">
+          <div class="ld-p-stat"><span>Intake time</span><span class="ld-p-stat-v">~30 sec</span></div>
+          <div class="ld-p-stat"><span>Output</span><span class="ld-p-stat-v">Pitch + email</span></div>
+          <div class="ld-p-stat"><span>Density</span><span class="ld-p-stat-v">Comfortable</span></div>
+        </div>
+        <div class="ld-p-cta">
+          Open RM workspace
+          <svg viewBox="0 0 24 24" width="14" height="14"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+      </a>
+
+      <a href="UW Workbench.html" class="ld-persona">
+        <div class="ld-p-num">02 · Risk</div>
+        <div class="ld-p-role">Underwriter</div>
+        <div class="ld-p-tag">Validation &amp; pricing</div>
+        <p class="ld-p-desc">Triage a queue, audit every assumption, price each cover, sign off with a documented decision trail.</p>
+        <div class="ld-p-stats">
+          <div class="ld-p-stat"><span>Cases / day</span><span class="ld-p-stat-v">7 pending</span></div>
+          <div class="ld-p-stat"><span>Output</span><span class="ld-p-stat-v">Approval &amp; quote</span></div>
+          <div class="ld-p-stat"><span>Density</span><span class="ld-p-stat-v">Tabular</span></div>
+        </div>
+        <div class="ld-p-cta">
+          Open underwriter workbench
+          <svg viewBox="0 0 24 24" width="14" height="14"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+      </a>
+
+      <a href="Founder.html" class="ld-persona">
+        <div class="ld-p-num">03 · Customer</div>
+        <div class="ld-p-role">Founder</div>
+        <div class="ld-p-tag">Self-serve preview</div>
+        <p class="ld-p-desc">Five questions. A plain-English read of your top three risks, what to do about them, and what it costs.</p>
+        <div class="ld-p-stats">
+          <div class="ld-p-stat"><span>Intake time</span><span class="ld-p-stat-v">~60 sec</span></div>
+          <div class="ld-p-stat"><span>Output</span><span class="ld-p-stat-v">Plain summary</span></div>
+          <div class="ld-p-stat"><span>Density</span><span class="ld-p-stat-v">Minimal</span></div>
+        </div>
+        <div class="ld-p-cta">
+          Try the founder view
+          <svg viewBox="0 0 24 24" width="14" height="14"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+      </a>
+
+    </section>
+  </main>
+
+  <footer class="ld-foot">
+    <div>SPARC · Built on the same backend. Three different products.</div>
+    <div>Internal tool · Not customer-facing for the underwriter view</div>
+  </footer>
+
+</div>
+</body>
+</html>

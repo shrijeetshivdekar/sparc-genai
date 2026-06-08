@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPARC GenAI Recommendation Engine</title>
+<script>
+  window.DECK_MANIFEST = [
+    { file: "slides/01-cover.html", label: "Cover" },
+    { file: "slides/02-shift.html", label: "What Changed" },
+    { file: "slides/03-architecture.html", label: "Architecture" },
+    { file: "slides/04-guardrails.html", label: "Guardrails" },
+    { file: "slides/05-proof.html", label: "Proof In Repo" },
+    { file: "slides/06-impact.html", label: "Commercial Impact" }
+  ];
+  window.DECK_WIDTH = 1920;
+  window.DECK_HEIGHT = 1080;
+</script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: #05264e;
+    overflow: hidden;
+    font-family: "Mulish", Arial, sans-serif;
+  }
+  #stage {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform-origin: top left;
+    background: #fff3ec;
+    box-shadow: 0 32px 96px rgba(0, 0, 0, 0.28);
+  }
+  iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+    background: #fff3ec;
+  }
+  .counter {
+    position: fixed;
+    right: 22px;
+    bottom: 22px;
+    z-index: 20;
+    padding: 8px 16px;
+    border-radius: 999px;
+    background: rgba(5, 60, 109, 0.86);
+    color: #fff3ec;
+    font: 700 13px/1 "Mulish", Arial, sans-serif;
+    letter-spacing: 0.08em;
+  }
+  .counter .label {
+    color: rgba(255, 243, 236, 0.72);
+    margin-left: 10px;
+  }
+  .nav-zone {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    width: 14%;
+    z-index: 10;
+    cursor: pointer;
+  }
+  .nav-zone.left { left: 0; }
+  .nav-zone.right { right: 0; }
+  .nav-hint {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 46px;
+    height: 46px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 243, 236, 0.16);
+    color: rgba(255, 243, 236, 0.8);
+    font: 700 24px/1 "Mulish", Arial, sans-serif;
+    opacity: 0;
+    transition: opacity 0.18s ease;
+  }
+  .nav-zone.left .nav-hint { left: 18px; }
+  .nav-zone.right .nav-hint { right: 18px; }
+  .nav-zone:hover .nav-hint { opacity: 1; }
+  @media print {
+    @page { size: 1920px 1080px; margin: 0; }
+    html, body { background: #fff3ec; overflow: visible; height: auto; }
+    #stage { position: static; transform: none !important; box-shadow: none; }
+    .counter, .nav-zone { display: none !important; }
+    .print-stack { display: block !important; }
+    .print-stack iframe {
+      width: 1920px;
+      height: 1080px;
+      display: block;
+      page-break-after: always;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="stage"><iframe id="frame" src="about:blank"></iframe></div>
+<div class="nav-zone left" id="navL"><div class="nav-hint">&#8249;</div></div>
+<div class="nav-zone right" id="navR"><div class="nav-hint">&#8250;</div></div>
+<div class="counter" id="counter">1 / 6 <span class="label">Cover</span></div>
+<div class="print-stack" id="printStack" style="display:none;"></div>
+<script>
+(function () {
+  const W = window.DECK_WIDTH;
+  const H = window.DECK_HEIGHT;
+  const deck = window.DECK_MANIFEST;
+  const stage = document.getElementById("stage");
+  const frame = document.getElementById("frame");
+  const counter = document.getElementById("counter");
+  const printStack = document.getElementById("printStack");
+  const storageKey = "sparc-genai-deck-slide";
+  let current = 0;
+
+  stage.style.width = W + "px";
+  stage.style.height = H + "px";
+
+  function fit() {
+    const scale = Math.min(window.innerWidth / W, window.innerHeight / H);
+    const x = (window.innerWidth - W * scale) / 2;
+    const y = (window.innerHeight - H * scale) / 2;
+    stage.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+    stage.style.top = "0";
+    stage.style.left = "0";
+  }
+
+  function show(index) {
+    if (index < 0 || index >= deck.length) return;
+    current = index;
+    frame.src = deck[index].file;
+    counter.innerHTML = `${index + 1} / ${deck.length} <span class="label">${deck[index].label}</span>`;
+    try { localStorage.setItem(storageKey, String(index)); } catch (_) {}
+    if (location.hash !== "#" + (index + 1)) {
+      history.replaceState(null, "", "#" + (index + 1));
+    }
+  }
+
+  function next() { show(Math.min(current + 1, deck.length - 1)); }
+  function prev() { show(Math.max(current - 1, 0)); }
+
+  document.addEventListener("keydown", (event) => {
+    switch (event.key) {
+      case "ArrowRight":
+      case " ":
+      case "PageDown":
+        event.preventDefault();
+        next();
+        break;
+      case "ArrowLeft":
+      case "PageUp":
+        event.preventDefault();
+        prev();
+        break;
+      case "Home":
+        event.preventDefault();
+        show(0);
+        break;
+      case "End":
+        event.preventDefault();
+        show(deck.length - 1);
+        break;
+      case "p":
+      case "P":
+        window.print();
+        break;
+      default:
+        if (event.key >= "1" && event.key <= "9") {
+          const index = parseInt(event.key, 10) - 1;
+          if (index < deck.length) {
+            event.preventDefault();
+            show(index);
+          }
+        }
+    }
+  });
+
+  document.getElementById("navL").addEventListener("click", prev);
+  document.getElementById("navR").addEventListener("click", next);
+  window.addEventListener("resize", fit);
+  window.addEventListener("hashchange", () => {
+    const match = location.hash.match(/^#(\d+)$/);
+    if (match) show(parseInt(match[1], 10) - 1);
+  });
+  window.addEventListener("beforeprint", () => {
+    printStack.innerHTML = "";
+    deck.forEach((item) => {
+      const node = document.createElement("iframe");
+      node.src = item.file;
+      printStack.appendChild(node);
+    });
+  });
+  window.addEventListener("afterprint", () => { printStack.innerHTML = ""; });
+
+  const hash = location.hash.match(/^#(\d+)$/);
+  if (hash) current = Math.min(parseInt(hash[1], 10) - 1, deck.length - 1);
+  else {
+    try {
+      const saved = parseInt(localStorage.getItem(storageKey), 10);
+      if (!isNaN(saved) && saved >= 0 && saved < deck.length) current = saved;
+    } catch (_) {}
+  }
+
+  fit();
+  show(current);
+})();
+</script>
+</body>
+</html>
